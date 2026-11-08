@@ -140,7 +140,7 @@ describe('TURN-002 workspace management (AC1/AC2)', () => {
     await u.choose(u.wsSelect(), W.DEFAULT_WS_ID);
     expect(reg().activeId).toBe(b.id); expect(u.modal()!.textContent).toContain('Workspace 전환 불가');
     expect(u.tabNames()).toEqual(['B 설비 프로젝트']);
-    await u.click(u.btn('확인'));
+    await u.click(u.btn('저장하러 돌아가기'));
     // save → attached to 설비 B, then switching back works and lists only default projects
     await u.click(u.btn('저장'));
     const pid = u.history().present.id;

@@ -3,13 +3,22 @@ import { VIEW_KEY, type KV } from '../storage/localStore';
 import { STEPS, type StepId } from './wizard';
 
 export type ThemeId = 'A' | 'B' | 'C';
+/** Product appearance. Stored A and archived C both paint the light palette; stored B paints dark. */
+export type Appearance = 'light' | 'dark';
 export const THEMES: Record<ThemeId, { label: string; vars: Record<string, string> }> = {
-  A: { label: 'A 밝은 엔지니어링', vars: { bg: '#F3F5F8', panel: '#FFFFFF', canvas: '#F8FAFC', border: '#DCE3EC', text: '#172B4D', muted: '#64748B', accent: '#2563EB', selected: '#DBEAFE', success: '#287D54', warning: '#A66515', danger: '#B42318', grid: '#E8EDF4', rowh: '32px', pad: '12px', scheme: 'light', 'on-accent': '#FFFFFF' } },
-  B: { label: 'B 어두운 관제', vars: { bg: '#0D1728', panel: '#132237', canvas: '#0F1D30', border: '#2B3D53', text: '#E3ECF5', muted: '#9AADC2', accent: '#4DAFA9', selected: '#203F49', success: '#6BBF93', warning: '#D5AF67', danger: '#E5806F', grid: '#1A2D43', rowh: '30px', pad: '12px', scheme: 'dark', 'on-accent': '#0D1728' } },
-  C: { label: 'C 따뜻하고 차분함', vars: { bg: '#F1F0EB', panel: '#FCFBF7', canvas: '#F7F6F1', border: '#D9DDD5', text: '#283D3B', muted: '#73807B', accent: '#3E807A', selected: '#DFECE6', success: '#487D5E', warning: '#9E7B43', danger: '#A4473A', grid: '#E7E9E1', rowh: '36px', pad: '14px', scheme: 'light', 'on-accent': '#FFFFFF' } },
+  // Light = Figma collection 화면색 mode 1:1 (aliases resolved to 기초 A/*). Toggle chips use 테마/라이트·다크.
+  A: { label: '라이트', vars: { bg: '#f2f5fa', panel: '#ffffff', canvas: '#f2f5fa', border: '#cbd5e2', text: '#17283f', muted: '#53647b', accent: '#245bce', selected: '#e5edff', success: '#176642', warning: '#8b4800', danger: '#b42336', grid: '#d5deea', rowh: '32px', pad: '12px', scheme: 'light', 'on-accent': '#ffffff', 'theme-light-bg': '#245bce', 'theme-light-fg': '#ffffff', 'theme-dark-bg': '#ffffff', 'theme-dark-fg': '#17283f' } },
+  // Dark = Figma collection 화면색 mode 1:2 (aliases resolved to 기초 B/*, not the light fallbacks in generated reference code).
+  B: { label: '다크', vars: { bg: '#101b2a', panel: '#19283a', canvas: '#101b2a', border: '#566c83', text: '#eff5fd', muted: '#b3c4d9', accent: '#42d6cc', selected: '#203d4c', success: '#88dfb1', warning: '#ffd18a', danger: '#ff9fab', grid: '#24364c', rowh: '32px', pad: '12px', scheme: 'dark', 'on-accent': '#102c2d', 'theme-light-bg': '#19283a', 'theme-light-fg': '#eff5fd', 'theme-dark-bg': '#42d6cc', 'theme-dark-fg': '#102c2d' } },
+  // Archived palette. Not offered in the UI and not painted. A stored C is left untouched until the user picks 라이트 or 다크.
+  C: { label: 'C 보관', vars: { bg: '#F1F0EB', panel: '#FCFBF7', canvas: '#F7F6F1', border: '#D9DDD5', text: '#283D3B', muted: '#73807B', accent: '#3E807A', selected: '#DFECE6', success: '#487D5E', warning: '#9E7B43', danger: '#A4473A', grid: '#E7E9E1', rowh: '36px', pad: '14px', scheme: 'light', 'on-accent': '#FFFFFF' } },
 };
 export const THEME_ORDER: ThemeId[] = ['A', 'B', 'C'];
-export function nextTheme(t: ThemeId): ThemeId { return THEME_ORDER[(THEME_ORDER.indexOf(t) + 1) % THEME_ORDER.length]; }
+export function appearanceOf(t: ThemeId): Appearance { return t === 'B' ? 'dark' : 'light'; }
+/** Palette actually painted. C maps to the light palette without rewriting storage. */
+export function paletteTheme(t: ThemeId): 'A' | 'B' { return t === 'B' ? 'B' : 'A'; }
+/** Active cycle is light ↔ dark. From archived C the next explicit step is dark (B); choosing light writes A. */
+export function nextTheme(t: ThemeId): ThemeId { return appearanceOf(t) === 'dark' ? 'A' : 'B'; }
 
 export type LayerId = 'background' | 'units' | 'axis' | 'io' | 'positions' | 'flow';
 export interface UserView {
@@ -24,9 +33,11 @@ export interface UserView {
   libraryFilter: { q: string; category: string };
   /** TURN-002: per project id → ids of collapsed tree rows (Station = equipment id, Substation = unit id). UserView only. */
   treeCollapsed: Record<string, string[]>;
+  /** S00 start hub. View only — does not change the open project, revision, or run. */
+  home: boolean;
 }
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
-  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {} };
+  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true };
 
 function cleanCollapsed(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -46,7 +57,9 @@ export function loadView(kv: KV | null): UserView {
       visualMode: o.visualMode === 'photo' ? 'photo' : 'schematic',
       confirmed: o.confirmed && typeof o.confirmed === 'object' ? o.confirmed : {},
       libraryFilter: { ...DEFAULT_VIEW.libraryFilter, ...(o.libraryFilter ?? {}) },
-      treeCollapsed: cleanCollapsed(o.treeCollapsed) };
+      treeCollapsed: cleanCollapsed(o.treeCollapsed),
+      // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
+      home: o.home === false ? false : true };
   } catch { return DEFAULT_VIEW; }
 }
 export function saveView(kv: KV | null, v: UserView) { if (!kv) return; try { kv.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* ignore */ } }

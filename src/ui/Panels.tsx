@@ -301,7 +301,8 @@ export function ExportPanel({ p }: { p: Project }) {
   const rows = buildExportPreview(p);
   return (
     <div>
-      <div className="notice err">F8 매핑 <b>미리보기 전용</b>. 실제 Aurora Core 스키마·버전이 확인되지 않아 실제 Export, SignalMap 생성, 역매핑(실측 교체)은 구현하지 않았습니다. “검증된 실제 연동”이 아닙니다.</div>
+      <div className="notice err">F8 매핑 <b>미리보기 전용</b>. 실제 Aurora Core 스키마·버전이 확인되지 않아 실제 Export, SignalMap 생성, 역매핑(실측 교체)은 구현하지 않았습니다. 검증된 실제 연동이 아닙니다.</div>
+      <p><button type="button" disabled title="미구현: Core 주소·스키마·역매핑이 확정되지 않았습니다">Core로 보내기</button> <span className="muted">버튼은 눌리지 않습니다. 아래 표는 이 프로젝트의 미리보기이며 전송 결과가 아닙니다.</span></p>
       <table className="grid"><thead><tr><th>분류</th><th>원본 ID</th><th>이름</th><th>목적지(후보)</th><th>상태</th><th>비고/가정</th></tr></thead>
         <tbody>{rows.map((r, i) => <tr key={i}><td>{r.category}</td><td className="mono" style={{ fontSize: 10 }}>{r.sourceId}</td><td style={{ fontSize: 12 }}>{r.name}</td><td style={{ fontSize: 11 }}>{r.target}</td>
           <td>{r.status === 'ready' ? <Badge kind="ok">준비</Badge> : r.status === 'assumption' ? <Badge kind="warn">가정 포함</Badge> : r.status === 'notInTarget' ? <Badge>대상 없음·보관</Badge> : <Badge kind="warn">미정</Badge>}</td><td style={{ fontSize: 11 }}>{r.note}</td></tr>)}</tbody></table>
@@ -310,10 +311,31 @@ export function ExportPanel({ p }: { p: Project }) {
 }
 
 export function LabPanel() {
-  return <div className="notice warn" style={{ fontSize: 13 }}>
-    <b>F7 Evolution Lab — 이번 시제품에서 미구현</b><br />
-    변형 공간 정의, 후보 세대 생성·평가, Pareto/세대 최고점수, 명시 적용은 구현하지 않았습니다. AI 최적화·VC 평가도 없습니다.
-    현재는 Gap 탭의 경량 타이밍 판정(가정 시간 합계)만 있습니다. 세대 알고리즘·후보 수·가중치·비용 상한 결정(Q13) 후 착수가 필요합니다.
+  return <div className="notice warn" data-screen-note="S53" style={{ fontSize: 13 }}>
+    <b>F7 Evolution Lab — 미구현</b>
+    <p>변형 공간, 후보 생성, 평가, Pareto, 세대 점수, 예산, 외부 전송은 없습니다. 예시 점수를 분석 결과처럼 보여 주지 않습니다.</p>
+    <p>지금 쓸 수 있는 것은 Gap 목록의 가정 시간 합계뿐입니다. 평가 방법과 예산이 정해지기 전에는 실행하지 않습니다.</p>
+    <button type="button" disabled title="미구현: 평가 방법·예산·외부 전송이 정해지지 않았습니다">평가 실행</button>
+  </div>;
+}
+
+/** S14 — document intake that this product does not perform. */
+export function ExtractPanel() {
+  return <div className="notice" data-screen-note="S14">
+    <b>자료 입력 — 미구현</b>
+    <p>PDF, DWG, XLSX, USD에서 장비·수치를 뽑는 기능은 없습니다. 파일을 올려도 모델은 바뀌지 않으며, 예시 표를 추출 성공으로 보여 주지 않습니다.</p>
+    <p>지금 넣을 수 있는 것은 입력 후보표의 직접 입력과 AML 라이브러리 파일입니다.</p>
+    <button type="button" disabled title="미구현: 문서 추출을 하지 않습니다">문서에서 가져오기</button>
+  </div>;
+}
+
+/** S44 — editors that the manual says are not in the product. */
+export function ExtendPanel() {
+  return <div className="notice" data-screen-note="S44">
+    <b>누락 편집 확장 — 미구현</b>
+    <p>단일 시퀀스 안의 분기, 루프, 병렬, 자재 여러 개, Substation 단계 진입 조건, Substation 단계 시간 덮어쓰기는 편집할 수 없습니다. 화면만 두고 저장되거나 실행되는 값으로 만들지 않습니다.</p>
+    <p>Station 시퀀스 단계의 시간 제한은 4단계 Station 시퀀스에서 편집합니다. 그룹 실행은 한 Substation의 시퀀스만 공통 시계로 진행합니다.</p>
+    <button type="button" disabled title="미구현: 분기·루프·단일 시퀀스 병렬 편집기가 없습니다">분기 단계 추가</button>
   </div>;
 }
 

@@ -14,15 +14,16 @@ import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
 import { CapabilityTable, Inspector } from './Inspector';
-import { LibraryWorkspace } from './Library';
+import { AmlLoadStatus, LibraryWorkspace } from './Library';
 import { evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
 import { devName, unitName } from './labels';
-import { DiagPanel, ExportPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RuntimePanel, SequencePanel, SfcPanel } from './Panels';
+import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RuntimePanel, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { GroupRunPanel, SubSequencePanel, SubstationSelect } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
-import { loadView, nextTheme, saveView, THEME_ORDER, THEMES, type LayerId, type UserView } from './viewSettings';
+import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type LayerId, type UserView } from './viewSettings';
+import { screenOf } from './screens';
 import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectManager, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
@@ -89,12 +90,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [subTab, setSubTab] = useState<Record<StepId, string>>({ library: 'cards', canvas: '', attributes: '', sequence: 'sequence', check: 'gap', run: '' });
   const [itemsOpen, setItemsOpen] = useState(false);
   const step = view.step;
-  const goStep = (s: StepId, sub?: string) => { setView((v) => ({ ...v, step: s })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsOpen(false); };
+  const goStep = (s: StepId, sub?: string) => { setView((v) => ({ ...v, step: s, home: false })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsOpen(false); };
+  const chooseTheme = (mode: 'light' | 'dark') => { const next = mode === 'dark' ? 'B' as const : 'A' as const; setView((v) => (v.theme === next ? v : { ...v, theme: next })); };
   const setBottomTab = (k: string) => {
     const map: Record<string, [StepId, string]> = { runtime: ['run', ''], material: ['sequence', 'material'], sequence: ['sequence', 'sequence'], diag: ['check', 'diag'], gap: ['check', 'gap'] };
     const m = map[k]; if (m) goStep(m[0], m[1]);
   };
   const [layerOpen, setLayerOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -320,21 +323,26 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   });
 
   // ---------- file / workspace ----------
-  const doSave = () => {
-    if (!kv) { say(`${storage.reason} — JSON 내보내기를 사용하세요. 메모리 변경은 유지됩니다.`, true); return; }
-    const owner = W.ownerOf(reg, p.id);
+  const persistTab = (target: Tab): boolean => {
+    if (!kv) { say(`${storage.reason} — JSON 내보내기를 사용하세요. 메모리 변경은 유지됩니다.`, true); return false; }
+    const proj = target.history.present;
+    const owner = W.ownerOf(reg, proj.id);
     if (owner && owner.id !== reg.activeId) {
-      setModal({ title: '다른 Workspace에 같은 ID가 저장되어 있음', body: <p>{p.name} ({p.id})와 같은 ID의 프로젝트가 Workspace 「{owner.name}」에 저장되어 있습니다. 덮어쓰지 않았습니다. 새 ID 사본으로 현재 Workspace 「{curWs.name}」에 저장할 수 있습니다.</p>,
-        actions: [{ label: '취소', focus: true, run: () => {} }, { label: '새 ID 사본으로 저장', primary: true, run: () => saveAsCopy() }] });
-      return;
+      if (target.key === tab.key) {
+        setModal({ title: '다른 Workspace에 같은 ID가 저장되어 있음', body: <p>{proj.name} ({proj.id})와 같은 ID의 프로젝트가 Workspace 「{owner.name}」에 저장되어 있습니다. 덮어쓰지 않았습니다. 새 ID 사본으로 현재 Workspace 「{curWs.name}」에 저장할 수 있습니다.</p>,
+          actions: [{ label: '취소', focus: true, run: () => {} }, { label: '새 ID 사본으로 저장', primary: true, run: () => saveAsCopy() }] });
+      } else say('다른 Workspace에 같은 ID가 있어 저장하지 못했습니다. 탭은 그대로 두었습니다.', true);
+      return false;
     }
     // TURN-002 rev 2: body + index + membership in one transaction — either all saved or nothing changed
-    const r = W.saveProjectInWorkspace(kv, reg, reg.activeId, p);
-    if (!r.ok) { say(r.reason, true); return; }
+    const r = W.saveProjectInWorkspace(kv, reg, reg.activeId, proj);
+    if (!r.ok) { say(r.reason, true); return false; }
     setReg(r.reg);
-    updTab(tab.key, (t) => ({ ...t, savedRevision: p.revision, savedAt: r.savedAt }));
+    updTab(target.key, (t) => ({ ...t, savedRevision: proj.revision, savedAt: r.savedAt }));
     say(`브라우저 저장소에 저장됨 (Workspace 「${curWs.name}」, 저장 후 읽기 확인 완료)`);
+    return true;
   };
+  const doSave = () => { persistTab(tab); };
   /** project id saved in another workspace → save a copy with a new id here (the original tab content moves to the copy; nothing lost) */
   const saveAsCopy = () => {
     if (!kv) return;
@@ -348,7 +356,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const openSaved = (id: string) => {
     const existing = tabs.find((t) => t.history.present.id === id);
-    if (existing) { setActiveKey(existing.key); say('이미 열린 프로젝트입니다 — 기존 탭으로 이동했습니다'); return; }
+    if (existing) { setActiveKey(existing.key); setView((v) => ({ ...v, home: false })); say('이미 열린 프로젝트입니다 — 기존 탭으로 이동했습니다'); return; }
     const r = loadProject(kv!, id);
     if (!r.ok) {
       if (r.raw) setQlist((l) => quarantine(kv, { at: new Date().toLocaleString(), label: `saved:${id}`, raw: r.raw, errors: r.errors.map((e) => e.message) }, l));
@@ -356,7 +364,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     }
     const entry = readIndex(kv!).find((e) => e.id === id);
     const t = makeTab(r.project, { rev: r.project.revision, at: entry?.savedAt ?? '' });
-    setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
+    setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]); setView((v) => ({ ...v, home: false }));
     if (r.warnings.length) say(`경고 ${r.warnings.length}: ${r.warnings[0].message}`);
   };
   const showOpen = () => {
@@ -369,11 +377,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       : kind === 'parallel' ? { ...buildParallelSampleProject(), id: `prj-par-${Date.now().toString(36)}`, name: W.uniqueName(`병렬 Substation 예제 ${tabs.length + 1}`, used) }
       : emptyProject(W.uniqueName(`새 프로젝트 ${tabs.length + 1}`, used));
     const t = makeTab(proj); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
+    setView((v) => ({ ...v, home: false }));
   };
   const closeTab = (key: string) => {
     const t = tabs.find((x) => x.key === key)!;
     const doClose = () => setTabs((ts) => { const n = ts.filter((x) => x.key !== key); const list = n.length ? n : [makeTab(emptyProject('새 프로젝트'))]; if (key === activeKey) setActiveKey(list[0].key); return list; });
-    if (t.savedRevision !== t.history.present.revision) setModal({ title: '저장하지 않은 변경', body: <p>{t.history.present.name}에 저장되지 않은 변경이 있습니다. 닫으면 메모리 변경이 사라집니다.</p>, actions: [{ label: '저장하지 않고 닫기', danger: true, run: doClose }, { label: '취소 (변경 유지)', run: () => {} }] });
+    if (t.savedRevision !== t.history.present.revision) setModal({ title: '저장하지 않은 변경', body: <p>{t.history.present.name}에 저장되지 않은 변경이 있습니다. 저장에 성공한 뒤에만 탭을 닫습니다. 버리기는 이 확인에서만 적용됩니다.</p>, actions: [
+      { label: '취소 (변경 유지)', focus: true, run: () => {} },
+      { label: '저장 후 닫기', primary: true, run: () => { if (persistTab(t)) doClose(); } },
+      { label: '저장하지 않고 닫기', danger: true, run: doClose },
+    ] });
     else doClose();
   };
   const onImportFile = async (f: File) => {
@@ -387,14 +400,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const existing = tabs.find((t) => t.history.present.id === r.project.id);
     if (existing) {
       setModal({ title: '같은 ID의 프로젝트가 이미 열려 있음', body: <p>{r.project.name} ({r.project.id}). 기존 탭을 덮어쓰지 않습니다. 새 ID로 사본을 열 수 있습니다.</p>,
-        actions: [{ label: '새 ID 사본으로 열기', primary: true, run: () => { const t = makeTab({ ...r.project, id: `${r.project.id}-copy-${Date.now().toString(36)}`, name: `${r.project.name} (가져온 사본)` }); setTabs((ts) => [...ts, t]); setActiveKey(t.key); } }, { label: '기존 탭으로 이동', run: () => setActiveKey(existing.key) }] });
+        actions: [{ label: '새 ID 사본으로 열기', primary: true, run: () => { const t = makeTab({ ...r.project, id: `${r.project.id}-copy-${Date.now().toString(36)}`, name: `${r.project.name} (가져온 사본)` }); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setView((v) => ({ ...v, home: false })); } }, { label: '기존 탭으로 이동', run: () => { setActiveKey(existing.key); setView((v) => ({ ...v, home: false })); } }] });
       return;
     }
-    const t = makeTab(r.project); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
+    const t = makeTab(r.project); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]); setView((v) => ({ ...v, home: false }));
     say(`가져오기 완료${r.warnings.length ? ` (경고 ${r.warnings.length}: ${r.warnings[0].message})` : ''} — 아직 브라우저 저장소에는 저장되지 않음`);
   };
 
-  const themeVars = THEMES[view.theme].vars;
+  const appearance = appearanceOf(view.theme);
+  const themeVars = THEMES[paletteTheme(view.theme)].vars;
   const style = Object.fromEntries(Object.entries(themeVars).map(([k, v]) => [`--${k}`, v])) as React.CSSProperties;
   const selectedId = selection.length === 1 ? selection[0] : null;
   const dirty = tab.savedRevision !== p.revision;
@@ -464,7 +478,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const edited = tabs.filter((t) => t.savedRevision !== t.history.present.revision && !(t.savedRevision === null && t.history.past.length === 0));
     if (edited.length) {
       setModal({ title: 'Workspace 전환 불가 — 저장하지 않은 변경', body: <div><p>다음 프로젝트에 저장하지 않은 변경이 있습니다. 전환하면 탭이 닫히므로 막았습니다. 변경 내용은 그대로 있습니다.</p>
-        <ul>{edited.map((t) => <li key={t.key}>{t.history.present.name}</li>)}</ul><p className="muted">먼저 「저장」하거나 탭을 닫은 뒤 다시 전환하세요.</p></div>, actions: [{ label: '확인', focus: true, run: () => {} }] });
+        <ul>{edited.map((t) => <li key={t.key}>{t.history.present.name}</li>)}</ul><p className="muted">먼저 「저장」하거나 탭을 닫은 뒤 다시 전환하세요.</p></div>, actions: [{ label: '저장하러 돌아가기', focus: true, run: () => {} }] });
       return;
     }
     const fresh = tabs.filter((t) => t.savedRevision === null);
@@ -518,14 +532,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         { label: '영구 삭제', danger: true, run: () => { const r = W.deleteSavedProject(kv, reg, id); if (!r.ok) { say(r.reason, true); return; } setReg(r.reg); say(`「${e.name}」을(를) 삭제했습니다`); } }] }); };
   /** N03: switching projects while this project runs → pause its run first (state kept, no auto resume). */
   const switchTab = (key: string) => {
-    if (key === tab.key) return;
-    if (rt?.status === 'running' || gs?.status === 'running') {
-      say(`${p.name}: 실행을 일시정지하고 전환했습니다 (돌아와서 재개 가능, 자동 재개 없음)`);
+    if (key !== tab.key) {
+      if (rt?.status === 'running' || gs?.status === 'running') {
+        say(`${p.name}: 실행을 일시정지하고 전환했습니다 (돌아와서 재개 가능, 자동 재개 없음)`);
+      }
+      setActiveKey(key); setSelection([]); setConnectFrom(null);
     }
-    setActiveKey(key); setSelection([]); setConnectFrom(null);
+    setView((v) => ({ ...v, home: false }));
   };
+  const savedList = kv ? W.listProjects(kv, reg, reg.activeId) : [];
   const explorer = <aside className={`explorer ${explorerOpen ? '' : 'collapsed'}`} aria-label="Workspace / Project 탐색기">
-    <div className="exhead"><button className="small icon" onClick={() => setExplorerOpen(!explorerOpen)} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>WORKSPACE</b>}</div>
+    <div className="home-summary">
+      <h2>작업 공간</h2>
+      <button className="btn-main secondary" onClick={() => setWsPanel(true)} disabled={!kv}>Workspace 관리</button>
+      <ul className="ws-counts">{reg.workspaces.map((w) => <li key={w.id}><b>{w.name}</b><span>프로젝트 {savedCount(w.id)}개</span></li>)}</ul>
+      <p className="muted">이 브라우저의 작업 묶음. 다른 PC와 자동 공유되지 않습니다.</p>
+    </div>
+    <div className="ex-work">
+    <div className="exhead"><button className="small icon" onClick={() => setExplorerOpen(!explorerOpen)} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>작업 공간</b>}</div>
     {explorerOpen && <>
       <div className="exsec">
         <div className="exlabel">Workspace <span className="muted">(이 브라우저)</span></div>
@@ -565,6 +589,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {tree}
       </div>
     </>}
+    </div>
   </aside>;
   const visualToggle = <>
     <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
@@ -598,40 +623,42 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
-  return (
-    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'}`} style={style} data-theme={view.theme} data-step={step}>
-      <div className="header">
-        <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><span className="logo" aria-hidden="true">◆</span><span className="title">{PRODUCT_NAME}</span><span className="badge">v{APP_VERSION}</span></span>
-        <div className="sep" />
-        <span className="crumb" title={p.id}>{p.name}{dirty ? ' ●' : ''} <span className="muted">/ {cur.no} {cur.label}</span></span>
-        <span className="grow" />
-        <span style={{ fontSize: 12, color: dirty ? 'var(--warning)' : 'var(--success)' }}>{dirty ? '저장 안 됨' : `저장됨 ${tab.savedAt ? new Date(tab.savedAt).toLocaleTimeString() : ''}`}</span>
-        <button onClick={doSave}>저장</button>
-        <button onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}>JSON 내보내기</button>
-        <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
-        <button onClick={doUndo} disabled={!tab.history.past.length || locked} title="실행 취소 (Ctrl/Cmd+Z)" aria-label="실행 취소">↶</button>
-        <button onClick={doRedo} disabled={!tab.history.future.length || locked} title="다시 실행 (Ctrl/Cmd+Shift+Z)" aria-label="다시 실행">↷</button>
-        <div className="sep" />
-        <button onClick={() => setView({ ...view, theme: nextTheme(view.theme) })} title="테마 토글 A→B→C">테마: {THEMES[view.theme].label}</button>
-        {THEME_ORDER.map((t) => <button key={t} className={`small ${view.theme === t ? 'on' : ''}`} onClick={() => setView({ ...view, theme: t })}>{t}</button>)}
-      </div>
+  const screen = screenOf({ home: !!view.home, step, sub, rightTab, runMode, groupBlocked: !!(gs && (gs.blockers.length > 0 || gs.status === 'error')), stationError: rt?.status === 'error' });
+  const onThemeKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); chooseTheme('dark'); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); chooseTheme('light'); }
+  };
 
-      {explorer}
+  return (
+    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen}>
+      <header className="header">
+        <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><span className="title">{PRODUCT_NAME}</span></span>
+        <span className="subtitle">논리 시뮬레이션</span>
+        <span className="grow" />
+        <span className="save-hint">{dirty ? '저장 안 됨' : '이 브라우저에 저장'}</span>
+        <button className="btn-main primary" onClick={doSave}>저장</button>
+        <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}>내보내기</button>
+        <button className="btn-main secondary" onClick={() => setViewOpen(true)}>보기 설정</button>
+        <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
+        <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title="실행 취소 (Ctrl/Cmd+Z)" aria-label="실행 취소">↶</button>
+        <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title="다시 실행 (Ctrl/Cmd+Shift+Z)" aria-label="다시 실행">↷</button>
+      </header>
+      <div className="tabbar" role="tablist" aria-label="프로젝트 탭">
+        <button role="tab" className={`ptab ${view.home ? 'on' : ''}`} aria-selected={view.home} onClick={() => setView((v) => ({ ...v, home: true }))}>작업 시작</button>
+        {tabs.map((t) => <button key={t.key} role="tab" className={`ptab ${!view.home && t.key === tab.key ? 'on' : ''}`} aria-selected={!view.home && t.key === tab.key} onClick={() => switchTab(t.key)}>
+          {t.history.present.name}{t.savedRevision !== t.history.present.revision ? <span className="dirty"> 미저장</span> : null}</button>)}
+        <button className="btn-main secondary" onClick={() => newProject('blank')}>새 프로젝트</button>
+      </div>
       <div className="stepper" role="navigation" aria-label="단계">
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); return (
-          <button key={s.id} className={`st ${step === s.id ? 'on' : ''}`} onClick={() => goStep(s.id)} data-stepid={s.id} aria-current={step === s.id ? 'step' : undefined}>
-            <span className="n">{s.no} / 6</span><b>{s.label}</b><span className={`badge ${BADGE[b][0]}`}>{BADGE[b][1]}</span></button>); })}
-        <div className="goal">
-          <div><b>현재: {cur.no} {cur.label}</b> · <span className="muted">작업영역 {cur.workspace}</span></div>
-          <div className="muted">{cur.goal}</div>
-          <div className="row" style={{ minHeight: 22, gap: 6 }}>
-            <button className="small" onClick={() => setItemsOpen(!itemsOpen)}>남은 항목 {curEval.items.length} (필수 누락 {missing.length}) {itemsOpen ? '▴' : '▾'}</button>
-            <button className="small" disabled={cur.no === 1} onClick={() => goStep(STEPS[cur.no - 2].id)}>◀ 이전</button>
-            <button className="small primary" disabled={cur.no === 6} onClick={goNext}>다음 ▶</button>
-            {locked && <span className="badge warn">실행 중 — 모델 편집 잠금 (조회만)</span>}
-          </div>
+          <button key={s.id} className={`st ${!view.home && step === s.id ? 'on' : ''}`} onClick={() => goStep(s.id)} data-stepid={s.id} aria-current={!view.home && step === s.id ? 'step' : undefined}>
+            <span>{s.no} {s.label}</span><span className={`badge ${BADGE[b][0]}`}>{BADGE[b][1]}</span></button>); })}
+        <div className="theme-toggle" role="radiogroup" aria-label="테마" onKeyDown={onThemeKey}>
+          <button role="radio" aria-checked={appearance === 'light'} aria-label="라이트 테마" className={appearance === 'light' ? 'on' : ''} data-theme-choice="light" onClick={() => chooseTheme('light')}>라이트</button>
+          <button role="radio" aria-checked={appearance === 'dark'} aria-label="다크 테마" className={appearance === 'dark' ? 'on' : ''} data-theme-choice="dark" onClick={() => chooseTheme('dark')}>다크</button>
         </div>
       </div>
+      {explorer}
       {itemsOpen && <div className="itemspop" style={style}>
         <div className="row" style={{ justifyContent: 'space-between' }}><b>{cur.no} {cur.label} — 남은 항목 (실제 데이터 기준 재계산)</b><button className="small" onClick={() => setItemsOpen(false)}>닫기</button></div>
         {curEval.items.length === 0 && <div className="muted">남은 항목 없음</div>}
@@ -641,15 +668,43 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {confirmed[step] && confirmed[step] !== curEval.fingerprint && <div className="notice warn">이 단계는 이전에 확인되었지만 관련 데이터가 바뀌었습니다 — 재확인 필요</div>}
       </div>}
 
-      {step === 'library' && <div className="workspace ws-full">
-        <Sub items={[['cards', '에셋 라이브러리 카드'], ['input', '입력 후보표 (F1)']]} />
+      {view.home && <div className="workspace home-main">
+        <h1>어떤 장비를 설계할까요?</h1>
+        <p className="muted">현재 Workspace 「{curWs.name}」에서 새로 시작하거나 저장된 설계를 이어갑니다.</p>
+        <div className="home-cards">
+          <section className="home-card">
+            <h2>새 설계 시작</h2>
+            <p>자료가 없어도 시작할 수 있습니다.<br />에셋 선택부터 단계별로 안내합니다.</p>
+            <button className="btn-main primary" onClick={() => newProject('blank')}>빈 프로젝트 만들기</button>
+          </section>
+          <section className="home-card">
+            <h2>예제로 익히기</h2>
+            <p>5공정 조립 라인 · 병렬 시퀀스<br />실제 장비가 아닌 논리 실행 예제입니다.</p>
+            <div className="row"><button className="btn-main primary" onClick={() => newProject('sample')}>예제 열기</button>
+              <button className="btn-main secondary" onClick={() => newProject('parallel')}>병렬 예제</button></div>
+          </section>
+        </div>
+        <h2>최근 프로젝트</h2>
+        {savedList.length === 0 && <p className="muted">이 Workspace에 저장된 프로젝트가 없습니다. 예시는 저장 목록이 아닙니다.</p>}
+        {savedList.slice(0, 6).map((e) => <div key={e.id} className="home-recent">
+          <div><b>{e.name}</b><div className="muted">rev {e.revision} · {e.savedAt ? new Date(e.savedAt).toLocaleString() : '저장 시각 없음'}</div></div>
+          <button className="btn-main secondary" onClick={showOpen}>프로젝트 관리</button>
+          <button className="btn-main primary" onClick={() => openSaved(e.id)}>계속하기</button>
+        </div>)}
+        <p className="muted">JSON 가져오기: 원본은 덮어쓰지 않고 새 탭으로 엽니다. Workspace 묶음 파일은 미구현입니다.</p>
+      </div>}
+
+      {!view.home && step === 'library' && <div className="workspace ws-full">
+        <Sub items={[['cards', '에셋 라이브러리'], ['input', '입력 후보표 (F1)'], ['aml', 'AML 입출력'], ['extract', '자료 입력']]} />
         {sub === 'input' ? <div className="bbody"><InputHubPanel p={p} locked={locked} edit={edit} /></div>
+          : sub === 'aml' ? <div className="bbody"><AmlLoadStatus libVersion={libVersion} /><p className="muted">공식 XSD 통과는 번들 파일의 구조 검사 기록입니다. AutomationML 전체 준수가 아니며, 가져온 파일은 브라우저 안에서 XSD 검사를 하지 않습니다. 검사를 건너뛴 것을 통과로 세지 않습니다.</p></div>
+          : sub === 'extract' ? <div className="bbody"><ExtractPanel /></div>
           : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}
             onAdd={onAddFromLibrary} onImportAml={onImportAml} onExportAml={() => download('ecd-library-export.aml', exportLibraryAml(), 'application/xml')} />}
       </div>}
 
-      {step === 'canvas' && <div className="workspace ws-canvas">
+      {!view.home && step === 'canvas' && <div className="workspace ws-canvas">
         <div className="toolbar">
           <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
           <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결">물류 연결</button>
@@ -680,7 +735,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <div className="right">{inspectorEl}</div>
       </div>}
 
-      {step === 'attributes' && <div className="workspace ws-full ws-noTabs">
+      {!view.home && step === 'attributes' && <div className="workspace ws-full ws-noTabs">
         <div className="bbody" style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 1fr) minmax(300px, 1fr)', gap: 12, alignContent: 'start' }}>
           <div style={{ border: '1px solid var(--border)', borderRadius: 6 }}>{inspectorEl}</div>
           <div>
@@ -692,17 +747,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
       </div>}
 
-      {step === 'sequence' && <div className="workspace ws-full">
-        <Sub items={[['sequence', 'Station 시퀀스 Draft (F5)'], ['subseq', `Substation 시퀀스 (${(p.substationSequences ?? []).length})`], ['material', '자재·Flow (F4)'], ['sfc', 'SFC 미리보기']]} />
+      {!view.home && step === 'sequence' && <div className="workspace ws-full">
+        <Sub items={[['sequence', 'Station 시퀀스 Draft (F5)'], ['subseq', `Substation 시퀀스 (${(p.substationSequences ?? []).length})`], ['material', '자재·Flow (F4)'], ['sfc', 'SFC 미리보기'], ['extend', '누락 편집 확장']]} />
         <div className="bbody">
           {sub === 'sequence' && <SequencePanel p={p} rt={rt} locked={locked} edit={edit} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />}
           {sub === 'subseq' && <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} gs={gs} />}
           {sub === 'material' && <MaterialPanel p={p} locked={locked} edit={edit} />}
           {sub === 'sfc' && <SfcPanel p={p} rt={rt} />}
+          {sub === 'extend' && <ExtendPanel />}
         </div>
       </div>}
 
-      {step === 'check' && <div className="workspace ws-full">
+      {!view.home && step === 'check' && <div className="workspace ws-full">
         <Sub items={[['gap', `Gap (F6) ${tab.gaps.length}`], ['diag', '진단·저장·AML'], ['export', 'Export 미리보기 (F8)'], ['lab', 'Evolution Lab (F7)']]} />
         <div className="bbody">
           {sub === 'gap' && <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />}
@@ -712,7 +768,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
       </div>}
 
-      {step === 'run' && <div className="workspace ws-run">
+      {!view.home && step === 'run' && <div className="workspace ws-run">
         <div className="toolbar">
           <div className="seg" role="tablist" aria-label="실행 대상">
             <button role="tab" aria-selected={runMode === 'station'} className={runMode === 'station' ? 'on' : ''} onClick={() => setRunMode('station')}>Station 시퀀스</button>
@@ -730,13 +786,21 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       <div className="statusbar">
-        <b style={{ color: 'var(--warning)' }}>논리 시뮬레이션 · 실제 장비 제어 아님 · 정밀 물리/충돌 검증 아님</b>
-        <span>rev {p.revision}</span><span>Undo {tab.history.past.length} / Redo {tab.history.future.length}</span>
-        <span>실행 {rt?.status ?? 'idle'}{tab.runtime ? ` (스냅샷 rev ${tab.runtime.snapshot.revision})` : ''} · 그룹 {gs?.status ?? 'idle'}</span>
-        <span>저장소: {kv ? 'localStorage' : '메모리 전용'}</span>
-        <span>에셋 {ASSET_LIBRARY.length}종 (AML {LOADED_LIBRARIES.length}파일)</span>
+        <b>논리 시뮬레이션 · 실제 장비 제어/안전 검증 아님</b>
+        <span>rev {p.revision}</span><span>Undo {tab.history.past.length}</span>
+        <span>실행 {rt?.status ?? 'idle'} · 그룹 {gs?.status ?? 'idle'}</span>
+        {locked && <span>실행 중 편집 잠금</span>}
         <span className="grow" />
-        <span>형식 {FILE_FORMAT_VERSION} · 규칙 {RUNTIME_RULES_VERSION} / {GROUP_RULES_VERSION} · 수치는 [예시] 가정값</span>
+        {!view.home && <>
+          <button className="small" onClick={() => setItemsOpen(!itemsOpen)}>남은 항목 {curEval.items.length}</button>
+          <button className="btn-main secondary" disabled={cur.no === 1} onClick={() => goStep(STEPS[cur.no - 2].id)}>◀ 이전</button>
+          <button className="btn-main primary" disabled={cur.no === 6} onClick={goNext}>다음 ▶</button>
+        </>}
+        {view.home && <>
+          <button className="btn-main secondary" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
+          <button className="btn-main primary" onClick={() => setView((v) => ({ ...v, home: false }))}>시작하기</button>
+        </>}
+        <span className="muted">형식 {FILE_FORMAT_VERSION} · 규칙 {RUNTIME_RULES_VERSION} / {GROUP_RULES_VERSION}</span>
       </div>
 
       {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.msg}</div>}
@@ -744,6 +808,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         deleteBlock={(id) => W.deleteBlockReason(reg, id, savedCount(id))} onSwitch={(id) => { setWsPanel(false); requestSwitch(id); }} onCreate={createWs} onRename={renameWs} onDelete={deleteWs} onClose={() => setWsPanel(false)} />}
       {projPanel && kv && <ProjectManager wsName={curWs.name} entries={W.listProjects(kv, reg, reg.activeId)} openIds={openIds}
         onOpen={(id) => { setProjPanel(false); openSaved(id); }} onRename={renameSaved} onDelete={deleteSaved} onClose={() => setProjPanel(false)} />}
+      {viewOpen && <StaticModalFrame title="보기 설정" style={style} onCancel={() => setViewOpen(false)}>
+        <p className="muted">보기만 바꿉니다. 모델, rev, 실행, 선택, 입력은 그대로입니다. 보관된 이전 팔레트는 고를 수 없습니다.</p>
+        <div className="row" style={{ gap: 8 }}>{visualToggle}</div>
+        <p className="muted">화면 {screen} · 단계 {cur.no} {cur.label} · 확대 {Math.round(view.zoom * 100)}%</p>
+        <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn-main secondary" onClick={() => setViewOpen(false)}>닫기</button></div>
+      </StaticModalFrame>}
       {nameDlg && <NameDialog key={nameDlg.title} {...nameDlg} onCancel={() => setNameDlg(null)} />}
       {modal && <StaticModalFrame key={modal.title} title={modal.title} style={style} onCancel={() => setModal(null)}>
         {modal.body}

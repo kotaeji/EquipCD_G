@@ -5,8 +5,24 @@ import xsdReport from '../../assets/aml/xsd-report.json';
 import { ASSET_LIBRARY, BUNDLED_AML_FILE, BUNDLED_AML_TEXT, LOADED_LIBRARIES } from '../assets/library';
 import { AI_BADGE, GENERATED_META, MATCH_LABEL, resolveGenerated, resolvePhoto } from '../assets/visuals';
 import type { AssetDefinition, Project } from '../model/types';
+import diagramPusher from './slots/a3687.svg?url';
+import diagramBarcode from './slots/238b4.svg?url';
+import diagramConveyor from './slots/91c95.svg?url';
 import { Symbol } from './Symbols';
 import { Badge } from './widgets';
+
+/**
+ * Official static diagrams. Slot size is 100×48 (root SVG). Cylinder card 1:594 was returned as the same file as the pusher slot 1:585
+ * (assets-manifest callsites both reference a3687.svg). This app does not redraw a second cylinder.
+ */
+export const DIAGRAM_SLOTS: Record<string, { src: string; slot: string; file: string }> = {
+  pusher: { src: diagramPusher, slot: '1:585', file: 'a3687.svg' },
+  cylinder: { src: diagramPusher, slot: '1:594', file: 'a3687.svg' },
+  barcodeReader: { src: diagramBarcode, slot: '1:774', file: '238b4.svg' },
+  conveyor: { src: diagramConveyor, slot: '1:778', file: '91c95.svg' },
+};
+export const DIAGRAM_SLOT_W = 100;
+export const DIAGRAM_SLOT_H = 48;
 
 const CAT_LABEL: Record<string, string> = { axis: '축/구동', io: 'I/O', sensor: '센서·식별', transport: '이송', unit: '복합 유닛 템플릿' };
 const fnv = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16); };
@@ -23,6 +39,9 @@ export function xsdStatus(def: AssetDefinition): { kind: 'ok' | 'warn'; text: st
 
 /** v0.3: 'photo' view mode = AI-generated photorealistic-style image (NOT a real photo). Same box size as the schematic. */
 export function Visual({ def, mode, w, h }: { def: AssetDefinition; mode: 'schematic' | 'photo'; w: number; h: number }) {
+  const slot = mode === 'schematic' ? DIAGRAM_SLOTS[def.kind] : undefined;
+  if (slot) return <div className="slot-diagram" data-slot={slot.slot} data-slot-file={slot.file} style={{ width: DIAGRAM_SLOT_W, height: DIAGRAM_SLOT_H }}>
+    <img src={slot.src} alt="" width={DIAGRAM_SLOT_W} height={DIAGRAM_SLOT_H} /></div>;
   const g = mode === 'photo' ? resolveGenerated(def.kind) : null;
   if (g && g.status === 'available') return <div className="vis" style={{ width: w, height: h }}>
     <img src={g.url} alt={`${def.name} — AI 생성 실사풍 이미지 (실제 사진 아님)`} style={{ width: w, height: h, objectFit: 'contain', display: 'block' }} />

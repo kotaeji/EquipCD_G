@@ -22,11 +22,11 @@ label { color: inherit; }
 .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
 .grow { flex: 1; }
 button, select, input, textarea { font-family: inherit; font-size: 12px; color: var(--text); }
-button { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 4px 9px; cursor: pointer; height: 28px; }
+button { appearance: none; background-color: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 4px 9px; cursor: pointer; height: 28px; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: .45; cursor: not-allowed; }
-button.on { background: var(--selected); border-color: var(--accent); color: var(--accent); font-weight: 600; }
-button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+button.on { background-color: var(--selected); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+button.primary { background-color: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 button.small { height: 22px; padding: 1px 6px; font-size: 11px; }
 button.danger { color: var(--danger); }
 input, select, textarea { background: var(--canvas); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; height: 26px; }
@@ -129,7 +129,7 @@ body { font-size: var(--fs-md); line-height: 1.4; -webkit-font-smoothing: antial
 .header .crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--text); }
 /* focus & interaction */
 :where(button, a, select, input, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: var(--r-sm); }
-button { transition: border-color .12s, background-color .12s; }
+button { transition: border-color .12s; }
 button.icon { width: 24px; padding: 0; }
 .small-text { font-size: var(--fs-xs); }
 .err-text { color: var(--danger); }
@@ -212,3 +212,80 @@ details.history summary { cursor: pointer; color: var(--muted); font-size: var(-
 .tree .titem { padding: 0; }
 .tree .titem:focus-visible { outline: none; }
 .tree .titem:focus-visible > .tnode { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Aurora shell — Figma 1280×800. Nav stays 224. Type and controls do not scale at 1920. */
+.app {
+  --exw: 224px;
+  grid-template-rows: 64px 44px 72px minmax(0, 1fr) 48px;
+  grid-template-columns: 224px minmax(0, 1fr);
+  min-width: 1280px;
+  font-size: 14px;
+}
+.app > .header { grid-row: 1; grid-column: 1 / -1; height: 64px; padding: 0 24px; gap: 8px; }
+.app > .tabbar { grid-row: 2; grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 24px; background: var(--bg); overflow: auto; }
+.app > .stepper { grid-row: 3; grid-column: 1 / -1; height: 72px; padding: 0 24px; gap: 12px; align-items: center; background: var(--panel); }
+.app > .explorer { grid-row: 4; grid-column: 1; }
+.app > .workspace { grid-row: 4; grid-column: 2; }
+.app > .statusbar { grid-row: 5; grid-column: 1 / -1; height: 48px; padding: 0 24px; gap: 12px; font-size: 12px; background: var(--panel); }
+.header .title { font-size: 20px; font-weight: 700; line-height: 1.5; }
+.header .subtitle, .header .save-hint { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.header .save-hint { color: var(--text); }
+button.btn-main { height: 44px; padding: 0 16px; border-radius: 6px; font-size: 14px; font-weight: 700; }
+button.btn-main.secondary { background-color: var(--selected); color: var(--text); border-color: var(--border); }
+button.btn-main.primary { background-color: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+button.btn-main:disabled { opacity: .5; }
+.tabbar .ptab { height: 44px; padding: 0 16px; border-radius: 6px; background: var(--panel); border: 1px solid transparent; font-size: 14px; }
+.tabbar .ptab.on { background: var(--selected); color: var(--text); font-weight: 400; }
+.stepper .st { height: auto; min-width: 0; flex-direction: row; align-items: center; gap: 8px; padding: 12px; border-radius: 6px; background-color: var(--panel); border: 1px solid transparent; font-size: 13px; color: var(--muted); }
+.stepper .st.on { background-color: var(--selected); color: var(--accent); }
+.stepper .st .badge { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.theme-toggle { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+.theme-toggle button { height: 44px; padding: 0 16px; border-radius: 6px; font-size: 14px; font-weight: 700; border: 1px solid var(--border); }
+.theme-toggle button[data-theme-choice="light"] { background-color: var(--theme-light-bg); color: var(--theme-light-fg); }
+.theme-toggle button[data-theme-choice="dark"] { background-color: var(--theme-dark-bg); color: var(--theme-dark-fg); }
+.home-summary, .home-main { padding: 24px 16px; display: flex; flex-direction: column; gap: 16px; }
+.home-summary .btn-main { width: 100%; }
+.home-summary h2, .home-main h1 { margin: 0; font-size: 20px; line-height: 1.6; }
+.home-main { padding: 20px 32px 16px; overflow: auto; background: var(--bg); }
+.home-main h1 { font-size: 28px; }
+.home-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.home-card, .home-recent { background: var(--panel); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+.home-card h2 { margin: 0; font-size: 20px; }
+.home-card p, .home-summary p { margin: 0; font-size: 14px; line-height: 1.6; }
+.home-recent { flex-direction: row; align-items: center; padding: 16px; border-radius: 0; }
+.home-recent > div { flex: 1; }
+.ws-counts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; font-size: 14px; }
+.ws-counts li { display: flex; flex-direction: column; line-height: 1.6; }
+.app.is-home .ex-work { display: none; }
+.app:not(.is-home) .home-summary { display: none; }
+.ex-work { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.libws { grid-template-columns: minmax(0, 1fr) 256px; }
+.libdetail { width: 256px; overflow: auto; }
+.libdetail table { width: max-content; min-width: 100%; }
+.cards { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.card { display: grid; grid-template-columns: 100px minmax(0, 1fr); column-gap: 16px; row-gap: 8px; align-items: start; min-height: 120px; border-radius: 12px; padding: 12px 16px; }
+.card .slot-diagram, .card .vis { grid-row: 1 / span 2; }
+.card .cname { font-size: 18px; font-weight: 700; line-height: 1.4; }
+.card .cbadges { grid-column: 1 / -1; }
+.slot-diagram { width: 100px; height: 48px; flex: 0 0 auto; background: #fff; }
+.slot-diagram img { width: 100px; height: 48px; display: block; }
+.tree .twisty { width: 16px; height: 16px; padding: 0; }
+.tree .twisty img { width: 16px; height: 16px; display: block; }
+.statusbar b { color: var(--muted); font-weight: 400; }
+.statusbar .btn-main { height: 44px; }
+/* Same Figma alias colors as the inline variables, so the selected chip does not linger on the other palette. */
+.app[data-appearance="light"] button.primary,
+.app[data-appearance="light"] button.btn-main.primary { background-color: #245bce; color: #ffffff; }
+.app[data-appearance="dark"] button.primary,
+.app[data-appearance="dark"] button.btn-main.primary { background-color: #42d6cc; color: #102c2d; }
+.app[data-appearance="light"] button.btn-main.secondary { background-color: #e5edff; color: #17283f; }
+.app[data-appearance="dark"] button.btn-main.secondary { background-color: #203d4c; color: #eff5fd; }
+.app[data-appearance="light"] .theme-toggle button[data-theme-choice="light"] { background-color: #245bce; color: #ffffff; }
+.app[data-appearance="light"] .theme-toggle button[data-theme-choice="dark"] { background-color: #ffffff; color: #17283f; }
+.app[data-appearance="dark"] .theme-toggle button[data-theme-choice="light"] { background-color: #19283a; color: #eff5fd; }
+.app[data-appearance="dark"] .theme-toggle button[data-theme-choice="dark"] { background-color: #42d6cc; color: #102c2d; }
+@media (min-width: 1600px) {
+  .app, .app.ex-collapsed { --exw: 224px; }
+  .ws-canvas { grid-template-columns: 196px minmax(0, 1fr) 300px; }
+  .libws { grid-template-columns: minmax(0, 1fr) 256px; }
+}

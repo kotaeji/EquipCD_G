@@ -19,8 +19,12 @@ describe('UI smoke (jsdom)', () => {
     const click = async (b: Element) => { await act(async () => { (b as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true })); }); };
     const rev = () => /rev (\d+)/.exec(el.querySelector('.statusbar')!.textContent!)![1];
     const appEl = el.querySelector('.app') as HTMLElement;
+    expect(appEl.dataset.screen).toBe('S00');
+    expect(txt()).toContain('어떤 장비를 설계할까요');
+    await click(btn('시작하기'));
     // step 1: library cards in the centre (not the canvas)
     expect(appEl.dataset.step).toBe('library');
+    expect(appEl.dataset.screen).toBe('S10');
     expect(txt()).toContain('Aurora Concept Designer');
     expect(el.querySelector('.explorer')).not.toBeNull();
     expect(el.querySelectorAll('.cards .card').length).toBe(14);
@@ -61,10 +65,13 @@ describe('UI smoke (jsdom)', () => {
     await click(btn('다음 ▶')); // disabled on last step → no throw
     await click(btn('◀ 이전'));
     expect(appEl.dataset.step).toBe('check');
-    // themes
+    // themes: light/dark only. Stored id A = light, B = dark. Archived C is not a button.
     expect(appEl.dataset.theme).toBe('A');
-    await click(btn('테마:')); expect(appEl.dataset.theme).toBe('B');
-    await click(btn('테마:')); expect(appEl.dataset.theme).toBe('C');
+    expect(appEl.dataset.appearance).toBe('light');
+    const revBeforeTheme = rev();
+    await click(btn('다크')); expect(appEl.dataset.theme).toBe('B'); expect(appEl.dataset.appearance).toBe('dark');
+    await click(btn('라이트')); expect(appEl.dataset.theme).toBe('A'); expect(appEl.dataset.appearance).toBe('light');
+    expect(rev()).toBe(revBeforeTheme);
     // save → stored; UserView keeps the step separately from the project
     await click(btn('저장'));
     expect(Object.keys(localStorage).some((k) => k.startsWith('ecd.v1.project.'))).toBe(true);
