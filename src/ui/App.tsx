@@ -14,10 +14,11 @@ import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
-import { CapabilityTable, Inspector } from './Inspector';
-import { AmlLoadStatus, LibraryWorkspace } from './Library';
+import { Inspector } from './Inspector';
+import { LibraryWorkspace } from './Library';
 import { evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
-import { devName, unitName } from './labels';
+import { devName, sigName, unitName } from './labels';
+import { QtyInput, TextInput } from './widgets';
 import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RuntimePanel, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { GroupRunPanel, SubSequencePanel, SubstationSelect } from './SubstationPanels';
@@ -25,6 +26,7 @@ import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
 import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type LayerId, type UserView } from './viewSettings';
 import { screenOf } from './screens';
+import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
 import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectManager, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
@@ -111,6 +113,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [subUnitPref, setSubUnitPref] = useState('');
   const [runMode, setRunMode] = useState<'station' | 'group'>('station');
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [libDetail, setLibDetail] = useState(false);
+  const [guide, setGuide] = useState<'files' | 'bundle' | 'search' | null>(null);
+  const [gapFilter, setGapFilter] = useState<'all' | 'shortfall' | 'human' | 'hidden'>('all');
   const selUnit = (() => { const id = selection[0]; return p.units.find((u) => u.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; })();
   const subUnitId = gs?.unitId ?? (p.units.some((u) => u.id === subUnitPref) ? subUnitPref : selUnit ?? p.units.find((u) => (p.substationSequences ?? []).some((q) => q.unitId === u.id))?.id ?? p.units[0]?.id ?? '');
 
@@ -560,6 +565,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <div className="home-summary">
       <h2>작업 공간</h2>
       <button className="btn-main secondary" onClick={() => setWsPanel(true)} disabled={!kv}>Workspace 관리</button>
+      <button className="btn-main secondary" onClick={() => { setGuide('files'); setView((v) => ({ ...v, home: false })); }}>프로젝트 파일</button>
+      <button className="btn-main secondary" onClick={() => { setGuide('bundle'); setView((v) => ({ ...v, home: false })); }}>파일 묶음</button>
+      <button className="btn-main secondary" onClick={() => { setGuide('search'); setView((v) => ({ ...v, home: false })); }}>공통 탐색</button>
       <ul className="ws-counts">{reg.workspaces.map((w) => <li key={w.id}><b>{w.name}</b><span>프로젝트 {savedCount(w.id)}개</span></li>)}</ul>
       <p className="muted">이 브라우저의 작업 묶음. 다른 PC와 자동 공유되지 않습니다.</p>
     </div>
@@ -590,6 +598,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <button className="small" onClick={() => newProject('sample')} title="기본 5공정 Station 예제 사본">+ 5공정 예제</button>
           <button className="small" onClick={() => newProject('parallel')} title="Substation 하나에 병렬 시퀀스 2개가 있는 예제">+ 병렬 예제</button>
           <button className="small" onClick={showOpen} title="현재 Workspace의 저장 프로젝트: 열기·이름 변경·삭제">프로젝트…</button>
+          <button className="small" onClick={() => { setGuide('files'); setView((v) => ({ ...v, home: false })); }}>프로젝트 파일</button>
+          <button className="small" onClick={() => { setGuide('bundle'); setView((v) => ({ ...v, home: false })); }}>파일 묶음</button>
+          <button className="small" onClick={() => { setGuide('search'); setView((v) => ({ ...v, home: false })); }}>공통 탐색</button>
           <button className="small" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
         </div>
       </div>
@@ -635,7 +646,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
-  const screen = screenOf({ home: !!view.home, step, sub, rightTab, runMode, groupBlocked: !!(gs && (gs.blockers.length > 0 || gs.status === 'error')), stationError: rt?.status === 'error' });
+  const screen = screenOf({ home: !!view.home, step, sub, rightTab, runMode, groupBlocked: !!(gs && (gs.blockers.length > 0 || gs.status === 'error')), stationError: rt?.status === 'error' || (rt?.blockers.length ?? 0) > 0, libDetail, guide });
   const onThemeKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); chooseTheme('dark'); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); chooseTheme('light'); }
@@ -680,7 +691,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {confirmed[step] && confirmed[step] !== curEval.fingerprint && <div className="notice warn">이 단계는 이전에 확인되었지만 관련 데이터가 바뀌었습니다 — 재확인 필요</div>}
       </div>}
 
-      {view.home && <div className="workspace home-main">
+      {guide === 'files' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><FilesSheet entries={savedList.map((e) => ({ id: e.id, name: e.name, revision: e.revision }))} onImport={() => fileRef.current?.click()} onExport={() => download(`${p.name}.json`, serializeProject(p))} onOpen={(id) => { setGuide(null); openSaved(id); }} /></div></div>}
+      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><BundleSheet wsName={curWs.name} projectCount={savedCount(reg.activeId)} assetCount={ASSET_LIBRARY.length} assumptionCount={p.assumptionsNote.length} /></div></div>}
+      {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button>
+        <SearchSheet tabs={tabs.map((t) => ({ key: t.key, name: t.history.present.name, active: t.key === tab.key }))}
+          tree={p.units.flatMap((u) => [{ id: u.id, label: u.name, depth: 0 }, ...u.deviceIds.map((id) => ({ id, label: devName(p, id), depth: 1 }))])}
+          onTab={(key) => switchTab(key)} onPick={(id) => { setSelection([id]); setGuide(null); goStep('canvas'); }} onFold={() => setExplorerOpen(false)} onCanvas={() => { setGuide(null); goStep('canvas'); }} />
+      </div></div>}
+
+      {!guide && view.home && <div className="workspace home-main">
         <h1>어떤 장비를 설계할까요?</h1>
         <p className="muted">현재 Workspace 「{curWs.name}」에서 새로 시작하거나 저장된 설계를 이어갑니다.</p>
         <div className="home-cards">
@@ -706,17 +725,17 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <p className="muted">JSON 가져오기: 원본은 덮어쓰지 않고 새 탭으로 엽니다. Workspace 묶음 파일은 미구현입니다.</p>
       </div>}
 
-      {!view.home && step === 'library' && <div className="workspace ws-full">
+      {!guide && !view.home && step === 'library' && <div className="workspace ws-full">
         <Sub items={[['cards', '에셋 라이브러리'], ['input', '입력 후보표 (F1)'], ['aml', 'AML 입출력'], ['extract', '자료 입력']]} />
-        {sub === 'input' ? <div className="bbody"><InputHubPanel p={p} locked={locked} edit={edit} /></div>
-          : sub === 'aml' ? <div className="bbody"><AmlLoadStatus libVersion={libVersion} /><p className="muted">공식 XSD 통과는 번들 파일의 구조 검사 기록입니다. AutomationML 전체 준수가 아니며, 가져온 파일은 브라우저 안에서 XSD 검사를 하지 않습니다. 검사를 건너뛴 것을 통과로 세지 않습니다.</p></div>
-          : sub === 'extract' ? <div className="bbody"><ExtractPanel /></div>
-          : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion}
+        {sub === 'input' ? <div className="bbody sparse-page"><h1 className="stage-title">입력 후보표</h1><p className="muted">후보는 확인 전에 모델에 들어가지 않습니다.</p><section className="sheet wide"><InputHubPanel p={p} locked={locked} edit={edit} /></section></div>
+          : sub === 'aml' ? <div className="bbody sparse-page"><h1 className="stage-title">AML 입출력 결과</h1><AmlResultSheet onCandidates={() => setSubTab((t) => ({ ...t, library: 'input' }))} /></div>
+          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title">자료 입력</h1><ExtractSheet /><details className="fold-panel"><summary>기존 안내</summary><ExtractPanel /></details></div>
+          : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion} detail={libDetail} setDetail={setLibDetail}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}
             onAdd={onAddFromLibrary} onImportAml={onImportAml} onExportAml={() => download('ecd-library-export.aml', exportLibraryAml(), 'application/xml')} />}
       </div>}
 
-      {!view.home && step === 'canvas' && <div className="workspace ws-canvas">
+      {!guide && !view.home && step === 'canvas' && <div className="workspace ws-canvas">
         <div className="stage">
           <h1 className="stage-title">배치·연결</h1>
           <div className="tool-pills">
@@ -775,45 +794,193 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         })()}</div>
       </div>}
 
-      {!view.home && step === 'attributes' && <div className="workspace ws-full ws-noTabs">
-        <div className="bbody" style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 1fr) minmax(300px, 1fr)', gap: 16, alignContent: 'start' }}>
-          <h1 className="stage-title" style={{ gridColumn: '1 / -1' }}>속성·Action</h1>
-          <div style={{ border: '1px solid var(--border)', borderRadius: 6 }}>{inspectorEl}</div>
-          <div>
-            {(() => { const uid = p.units.find((u) => u.id === selectedId)?.id ?? p.devices.find((d) => d.id === selectedId)?.unitId; return uid
-              ? <div className="section"><h4>제공 능력표 — {unitName(p, uid)} (F3-03)</h4><CapabilityTable p={p} unitId={uid} /></div>
-              : <div className="notice">왼쪽에서 Unit 또는 Device를 선택하면 속성/신호/포지션/Action 편집기와 제공 능력표가 열립니다.</div>; })()}
-            <div className="section"><h4>이 단계 남은 항목</h4>{evals.attributes.items.slice(0, 30).map((it, i) => <div key={i} style={{ fontSize: 11 }}><span className={`badge ${it.level === 'missing' ? 'err' : 'warn'}`}>{LEVEL_LABEL[it.level]}</span> {it.text} {it.targetId && <button className="small" onClick={() => goItem(it)}>선택</button>}</div>)}</div>
-          </div>
+      {!guide && !view.home && step === 'attributes' && <div className="workspace ws-full ws-noTabs">
+        <div className="bbody sparse-page">
+          <h1 className="stage-title">{rightTab === 'signals' || rightTab === 'positions' ? '신호와 포지션' : rightTab === 'actions' || rightTab === 'check' ? 'Action 정의' : '장치 속성'}</h1>
+          <p className="muted">기본 화면은 성긴 폼입니다. 신호·Action·정의 체크의 나머지 입력은 아래 접는 칸에 있습니다.</p>
+          {(() => {
+            const d = p.devices.find((x) => x.id === selectedId) ?? p.devices[0];
+            const host = d ? p.units.find((u) => u.id === d.unitId) : undefined;
+            const def = d ? findAsset(d.kind) : undefined;
+            if (!d || !def) return <div className="sheet">선택된 Device가 없습니다. 왼쪽 트리에서 고르세요.</div>;
+            const fields = def.properties.slice(0, 4);
+            const sigs = p.signals.filter((s) => s.deviceId === d.id);
+            const poss = p.positions.filter((x) => x.deviceId === d.id);
+            const acts = p.actions.filter((a) => a.deviceId === d.id);
+            const act = acts[0];
+            if (rightTab === 'signals' || rightTab === 'positions') return <div className="sparse-split">
+              <section className="sheet">
+                <h2>개념 신호 역할</h2>
+                <table className="grid plain"><thead><tr><th>이름</th><th>방향</th><th>역할</th></tr></thead>
+                  <tbody>{sigs.map((s) => <tr key={s.id}><td>{s.name}</td><td>{s.direction === 'in' ? '입력' : '출력'}</td><td>{signalRole(s.role)}</td></tr>)}
+                    {sigs.length === 0 && <tr><td colSpan={3}>신호 없음</td></tr>}</tbody></table>
+                <p className="field-ro">{sigs.find((s) => s.address)?.address ?? '미정 · 실제 장비 주소 아님'}</p>
+                <button type="button" onClick={() => setRightTab('actions')}>Action으로 복귀</button>
+              </section>
+              <aside className="sheet">
+                <h2>포지션 정의</h2>
+                {poss.map((x) => <label key={x.id}>{x.name}<span className="field-ro">{x.value.value ?? '미정'} {x.value.unit}{x.value.assumption ? ' · 가정' : ''}</span></label>)}
+                {poss.length === 0 && <p className="muted">포지션 없음</p>}
+                <p className="warn-note">단위·방향·신호 참조는 보존합니다. 실주소와 실측 역매핑은 하지 않습니다.</p>
+              </aside>
+            </div>;
+            if (rightTab === 'actions' || rightTab === 'check') return <div className="sparse-split">
+              <section className="sheet">
+                <h2>{act ? `${host?.code ?? ''} ${act.name}`.trim() : `${d.name} · Action 없음`}</h2>
+                {act ? <div className="form-grid">
+                  <label>동작 시간<QtyInput q={act.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'duration' }, v, as), '동작 시간')} /></label>
+                  <label>타임아웃<QtyInput q={act.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as), '타임아웃')} /></label>
+                  <label>명령 신호<span className="field-ro">{signalCaption(p, act.commandSignalId)}</span></label>
+                  <label>완료 신호<span className="field-ro">{signalCaption(p, act.completeSignalId)}</span></label>
+                </div> : <p>이 Device에 Action이 없습니다. 아래 접는 칸에서 추가합니다.</p>}
+                <div className="tool-pills">
+                  <button type="button" className="on" disabled={!act || locked} onClick={() => act && edit(C.addStep(p, act.id), '단계 추가')}>시퀀스 끝에 추가</button>
+                  <button type="button" onClick={() => setRightTab('props')}>속성으로</button>
+                </div>
+              </section>
+              <aside className="sheet">
+                <h2>정의 체크와 사람 확인</h2>
+                <ul className="check-list">
+                  <li>완료 신호 · {act?.completeSignalId ? '지정됨' : '미정'}</li>
+                  <li>동작 시간 · {act?.duration.value ?? '미정'}{act?.duration.assumption ? ' · 가정' : ''}</li>
+                  <li>타임아웃 · {act?.timeout.value ?? '미정'}{act?.timeout.assumption ? ' · 가정' : ''}</li>
+                  <li>실제 주소 · {sigs.some((s) => s.address) ? '있음' : '미정'}</li>
+                </ul>
+                <p className="warn-note">Interlock 후보는 사람이 확인합니다. 자동 안전 승인은 없습니다.</p>
+                <button type="button" onClick={() => goStep('sequence', 'sequence')}>시퀀스 보기</button>
+              </aside>
+            </div>;
+            return <div className="sparse-split">
+              <section className="sheet">
+                <h2>{d.name} · 속성 편집</h2>
+                <div className="form-grid">
+                  <label>이름<TextInput value={d.name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, d.id, v), 'Device 이름')} /></label>
+                  <label>소속 Substation
+                    <select disabled={locked} value={d.unitId} onChange={(e) => requestReparent(d.id, e.target.value)}>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+                  </label>
+                  {fields.map((pd) => {
+                    const qv = d.properties[pd.key];
+                    if (!qv) return null;
+                    return <label key={pd.key}>{pd.label}{qv.assumption ? ' · 가정값' : ''}
+                      <QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} />
+                    </label>;
+                  })}
+                  <label>정의 버전<span className="field-ro">{d.definitionRef.assetId}@{d.definitionRef.version}</span></label>
+                </div>
+                <div className="tool-pills">
+                  <button type="button" className="on" onClick={() => setRightTab('actions')}>Action 편집</button>
+                  <button type="button" onClick={() => setRightTab('signals')}>신호·포지션</button>
+                  <button type="button" className="danger" disabled={locked} onClick={() => requestDelete(d.id)}>삭제 영향 확인</button>
+                </div>
+              </section>
+              <aside className="sheet">
+                <h2>선택과 제공 능력</h2>
+                <p>{host ? `${host.code} ${host.name}` : '소속 없음'} / {d.name}</p>
+                <p className="muted">제공 Action</p>
+                <ul className="check-list">{p.actions.filter((a) => a.deviceId === d.id).slice(0, 4).map((a) => <li key={a.id}>{a.name}</li>)}</ul>
+                <button type="button" onClick={() => setRightTab('check')}>정의 체크</button>
+                <p className="muted">능력 표 전체는 아래 접는 칸에 있습니다.</p>
+              </aside>
+            </div>;
+          })()}
+          <details className="fold-panel"><summary>신호, 포지션, Action, 정의 체크 자세히</summary>
+            <div className="fold-body">{inspectorEl}</div>
+          </details>
         </div>
       </div>}
 
-      {!view.home && step === 'sequence' && <div className="workspace ws-full">
-        <h1 className="stage-title">자재·시퀀스</h1>
+      {!guide && !view.home && step === 'sequence' && <div className="workspace ws-full">
+        <h1 className="stage-title">{sub === 'material' ? '자재와 흐름' : sub === 'subseq' ? 'Substation 시퀀스' : sub === 'sfc' ? 'SFC 미리보기' : sub === 'extend' ? '누락 편집 확장' : 'Station 시퀀스'}</h1>
         <Sub items={[['sequence', 'Station 시퀀스 Draft (F5)'], ['subseq', `Substation 시퀀스 (${(p.substationSequences ?? []).length})`], ['material', '자재·Flow (F4)'], ['sfc', 'SFC 미리보기'], ['extend', '누락 편집 확장']]} />
-        <div className="bbody">
-          {sub === 'sequence' && <SequencePanel p={p} rt={rt} locked={locked} edit={edit} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />}
-          {sub === 'subseq' && <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} gs={gs} />}
-          {sub === 'material' && <MaterialPanel p={p} locked={locked} edit={edit} />}
-          {sub === 'sfc' && <SfcPanel p={p} rt={rt} />}
-          {sub === 'extend' && <ExtendPanel />}
+        <div className="bbody sparse-page">
+          {sub === 'sequence' && <section className="sheet wide">
+            <div className="tool-pills">
+              <button type="button" className="on" onClick={() => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); }}>Action 추가</button>
+              <button type="button" onClick={() => setSubTab((t) => ({ ...t, sequence: 'sfc' }))}>SFC 미리보기</button>
+              <button type="button" onClick={() => setSubTab((t) => ({ ...t, sequence: 'subseq' }))}>Substation 시퀀스</button>
+            </div>
+            <h2>Station 시퀀스 Draft</h2>
+            <table className="grid plain">
+              <thead><tr><th>단계 / 대상</th><th>Action / 완료</th><th>시간 / 타임아웃</th><th>편집</th></tr></thead>
+              <tbody>{p.sequence.steps.map((s, i) => {
+                const a = p.actions.find((x) => x.id === s.actionId);
+                return <tr key={s.id}><td>{String(i + 1).padStart(2, '0')} · {a ? devName(p, a.deviceId) : s.name}</td><td>{a?.name ?? '없음'} / {a?.completeSignalId ? sigName(p, a.completeSignalId) : '미정'}</td><td>{a ? `${a.duration.value ?? '미정'}s / ${a.timeout.value ?? '미정'}s${a.duration.assumption ? ' · 가정' : ''}` : '없음'}</td><td>
+                  <button type="button" className="small" disabled={locked || i === 0} onClick={() => edit(C.moveStep(p, i, i - 1), '단계 위로')}>위로</button>
+                  <button type="button" className="small" disabled={locked || i === p.sequence.steps.length - 1} onClick={() => edit(C.moveStep(p, i, i + 1), '단계 아래로')}>아래로</button>
+                  <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeStep(p, s.id), '단계 삭제')}>삭제</button>
+                </td></tr>;
+              })}
+              {p.sequence.steps.length === 0 && <tr><td colSpan={4}>단계가 없습니다. Action 추가로 현재 장치의 첫 Action을 넣습니다.</td></tr>}</tbody>
+            </table>
+            <p className="warn-note">한 시퀀스 안의 분기, 병렬, 루프는 미구현입니다.</p>
+            <details className="fold-panel"><summary>단계 편집, 구조화 문장, 순서 변경</summary>
+              <SequencePanel p={p} rt={rt} locked={locked} edit={edit} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />
+            </details>
+          </section>}
+          {sub === 'material' && <div className="sparse-split">
+            <section className="sheet">
+              <h2>{p.materials[0] ? `${p.materials[0].name} · 정의와 초기 조건` : '자재 없음'}</h2>
+              {p.materials[0] ? <div className="form-grid">
+                <label>이름<TextInput value={p.materials[0].name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, p.materials[0].id, v), '자재 이름')} /></label>
+                <label>투입 간격<QtyInput q={p.materials[0].feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, v, as), '투입 간격')} /></label>
+                <label>초기 위치<span className="field-ro">{p.materials[0].initialLocation ? unitName(p, p.materials[0].initialLocation) : '미정'}</span></label>
+                <label>초기 상태<span className="field-ro">{p.materials[0].initialState ?? '미정'}</span></label>
+                <label>크기<span className="field-ro">{materialSize(p)}</span></label>
+                <label>무게<span className="field-ro">{p.materials[0].weight.value ?? '미정'} {p.materials[0].weight.unit}{p.materials[0].weight.assumption ? ' · 가정' : ''}</span></label>
+                <label>Unit 경로<span className="field-ro">{routeText(p)}</span></label>
+              </div> : <button type="button" disabled={locked} onClick={() => edit(C.addMaterial(p), '자재 추가')}>자재 추가</button>}
+              <button type="button" className="btn-main primary" onClick={() => setSubTab((t) => ({ ...t, sequence: 'sequence' }))}>Station 시퀀스 작성</button>
+            </section>
+            <aside className="sheet">
+              <h2>상태 전이</h2>
+              <table className="grid plain"><thead><tr><th>상태</th><th>완료 Action</th></tr></thead>
+                <tbody>{p.actions.filter((a) => a.effect.setState || a.effect.moveTo).slice(0, 6).map((a) => <tr key={a.id}><td>{a.effect.setState ?? (a.effect.moveTo === 'EXIT' ? '배출' : a.effect.moveTo ? unitName(p, a.effect.moveTo) : a.name)}</td><td>{a.name}</td></tr>)}
+                  {p.actions.every((a) => !a.effect.setState && !a.effect.moveTo) && <tr><td colSpan={2}>자재 변화가 있는 Action이 없습니다.</td></tr>}</tbody></table>
+              <p className="warn-note">실행은 자재 하나만 지원합니다. 여러 자재와 캐리어는 미구현입니다.</p>
+            </aside>
+            <details className="fold-panel"><summary>자재 값과 경로 편집</summary><MaterialPanel p={p} locked={locked} edit={edit} /></details>
+          </div>}
+          {sub === 'subseq' && <section className="sheet wide">
+            <h2>Substation 시퀀스</h2>
+            <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} gs={gs} />
+          </section>}
+          {sub === 'sfc' && <section className="sheet wide"><h2>SFC 미리보기</h2><p className="muted">읽기 전용 순차 표시입니다. 분기와 루프는 그리지 않습니다.</p><SfcPanel p={p} rt={rt} /></section>}
+          {sub === 'extend' && <><ExtendSheet /><details className="fold-panel"><summary>미구현 안내</summary><ExtendPanel /></details></>}
         </div>
       </div>}
 
-      {!view.home && step === 'check' && <div className="workspace ws-full">
-        <h1 className="stage-title">점검</h1>
+      {!guide && !view.home && step === 'check' && <div className="workspace ws-full">
+        <h1 className="stage-title">{sub === 'diag' ? '진단과 저장' : sub === 'export' ? 'Export 미리보기' : sub === 'lab' ? 'Evolution Lab' : 'Gap 점검'}</h1>
         <Sub items={[['gap', `Gap (F6) ${tab.gaps.length}`], ['diag', '진단·저장·AML'], ['export', 'Export 미리보기 (F8)'], ['lab', 'Evolution Lab (F7)']]} />
-        <div className="bbody">
-          {sub === 'gap' && <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />}
-          {sub === 'diag' && <DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} />}
-          {sub === 'export' && <ExportPanel p={p} />}
-          {sub === 'lab' && <LabPanel />}
+        <div className="bbody sparse-page">
+          {sub === 'gap' && <section className="sheet wide">
+            <div className="tool-pills">
+              <button type="button" className={gapFilter === 'all' ? 'on' : ''} onClick={() => { setGapFilter('all'); reanalyze(); }}>재분석</button>
+              <button type="button" className={gapFilter === 'shortfall' ? 'on' : ''} onClick={() => setGapFilter('shortfall')}>차단 항목만</button>
+              <button type="button" className={gapFilter === 'human' ? 'on' : ''} onClick={() => setGapFilter('human')}>사람 확인 필요</button>
+              <button type="button" className={gapFilter === 'hidden' ? 'on' : ''} onClick={() => setGapFilter('hidden')}>숨긴 항목</button>
+            </div>
+            <h2>Gap 목록 · 기준 모델 rev {tab.analyzedRevision ?? p.revision}</h2>
+            <table className="grid plain">
+              <thead><tr><th>종류와 판정</th><th>근거</th><th>관련 대상</th><th>다음 행동</th></tr></thead>
+              <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id}><td>{g.title}</td><td>{g.evidence}</td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}
+                {tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).length === 0 && <tr><td colSpan={4}>이 보기에 해당하는 항목이 없습니다.</td></tr>}</tbody>
+            </table>
+            <p className="warn-note">간섭 후보는 정밀 물리·안전 검증 결과가 아닙니다. 근거가 부족하면 문제 없음 대신 비교 불가로 둡니다.</p>
+            <details className="fold-panel"><summary>숨김, 사람 확인, 근거 자세히</summary>
+              <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />
+            </details>
+          </section>}
+          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} /><details className="fold-panel"><summary>진단 자세히</summary><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></details></>}
+          {sub === 'export' && <><ExportSheet p={p} /><details className="fold-panel"><summary>행 단위 미리보기</summary><ExportPanel p={p} /></details></>}
+          {sub === 'lab' && <><LabSheet revision={p.revision} /><details className="fold-panel"><summary>미구현 안내</summary><LabPanel /></details></>}
         </div>
       </div>}
 
-      {!view.home && step === 'run' && <div className="workspace ws-run">
-        <h1 className="stage-title run-title">실행·저장</h1>
-        <div className="toolbar">
+      {!guide && !view.home && step === 'run' && <div className="workspace ws-full">
+        <h1 className="stage-title">{screen === 'S62' ? '실행 차단과 수정' : runMode === 'group' ? 'Substation 그룹 실행' : 'Station 논리 실행'}</h1>
+        <div className="bbody sparse-page">
+        <div className="toolbar tool-pills">
           <div className="seg" role="tablist" aria-label="실행 대상">
             <button role="tab" aria-selected={runMode === 'station'} className={runMode === 'station' ? 'on' : ''} onClick={() => setRunMode('station')}>Station 시퀀스</button>
             <button role="tab" aria-selected={runMode === 'group'} className={runMode === 'group' ? 'on' : ''} onClick={() => setRunMode('group')}>Substation 그룹</button></div>
@@ -822,11 +989,33 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           {runMode === 'station' ? <><span className="badge">{rt?.status === 'completed' ? '시뮬 완료' : `시뮬 ${rt?.status ?? 'idle'}`}</span>
             <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></> : <span className="badge">그룹 {gs?.status ?? 'idle'}</span>}</div>
-        <div className="center">{runCanvasEl}</div>
-        <div className="right"><div className="bbody">{runMode === 'station' ? <><RuntimePanel p={p} rt={rt} locked={locked} edit={edit} />
-          {rt?.status === 'completed' && <div className="notice">완료 요약: 논리 시뮬레이션 완료 (실제 장비 안전·정밀 물리 검증·Core Export 준비 완료 아님). 남은 가정/미정은 5 점검 단계에서 확인.</div>}</>
-          : <><GroupRunPanel p={p} gs={gs} unitId={subUnitId} onGoBlocker={goBlocker} />
-            {gs?.status === 'completed' && <div className="notice">그룹 완료: 이 Substation의 시퀀스가 모두 논리적으로 완주했습니다 (실제 장비 동시 동작·안전 검증 아님).</div>}</>}</div></div>
+        {screen === 'S62' && <BlockerSheet p={p} title={runMode === 'group' ? '그룹 실행 차단' : 'Station 실행 차단'} timeLabel={fmtTime(runMode === 'group' ? (gs?.timeMs ?? 0) : (rt?.timeMs ?? 0))} blockers={runMode === 'group' ? (gs?.blockers ?? []) : (rt?.blockers ?? [])} onGuide={goBlocker} onRecheck={() => { if (runMode === 'group') gReset(); else doReset(); }} />}
+        <div className="sparse-split">
+          <section className="sheet">
+            <h2>{runMode === 'group' ? '그룹 실행 상태' : 'Station 실행 상태'}</h2>
+            <div className="form-grid">
+              <label>실행 상태<span className="field-ro">{runMode === 'group' ? (gs?.status ?? 'idle') : (rt?.status ?? 'idle')}{locked ? ' · 편집 잠금' : ''}</span></label>
+              <label>가상 시간<span className="field-ro">{fmtTime(runMode === 'group' ? (gs?.timeMs ?? 0) : (rt?.timeMs ?? 0))}</span></label>
+            </div>
+            {runMode === 'station' && <table className="grid plain"><thead><tr><th>단계</th><th>상태</th><th>자재</th></tr></thead>
+              <tbody>{(rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' }))).map((row) => {
+                const step = p.sequence.steps.find((s) => s.id === row.stepId);
+                return <tr key={row.stepId}><td>{step?.name ?? row.stepId}</td><td>{row.status}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
+              })}</tbody></table>}
+            <p className="muted">이 값은 이번 실행의 가상 시각과 단계 상태입니다. 예시 시각을 고정해 두지 않습니다. 논리 실행이며 안전 판정이 아닙니다.</p>
+          </section>
+          <aside className="sheet">
+            <h2>실행 로그</h2>
+            <ul className="log-list">{(rt?.log ?? []).length === 0 && <li>로그 없음. 실행을 누르면 이 세션의 기록이 쌓입니다.</li>}
+              {(rt?.log ?? []).slice(-8).map((l, i) => <li key={i}>{fmtTime(l.t)} {l.code}</li>)}</ul>
+            <button type="button" className="btn-main primary" onClick={doSave}>{dirty ? '저장' : '저장됨'}</button>
+          </aside>
+        </div>
+        <details className="fold-panel"><summary>실행 도면, 로그, 차단 이동</summary>
+          <div className="diagram-canvas">{runCanvasEl}</div>
+          {runMode === 'station' ? <RuntimePanel p={p} rt={rt} locked={locked} edit={edit} /> : <GroupRunPanel p={p} gs={gs} unitId={subUnitId} onGoBlocker={goBlocker} />}
+        </details>
+        </div>
       </div>}
 
       <div className="statusbar">

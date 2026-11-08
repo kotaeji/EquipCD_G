@@ -55,6 +55,7 @@ interface Props {
   setFilter: (f: { q: string; category: string }) => void; setMode: (m: 'schematic' | 'photo') => void;
   onAdd: (def: AssetDefinition, unitId: string | null) => void;
   onImportAml: (f: File) => void; onExportAml: () => void;
+  detail: boolean; setDetail: (open: boolean) => void;
 }
 
 export function LibraryWorkspace(props: Props) {
@@ -66,6 +67,7 @@ export function LibraryWorkspace(props: Props) {
   const def = ASSET_LIBRARY.find((d) => d.id === sel) ?? null;
   return <div className="libws">
     <div className="libmain">
+      {props.detail && def ? <AssetDetailSheet def={def} onBack={() => props.setDetail(false)} onAdd={() => props.onAdd(def, def.template ? null : target)} locked={props.locked} unitOk={!!def.template || p.units.some((u) => u.id === target)} /> : <>
       <h1 className="stage-title">에셋 라이브러리</h1>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <input placeholder="검색 (이름/키/ID)" value={filter.q} onChange={(e) => props.setFilter({ ...filter, q: e.target.value })} style={{ width: 200 }} />
@@ -84,7 +86,8 @@ export function LibraryWorkspace(props: Props) {
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(d.id); } }}>
             <Visual def={d} mode={mode} w={168} h={96} />
             <div className="cname">{d.name}</div>
-            <div className="mono muted" style={{ fontSize: 10 }}>{d.kind} · {d.id}@{d.version}</div>
+            <div className="mono muted card-id">{d.id} · {d.version}</div>
+            <div className="card-note">선택하면 상세란 열립니다.</div>
             <div className="cbadges">
               <Badge>{CAT_LABEL[d.category]}</Badge>
               {g.status === 'available' ? <Badge kind="acc">AI 실사풍·종류 대표</Badge> : <Badge kind="warn">AI 이미지 미준비</Badge>}
@@ -94,15 +97,44 @@ export function LibraryWorkspace(props: Props) {
           </div>); })}
         {defs.length === 0 && <div className="muted">조건에 맞는 정의가 없습니다.</div>}
       </div>
+      </>}
     </div>
     <div className="libdetail">
-      {!def ? <div className="section"><h4>카드 상세</h4><div className="muted">카드를 클릭(또는 Tab 후 Enter)하면 상세(AML 원본·속성·포트·Action·AI 이미지 생성 정보)를 봅니다. 상세 보기만으로는 모델이 바뀌지 않습니다.</div><AmlLoadStatus libVersion={props.libVersion} /></div>
-        : <CardDetail def={def} p={p} mode={mode} locked={props.locked} target={target} setTarget={setTarget} onAdd={props.onAdd} />}
+      {!def ? <div className="section"><h2>카드 상세</h2><p className="muted">카드를 고르면 이름, AML 출처, 넣을 Unit이 여기에 열립니다. 고르는 것만으로 모델은 바뀌지 않습니다.</p></div>
+        : <CardDetail def={def} p={p} mode={mode} locked={props.locked} target={target} setTarget={setTarget} onAdd={props.onAdd} onOpen={() => props.setDetail(true)} />}
     </div>
   </div>;
 }
 
-function CardDetail({ def, p, mode, locked, target, setTarget, onAdd }: { def: AssetDefinition; p: Project; mode: 'schematic' | 'photo'; locked: boolean; target: string; setTarget: (s: string) => void; onAdd: Props['onAdd'] }) {
+function AssetDetailSheet({ def, onBack, onAdd, locked, unitOk }: { def: AssetDefinition; onBack: () => void; onAdd: () => void; locked: boolean; unitOk: boolean }) {
+  const x = xsdStatus(def);
+  return <div className="sparse-page">
+    <div className="tool-pills"><button type="button" onClick={onBack}>목록으로</button></div>
+    <h1 className="stage-title">에셋 카드 상세</h1>
+    <div className="sparse-split">
+      <section className="sheet">
+        <h2>{def.name}</h2>
+        <p className="field-ro">{def.id} · {def.version} · {def.amlSource.file}</p>
+        <table className="grid plain"><tbody>
+          <tr><th>분류</th><td>{CAT_LABEL[def.category] ?? def.category}</td></tr>
+          <tr><th>명령 포트</th><td>{def.ports.filter((pt) => pt.direction === 'in').map((pt) => pt.label).join(' · ') || '없음'}</td></tr>
+          <tr><th>완료 포트</th><td>{def.ports.filter((pt) => pt.direction === 'out').map((pt) => pt.label).join(' · ') || '없음'}</td></tr>
+          <tr><th>Action</th><td>{def.actions.map((a) => a.label).join(' · ') || '없음'}</td></tr>
+        </tbody></table>
+        <button type="button" className="btn-main primary" disabled={locked || !unitOk} onClick={onAdd}>선택 에셋 추가</button>
+      </section>
+      <aside className="sheet">
+        <h2>출처와 적용 전 확인</h2>
+        <p>{x.text}</p>
+        <p className="muted">도식과 실사풍 전환은 개념 표현입니다. 실사풍은 실제 촬영 사진이 아닙니다.</p>
+        <button type="button" className="btn-main secondary" disabled>신호 상세 보기</button>
+        <p className="muted">신호와 포지션은 프로젝트에 넣은 뒤 3단계에서 편집합니다. 정의 카드에서는 포트를 읽기만 합니다.</p>
+      </aside>
+    </div>
+  </div>;
+}
+
+function CardDetail({ def, p, mode, locked, target, setTarget, onAdd, onOpen }: { def: AssetDefinition; p: Project; mode: 'schematic' | 'photo'; locked: boolean; target: string; setTarget: (s: string) => void; onAdd: Props['onAdd']; onOpen: () => void }) {
   const ph = resolvePhoto(def); const gen = resolveGenerated(def.kind); const x = xsdStatus(def);
   const lib = LOADED_LIBRARIES.find((l) => l.file === def.amlSource.file);
   const diags = lib?.result.diags.filter((d) => d.where.startsWith(def.amlSource.sucPath)) ?? [];
@@ -110,16 +142,18 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd }: { def: A
   const unitOk = isUnit || p.units.some((u) => u.id === target);
   return <div>
     <div className="section">
-      <div className="row" style={{ justifyContent: 'space-between' }}><b>{def.name}</b><span className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{def.id}@{def.version}</span></div>
-      <Visual def={def} mode={mode} w={290} h={150} />
+      <h2>{def.name}</h2>
+      <p className="muted">정의 {def.id}@{def.version}<br />{x.kind === 'ok' ? '번들 AML · XSD 구조 검사 기록 있음' : 'XSD 미검증'} · {def.amlSource.file}</p>
       <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
         {isUnit ? <span className="muted" style={{ fontSize: 12 }}>새 Unit + 자식 {def.template!.children.length}개 생성</span>
           : <><label>넣을 Unit</label><select value={target} onChange={(e) => setTarget(e.target.value)}><option value="">(Unit 선택)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></>}
         <button className="primary" disabled={locked || !unitOk} onClick={() => onAdd(def, isUnit ? null : target)} title={locked ? '실행 중에는 추가 불가' : ''}>프로젝트에 추가</button>
+        <button type="button" onClick={onOpen}>카드 상세</button>
       </div>
       {!isUnit && p.units.length === 0 && <div className="notice">Device는 Unit 안에만 놓을 수 있습니다. 먼저 유닛 템플릿을 추가하거나 2단계 Canvas에서 빈 Unit을 배치하세요.</div>}
       {locked && <div className="notice warn">실행 중 — 조회만 가능, 추가·수정 차단 (C10-08)</div>}
     </div>
+    <details className="lib-more"><summary>AML·속성·포트 자세히</summary>
     <div className="section"><h4>AML 원본 · 지원 상태</h4>
       <div className="row"><label>파일</label><span className="mono" style={{ fontSize: 11 }}>{def.amlSource.file}</span></div>
       <div className="row"><label>SUC 경로</label><span className="mono" style={{ fontSize: 11 }}>{def.amlSource.sucPath}</span></div>
@@ -127,7 +161,7 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd }: { def: A
       <div className="row"><label>CAEX</label><span>{lib?.result.meta.schemaVersion ?? '?'} · {lib?.result.meta.superiorStandard.join(', ') || '-'}</span></div>
       <div className="row"><label>앱 subset</label><Badge kind="ok">해석 성공</Badge><span className="muted" style={{ fontSize: 11 }}>경고 {diags.length}</span></div>
       <div className="row"><label>공식 XSD</label><Badge kind={x.kind}>{x.kind === 'ok' ? '통과' : '미검증'}</Badge></div>
-      <div className="muted" style={{ fontSize: 11 }}>{x.text}. XSD 통과 = 구조 적합성만 의미하며 AutomationML 의미 규칙 전체 적합성 인증 아님. Action·시간·NamePrefix·템플릿 배치/규칙은 앱 확장(ECD.AppExtension).</div>
+      <div className="muted" style={{ fontSize: 11 }}>{x.text}. 표시는 {mode === 'photo' ? '실사풍' : '도식'}입니다. XSD 통과는 구조 적합성만 의미하며 AutomationML 의미 규칙 전체 적합성 인증이 아닙니다.</div>
       {diags.map((d, i) => <div key={i} style={{ fontSize: 11, color: d.severity === 'error' ? 'var(--danger)' : 'var(--warning)' }}>[{d.code}] {d.message}</div>)}
     </div>
     {def.properties.length > 0 && <div className="section"><h4>속성 (Attribute)</h4><table className="grid"><tbody>{def.properties.map((pp) => <tr key={pp.key}><td>{pp.label}{pp.requiredForRun ? ' *' : ''}</td><td className="mono">{pp.defaultValue ?? '미정'} {pp.unit}</td><td className="muted">[예시]</td></tr>)}</tbody></table></div>}
@@ -165,6 +199,7 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd }: { def: A
         </div> : <div className="muted">{ph.reason}</div>}
       </details>
     </div>
+    </details>
   </div>;
 }
 

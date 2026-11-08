@@ -9,20 +9,28 @@ export interface ScreenInput {
   runMode: 'station' | 'group';
   groupBlocked: boolean;
   stationError: boolean;
+  /** S11 card detail, still on the library step. */
+  libDetail?: boolean;
+  /** Full-page guides that are not a wizard step: S03 files, S04 bundle, S70 search. */
+  guide?: 'files' | 'bundle' | 'search' | null;
 }
 
-/** Which of the 31 base screens the current view is showing. Dialogs S71–S73 are overlays, not this value. */
+/** Which of the 31 base screens the current view is showing. Dialogs S01, S02, S21, S71–S73 stay overlays on top of this value. */
 export function screenOf(s: ScreenInput): string {
+  if (s.guide === 'files') return 'S03';
+  if (s.guide === 'bundle') return 'S04';
+  if (s.guide === 'search') return 'S70';
   if (s.home) return 'S00';
   if (s.step === 'library') {
     if (s.sub === 'input') return 'S13';
     if (s.sub === 'aml') return 'S12';
     if (s.sub === 'extract') return 'S14';
+    if (s.libDetail) return 'S11';
     return 'S10';
   }
   if (s.step === 'canvas') return 'S20';
   if (s.step === 'attributes') {
-    if (s.rightTab === 'signals') return 'S31';
+    if (s.rightTab === 'signals' || s.rightTab === 'positions') return 'S31';
     if (s.rightTab === 'actions' || s.rightTab === 'check') return 'S32';
     return 'S30';
   }
