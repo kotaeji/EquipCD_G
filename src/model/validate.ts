@@ -47,12 +47,14 @@ export function validateProject(p: Project): Diagnostic[] {
   for (const k of arrays) if (!Array.isArray((p as any)[k])) { err('SHAPE', k, `${k} 목록이 없음`); }
   if (!p.sequence || !Array.isArray(p.sequence.steps)) err('SHAPE', 'sequence', 'sequence.steps 없음');
   if (!p.equipment || !Array.isArray(p.equipment.unitIds)) err('SHAPE', 'equipment', 'equipment.unitIds 없음');
+  if (p.substationSequences !== undefined && (!Array.isArray(p.substationSequences) || p.substationSequences.some((q) => !q || !Array.isArray(q.steps)))) err('SHAPE', 'substationSequences', 'substationSequences 형식 오류');
   if (out.length) return out;
 
   // duplicate ids across all collections
   const seen = new Map<string, string>();
   const all: [string, { id: string }[]][] = [['unit', p.units], ['device', p.devices], ['signal', p.signals], ['position', p.positions],
-    ['action', p.actions], ['material', p.materials], ['connection', p.connections], ['constraint', p.constraints], ['step', p.sequence.steps], ['candidate', p.candidates]];
+    ['action', p.actions], ['material', p.materials], ['connection', p.connections], ['constraint', p.constraints], ['step', p.sequence.steps], ['candidate', p.candidates],
+    ['substationSequence', p.substationSequences ?? []], ['step', (p.substationSequences ?? []).flatMap((q) => q.steps)]];
   for (const [kind, list] of all) for (const o of list) {
     if (typeof o.id !== 'string' || !o.id) { err('ID_INVALID', kind, `${kind} ID 누락`); continue; }
     if (seen.has(o.id)) err('ID_DUPLICATE', o.id, `ID 중복: ${o.id} (${seen.get(o.id)}, ${kind})`);
@@ -91,6 +93,13 @@ export function validateProject(p: Project): Diagnostic[] {
   for (const s of p.sequence.steps) {
     if (!ix.action.has(s.actionId)) err('REF_MISSING_ACTION', s.id, `단계 ${s.name}의 Action ${s.actionId} 없음`);
     s.entry.forEach((c) => condRefs(c, ix, s.id, out, `단계 ${s.name} 진입조건`));
+  }
+  for (const q of p.substationSequences ?? []) {
+    if (!ix.unit.has(q.unitId)) err('REF_MISSING_UNIT', q.id, `Substation 시퀀스 ${q.name}의 Substation(Unit) ${q.unitId} 없음`);
+    for (const s of q.steps) {
+      if (!ix.action.has(s.actionId)) err('REF_MISSING_ACTION', s.id, `[${q.name}] 단계 ${s.name}의 Action ${s.actionId} 없음`);
+      s.entry.forEach((c) => condRefs(c, ix, s.id, out, `[${q.name}] 단계 ${s.name} 진입조건`));
+    }
   }
   for (const m of p.materials) {
     if (m.initialLocation && !ix.unit.has(m.initialLocation)) err('REF_MISSING_UNIT', m.id, `자재 ${m.name}의 초기 위치 ${m.initialLocation} 없음`);

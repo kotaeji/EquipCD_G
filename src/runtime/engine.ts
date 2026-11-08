@@ -109,7 +109,7 @@ export function reset(rt: Runtime): Runtime {
   return { snapshot: rt.snapshot, state: initialState(rt.snapshot, rt.state.runId) };
 }
 
-function evalCond(c: Condition, s: RuntimeState): { ok: boolean; why: string } {
+export function evalCond(c: Condition, s: Pick<RuntimeState, "signals" | "material">): { ok: boolean; why: string } {
   switch (c.kind) {
     case 'signal': return { ok: (s.signals[c.signalId] ?? false) === c.equals, why: `Signal ${c.signalId} == ${c.equals}` };
     case 'materialAt': return { ok: s.material?.location === c.unitId, why: `자재 위치 == ${c.unitId}` };

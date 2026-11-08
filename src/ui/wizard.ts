@@ -35,7 +35,7 @@ export function evaluateSteps(p: Project, ctx: EvalContext): Record<StepId, Step
   if (p.units.length === 0 && p.devices.length === 0) s1.push({ level: 'missing', text: '프로젝트에 추가된 에셋/유닛이 없습니다 — 카드에서 "프로젝트에 추가"' });
   for (const c of p.candidates.filter((c) => c.confirmation === 'unconfirmed')) s1.push({ level: 'human', text: `입력 후보 "${c.name}" 확인 대기` });
   const usedKinds = [...new Set(p.devices.map((d) => d.kind))];
-  for (const k of usedKinds.filter((k) => ctx.photoMissingKinds.includes(k))) s1.push({ level: 'optional', text: `${k}: 실제 사진 미확보 → 도식 사용 (진행 차단 아님)` });
+  for (const k of usedKinds.filter((k) => ctx.photoMissingKinds.includes(k))) s1.push({ level: 'optional', text: `${k}: AI 생성 이미지 미준비 → 도식 사용 (진행 차단 아님)` });
   mk('library', s1, { u: p.units.map((u) => [u.id, u.templateRef]), d: p.devices.map((d) => [d.id, d.definitionRef]), c: p.candidates.map((c) => [c.id, c.confirmation]) });
 
   // 2 canvas

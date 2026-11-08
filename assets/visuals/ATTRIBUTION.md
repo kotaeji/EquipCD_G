@@ -1,5 +1,7 @@
 # Photo attributions
 
+> v0.3: 아래 사진(photos/)은 v0.2 출처 이력으로 보존되며 UI 기본 표시에 쓰지 않습니다. 새 기본 ‘실사풍(AI)’ 이미지는 `generated/`(AI 생성, 실제 촬영 사진 아님, 제3자 사진 아님)이며 생성 정보는 `generated/generated-manifest.json`에 있습니다.
+
 참고 사진·실제 촬영·모델/사양 일치 보장 안 함
 
 - photos/cyl.jpg — File:Pneumatic cylinder.jpg — Grummelbacke — CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0 — https://commons.wikimedia.org/wiki/File:Pneumatic_cylinder.jpg (credit: Own work) — modified: resized to ≤900px, JPEG

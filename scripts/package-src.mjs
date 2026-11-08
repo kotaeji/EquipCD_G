@@ -35,5 +35,5 @@ print(out, n, 'files (no .xsd)')`;
 const docs = ['README.md', 'REQUIREMENTS-VERIFICATION.md', 'AMBIGUITIES.md', 'AML-SUPPORT.md', 'BROWSER-TEST-SCENARIOS.md', 'BROWSER-VERIFICATION.md'];
 zip('release/equipment-concept-designer-src.zip', 'equipment-concept-designer', ['package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts', 'index.html',
   'src', 'tests', 'scripts', 'assets', 'samples', 'docs', 'standards', 'media-sources', ...docs]);
-zip('release/equipment-concept-designer-verification.zip', 'equipment-concept-designer-verification', [...docs, 'docs/screenshots', 'docs/verification', 'docs/requirements-v0.2.md']);
+zip('release/equipment-concept-designer-verification.zip', 'equipment-concept-designer-verification', [...docs, 'docs/screenshots', 'docs/verification', 'docs/requirements-v0.2.md', 'docs/requirements-v0.3.md', 'docs/UX-SCENARIOS.md', 'docs/WIREFRAMES.md', 'docs/REQUIREMENT-CHANGELOG.md']);
 zip('release/equipment-concept-designer-assets.zip', 'equipment-concept-designer-assets', ['assets/aml', 'assets/visuals', 'standards/caex3.0', 'samples/aml', 'AML-SUPPORT.md']);
