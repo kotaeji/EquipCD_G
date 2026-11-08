@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { findAsset } from '../assets/library';
-import { resolvePhoto } from '../assets/visuals';
+import { AI_BADGE, resolveGenerated } from '../assets/visuals';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { Symbol } from './Symbols';
@@ -11,6 +11,8 @@ export type Mode = 'select' | 'flow' | 'signal';
 interface Props {
   project: Project;
   rt: RuntimeState | null;
+  /** v0.3 group run: devices active in any lane (highlight only) */
+  activeDeviceIds?: string[];
   view: UserView;
   selection: string[];
   mode: Mode;
@@ -149,10 +151,10 @@ export function Canvas(props: Props) {
       {p.devices.map((d) => {
         const def = findAsset(d.kind);
         if (!L.axis && def && (def.category === 'axis' || def.category === 'transport')) return null;
-        const photo = view.visualMode === 'photo' && def ? resolvePhoto(def) : null;
+        const photo = view.visualMode === 'photo' ? resolveGenerated(d.kind) : null;
         const o = dragOffset(d.id, d.unitId); const sel = selection.includes(d.id);
         const st = {
-          active: activeDevice === d.id,
+          active: activeDevice === d.id || !!props.activeDeviceIds?.includes(d.id),
           extended: d.kind === 'cylinder' ? sigState(rt, p, d.id, 'cmdFwd') || sigState(rt, p, d.id, 'fwdDone')
             : d.kind === 'pusher' ? sigState(rt, p, d.id, 'cmdPush') || sigState(rt, p, d.id, 'pushDone')
             : d.kind === 'gantry' ? (rt?.devicePositions[d.id] ?? null) !== null || sigState(rt, p, d.id, 'cmdMove') : false,
@@ -164,11 +166,12 @@ export function Canvas(props: Props) {
             <rect x={-3} y={-3} width={d.layout.w + 6} height={d.layout.h + 6} fill="transparent" stroke={sel ? 'var(--accent)' : 'none'} strokeWidth={1.5} strokeDasharray="4 2" />
             {photo?.status === 'available'
               ? <g><clipPath id={`clip-${d.id}`}><rect width={d.layout.w} height={d.layout.h} rx={3} /></clipPath>
-                <image href={photo.url} width={d.layout.w} height={d.layout.h} preserveAspectRatio="xMidYMid slice" clipPath={`url(#clip-${d.id})`} />
+                <rect width={d.layout.w} height={d.layout.h} rx={3} fill="#eceef1" />
+                <image href={photo.url} width={d.layout.w} height={d.layout.h} preserveAspectRatio="xMidYMid meet" clipPath={`url(#clip-${d.id})`} />
                 <rect width={d.layout.w} height={d.layout.h} rx={3} fill="none" stroke={st.active ? 'var(--accent)' : 'var(--border)'} strokeWidth={st.active ? 3 : 1} /></g>
               : <Symbol kind={d.kind} w={d.layout.w} h={d.layout.h} st={st} />}
             <text x={d.layout.w / 2} y={-6} fontSize={10} textAnchor="middle" fill={st.active ? 'var(--accent)' : 'var(--text)'} fontWeight={sel ? 700 : 400}>{d.name}</text>
-            {photo && <text x={d.layout.w / 2} y={d.layout.h + 11} fontSize={8} textAnchor="middle" fill={photo.status === 'available' ? 'var(--muted)' : 'var(--warning)'}>{photo.status === 'available' ? '참고사진(모델 일치 아님)' : '사진 미확보→도식'}</text>}
+            {photo && <text x={d.layout.w / 2} y={d.layout.h + 11} fontSize={8} textAnchor="middle" fill={photo.status === 'available' ? 'var(--muted)' : 'var(--warning)'}>{photo.status === 'available' ? `${AI_BADGE} 실사풍·실제 사진 아님` : 'AI 이미지 미준비→도식'}</text>}
           </g>
         );
       })}

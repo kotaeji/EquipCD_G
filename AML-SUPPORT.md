@@ -58,6 +58,7 @@
 **XSD 통과는 구조 적합성만 뜻합니다.** AutomationML 의미 규칙(역할/인터페이스 라이브러리 규칙, Application Recommendations) 적합성, AutomationML Editor/AMLEngine에서의 열기는 **검증하지 않았습니다.** 표준 라이브러리는 `AutomationMLInterfaceClassLib`/`AutomationMLBaseRoleClassLib`의 **필요한 부분만 발췌**해 파일 안에 넣었고(“EXCERPT” 설명 포함) 전체 라이브러리가 아닙니다.
 
 ## 6. 시각 자료 (C03-04~09)
+- **v0.3 (N04)**: 앱의 기본 ‘실사풍(AI)’ 표시는 `assets/visuals/generated/<kind>.jpg`(AI 생성, 14종) + `generated-manifest.json`을 씁니다. 이것은 **앱 표시 계층이며 AML에 들어가지 않습니다**(번들 AML·XSD 결과 변경 없음). AML의 `ReferencePhoto` 참조와 아래 v0.2 실사진은 출처 이력으로 그대로 보존되고, UI에서는 카드 상세의 「이전 참고 사진」 접힌 영역에만 보입니다. 아래 v0.2 설명 중 ‘도식/실사진 토글’은 v0.3에서 ‘도식/실사풍(AI) 토글’로 대체되었습니다.
 - 도식: `assets/visuals/schematic/<kind>.svg` — `src/ui/Symbols.tsx`로 직접 그린 벡터(제품 도면 아님). 앱은 같은 컴포넌트로 그립니다.
 - 실사진: `assets/visuals/photos/*.jpg` 12장 (14종이 공유) — Wikimedia Commons 실제 촬영 사진을 900px 이하로 축소·JPEG 변환. 생성 이미지 없음. 메타데이터 `assets/visuals/photo-manifest.json`, `assets/visuals/ATTRIBUTION.md`. 라이선스 CC0 / CC BY 3.0·4.0 / CC BY-SA 3.0·3.0 de·4.0 (BY-SA 파생 축소본은 같은 라이선스로 배포해야 함).
 - **대표 범위**는 에셋별로 AML에 기록: class-reference(같은 종류 대표) 9종, component-reference(구성품 — 푸셔·스토퍼에 실린더 사진) 2종, assembly-reference(복합 유닛 참고 구조) 3종. **정확 모델 일치는 14종 모두 ‘아니오’.** 사진은 제조사·모델·성능의 근거가 아닙니다.

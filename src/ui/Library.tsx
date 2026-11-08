@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import xsdReport from '../../assets/aml/xsd-report.json';
 import { ASSET_LIBRARY, BUNDLED_AML_FILE, BUNDLED_AML_TEXT, LOADED_LIBRARIES } from '../assets/library';
-import { MATCH_LABEL, MATCH_SHORT, PHOTO_COMMON_NOTICE, resolvePhoto } from '../assets/visuals';
+import { AI_BADGE, GENERATED_META, MATCH_LABEL, resolveGenerated, resolvePhoto } from '../assets/visuals';
 import type { AssetDefinition, Project } from '../model/types';
 import { Symbol } from './Symbols';
 import { Badge } from './widgets';
@@ -21,11 +21,14 @@ export function xsdStatus(def: AssetDefinition): { kind: 'ok' | 'warn'; text: st
   return { kind: 'warn', text: '공식 XSD 미검증 (브라우저 안에서는 XSD 검사 안 함 — scripts/validate-aml.py로 별도 검사)' };
 }
 
+/** v0.3: 'photo' view mode = AI-generated photorealistic-style image (NOT a real photo). Same box size as the schematic. */
 export function Visual({ def, mode, w, h }: { def: AssetDefinition; mode: 'schematic' | 'photo'; w: number; h: number }) {
-  const ph = mode === 'photo' ? resolvePhoto(def) : null;
-  if (ph && ph.status === 'available') return <img src={ph.url} alt={`${def.name} 참고 사진 — ${ph.info.title}`} style={{ width: w, height: h, objectFit: 'cover', borderRadius: 4, display: 'block' }} />;
-  return <div style={{ position: 'relative' }}><svg width={w} height={h} style={{ display: 'block' }}><Symbol kind={def.kind} w={w} h={h} /></svg>
-    {ph && <span className="badge warn" style={{ position: 'absolute', left: 2, bottom: 2, background: 'var(--panel)' }}>실제 사진 미확보 → 도식</span>}</div>;
+  const g = mode === 'photo' ? resolveGenerated(def.kind) : null;
+  if (g && g.status === 'available') return <div className="vis" style={{ width: w, height: h }}>
+    <img src={g.url} alt={`${def.name} — AI 생성 실사풍 이미지 (실제 사진 아님)`} style={{ width: w, height: h, objectFit: 'contain', display: 'block' }} />
+    <span className="aichip" title={GENERATED_META.label}>{AI_BADGE}</span></div>;
+  return <div className="vis" style={{ width: w, height: h }}><svg width={w} height={h} style={{ display: 'block' }} role="img" aria-label={`${def.name} 도식`}><Symbol kind={def.kind} w={w} h={h} /></svg>
+    {g && <span className="badge warn" style={{ position: 'absolute', left: 2, bottom: 2, background: 'var(--panel)' }}>AI 이미지 미준비 → 도식</span>}</div>;
 }
 
 interface Props {
@@ -50,20 +53,21 @@ export function LibraryWorkspace(props: Props) {
         <span className="muted" style={{ fontSize: 12 }}>{defs.length} / {ASSET_LIBRARY.length}개 정의 · 출처 AML 파일 {LOADED_LIBRARIES.length}개</span>
         <span className="grow" />
         <button className={mode === 'schematic' ? 'on' : ''} onClick={() => props.setMode('schematic')}>도식</button>
-        <button className={mode === 'photo' ? 'on' : ''} onClick={() => props.setMode('photo')}>실사진</button>
+        <button className={mode === 'photo' ? 'on' : ''} onClick={() => props.setMode('photo')} title="AI 생성 실사풍 이미지 — 실제 촬영 사진 아님">실사풍(AI)</button>
         <label className="filebtn"><input type="file" accept=".aml,.xml" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) props.onImportAml(f); e.target.value = ''; }} />AML 가져오기</label>
         <button onClick={props.onExportAml}>AML 라이브러리 내보내기</button>
       </div>
-      {mode === 'photo' && <div className="notice warn">{PHOTO_COMMON_NOTICE}. 실사진은 Wikimedia Commons 참고 사진이며 대표 범위(종류/구성품/조립체)를 카드에 표시합니다. 표시 전환은 모델을 바꾸지 않습니다.</div>}
+      {mode === 'photo' && <div className="notice warn" role="note"><b>{GENERATED_META.label}.</b> 도식과 같은 방향·구도로 생성한 종류 대표 이미지입니다 (생성: {GENERATED_META.generatedAt}). 표시 전환은 모델·배치·연결·선택을 바꾸지 않습니다. 생성 정보는 카드 상세에서 확인하세요.</div>}
       <div className="cards">
-        {defs.map((d) => { const ph = resolvePhoto(d); const x = xsdStatus(d); return (
-          <div key={d.id} className={`card ${sel === d.id ? 'sel' : ''}`} onClick={() => setSel(d.id)} data-kind={d.kind}>
+        {defs.map((d) => { const g = resolveGenerated(d.kind); const x = xsdStatus(d); return (
+          <div key={d.id} className={`card ${sel === d.id ? 'sel' : ''}`} onClick={() => setSel(d.id)} data-kind={d.kind} role="button" tabIndex={0} aria-pressed={sel === d.id}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(d.id); } }}>
             <Visual def={d} mode={mode} w={168} h={96} />
             <div className="cname">{d.name}</div>
             <div className="mono muted" style={{ fontSize: 10 }}>{d.kind} · {d.id}@{d.version}</div>
             <div className="cbadges">
               <Badge>{CAT_LABEL[d.category]}</Badge>
-              {ph.status === 'available' ? <Badge kind="acc">실사진·{ph.scope ? MATCH_SHORT[ph.scope.matchType] : '범위 미확인'}</Badge> : <Badge kind="warn">실사진 미확보</Badge>}
+              {g.status === 'available' ? <Badge kind="acc">AI 실사풍·종류 대표</Badge> : <Badge kind="warn">AI 이미지 미준비</Badge>}
               <Badge kind={d.amlSource.origin === 'bundled' ? 'ok' : 'acc'}>AML {d.amlSource.origin === 'bundled' ? '번들' : '가져옴'}</Badge>
               <Badge kind={x.kind}>{x.kind === 'ok' ? 'XSD 통과' : 'XSD 미검증'}</Badge>
             </div>
@@ -72,14 +76,14 @@ export function LibraryWorkspace(props: Props) {
       </div>
     </div>
     <div className="libdetail">
-      {!def ? <div className="section"><h4>카드 상세</h4><div className="muted">카드를 클릭하면 상세(AML 원본·속성·포트·Action·사진 출처)를 봅니다. 상세 보기만으로는 모델이 바뀌지 않습니다.</div><AmlLoadStatus libVersion={props.libVersion} /></div>
+      {!def ? <div className="section"><h4>카드 상세</h4><div className="muted">카드를 클릭(또는 Tab 후 Enter)하면 상세(AML 원본·속성·포트·Action·AI 이미지 생성 정보)를 봅니다. 상세 보기만으로는 모델이 바뀌지 않습니다.</div><AmlLoadStatus libVersion={props.libVersion} /></div>
         : <CardDetail def={def} p={p} mode={mode} locked={props.locked} target={target} setTarget={setTarget} onAdd={props.onAdd} />}
     </div>
   </div>;
 }
 
 function CardDetail({ def, p, mode, locked, target, setTarget, onAdd }: { def: AssetDefinition; p: Project; mode: 'schematic' | 'photo'; locked: boolean; target: string; setTarget: (s: string) => void; onAdd: Props['onAdd'] }) {
-  const ph = resolvePhoto(def); const x = xsdStatus(def);
+  const ph = resolvePhoto(def); const gen = resolveGenerated(def.kind); const x = xsdStatus(def);
   const lib = LOADED_LIBRARIES.find((l) => l.file === def.amlSource.file);
   const diags = lib?.result.diags.filter((d) => d.where.startsWith(def.amlSource.sucPath)) ?? [];
   const isUnit = !!def.template;
@@ -117,13 +121,29 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd }: { def: A
     </div>}
     <div className="section"><h4>시각 자료</h4>
       <div className="row"><label>도식</label><span className="mono" style={{ fontSize: 11 }}>{def.visualRefs.schematic ?? '없음'}</span></div>
-      <div className="row"><label>사진 참조</label><span className="mono" style={{ fontSize: 11 }}>{def.visualRefs.photo ?? '없음'}</span></div>
-      {ph.status === 'available' ? <div style={{ fontSize: 12 }}>
-        <div><Badge kind="acc">{MATCH_LABEL[ph.scope?.matchType ?? 'class-reference']}</Badge> <Badge kind="warn">정확 모델 일치: {ph.scope?.exactModelMatch ? '예' : '아니오'}</Badge> <Badge>촬영 유형: {ph.info.captureType === 'actual-photo' ? '실제 촬영 사진(생성 이미지 아님)' : '미확인'}</Badge></div>
-        <div className="muted" style={{ marginTop: 4 }}>{ph.scope?.note}</div>
-        <div style={{ marginTop: 4 }}>{ph.info.title} — {ph.info.author} — <a href={ph.info.licenseUrl} target="_blank" rel="noreferrer">{ph.info.license}</a> — <a href={ph.info.sourcePageUrl} target="_blank" rel="noreferrer">출처 페이지</a></div>
-        <div className="muted" style={{ fontSize: 11 }}>{ph.info.attribution}</div>
-      </div> : <div className="notice warn">{ph.reason}</div>}
+      {gen.status === 'available' ? <div style={{ fontSize: 12 }}>
+        <div className="cbadges"><Badge kind="acc">{AI_BADGE} 실사풍 이미지</Badge><Badge kind="warn">실제 촬영 사진 아님</Badge><Badge kind="warn">정확 모델 일치: 아니오</Badge><Badge>대표 범위: 종류(class)</Badge><Badge>검토: 에이전트 대조 · 사람 검수 전</Badge></div>
+        <table className="grid kv" style={{ marginTop: 6 }}><tbody>
+          <tr><th>생성 도구</th><td>{gen.meta.tool}</td></tr>
+          <tr><th>생성일</th><td>{gen.meta.generatedAt}</td></tr>
+          <tr><th>방향·구도</th><td>{gen.info.orientation}</td></tr>
+          <tr><th>구도 참고</th><td className="mono">{gen.info.referenceImage}</td></tr>
+          <tr><th>생성 지시(brief)</th><td style={{ fontSize: 11 }}>{gen.info.brief}</td></tr>
+          <tr><th>공통 지시</th><td style={{ fontSize: 11 }}>{gen.meta.commonBrief}</td></tr>
+          <tr><th>파일</th><td className="mono" style={{ fontSize: 10 }}>generated/{gen.info.file} · {gen.info.savedSize.join('×')} · {gen.info.bytes} B · sha256 {gen.info.sha256.slice(0, 12)}…</td></tr>
+          <tr><th>사용 조건</th><td style={{ fontSize: 11 }}>{gen.meta.usageTerms}</td></tr>
+        </tbody></table>
+        <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{gen.meta.toggleRule}. {gen.meta.reviewNote}. AI 이미지는 앱 표시 계층이며 AML에 들어가지 않습니다.</div>
+      </div> : <div className="notice warn">{gen.reason}</div>}
+      <details className="history" style={{ marginTop: 8 }}>
+        <summary>이전 참고 사진 (v0.2 출처 이력 — 기본 표시 안 함)</summary>
+        <div className="row"><label>AML 사진 참조</label><span className="mono" style={{ fontSize: 11 }}>{def.visualRefs.photo ?? '없음'}</span></div>
+        {ph.status === 'available' ? <div style={{ fontSize: 12 }}>
+          <div><Badge>{MATCH_LABEL[ph.scope?.matchType ?? 'class-reference']}</Badge> <Badge>촬영 유형: {ph.info.captureType === 'actual-photo' ? '실제 촬영 사진(제3자, 생성 이미지 아님)' : '미확인'}</Badge></div>
+          <div style={{ marginTop: 4 }}>{ph.info.title} — {ph.info.author} — <a href={ph.info.licenseUrl} target="_blank" rel="noreferrer">{ph.info.license}</a> — <a href={ph.info.sourcePageUrl} target="_blank" rel="noreferrer">출처 페이지</a></div>
+          <div className="muted" style={{ fontSize: 11 }}>{ph.info.attribution}. {GENERATED_META.previousPhotos}.</div>
+        </div> : <div className="muted">{ph.reason}</div>}
+      </details>
     </div>
   </div>;
 }

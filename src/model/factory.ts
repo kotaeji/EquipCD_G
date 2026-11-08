@@ -62,6 +62,7 @@ export function emptyProject(name: string, idOf: (p: string) => string = newId):
     equipment: { id: eqId, name: '장비', unitIds: [] },
     units: [], devices: [], signals: [], positions: [], actions: [], materials: [], connections: [], constraints: [],
     sequence: { id: idOf('seq'), name: '시퀀스', steps: [], unresolved: [] },
+    substationSequences: [],
     candidates: [], simSettings: { faults: { neverTrueSignalIds: [], readFailActionIds: [] }, speed: 1 }, gapReview: {},
     assumptionsNote: [],
   };

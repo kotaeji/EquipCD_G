@@ -1,7 +1,7 @@
 {
   "name": "equipment-concept-designer-prototype",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Equipment Concept Designer - web prototype (logic simulation only, not equipment control)",
   "scripts": {

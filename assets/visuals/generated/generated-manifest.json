@@ -1,0 +1,286 @@
+{
+  "_meta": {
+    "kind": "ai-generated-photorealistic-style-illustration",
+    "label": "AI 생성 실사풍 이미지 — 실제 촬영 사진 아님, 특정 제조사·제품·모델 아님, 사양 근거 아님",
+    "tool": "Grok Bot GenerateImage (호스트 내장 이미지 생성 도구; 하위 모델명은 도구가 공개하지 않음)",
+    "generatedAt": "2026-11-08 KST",
+    "requestedBy": "사용자 요구 (2026.11 추가 요구: 실사 라이브러리는 사진 대신 AI 생성, 도식과 같은 방향)",
+    "referenceComposition": "각 에셋의 도식 SVG(assets/visuals/schematic/<kind>.svg)를 8배 래스터화한 PNG를 구도 참고 이미지로 함께 입력",
+    "commonBrief": "Photorealistic-style studio render, generic (no brand, no logo, no text), strict orthographic view matching the reference schematic, plain light-gray seamless background, soft even diffuse lighting, no environment, no people.",
+    "postProcess": "긴 변 480px로 축소, JPEG q82 (Pillow)",
+    "toggleRule": "도식/실사풍 전환은 표시 이미지만 바꿈 — Device 박스 크기·위치·연결 앵커·ID·선택·모델 리비전 불변. 캔버스는 박스 안에 비율 유지(meet)로 표시",
+    "reviewNote": "방향·정렬은 생성 후 에이전트가 이미지를 보고 도식과 대조함(자동 판정 아님). 세부 형상은 도식과 다를 수 있음",
+    "previousPhotos": "v0.2 Wikimedia Commons 참고 사진(assets/visuals/photos, ATTRIBUTION.md)은 출처 이력으로 보존하되 v0.3 UI 기본 표시에 사용하지 않음",
+    "usageTerms": "이 저장소 프로젝트 안에서 개념 설계 시각 보조용으로 생성. 생성 도구의 사용 조건 세부는 이 manifest에서 확정하지 않음 [미정]",
+    "representativeScope": "class-reference — 에셋 종류(클래스)를 나타내는 일반형 예시. 특정 제조사·제품·모델과 일치하지 않음",
+    "reviewStatus": "agent-visual-check — 생성 후 에이전트가 도식과 방향을 대조함. 별도 사람 검수 전 (N04 세부 규칙: 사람 검토 필요)"
+  },
+  "images": {
+    "cylinder": {
+      "file": "cylinder.jpg",
+      "generatedSize": [
+        864,
+        1152
+      ],
+      "savedSize": [
+        360,
+        480
+      ],
+      "bytes": 9285,
+      "sha256": "081033b9e6817154c912437da0cd1da3b19b3d66ab275a17804309120180350a",
+      "aspectRatio": "3:4",
+      "orientation": "본체(배럴) 위, 로드 아래 방향 수직, 로드 끝 판",
+      "brief": "generic pneumatic air cylinder; body/barrel at TOP, vertical, piston rod pointing DOWN with rod-end plate at bottom; brushed aluminium barrel, steel rod, two air fittings",
+      "referenceImage": "schematic/cylinder.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "pusher": {
+      "file": "pusher.jpg",
+      "generatedSize": [
+        1280,
+        720
+      ],
+      "savedSize": [
+        480,
+        270
+      ],
+      "bytes": 9285,
+      "sha256": "2195c1d6862e733a1ca25f96d66de82e71407fe45095e73b82a64fa0dbd17102",
+      "aspectRatio": "16:9",
+      "orientation": "본체 왼쪽, 로드 오른쪽 수평, 오른쪽 세로 푸시 판",
+      "brief": "generic pneumatic pusher; actuator body on LEFT, horizontal rod extending RIGHT to a tall vertical push plate; side view",
+      "referenceImage": "schematic/pusher.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "barcodeReader": {
+      "file": "barcodeReader.jpg",
+      "generatedSize": [
+        1152,
+        864
+      ],
+      "savedSize": [
+        480,
+        360
+      ],
+      "bytes": 14099,
+      "sha256": "de110889a46eb57a2be6f41ea0090bfa95baabd074dd5002789c4dfc0615a1ef",
+      "aspectRatio": "4:3",
+      "orientation": "하우징 위, 스캔창 아래, 스캔 광 아래로 퍼짐",
+      "brief": "generic fixed-mount barcode reader; housing at TOP, scan window facing DOWN, faint red scan fan downward",
+      "referenceImage": "schematic/barcodeReader.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "conveyor": {
+      "file": "conveyor.jpg",
+      "generatedSize": [
+        1280,
+        720
+      ],
+      "savedSize": [
+        480,
+        270
+      ],
+      "bytes": 13816,
+      "sha256": "c606bdf64801e29a8f208f295b95d7797a9c4ef0f3a441e4429e3f92b4992a8c",
+      "aspectRatio": "16:9",
+      "orientation": "장축 수평 좌→우, 측면, 롤러 일렬",
+      "brief": "generic short roller conveyor section; long axis HORIZONTAL left-to-right, side elevation, evenly spaced rollers, rounded ends",
+      "referenceImage": "schematic/conveyor.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "stopper": {
+      "file": "stopper.jpg",
+      "generatedSize": [
+        1024,
+        1024
+      ],
+      "savedSize": [
+        480,
+        480
+      ],
+      "bytes": 9807,
+      "sha256": "f076f0893cbd23125cb50010d5844e987aaf5365d397dcdd0ede7d25fbb4786a",
+      "aspectRatio": "1:1",
+      "orientation": "받침 아래, 정지 블록 위(상하 이동)",
+      "brief": "generic pneumatic conveyor stopper; base block at BOTTOM, stop block on TOP moving vertically",
+      "referenceImage": "schematic/stopper.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "gantry": {
+      "file": "gantry.jpg",
+      "generatedSize": [
+        1280,
+        720
+      ],
+      "savedSize": [
+        480,
+        270
+      ],
+      "bytes": 9455,
+      "sha256": "fcd64c30a2430e3774ae11f0deb523993fe19490afd70762a6b3f7e7535381ee",
+      "aspectRatio": "16:9",
+      "orientation": "좌·우 세로 기둥, 위 가로 빔, 빔 위 캐리지(왼쪽)",
+      "brief": "generic small linear gantry; vertical posts at LEFT and RIGHT, horizontal beam across TOP, carriage on the left part of the beam",
+      "referenceImage": "schematic/gantry.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "picker": {
+      "file": "picker.jpg",
+      "generatedSize": [
+        864,
+        1152
+      ],
+      "savedSize": [
+        360,
+        480
+      ],
+      "bytes": 10268,
+      "sha256": "1f071d3270b820578340d914af19dd80ef4f22d0361529df8b7ab81e321fe990",
+      "aspectRatio": "3:4",
+      "orientation": "헤드 위, 샤프트 아래, 그리퍼 손가락 아래",
+      "brief": "generic pick-and-place head with two-finger gripper; head at TOP, vertical shaft DOWN, fingers pointing DOWN",
+      "referenceImage": "schematic/picker.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "sensor": {
+      "file": "sensor.jpg",
+      "generatedSize": [
+        1024,
+        1024
+      ],
+      "savedSize": [
+        480,
+        480
+      ],
+      "bytes": 8852,
+      "sha256": "3553ba6fe22b4a74d65ac3eb5476c647934147adc7d366344a3ccb5ba2ca1099",
+      "aspectRatio": "1:1",
+      "orientation": "본체 왼쪽, 감지면 오른쪽, 파형 오른쪽",
+      "brief": "generic compact sensor module; body on LEFT, sensing face to the RIGHT, faint arc waves to the right",
+      "referenceImage": "schematic/sensor.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "photoelectricSensor": {
+      "file": "photoelectricSensor.jpg",
+      "generatedSize": [
+        1152,
+        864
+      ],
+      "savedSize": [
+        480,
+        360
+      ],
+      "bytes": 8037,
+      "sha256": "0f26b7143101322b1e56482d1206f2723921f6040db1a0765dd56d7a41ea72ab",
+      "aspectRatio": "4:3",
+      "orientation": "하우징 왼쪽, 렌즈·빔 오른쪽 수평",
+      "brief": "generic photoelectric sensor; housing on LEFT, lens facing RIGHT, thin beam horizontally to the right",
+      "referenceImage": "schematic/photoelectricSensor.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "proximitySensor": {
+      "file": "proximitySensor.jpg",
+      "generatedSize": [
+        1152,
+        864
+      ],
+      "savedSize": [
+        480,
+        360
+      ],
+      "bytes": 12080,
+      "sha256": "f0a4d1cdb9278e57844f64782db1d999b1dfacbccdcda3d7e73fdf54c7eaa0b0",
+      "aspectRatio": "4:3",
+      "orientation": "나사 배럴 수평, 케이블 왼쪽, 감지면 오른쪽",
+      "brief": "generic cylindrical inductive proximity sensor; threaded barrel HORIZONTAL, cable LEFT, sensing face RIGHT",
+      "referenceImage": "schematic/proximitySensor.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "limitSwitch": {
+      "file": "limitSwitch.jpg",
+      "generatedSize": [
+        1024,
+        1024
+      ],
+      "savedSize": [
+        480,
+        480
+      ],
+      "bytes": 12832,
+      "sha256": "3d19cb214677ceeec791210a550e92d20acfaf8bcdb0dd732a65277c2f2c66c4",
+      "aspectRatio": "1:1",
+      "orientation": "본체 왼쪽 아래, 레버 오른쪽 위로, 끝 롤러",
+      "brief": "generic roller-lever limit switch; body LOWER-LEFT, lever rising to UPPER-RIGHT with roller tip",
+      "referenceImage": "schematic/limitSwitch.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "unitInput": {
+      "file": "unitInput.jpg",
+      "generatedSize": [
+        1152,
+        864
+      ],
+      "savedSize": [
+        480,
+        360
+      ],
+      "bytes": 12419,
+      "sha256": "032e9991db086792f3a3943464a1d6c57bc6a712153a7fc57a2edb7c028dd9ec",
+      "aspectRatio": "4:3",
+      "orientation": "좌→우: 광전 센서 / 푸셔 / 수직 실린더 (템플릿 자식 순서)",
+      "brief": "generic input station sub-assembly on one base plate; LEFT photoelectric sensor facing right, CENTER pusher (body left, plate right), RIGHT vertical cylinder rod down",
+      "referenceImage": "schematic/unitInput.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "unitIdentify": {
+      "file": "unitIdentify.jpg",
+      "generatedSize": [
+        1152,
+        864
+      ],
+      "savedSize": [
+        480,
+        360
+      ],
+      "bytes": 13873,
+      "sha256": "e6787f36dd51630589ad15b51fa095f018106982fbdf56a96f7c8f6b06edf3d9",
+      "aspectRatio": "4:3",
+      "orientation": "좌→우: 바코드 리더(아래로 스캔) / 스토퍼 / 근접 센서(오른쪽 감지)",
+      "brief": "generic identification station sub-assembly; LEFT barcode reader scanning down, CENTER vertical stopper, RIGHT horizontal proximity sensor facing right",
+      "referenceImage": "schematic/unitIdentify.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    },
+    "unitTransfer": {
+      "file": "unitTransfer.jpg",
+      "generatedSize": [
+        1152,
+        864
+      ],
+      "savedSize": [
+        480,
+        360
+      ],
+      "bytes": 11500,
+      "sha256": "49660be9973e667b8125a9efa439078c5c1764f6fddd8539440a7fa28589a029",
+      "aspectRatio": "4:3",
+      "orientation": "좌→우: 갠트리 / 피커(그리퍼 아래) / 리밋 스위치(레버 오른쪽 위)",
+      "brief": "generic transfer station sub-assembly; LEFT small gantry frame, CENTER picker head gripper down, RIGHT roller-lever limit switch lever to upper right",
+      "referenceImage": "schematic/unitTransfer.svg",
+      "scope": "class-reference",
+      "reviewStatus": "agent-visual-check"
+    }
+  }
+}

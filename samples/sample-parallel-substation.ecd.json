@@ -1,0 +1,647 @@
+{
+  "appVersion": "0.3.0-prototype",
+  "assetDefinitions": [
+    {
+      "id": "asset.stopper",
+      "version": "0.1.0"
+    },
+    {
+      "id": "asset.cylinder",
+      "version": "0.1.0"
+    },
+    {
+      "id": "asset.pusher",
+      "version": "0.1.0"
+    }
+  ],
+  "format": "equipment-concept-designer/project",
+  "formatVersion": "0.2.0",
+  "project": {
+    "actions": [
+      {
+        "commandSignalId": "STP-A1.sig1",
+        "completeSignalId": "STP-A1.sig2",
+        "deviceId": "STP-A1",
+        "duration": {
+          "assumption": true,
+          "source": {
+            "method": "sample-example"
+          },
+          "unit": "s",
+          "value": 0.5
+        },
+        "effect": {},
+        "id": "STP-A1.act5",
+        "kind": "raise",
+        "name": "A 클램프 상승",
+        "params": {},
+        "post": [],
+        "pre": [],
+        "targetPositionId": null,
+        "timeout": {
+          "assumption": true,
+          "source": {
+            "method": "asset-default"
+          },
+          "unit": "s",
+          "value": 1.5
+        },
+        "unitId": "U-PS1"
+      },
+      {
+        "commandSignalId": "STP-A1.sig3",
+        "completeSignalId": "STP-A1.sig4",
+        "deviceId": "STP-A1",
+        "duration": {
+          "assumption": true,
+          "source": {
+            "method": "sample-example"
+          },
+          "unit": "s",
+          "value": 0.7
+        },
+        "effect": {},
+        "id": "STP-A1.act6",
+        "kind": "lower",
+        "name": "A 클램프 하강",
+        "params": {},
+        "post": [],
+        "pre": [],
+        "targetPositionId": null,
+        "timeout": {
+          "assumption": true,
+          "source": {
+            "method": "asset-default"
+          },
+          "unit": "s",
+          "value": 1.5
+        },
+        "unitId": "U-PS1"
+      },
+      {
+        "commandSignalId": "STP-B1.sig1",
+        "completeSignalId": "STP-B1.sig2",
+        "deviceId": "STP-B1",
+        "duration": {
+          "assumption": true,
+          "source": {
+            "method": "sample-example"
+          },
+          "unit": "s",
+          "value": 0.4
+        },
+        "effect": {},
+        "id": "STP-B1.act5",
+        "kind": "raise",
+        "name": "B 클램프 상승",
+        "params": {},
+        "post": [],
+        "pre": [],
+        "targetPositionId": null,
+        "timeout": {
+          "assumption": true,
+          "source": {
+            "method": "asset-default"
+          },
+          "unit": "s",
+          "value": 1.5
+        },
+        "unitId": "U-PS1"
+      },
+      {
+        "commandSignalId": "STP-B1.sig3",
+        "completeSignalId": "STP-B1.sig4",
+        "deviceId": "STP-B1",
+        "duration": {
+          "assumption": true,
+          "source": {
+            "method": "sample-example"
+          },
+          "unit": "s",
+          "value": 0.4
+        },
+        "effect": {},
+        "id": "STP-B1.act6",
+        "kind": "lower",
+        "name": "B 클램프 하강",
+        "params": {},
+        "post": [],
+        "pre": [],
+        "targetPositionId": null,
+        "timeout": {
+          "assumption": true,
+          "source": {
+            "method": "asset-default"
+          },
+          "unit": "s",
+          "value": 1.5
+        },
+        "unitId": "U-PS1"
+      },
+      {
+        "commandSignalId": "CYL-B1.sig1",
+        "completeSignalId": "CYL-B1.sig2",
+        "deviceId": "CYL-B1",
+        "duration": {
+          "assumption": true,
+          "source": {
+            "method": "sample-example"
+          },
+          "unit": "s",
+          "value": 0.8
+        },
+        "effect": {},
+        "id": "CYL-B1.act3",
+        "kind": "extend",
+        "name": "B 실린더 전진",
+        "params": {},
+        "post": [],
+        "pre": [
+          {
+            "equals": true,
+            "kind": "signal",
+            "signalId": "STP-B1.sig2"
+          }
+        ],
+        "targetPositionId": null,
+        "timeout": {
+          "assumption": true,
+          "source": {
+            "method": "asset-default"
+          },
+          "unit": "s",
+          "value": 3
+        },
+        "unitId": "U-PS1"
+      },
+      {
+        "commandSignalId": "PSH-21.sig1",
+        "completeSignalId": "PSH-21.sig2",
+        "deviceId": "PSH-21",
+        "duration": {
+          "assumption": true,
+          "source": {
+            "method": "sample-example"
+          },
+          "unit": "s",
+          "value": 0.9
+        },
+        "effect": {},
+        "id": "PSH-21.act3",
+        "kind": "extend",
+        "name": "S2 푸시",
+        "params": {},
+        "post": [],
+        "pre": [],
+        "targetPositionId": null,
+        "timeout": {
+          "assumption": true,
+          "source": {
+            "method": "asset-default"
+          },
+          "unit": "s",
+          "value": 3
+        },
+        "unitId": "U-PS2"
+      }
+    ],
+    "assumptionsNote": [
+      "모든 시간은 [예시] 가정값이며 실제 장비 사양이 아님",
+      "S1의 두 시퀀스는 서로 다른 Device만 사용 (공유 Device 없음 → 동시 실행 허용)",
+      "자재는 정의하지 않음 — Station 시퀀스 실행은 이 예제에서 대상 아님"
+    ],
+    "candidates": [],
+    "connections": [
+      {
+        "from": {
+          "nodeId": "U-PS1"
+        },
+        "id": "FLOW-P1",
+        "kind": "flow",
+        "to": {
+          "nodeId": "U-PS2"
+        }
+      }
+    ],
+    "constraints": [],
+    "devices": [
+      {
+        "definitionRef": {
+          "assetId": "asset.stopper",
+          "version": "0.1.0"
+        },
+        "id": "STP-A1",
+        "kind": "stopper",
+        "layout": {
+          "h": 44,
+          "w": 40,
+          "x": 60,
+          "y": 270
+        },
+        "name": "STP-A1",
+        "properties": {
+          "actTime": {
+            "assumption": true,
+            "source": {
+              "method": "asset-default",
+              "note": "asset.stopper@0.1.0"
+            },
+            "unit": "s",
+            "value": 0.3
+          }
+        },
+        "unitId": "U-PS1"
+      },
+      {
+        "definitionRef": {
+          "assetId": "asset.stopper",
+          "version": "0.1.0"
+        },
+        "id": "STP-B1",
+        "kind": "stopper",
+        "layout": {
+          "h": 44,
+          "w": 40,
+          "x": 200,
+          "y": 270
+        },
+        "name": "STP-B1",
+        "properties": {
+          "actTime": {
+            "assumption": true,
+            "source": {
+              "method": "asset-default",
+              "note": "asset.stopper@0.1.0"
+            },
+            "unit": "s",
+            "value": 0.3
+          }
+        },
+        "unitId": "U-PS1"
+      },
+      {
+        "definitionRef": {
+          "assetId": "asset.cylinder",
+          "version": "0.1.0"
+        },
+        "id": "CYL-B1",
+        "kind": "cylinder",
+        "layout": {
+          "h": 80,
+          "w": 56,
+          "x": 190,
+          "y": 120
+        },
+        "name": "CYL-B1",
+        "properties": {
+          "moveTime": {
+            "assumption": true,
+            "source": {
+              "method": "asset-default",
+              "note": "asset.cylinder@0.1.0"
+            },
+            "unit": "s",
+            "value": 0.8
+          },
+          "stroke": {
+            "assumption": true,
+            "source": {
+              "method": "asset-default",
+              "note": "asset.cylinder@0.1.0"
+            },
+            "unit": "mm",
+            "value": 100
+          }
+        },
+        "unitId": "U-PS1"
+      },
+      {
+        "definitionRef": {
+          "assetId": "asset.pusher",
+          "version": "0.1.0"
+        },
+        "id": "PSH-21",
+        "kind": "pusher",
+        "layout": {
+          "h": 48,
+          "w": 80,
+          "x": 400,
+          "y": 220
+        },
+        "name": "PSH-21",
+        "properties": {
+          "pushTime": {
+            "assumption": true,
+            "source": {
+              "method": "asset-default",
+              "note": "asset.pusher@0.1.0"
+            },
+            "unit": "s",
+            "value": 0.8
+          },
+          "stroke": {
+            "assumption": true,
+            "source": {
+              "method": "asset-default",
+              "note": "asset.pusher@0.1.0"
+            },
+            "unit": "mm",
+            "value": 150
+          }
+        },
+        "unitId": "U-PS2"
+      }
+    ],
+    "equipment": {
+      "id": "eq-001",
+      "name": "Station A (예시)",
+      "unitIds": [
+        "U-PS1",
+        "U-PS2"
+      ]
+    },
+    "gapReview": {},
+    "id": "prj-sample-parallel",
+    "materials": [],
+    "name": "병렬 Substation 예제 (v0.3)",
+    "positions": [],
+    "revision": 1,
+    "sequence": {
+      "id": "SEQ-station",
+      "name": "Station 시퀀스 (이 예제에서는 비어 있음)",
+      "steps": [],
+      "unresolved": []
+    },
+    "signals": [
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "STP-A1",
+        "direction": "in",
+        "id": "STP-A1.sig1",
+        "name": "STP-A1.상승 명령",
+        "portKey": "cmdUp",
+        "role": "command",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "STP-A1",
+        "direction": "out",
+        "id": "STP-A1.sig2",
+        "name": "STP-A1.상승 완료",
+        "portKey": "upDone",
+        "role": "complete",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "STP-A1",
+        "direction": "in",
+        "id": "STP-A1.sig3",
+        "name": "STP-A1.하강 명령",
+        "portKey": "cmdDown",
+        "role": "command",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "STP-A1",
+        "direction": "out",
+        "id": "STP-A1.sig4",
+        "name": "STP-A1.하강 완료",
+        "portKey": "downDone",
+        "role": "complete",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "STP-B1",
+        "direction": "in",
+        "id": "STP-B1.sig1",
+        "name": "STP-B1.상승 명령",
+        "portKey": "cmdUp",
+        "role": "command",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "STP-B1",
+        "direction": "out",
+        "id": "STP-B1.sig2",
+        "name": "STP-B1.상승 완료",
+        "portKey": "upDone",
+        "role": "complete",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "STP-B1",
+        "direction": "in",
+        "id": "STP-B1.sig3",
+        "name": "STP-B1.하강 명령",
+        "portKey": "cmdDown",
+        "role": "command",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "STP-B1",
+        "direction": "out",
+        "id": "STP-B1.sig4",
+        "name": "STP-B1.하강 완료",
+        "portKey": "downDone",
+        "role": "complete",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "CYL-B1",
+        "direction": "in",
+        "id": "CYL-B1.sig1",
+        "name": "CYL-B1.전진 명령",
+        "portKey": "cmdFwd",
+        "role": "command",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "CYL-B1",
+        "direction": "out",
+        "id": "CYL-B1.sig2",
+        "name": "CYL-B1.전진 완료",
+        "portKey": "fwdDone",
+        "role": "complete",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "PSH-21",
+        "direction": "in",
+        "id": "PSH-21.sig1",
+        "name": "PSH-21.푸시 명령",
+        "portKey": "cmdPush",
+        "role": "command",
+        "valueType": "bool"
+      },
+      {
+        "address": null,
+        "addressStatus": "unassigned",
+        "deviceId": "PSH-21",
+        "direction": "out",
+        "id": "PSH-21.sig2",
+        "name": "PSH-21.푸시 완료",
+        "portKey": "pushDone",
+        "role": "complete",
+        "valueType": "bool"
+      }
+    ],
+    "simSettings": {
+      "faults": {
+        "neverTrueSignalIds": [],
+        "readFailActionIds": []
+      },
+      "speed": 1
+    },
+    "substationSequences": [
+      {
+        "id": "SSEQ-S1-A",
+        "name": "S1 시퀀스 A (클램프 A)",
+        "steps": [
+          {
+            "actionId": "STP-A1.act5",
+            "entry": [],
+            "id": "SSTEP-A1",
+            "name": "A 클램프 상승",
+            "origin": "sample",
+            "timeoutOverride": null
+          },
+          {
+            "actionId": "STP-A1.act6",
+            "entry": [],
+            "id": "SSTEP-A2",
+            "name": "A 클램프 하강",
+            "origin": "sample",
+            "timeoutOverride": null
+          }
+        ],
+        "unitId": "U-PS1",
+        "unresolved": []
+      },
+      {
+        "id": "SSEQ-S1-B",
+        "name": "S1 시퀀스 B (클램프 B + 실린더)",
+        "steps": [
+          {
+            "actionId": "STP-B1.act5",
+            "entry": [],
+            "id": "SSTEP-B1",
+            "name": "B 클램프 상승",
+            "origin": "sample",
+            "timeoutOverride": null
+          },
+          {
+            "actionId": "CYL-B1.act3",
+            "entry": [],
+            "id": "SSTEP-B2",
+            "name": "B 실린더 전진",
+            "origin": "sample",
+            "timeoutOverride": null
+          },
+          {
+            "actionId": "STP-B1.act6",
+            "entry": [],
+            "id": "SSTEP-B3",
+            "name": "B 클램프 하강",
+            "origin": "sample",
+            "timeoutOverride": null
+          }
+        ],
+        "unitId": "U-PS1",
+        "unresolved": []
+      },
+      {
+        "id": "SSEQ-S2-A",
+        "name": "S2 시퀀스 A (푸시)",
+        "steps": [
+          {
+            "actionId": "PSH-21.act3",
+            "entry": [],
+            "id": "SSTEP-C1",
+            "name": "S2 푸시",
+            "origin": "sample",
+            "timeoutOverride": null
+          }
+        ],
+        "unitId": "U-PS2",
+        "unresolved": []
+      }
+    ],
+    "units": [
+      {
+        "capacity": {
+          "maxMaterials": {
+            "assumption": true,
+            "unit": "ea",
+            "value": 1
+          },
+          "maxWeight": {
+            "assumption": true,
+            "unit": "kg",
+            "value": null
+          }
+        },
+        "code": "S1",
+        "deviceIds": [
+          "STP-A1",
+          "STP-B1",
+          "CYL-B1"
+        ],
+        "id": "U-PS1",
+        "layout": {
+          "h": 300,
+          "w": 300,
+          "x": 30,
+          "y": 70
+        },
+        "name": "S1 듀얼 클램프"
+      },
+      {
+        "capacity": {
+          "maxMaterials": {
+            "assumption": true,
+            "unit": "ea",
+            "value": 1
+          },
+          "maxWeight": {
+            "assumption": true,
+            "unit": "kg",
+            "value": null
+          }
+        },
+        "code": "S2",
+        "deviceIds": [
+          "PSH-21"
+        ],
+        "id": "U-PS2",
+        "layout": {
+          "h": 300,
+          "w": 216,
+          "x": 360,
+          "y": 70
+        },
+        "name": "S2 푸시 아웃"
+      }
+    ]
+  }
+}

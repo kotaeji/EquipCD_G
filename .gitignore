@@ -29,3 +29,7 @@ Thumbs.db
 *.key
 .npmrc
 credentials*
+
+# superdesign local init dumps (full source extracts, regenerable) — only .superdesign/design-system.md is committed
+.superdesign/init/
+.superdesign/resume.json

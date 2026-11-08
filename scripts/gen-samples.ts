@@ -1,12 +1,13 @@
 // Generates sample project files (requires assets/aml/ecd-sample-library.aml). Run: npm run gen:samples
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { buildSampleProject } from '../src/model/sample';
+import { buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
 import { serializeProject } from '../src/storage/fileFormat';
 import { BUNDLED_AML_TEXT } from '../src/assets/library';
 
 mkdirSync('samples', { recursive: true });
 const good = serializeProject(buildSampleProject());
 writeFileSync('samples/sample-5step.ecd.json', good);
+writeFileSync('samples/sample-parallel-substation.ecd.json', serializeProject(buildParallelSampleProject()));
 writeFileSync('samples/invalid-corrupt.ecd.json', good.slice(0, 400));
 const v = JSON.parse(good); v.formatVersion = '9.0.0';
 writeFileSync('samples/invalid-unsupported-version.ecd.json', JSON.stringify(v, null, 2));
@@ -18,7 +19,7 @@ writeFileSync('samples/aml/invalid-syntax.aml', BUNDLED_AML_TEXT.slice(0, 600));
 writeFileSync('samples/aml/unsupported-schema-2.15.aml', BUNDLED_AML_TEXT.replace('SchemaVersion="3.0"', 'SchemaVersion="2.15"'));
 writeFileSync('samples/aml/missing-child-ref.aml', BUNDLED_AML_TEXT.replace('RefBaseSystemUnitPath="ECD_SampleAssetLib/pusher"', 'RefBaseSystemUnitPath="ECD_SampleAssetLib/ghostPusher"'));
 writeFileSync('samples/aml/extra-asset-vacuumGripper.aml', extraAml());
-console.log('wrote 4 project samples and 4 AML samples');
+console.log('wrote 5 project samples and 4 AML samples');
 
 function extraAml() {
   // a small external library (one new device) to demonstrate import of AML not bundled with the app

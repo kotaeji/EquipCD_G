@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { findAsset } from '../assets/library';
-import { MATCH_LABEL, resolvePhoto } from '../assets/visuals';
+import { AI_BADGE, GENERATED_META, resolveGenerated } from '../assets/visuals';
 import * as C from '../model/commands';
 import type { Gap } from '../model/gaps';
 import type { Action, Condition, Project } from '../model/types';
@@ -158,7 +158,7 @@ export function Inspector(props: Props) {
   const d = dev!;
   const def = findAsset(d.kind);
   if (!def) return <div className="section"><div className="notice err">에셋 정의 {d.definitionRef.assetId}@{d.definitionRef.version} 을(를) 라이브러리에서 찾을 수 없음 (가져온 AML이 다시 로드되지 않음?) — 모델은 보존됨</div></div>;
-  const photo = resolvePhoto(def);
+  const gen = resolveGenerated(d.kind);
   const unitT = p.units.find((u) => u.id === d.unitId)?.templateRef;
   const sigs = p.signals.filter((s) => s.deviceId === d.id);
   const poss = p.positions.filter((x) => x.deviceId === d.id);
@@ -168,8 +168,8 @@ export function Inspector(props: Props) {
       <div className="row" style={{ justifyContent: 'space-between' }}><b>{def.name}</b><span className="mono" style={{ color: 'var(--accent)' }}>{d.id}</span></div>
       <div className="row"><label>이름</label><TextInput value={d.name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, d.id, v), 'Device 이름')} /></div>
       <div className="row"><label>정의</label><span className="mono" style={{ fontSize: 11 }}>{d.definitionRef.assetId}@{d.definitionRef.version} (고정)</span></div>
-      <div className="row"><label>소속 Unit</label><select disabled={locked} value={d.unitId} onChange={(e) => props.onReparent(d.id, e.target.value)}>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-      <div className="row"><label>시각</label>{props.visualMode === 'photo' ? (photo.status === 'available' ? <Badge kind="acc">참고사진: {MATCH_LABEL[photo.scope?.matchType ?? 'class-reference']}</Badge> : <Badge kind="warn">실제 사진 미확보 → 도식</Badge>) : <Badge>도식 사용 중</Badge>}</div>
+      <div className="row"><label>Substation</label><select disabled={locked} value={d.unitId} onChange={(e) => props.onReparent(d.id, e.target.value)}>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+      <div className="row"><label>시각</label>{props.visualMode === 'photo' ? (gen.status === 'available' ? <span title={GENERATED_META.label}><Badge kind="acc">{AI_BADGE} 실사풍 (실제 사진 아님) · 종류 대표</Badge></span> : <Badge kind="warn">AI 이미지 미준비 → 도식</Badge>) : <Badge>도식 사용 중</Badge>}</div>
       <div className="muted" style={{ fontSize: 11 }}>AML 원본: {def.amlSource.file} · {def.amlSource.sucPath}{d.templateChild ? ` · 템플릿 자식 ${d.templateChild}${unitT ? ` (${unitT.assetId}@${unitT.version})` : ''}` : ''}</div>
     </div>
     <div className="tabs">{[['props', '속성'], ['signals', `신호 ${sigs.length}`], ['positions', `포지션 ${poss.length}`], ['actions', `Action ${acts.length}`], ['check', '정의 체크']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>

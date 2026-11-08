@@ -112,3 +112,77 @@ table.grid tr.err td { color: var(--danger); }
 .subtabs { background: var(--panel); }
 a { color: var(--accent); }
 .itemspop { position: fixed; top: 112px; right: 16px; width: 560px; max-height: 60vh; overflow: auto; background: var(--panel); color: var(--text); border: 1px solid var(--accent); border-radius: 6px; padding: 10px; z-index: 40; }
+/* ---- v0.3 Aurora design standard (.superdesign/design-system.md): neutral tool chrome, persistent explorer ---- */
+:root { --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --r-sm: 4px; --r-md: 6px; --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --exw: 248px; }
+body { font-size: var(--fs-md); line-height: 1.4; -webkit-font-smoothing: antialiased; }
+.app { grid-template-rows: 48px 64px minmax(0, 1fr) 26px; grid-template-columns: var(--exw) minmax(0, 1fr); min-width: 1180px; }
+.app.ex-collapsed { --exw: 40px; }
+.app > .header { grid-row: 1; grid-column: 1 / 3; }
+.app > .explorer { grid-row: 2 / 4; grid-column: 1; }
+.app > .stepper { grid-row: 2; grid-column: 2; }
+.app > .workspace { grid-row: 3; grid-column: 2; }
+.app > .statusbar { grid-row: 4; grid-column: 1 / 3; overflow: hidden; white-space: nowrap; }
+.header { gap: var(--sp-2); padding: 0 var(--sp-3); min-width: 0; }
+.header .brand { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.header .brand .logo { color: var(--accent); font-size: 14px; }
+.header .title { font-size: 14px; font-weight: 650; letter-spacing: .1px; }
+.header .crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--text); }
+/* focus & interaction */
+:where(button, a, select, input, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: var(--r-sm); }
+button { transition: border-color .12s, background-color .12s; }
+button.icon { width: 24px; padding: 0; }
+.small-text { font-size: var(--fs-xs); }
+.err-text { color: var(--danger); }
+.wrap { flex-wrap: wrap; }
+/* explorer */
+.explorer { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.exhead { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 var(--sp-2); border-bottom: 1px solid var(--border); font-size: var(--fs-xs); letter-spacing: .6px; color: var(--muted); flex-shrink: 0; }
+.exsec { padding: var(--sp-2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.exsec.grow { flex: 1; min-height: 0; display: flex; flex-direction: column; border-bottom: none; }
+.exlabel { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.exlist { display: flex; flex-direction: column; gap: 2px; max-height: 132px; overflow: auto; }
+.exitem { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: var(--r-sm); cursor: pointer; border: 1px solid transparent; font-size: var(--fs-sm); }
+.exitem:hover { border-color: var(--border); }
+.exitem.on { background: var(--selected); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.exitem .nm, .exrecent .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exitem .dirty { font-size: 10px; color: var(--warning); white-space: nowrap; }
+.exitem .x { border: none; background: transparent; height: 18px; padding: 0 4px; color: var(--muted); }
+.exbtns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.exrecent { display: flex; width: 100%; gap: 6px; align-items: center; border: none; background: transparent; height: 24px; padding: 0 6px; text-align: left; font-size: var(--fs-sm); }
+.exrecent:hover { background: var(--selected); }
+.explorer .tree { flex: 1; min-height: 0; padding: 0; }
+.tree .tnode { padding: 3px 6px; border-radius: var(--r-sm); }
+.tree .tnode .kind { font-size: 10px; color: var(--muted); margin-left: 4px; }
+.tree .tnode.sel .kind { color: var(--accent); }
+.tree div[role=group] { padding: 0; }
+.tempty { white-space: normal; font-size: var(--fs-xs); color: var(--muted); padding: 6px; border: 1px dashed var(--border); border-radius: var(--r-sm); }
+.app.ex-collapsed .exsec { display: none; }
+/* workspaces — 1280×800 fit */
+.ws-canvas { grid-template-columns: 196px minmax(0, 1fr) 300px; }
+.ws-canvas > .left { grid-column: 1; overflow: auto; }
+.ws-run { grid-template-columns: minmax(0, 1fr) minmax(380px, 42%); }
+.ws-noTabs { grid-template-rows: 1fr; }
+.palette { grid-template-columns: 1fr 1fr; }
+.palette .pi { font-size: var(--fs-xs); }
+.stepper .st { min-width: 118px; }
+.stepper .goal { min-width: 220px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
+.seg button { border: none; border-radius: 0; height: 26px; }
+.seg button + button { border-left: 1px solid var(--border); }
+/* cards, visuals */
+.card { transition: border-color .12s; }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.vis { position: relative; background: #eceef1; border-radius: var(--r-sm); overflow: hidden; }
+.app[data-theme=B] .vis { background: #1b2a3e; }
+.aichip { position: absolute; right: 4px; top: 4px; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: rgba(15,23,42,.78); color: #fff; letter-spacing: .3px; }
+table.grid.kv th { width: 92px; position: static; }
+details.history summary { cursor: pointer; color: var(--muted); font-size: var(--fs-sm); }
+/* empty states, diagnostics, logs */
+.empty { border: 1px dashed var(--border); border-radius: var(--r-md); padding: var(--sp-4); margin: var(--sp-2) 0; display: flex; flex-direction: column; gap: 4px; }
+.diaglist { margin: 4px 0 0; padding-left: 18px; font-size: var(--fs-sm); }
+.logbox { max-height: 280px; overflow: auto; font-size: var(--fs-xs); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px; background: var(--canvas); }
+.subseq { display: flex; flex-direction: column; gap: var(--sp-2); }
+.seqgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: var(--sp-3); }
+.seqcard { border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-2); background: var(--canvas); min-width: 0; }
+.seqcard header { margin-bottom: 6px; }
+@media (min-width: 1700px) { .app { --exw: 280px; } .app.ex-collapsed { --exw: 40px; } .ws-canvas { grid-template-columns: 232px minmax(0, 1fr) 340px; } }

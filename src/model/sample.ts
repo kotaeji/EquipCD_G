@@ -105,3 +105,48 @@ export function buildSampleProject(): Project {
   p.revision = 1;
   return p;
 }
+
+// v0.3 추가 예제: Station > Substation > Device 와 Substation 안의 병렬 시퀀스 2개 (독립 Device, 자재 미사용).
+// 구성·시간은 모두 [예시] 가정값이며 실제 장비 사양이 아님. 기본 5공정 예제는 변경하지 않음.
+export function buildParallelSampleProject(): Project {
+  let n = 0;
+  const seqId = (p: string) => `${p}-${(++n).toString().padStart(3, '0')}`;
+  const p = emptyProject('병렬 Substation 예제 (v0.3)', seqId);
+  p.id = 'prj-sample-parallel';
+  p.equipment.name = 'Station A (예시)';
+  const u1 = makeUnit('S1 듀얼 클램프', 'S1', { x: 30, y: 70, w: 300, h: 300 }, () => 'U-PS1');
+  const u2 = makeUnit('S2 푸시 아웃', 'S2', { x: 360, y: 70, w: 216, h: 300 }, () => 'U-PS2');
+  p.units = [u1, u2]; p.equipment.unitIds = [u1.id, u2.id];
+  const bundles: Record<string, DeviceBundle> = {};
+  const add = (code: string, kind: AssetKind, unit: Unit, dx: number, dy: number) => {
+    let k = 0;
+    const b = instantiateDevice(kind, unit.id, { x: unit.layout.x + dx, y: unit.layout.y + dy }, code, (pre) => (pre === 'dev' ? code : `${code}.${pre}${++k}`));
+    unit.deviceIds.push(b.device.id);
+    p.devices.push(b.device); p.signals.push(...b.signals); p.positions.push(...b.positions); p.actions.push(...b.actions);
+    bundles[code] = b;
+  };
+  add('STP-A1', 'stopper', u1, 30, 200);
+  add('STP-B1', 'stopper', u1, 170, 200);
+  add('CYL-B1', 'cylinder', u1, 160, 50);
+  add('PSH-21', 'pusher', u2, 40, 150);
+  const act = (code: string, i = 0): Action => bundles[code].actions[i];
+  const sig = (code: string, port: string) => bundles[code].signals.find((s) => s.portKey === port)!.id;
+  const setA = (a: Action, name: string, dur: number, pre: Condition[] = []) => { a.name = name; a.duration = q(dur, 's', true, { method: 'sample-example' }); a.pre = pre; };
+  setA(act('STP-A1', 0), 'A 클램프 상승', 0.5);
+  setA(act('STP-A1', 1), 'A 클램프 하강', 0.7);
+  setA(act('STP-B1', 0), 'B 클램프 상승', 0.4);
+  setA(act('CYL-B1'), 'B 실린더 전진', 0.8, [{ kind: 'signal', signalId: sig('STP-B1', 'upDone'), equals: true }]);
+  setA(act('STP-B1', 1), 'B 클램프 하강', 0.4);
+  setA(act('PSH-21'), 'S2 푸시', 0.9);
+  const st = (id: string, a: Action): SequenceStep => ({ id, name: a.name, actionId: a.id, timeoutOverride: null, entry: [], origin: 'sample' });
+  p.substationSequences = [
+    { id: 'SSEQ-S1-A', name: 'S1 시퀀스 A (클램프 A)', unitId: u1.id, unresolved: [], steps: [st('SSTEP-A1', act('STP-A1', 0)), st('SSTEP-A2', act('STP-A1', 1))] },
+    { id: 'SSEQ-S1-B', name: 'S1 시퀀스 B (클램프 B + 실린더)', unitId: u1.id, unresolved: [], steps: [st('SSTEP-B1', act('STP-B1', 0)), st('SSTEP-B2', act('CYL-B1')), st('SSTEP-B3', act('STP-B1', 1))] },
+    { id: 'SSEQ-S2-A', name: 'S2 시퀀스 A (푸시)', unitId: u2.id, unresolved: [], steps: [st('SSTEP-C1', act('PSH-21'))] },
+  ];
+  p.sequence = { id: 'SEQ-station', name: 'Station 시퀀스 (이 예제에서는 비어 있음)', steps: [], unresolved: [] };
+  p.connections = [{ id: 'FLOW-P1', kind: 'flow', from: { nodeId: u1.id }, to: { nodeId: u2.id } }];
+  p.assumptionsNote = ['모든 시간은 [예시] 가정값이며 실제 장비 사양이 아님', 'S1의 두 시퀀스는 서로 다른 Device만 사용 (공유 Device 없음 → 동시 실행 허용)', '자재는 정의하지 않음 — Station 시퀀스 실행은 이 예제에서 대상 아님'];
+  p.revision = 1;
+  return p;
+}

@@ -1,7 +1,7 @@
 // Pure model editing commands (F2/F3/F4/F5). Each returns a new Project or a rejection; never mutates input.
 import { findAsset, getAssetById } from '../assets/library';
 import { instantiateDevice, makeUnit, newId } from './factory';
-import type { Action, AssetKind, Condition, Connection, Device, Material, Position, Project, Quantity, SequenceStep, Signal, Unit } from './types';
+import type { Action, AssetKind, Condition, Connection, Device, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { q } from './types';
 
 export type CmdResult = { ok: true; project: Project; note?: string } | { ok: false; reason: string };
@@ -107,7 +107,7 @@ export function alignNodes(p0: Project, ids: string[], mode: 'left' | 'top'): Cm
   return ok(p);
 }
 
-export interface Impact { actions: Action[]; steps: SequenceStep[]; connections: Connection[]; materials: Material[]; constraints: string[] }
+export interface Impact { actions: Action[]; steps: SequenceStep[]; connections: Connection[]; materials: Material[]; constraints: string[]; subSteps: { seq: string; step: SequenceStep }[]; subSequences: SubstationSequence[] }
 
 export function impactOf(p: Project, id: string): Impact {
   const isUnit = p.units.some((u) => u.id === id);
@@ -122,6 +122,8 @@ export function impactOf(p: Project, id: string): Impact {
     connections: p.connections.filter((c) => [id, ...deviceIds].includes(c.from.nodeId) || [id, ...deviceIds].includes(c.to.nodeId)),
     materials: isUnit ? p.materials.filter((m) => m.route.includes(id) || m.initialLocation === id) : [],
     constraints: p.constraints.filter((k) => k.relatedIds.some((r) => [id, ...deviceIds].includes(r))).map((k) => k.id),
+    subSteps: (p.substationSequences ?? []).flatMap((q) => q.steps.filter((s) => actionIds.includes(s.actionId)).map((step) => ({ seq: q.name, step }))),
+    subSequences: isUnit ? (p.substationSequences ?? []).filter((q) => q.unitId === id) : [],
   };
 }
 
@@ -143,6 +145,8 @@ export function deleteNode(p0: Project, id: string): CmdResult {
   p.positions = p.positions.filter((x) => !deviceIds.includes(x.deviceId));
   p.actions = p.actions.filter((a) => !removedActions.has(a.id));
   p.sequence.steps = p.sequence.steps.filter((s) => !removedActions.has(s.actionId));
+  p.substationSequences = (p.substationSequences ?? []).filter((q) => !(isUnit && q.unitId === id));
+  for (const q of p.substationSequences) q.steps = q.steps.filter((s) => !removedActions.has(s.actionId));
   const fixCond = (c: Condition): Condition => {
     if (c.kind === 'signal' && sigIds.has(c.signalId)) return { kind: 'undefined', note: `삭제된 Signal ${c.signalId} 참조 해제됨` };
     if (c.kind === 'materialAt' && c.unitId === id) return { kind: 'undefined', note: `삭제된 Unit ${id} 참조 해제됨` };
@@ -155,6 +159,7 @@ export function deleteNode(p0: Project, id: string): CmdResult {
     if (a.effect.holder && deviceIds.includes(a.effect.holder)) a.effect.holder = null;
   }
   for (const s of p.sequence.steps) s.entry = s.entry.map(fixCond);
+  for (const q of p.substationSequences) for (const s of q.steps) s.entry = s.entry.map(fixCond);
   p.connections = p.connections.filter((c) => ![id, ...deviceIds].includes(c.from.nodeId) && ![id, ...deviceIds].includes(c.to.nodeId));
   for (const k of p.constraints) k.relatedIds = k.relatedIds.filter((r) => ![id, ...deviceIds].includes(r));
   if (isUnit) {
@@ -285,7 +290,7 @@ export function addAction(p0: Project, deviceId: string, idOf: (s: string) => st
 
 export function deleteAction(p0: Project, id: string): CmdResult {
   if (!p0.actions.some((a) => a.id === id)) return no('Action 없음');
-  const used = p0.sequence.steps.filter((s) => s.actionId === id);
+  const used = [...p0.sequence.steps, ...(p0.substationSequences ?? []).flatMap((q) => q.steps)].filter((s) => s.actionId === id);
   if (used.length) return no(`사용 중인 Action입니다. 영향 단계: ${used.map((s) => s.name).join(', ')} — 먼저 단계를 제거하세요`);
   const p = clone(p0); p.actions = p.actions.filter((a) => a.id !== id); return ok(p);
 }
@@ -384,3 +389,41 @@ export function renameProject(p0: Project, name: string): CmdResult {
 }
 
 export type { Device };
+
+// ---- v0.3 Substation sequences (several per Unit, group Play/Pause/Resume) ----
+const subs = (p: Project) => (p.substationSequences ??= []);
+export function addSubSequence(p0: Project, unitId: string, name?: string, idOf: (s: string) => string = newId): CmdResult {
+  const u = p0.units.find((x) => x.id === unitId); if (!u) return no('Substation(Unit) 없음');
+  const p = clone(p0); const list = subs(p);
+  const n = list.filter((q) => q.unitId === unitId).length + 1;
+  const q: SubstationSequence = { id: idOf('sseq'), name: name?.trim() || `${u.code} 시퀀스 ${String.fromCharCode(64 + Math.min(n, 26))}`, unitId, steps: [], unresolved: [] };
+  list.push(q); return ok(p, q.id);
+}
+export function renameSubSequence(p0: Project, seqId: string, name: string): CmdResult {
+  if (!name.trim()) return no('이름이 비어 있음');
+  const p = clone(p0); const q = subs(p).find((x) => x.id === seqId); if (!q) return no('시퀀스 없음');
+  q.name = name.trim(); return ok(p);
+}
+export function deleteSubSequence(p0: Project, seqId: string): CmdResult {
+  if (!(p0.substationSequences ?? []).some((q) => q.id === seqId)) return no('시퀀스 없음');
+  const p = clone(p0); p.substationSequences = subs(p).filter((q) => q.id !== seqId); return ok(p);
+}
+/** Only Actions of Devices inside the same Substation can be added (cross-Substation Actions are rejected, not moved). */
+export function addSubStep(p0: Project, seqId: string, actionId: string, idOf: (s: string) => string = newId): CmdResult {
+  const q0 = (p0.substationSequences ?? []).find((x) => x.id === seqId); if (!q0) return no('시퀀스 없음');
+  const a = p0.actions.find((x) => x.id === actionId); if (!a) return no('Action 없음');
+  const dev = p0.devices.find((d) => d.id === a.deviceId);
+  if (!dev || dev.unitId !== q0.unitId) return no(`${a.name}: 다른 Substation의 Device Action은 이 시퀀스에 넣을 수 없습니다`);
+  const p = clone(p0); const q = subs(p).find((x) => x.id === seqId)!;
+  q.steps.push({ id: idOf('sstep'), name: a.name, actionId, timeoutOverride: null, entry: [], origin: 'dnd' });
+  return ok(p);
+}
+export function removeSubStep(p0: Project, seqId: string, stepId: string): CmdResult {
+  const p = clone(p0); const q = subs(p).find((x) => x.id === seqId); if (!q || !q.steps.some((s) => s.id === stepId)) return no('단계 없음');
+  q.steps = q.steps.filter((s) => s.id !== stepId); return ok(p);
+}
+export function moveSubStep(p0: Project, seqId: string, from: number, to: number): CmdResult {
+  const q0 = (p0.substationSequences ?? []).find((x) => x.id === seqId); if (!q0) return no('시퀀스 없음');
+  if (from < 0 || from >= q0.steps.length || to < 0 || to >= q0.steps.length || from === to) return no('이동 범위 오류');
+  const p = clone(p0); const q = subs(p).find((x) => x.id === seqId)!; const [s] = q.steps.splice(from, 1); q.steps.splice(to, 0, s); return ok(p);
+}

@@ -21,15 +21,20 @@ describe('UI smoke (jsdom)', () => {
     const appEl = el.querySelector('.app') as HTMLElement;
     // step 1: library cards in the centre (not the canvas)
     expect(appEl.dataset.step).toBe('library');
+    expect(txt()).toContain('Aurora Concept Designer');
+    expect(el.querySelector('.explorer')).not.toBeNull();
     expect(el.querySelectorAll('.cards .card').length).toBe(14);
     expect(el.querySelector('svg.canvas-svg')).toBeNull();
     const r0 = rev();
     await click(el.querySelector('.card[data-kind="unitTransfer"]')!);
     expect(txt()).toContain('InternalElement');
     expect(rev()).toBe(r0); // detail view does not change the model
-    await click(btn('실사진'));
+    await click(btn('실사풍(AI)'));
     expect(el.querySelectorAll('.cards img').length).toBe(14);
-    expect(txt()).toContain('CC BY-SA');
+    expect(el.querySelectorAll('.cards .aichip').length).toBe(14); // every AI image carries an "AI 생성" label
+    expect(txt()).toContain('실제 촬영 사진 아님');
+    expect(txt()).toContain('생성 도구');
+    expect(txt()).toContain('CC BY-SA'); // previous photo attribution kept as history (details)
     expect(rev()).toBe(r0); // photo toggle does not change the model
     await click(btn('프로젝트에 추가'));
     expect(Number(rev())).toBe(Number(r0) + 1);
@@ -46,9 +51,10 @@ describe('UI smoke (jsdom)', () => {
     for (const t of ['신호', '포지션', 'Action', '정의 체크', '속성']) await click([...el.querySelectorAll('.right .tabs button')].find((b) => (b.textContent ?? '').startsWith(t))!);
     expect(txt()).toContain('CYL-03');
     // steps 3..6 + sub tabs
-    for (const [s, subs] of [['attributes', []], ['sequence', ['자재·Flow', 'SFC 미리보기', '시퀀스 Draft']], ['check', ['진단·저장', 'Export 미리보기', 'Evolution Lab', 'Gap (F6)']], ['run', []]] as [string, string[]][]) {
+    for (const [s, subs] of [['attributes', []], ['sequence', ['자재·Flow', 'SFC 미리보기', 'Substation 시퀀스', 'Station 시퀀스 Draft']], ['check', ['진단·저장', 'Export 미리보기', 'Evolution Lab', 'Gap (F6)']], ['run', []]] as [string, string[]][]) {
       await click(el.querySelector(`.stepper [data-stepid="${s}"]`)!);
       expect(appEl.dataset.step).toBe(s);
+      expect(el.querySelector('.explorer .tree')).not.toBeNull(); // N03: left explorer on every step
       for (const t of subs) await click(btn(t, el.querySelector('.subtabs')!));
     }
     expect(txt()).toContain('CYL-03'); // selection survives step round trip
@@ -66,6 +72,27 @@ describe('UI smoke (jsdom)', () => {
     const saved = localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('ecd.v1.project.'))!)!;
     expect(saved).not.toContain('"step"');
     expect(saved).not.toContain('visualMode');
+    // v0.3: parallel sample → Substation sequences → group run on the run step
+    await click(btn('+ 병렬 예제'));
+    await click(el.querySelector('.stepper [data-stepid="sequence"]')!);
+    await click(btn('Substation 시퀀스', el.querySelector('.subtabs')!));
+    expect(el.querySelectorAll('.seqcard').length).toBe(2);
+    expect(txt()).toContain('그룹 실행 전 검사: 통과');
+    await click(el.querySelector('.stepper [data-stepid="run"]')!);
+    await click(btn('Substation 그룹'));
+    const r1 = rev();
+    await click(btn('▶ 그룹 실행'));
+    expect(txt()).toContain('그룹 running');
+    expect(btn('+ 시퀀스 추가')).toBeUndefined(); // editor not on this step
+    await click(btn('❚❚ 그룹 일시정지'));
+    expect(txt()).toContain('그룹 paused');
+    await click(btn('그룹 재개'));
+    await click(btn('끝까지'));
+    expect(txt()).toContain('그룹 completed');
+    expect(txt()).toContain('GROUP_COMPLETE');
+    expect(rev()).toBe(r1); // running never edits the model
+    await click(btn('⟲ 그룹 초기화'));
+    expect(txt()).toContain('그룹 idle');
     await act(async () => { root.unmount(); });
   });
 });

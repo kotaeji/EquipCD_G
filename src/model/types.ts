@@ -2,9 +2,12 @@
 // Design data only. Runtime state lives in src/runtime and is never written back here.
 
 export const FILE_FORMAT_ID = 'equipment-concept-designer/project';
-export const FILE_FORMAT_VERSION = '0.1.0'; // file format version (separate from app / asset / model revision)
-export const APP_VERSION = '0.2.0-prototype';
+export const FILE_FORMAT_VERSION = '0.2.0'; // file format version (separate from app / asset / model revision). 0.1.x files are migrated on read.
+export const APP_VERSION = '0.3.0-prototype';
+export const PRODUCT_NAME = 'Aurora Concept Designer';
 export const RUNTIME_RULES_VERSION = 'seq-runtime/0.1.0';
+/** Substation group runtime rules (v0.3 설계 제안): shared virtual clock, fixed lane order at equal instants, conservative group stop on error. */
+export const GROUP_RULES_VERSION = 'group-runtime/0.1.0';
 
 export type Id = string;
 
@@ -88,8 +91,10 @@ export type BuiltinKind = typeof BUILTIN_KINDS[number];
 
 export interface Layout { x: number; y: number; w: number; h: number }
 
+/** Equipment = UI "Station" (장비 전체). ID/관계는 v0.2와 동일 — 라벨만 동의어(v0.3 임시 정책). */
 export interface Equipment { id: Id; name: string; unitIds: Id[] }
 
+/** Unit = UI "Substation" (여러 Device + 여러 시퀀스를 묶어 동시 Play/Pause/Resume 하는 단위). */
 export interface Unit {
   id: Id;
   name: string;
@@ -216,6 +221,13 @@ export interface SequenceDraft {
   unresolved: string[]; // 미정·모호함 목록 (보존)
 }
 
+/**
+ * v0.3: one of several sequences that belong to ONE Unit (= Substation) and are played / paused / resumed together
+ * as a group on a shared virtual clock. The Station-level `Project.sequence` (v0.1/v0.2) is kept unchanged.
+ * Steps may only use Actions of Devices inside the same Substation (checked before run).
+ */
+export interface SubstationSequence extends SequenceDraft { unitId: Id }
+
 export interface Candidate {
   id: Id;
   targetKind: 'unit' | 'device';
@@ -255,7 +267,10 @@ export interface Project {
   materials: Material[];
   connections: Connection[];
   constraints: Constraint[];
+  /** Station-level sequence (v0.1/v0.2 single sequence, kept for compatibility) */
   sequence: SequenceDraft;
+  /** v0.3 Substation sequences (several per Unit). Optional in memory for old data; files ≥0.2.0 always contain it. */
+  substationSequences?: SubstationSequence[];
   candidates: Candidate[];
   simSettings: SimSettings;
   gapReview: Record<Id, GapReviewEntry>;
