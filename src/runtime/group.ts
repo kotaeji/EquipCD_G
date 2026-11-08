@@ -63,7 +63,7 @@ export function checkGroupReadiness(p: Project, unitId: string): GroupReadiness 
   const unit = p.units.find((u) => u.id === unitId);
   if (!unit) { b('NO_SUBSTATION', unitId, `Substation ${unitId} 없음`); return { ok: false, blockers, warnings, usesMaterial: false }; }
   const seqs = seqsOf(p, unitId);
-  if (seqs.length === 0) b('NO_SUB_SEQUENCES', unitId, `${unit.name}: Substation 시퀀스가 없음 — 시퀀스 단계에서 추가하세요`);
+  if (seqs.length === 0) b('NO_SUB_SEQUENCES', unitId, `${unit.name}: Substation 시퀀스가 없음 — 4 자재·시퀀스 › Substation 시퀀스에서 추가하세요`);
   const devOwner = new Map<string, string>();   // deviceId → seq name
   const matOwners = new Set<string>();
   for (const q of seqs) {

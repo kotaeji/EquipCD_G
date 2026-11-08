@@ -186,3 +186,10 @@ details.history summary { cursor: pointer; color: var(--muted); font-size: var(-
 .seqcard { border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-2); background: var(--canvas); min-width: 0; }
 .seqcard header { margin-bottom: 6px; }
 @media (min-width: 1700px) { .app { --exw: 280px; } .app.ex-collapsed { --exw: 40px; } .ws-canvas { grid-template-columns: 232px minmax(0, 1fr) 340px; } }
+
+/* TURN-001: group-run blocker → fix location (theme variables only, A/B/C) */
+.diaglist.blockers { padding-left: 16px; }
+.blocker-item { margin-bottom: var(--sp-2); }
+.blocker-go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: 2px; font-size: var(--fs-xs); }
+.blocker-go .blocker-lead { color: var(--text); }
+.blocker-go .blocker-lead.muted { color: var(--muted); }
