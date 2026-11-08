@@ -13,6 +13,7 @@ import { advanceGroup, createGroupRuntime, pauseGroup, resetGroup, resumeGroup, 
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
+import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { CapabilityTable, Inspector } from './Inspector';
 import { AmlLoadStatus, LibraryWorkspace } from './Library';
 import { evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
@@ -541,6 +542,20 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setView((v) => ({ ...v, home: false }));
   };
   const savedList = kv ? W.listProjects(kv, reg, reg.activeId) : [];
+  const selDev = p.devices.find((d) => d.id === selection[0]);
+  const selUnitOnly = p.units.find((u) => u.id === selection[0]);
+  const selCaption = selDev?.name ?? (selUnitOnly ? `${selUnitOnly.code} ${selUnitOnly.name}` : '없음');
+  const canvasRail = <div className="canvas-rail">
+    <h2>{curWs.name}</h2>
+    <button type="button" className="btn-main secondary" onClick={showOpen}>프로젝트 관리</button>
+    <div className="rail-tools"><span>장비 구조</span>
+      <button type="button" className="small" aria-label="트리 모두 펼치기" onClick={() => setCollapsed([])}>모두 펼치기</button>
+      <button type="button" className="small" aria-label="트리 모두 접기" onClick={() => setCollapsed(collapseAllIds(p))}>모두 접기</button>
+    </div>
+    <div className="rail-station">Station · {p.equipment.name}</div>
+    {tree}
+    <p className="muted">선택: {selCaption}<br />접기는 모델을 바꾸지 않습니다.</p>
+  </div>;
   const explorer = <aside className={`explorer ${explorerOpen ? '' : 'collapsed'}`} aria-label="Workspace / Project 탐색기">
     <div className="home-summary">
       <h2>작업 공간</h2>
@@ -548,6 +563,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       <ul className="ws-counts">{reg.workspaces.map((w) => <li key={w.id}><b>{w.name}</b><span>프로젝트 {savedCount(w.id)}개</span></li>)}</ul>
       <p className="muted">이 브라우저의 작업 묶음. 다른 PC와 자동 공유되지 않습니다.</p>
     </div>
+    {canvasRail}
+    <details className="ex-extra"><summary>이 브라우저 작업</summary>
     <div className="ex-work">
     <div className="exhead"><button className="small icon" onClick={() => setExplorerOpen(!explorerOpen)} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>작업 공간</b>}</div>
     {explorerOpen && <>
@@ -582,14 +599,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {kv && recent.length === 0 && <div className="tempty">아직 저장한 프로젝트가 없습니다.</div>}
         {recent.map((e) => <button key={e.id} className="exrecent" onClick={() => openSaved(e.id)} title={`${e.id} · rev ${e.revision}`}><span className="nm">{e.name}</span><span className="muted">rev {e.revision}</span></button>)}
       </div>
-      <div className="exsec grow">
-        <div className="exlabel row" style={{ justifyContent: 'space-between' }}><span>구조 — Station › Substation › Device</span>
-          <span className="row" style={{ gap: 2 }}><button className="small icon" onClick={() => setCollapsed([])} title="모두 펼치기 (Station·Substation)" aria-label="트리 모두 펼치기">⊞</button>
-          <button className="small icon" onClick={() => setCollapsed(collapseAllIds(p))} title="모두 접기 (Station·Substation)" aria-label="트리 모두 접기">⊟</button></span></div>
-        {tree}
-      </div>
     </>}
     </div>
+    </details>
   </aside>;
   const visualToggle = <>
     <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
@@ -705,38 +717,67 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!view.home && step === 'canvas' && <div className="workspace ws-canvas">
-        <div className="toolbar">
-          <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
-          <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결">물류 연결</button>
-          <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); }} title="출력(out) 포트 → 입력(in) 포트">신호 연결</button>
-          <div className="sep" />
-          <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
-          <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
-          <button className="danger" onClick={() => selectedId && requestDelete(selectedId)} disabled={!selectedId || locked}>삭제</button>
-          <div className="sep" />
-          {visualToggle}
-          <div className="layerbox"><button onClick={() => setLayerOpen(!layerOpen)}>레이어 ▾</button>
-            {layerOpen && <div className="layerpop">{([['background', 'Background'], ['units', 'Units'], ['axis', 'Axis(축·이송 Device)'], ['io', 'I/O(포트·신호선)'], ['positions', 'Positions'], ['flow', 'Flow(물류·자재)']] as [LayerId, string][]).map(([k, l]) =>
-              <label key={k} style={{ fontSize: 12, whiteSpace: 'nowrap' }}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
-              <div className="muted" style={{ fontSize: 10 }}>숨김 ≠ 삭제 · 시뮬 제외 아님</div></div>}</div>
-          <button onClick={() => setView({ ...view, zoom: Math.max(0.5, +(view.zoom - 0.1).toFixed(2)) })}>−</button>
-          <span className="mono">{Math.round(view.zoom * 100)}%</span>
-          <button onClick={() => setView({ ...view, zoom: Math.min(2, +(view.zoom + 0.1).toFixed(2)) })}>+</button>
-          {connectFrom && <span className="badge acc">연결 시작: {connectFrom} (Esc 취소)</span>}
-        </div>
-        <div className="left">
-          <div className="ph">팔레트 ({ASSET_LIBRARY.length}종 AML 정의 + 빈 유닛) — 드래그</div>
-          <div className="palette">
-            <div className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
-            {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version} · ${a.amlSource.file}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
+        <div className="stage">
+          <h1 className="stage-title">배치·연결</h1>
+          <div className="tool-pills">
+            <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
+            <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결">물류 연결</button>
+            <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); }} title="출력 포트에서 입력 포트로 연결. 포트는 아래 도면에 있습니다">신호 연결</button>
+            <div className="layerbox"><button className={layerOpen ? 'on' : ''} onClick={() => setLayerOpen(!layerOpen)}>레이어</button>
+              {layerOpen && <div className="layerpop">{([['background', '배경'], ['units', 'Substation'], ['axis', '축·이송'], ['io', '포트·신호선'], ['positions', '포지션'], ['flow', '물류·자재']] as [LayerId, string][]).map(([k, l]) =>
+                <label key={k}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
+                <div className="muted">숨김은 삭제가 아니고 실행에서도 빼지 않습니다.</div></div>}</div>
+            <span className="zoom-pill"><button type="button" aria-label="축소" onClick={() => setView({ ...view, zoom: Math.max(0.5, +(view.zoom - 0.1).toFixed(2)) })}>−</button><span>{Math.round(view.zoom * 100)}%</span><button type="button" aria-label="확대" onClick={() => setView({ ...view, zoom: Math.min(2, +(view.zoom + 0.1).toFixed(2)) })}>+</button></span>
           </div>
+          <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
+          <details className="palette-fold">
+            <summary>팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</summary>
+            <div className="palette">
+              <div className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
+              {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
+            </div>
+          </details>
+          {connectFrom && <p className="notice">연결 시작: {connectFrom}. Esc로 취소합니다.</p>}
+          <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
+            onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick} onReparent={requestReparent} />
+          <p className="path-note">{flowSummary(p)}<br />카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 아래 도면에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
+          <details className="diagram-fold" open={mode === 'signal'}>
+            <summary>도면 도식 열기 · 좌표 이동, 포트, 신호선, 실사풍</summary>
+            <div className="diagram-tools">
+              {visualToggle}
+              <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
+              <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
+              <button className="danger" onClick={() => selectedId && requestDelete(selectedId)} disabled={!selectedId || locked}>삭제</button>
+            </div>
+            <div className="diagram-canvas">{canvasEl}</div>
+          </details>
         </div>
-        <div className="center">{canvasEl}</div>
-        <div className="right">{inspectorEl}</div>
+        <div className="right prop-col">{(() => {
+          const d = p.devices.find((x) => x.id === selection[0]);
+          const host = d ? p.units.find((u) => u.id === d.unitId) : p.units.find((u) => u.id === selection[0]);
+          const def = d ? findAsset(d.kind) : undefined;
+          const missingComplete = d ? p.actions.some((a) => a.deviceId === d.id && !a.completeSignalId) : false;
+          return <div className="prop-sheet">
+            <h2>{d ? `${d.name} · ${def?.name ?? d.kind}` : host ? `${host.code} ${host.name}` : '선택 없음'}</h2>
+            <p className="muted">{host ? `Station / ${host.code} ${host.name.replace(new RegExp(`^${host.code}\\s*`), '')}` : '왼쪽 또는 카드에서 고르세요.'}{d ? <><br />Device · {d.definitionRef.assetId}@{d.definitionRef.version}</> : null}</p>
+            <p>속성 / 신호 / Action</p>
+            {d && host && <p>소속 Substation<br />{host.name}</p>}
+            {d && def && def.properties.slice(0, 3).map((pd) => {
+              const qv = d.properties[pd.key];
+              if (!qv) return null;
+              return <p key={pd.key}>{pd.label}<br />{qv.value ?? '미정'} {qv.unit}{qv.assumption ? ' · 가정값' : ''}</p>;
+            })}
+            <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); setRightTab('actions'); goStep('attributes'); }}>Action 편집</button>
+            {missingComplete && <p className="warn-note">완료 신호 미정 · 실행 차단<br />필수 값은 임의로 채우지 않습니다.</p>}
+            <button type="button" className="btn-main secondary" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}>삭제 영향 확인</button>
+            <details className="prop-more"><summary>속성 자세히</summary>{inspectorEl}</details>
+          </div>;
+        })()}</div>
       </div>}
 
       {!view.home && step === 'attributes' && <div className="workspace ws-full ws-noTabs">
-        <div className="bbody" style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 1fr) minmax(300px, 1fr)', gap: 12, alignContent: 'start' }}>
+        <div className="bbody" style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 1fr) minmax(300px, 1fr)', gap: 16, alignContent: 'start' }}>
+          <h1 className="stage-title" style={{ gridColumn: '1 / -1' }}>속성·Action</h1>
           <div style={{ border: '1px solid var(--border)', borderRadius: 6 }}>{inspectorEl}</div>
           <div>
             {(() => { const uid = p.units.find((u) => u.id === selectedId)?.id ?? p.devices.find((d) => d.id === selectedId)?.unitId; return uid
@@ -748,6 +789,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!view.home && step === 'sequence' && <div className="workspace ws-full">
+        <h1 className="stage-title">자재·시퀀스</h1>
         <Sub items={[['sequence', 'Station 시퀀스 Draft (F5)'], ['subseq', `Substation 시퀀스 (${(p.substationSequences ?? []).length})`], ['material', '자재·Flow (F4)'], ['sfc', 'SFC 미리보기'], ['extend', '누락 편집 확장']]} />
         <div className="bbody">
           {sub === 'sequence' && <SequencePanel p={p} rt={rt} locked={locked} edit={edit} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />}
@@ -759,6 +801,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!view.home && step === 'check' && <div className="workspace ws-full">
+        <h1 className="stage-title">점검</h1>
         <Sub items={[['gap', `Gap (F6) ${tab.gaps.length}`], ['diag', '진단·저장·AML'], ['export', 'Export 미리보기 (F8)'], ['lab', 'Evolution Lab (F7)']]} />
         <div className="bbody">
           {sub === 'gap' && <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />}
@@ -769,6 +812,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!view.home && step === 'run' && <div className="workspace ws-run">
+        <h1 className="stage-title run-title">실행·저장</h1>
         <div className="toolbar">
           <div className="seg" role="tablist" aria-label="실행 대상">
             <button role="tab" aria-selected={runMode === 'station'} className={runMode === 'station' ? 'on' : ''} onClick={() => setRunMode('station')}>Station 시퀀스</button>
@@ -793,8 +837,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className="grow" />
         {!view.home && <>
           <button className="small" onClick={() => setItemsOpen(!itemsOpen)}>남은 항목 {curEval.items.length}</button>
-          <button className="btn-main secondary" disabled={cur.no === 1} onClick={() => goStep(STEPS[cur.no - 2].id)}>◀ 이전</button>
-          <button className="btn-main primary" disabled={cur.no === 6} onClick={goNext}>다음 ▶</button>
+          <button className="btn-main secondary" disabled={cur.no === 1} onClick={() => goStep(STEPS[cur.no - 2].id)}>이전</button>
+          <button className="btn-main primary" disabled={cur.no === 6} onClick={goNext}>다음 단계</button>
         </>}
         {view.home && <>
           <button className="btn-main secondary" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>

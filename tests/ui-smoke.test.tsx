@@ -62,8 +62,8 @@ describe('UI smoke (jsdom)', () => {
       for (const t of subs) await click(btn(t, el.querySelector('.subtabs')!));
     }
     expect(txt()).toContain('CYL-03'); // selection survives step round trip
-    await click(btn('다음 ▶')); // disabled on last step → no throw
-    await click(btn('◀ 이전'));
+    await click(btn('다음 단계')); // disabled on last step → no throw
+    await click(btn('이전'));
     expect(appEl.dataset.step).toBe('check');
     // themes: light/dark only. Stored id A = light, B = dark. Archived C is not a button.
     expect(appEl.dataset.theme).toBe('A');

@@ -5,6 +5,7 @@
     "docs/user-manual/images/gui-r5/s10-library-light-1280.png",
     "docs/user-manual/images/gui-r5/s11-detail-light-1280.png",
     "docs/user-manual/images/gui-r5/s20-canvas-light-1280.png",
+    "docs/user-manual/images/gui-r5/s20-canvas-dark-1280.png",
     "docs/user-manual/images/gui-r5/s30-edit-light-1280.png",
     "docs/user-manual/images/gui-r5/s41-sequence-light-1280.png",
     "docs/user-manual/images/gui-r5/s40-material-light-1280.png",
@@ -37,6 +38,15 @@
         "h": 48,
         "attrW": "100",
         "attrH": "48"
+      }
+    },
+    {
+      "fontCheck": {
+        "titleFamily": "\"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", system-ui, -apple-system, \"Segoe UI\", sans-serif",
+        "titleSize": "24px",
+        "titleWeight": "700",
+        "cardSize": "18px",
+        "noto": true
       }
     },
     {

@@ -66,6 +66,7 @@ export function LibraryWorkspace(props: Props) {
   const def = ASSET_LIBRARY.find((d) => d.id === sel) ?? null;
   return <div className="libws">
     <div className="libmain">
+      <h1 className="stage-title">에셋 라이브러리</h1>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <input placeholder="검색 (이름/키/ID)" value={filter.q} onChange={(e) => props.setFilter({ ...filter, q: e.target.value })} style={{ width: 200 }} />
         <select value={filter.category} onChange={(e) => props.setFilter({ ...filter, category: e.target.value })}><option value="">모든 분류</option>{Object.entries(CAT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>

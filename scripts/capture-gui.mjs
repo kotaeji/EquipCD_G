@@ -75,8 +75,27 @@ if (slot.w !== 100 || slot.h !== 48) throw new Error('pusher slot geometry ' + J
 notes.push({ slot });
 
 await page.locator('[data-stepid="canvas"]').click();
-await page.waitForSelector('svg.canvas-svg');
+await page.waitForSelector('.station-card');
+const fontCheck = await page.evaluate(async () => {
+  await document.fonts.ready;
+  const title = getComputedStyle(document.querySelector('.stage-title'));
+  const body = getComputedStyle(document.querySelector('.station-card h3'));
+  return {
+    titleFamily: title.fontFamily,
+    titleSize: title.fontSize,
+    titleWeight: title.fontWeight,
+    cardSize: body.fontSize,
+    noto: document.fonts.check('700 24px "Noto Sans KR"') && document.fonts.check('700 18px "Noto Sans KR"'),
+  };
+});
+notes.push({ fontCheck });
+if (!fontCheck.noto) throw new Error('Noto Sans KR is not loaded: ' + JSON.stringify(fontCheck));
+if (fontCheck.titleSize !== '24px') throw new Error('stage title is not 24px: ' + fontCheck.titleSize);
+await page.locator('.chip', { hasText: 'PSH-01' }).first().click();
 await shot(page, 's20-canvas-light-1280');
+await page.getByRole('radio', { name: '다크 테마' }).click();
+await shot(page, 's20-canvas-dark-1280');
+await page.getByRole('radio', { name: '라이트 테마' }).click();
 
 await page.locator('.tree [role=treeitem]').nth(2).click();
 await page.locator('[data-stepid="attributes"]').click();
@@ -107,6 +126,7 @@ if (!runRevDark.includes('paused') || runRev.match(/rev \d+/)[0] !== runRevDark.
 await shot(page, 's60-pause-dark-1280');
 await page.getByRole('radio', { name: '라이트 테마' }).click();
 
+await page.locator('.ex-extra > summary').click();
 await page.getByRole('button', { name: '관리…' }).click();
 await page.getByRole('button', { name: '+ 새 Workspace' }).click();
 await page.getByRole('dialog').last().locator('input').fill('화면검수 공간');
