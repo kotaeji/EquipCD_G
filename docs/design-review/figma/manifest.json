@@ -1,0 +1,3425 @@
+{
+  "title": "Aurora Concept Designer 설계 원본 내보내기",
+  "source": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh",
+  "capturedAtKST": {
+    "first": "2026-11-09T07:59:46+09:00",
+    "last": "2026-11-09T08:06:05+09:00"
+  },
+  "method": "Figma 표준 SVG_STRING 원본 → Cairo 벡터 PDF → 원본 프레임별 병합",
+  "nativeFigmaPDF": false,
+  "imageBasedPDF": false,
+  "textFont": "Noto Sans KR 정규·굵게 포함",
+  "staticOnly": true,
+  "sourceCounts": {
+    "wire": 31,
+    "ux": 31,
+    "baseGUI": 31,
+    "stateGUI": 17,
+    "guiThemes": 2,
+    "guiContentPages": 96
+  },
+  "files": [
+    {
+      "file": "Aurora-Wireframes.ko.pdf",
+      "totalPages": 32,
+      "contentPages": 31,
+      "bytes": 782496,
+      "sha256": "9a633756fc3a4c74201de2fccdc9472c630d947bea486c16535ad5c918fa08a8",
+      "pages": [
+        {
+          "page": 1,
+          "screenID": "표지",
+          "theme": null,
+          "sourceNode": null,
+          "sourceSHA256": null,
+          "pageSHA256": "f2b56261072349e5bd830838c1aa28d500e6b2f4b293461fe500935791727223",
+          "hashRenderPixels": [
+            1280,
+            800
+          ]
+        },
+        {
+          "page": 2,
+          "screenID": "S00",
+          "name": "WF S00 작업 시작 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "1:722",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-722",
+          "sourceSHA256": "0675ec53802672fc13baea511b0ed3eb0a0f16e8e36a4ce0da947c65b12b3c14",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "7bf3dceeab99716b1e022d6a85bfd501489e2d71763ae421424f9aecc28f19b4",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 3,
+          "screenID": "S01",
+          "name": "WF S01 Workspace 관리 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:2",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-2",
+          "sourceSHA256": "6b99ff85021f2f2f78a89a1f68ae7d516c3b3e02041ef1f1e0dc3a3beb406851",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "96a8d4c428c28b4a36a72257bf805dd4bb17b58944b1c2b4549584f9b1a506d6",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 4,
+          "screenID": "S02",
+          "name": "WF S02 프로젝트 관리 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:26",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-26",
+          "sourceSHA256": "ad7850b82e3371dd8d78928d89039fa6b481d1060647fbff7adc21737fb5879d",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "ee87e2e3485e7e2905212381c855b155423221803e3e47c8fd54612303dc7ef6",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 5,
+          "screenID": "S03",
+          "name": "WF S03 프로젝트 파일 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:50",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-50",
+          "sourceSHA256": "bf39c62f6efbbc125b1726a0f8a94c93529d892bc6855254a6615ffdf43c7f14",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "0b472d8a43ac3589a46846b09f919122143549fe693bbd93612fdade1eec6ab8",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 6,
+          "screenID": "S04",
+          "name": "WF S04 Workspace 파일 묶음 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1290",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1290",
+          "sourceSHA256": "9a30c96eabed173639f77a2df24a6320fd683787144471d95f09f53b559ea83f",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "e704f513c781e0bf159f080bc18581db33455ab065f4ca7a143f1440cac55524",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 7,
+          "screenID": "S10",
+          "name": "WF S10 에셋 라이브러리 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "1:739",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-739",
+          "sourceSHA256": "d2c4f9973da9faa63ed2ea5e2c6ab80e338ed45f65c031ff6ac5a910b7de4bf2",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "f54acff9bc365352931ebf33bcccf200fca10029ac311dc7fe8efe12677119e0",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 8,
+          "screenID": "S11",
+          "name": "WF S11 에셋 카드 상세 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1317",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1317",
+          "sourceSHA256": "dcf1e9fe829814b9d9b2e04e454990d99619198ac6e92474694ff2d90350aa6d",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "db7876f9829710d3303164c160e5bbfe6c6740df877bf53d42dfe9fe713089e6",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 9,
+          "screenID": "S12",
+          "name": "WF S12 AML 입출력 결과 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1344",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1344",
+          "sourceSHA256": "24fe01e4680d19cf4a05724c2cb280ae18799417fe8a974a065569d301c58acc",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "cfb9964c503be96e42cee1c2f2c9767a06c9976d0354ea18871b3b301c73c59e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 10,
+          "screenID": "S13",
+          "name": "WF S13 입력 후보표 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1371",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1371",
+          "sourceSHA256": "6504127109a9ab2587a77027e85743bd552e0eeef57d7ca875f2065adb4b19e7",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "cd3de4df3aa920b1b3d3b8cea7504694584e807add5c66c75d8ce8c54adb1a19",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 11,
+          "screenID": "S14",
+          "name": "WF S14 자료 입력 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1398",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1398",
+          "sourceSHA256": "57e2fc8996fd4d9dc08ffd6844536808e650918a6592e3fe611633135e07b2a3",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "114d1669e0962751b6d613f59a402075c58f381d7230b28eca28a599cabc510c",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 12,
+          "screenID": "S20",
+          "name": "WF S20 장비 구성 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "1:758",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-758",
+          "sourceSHA256": "a27afc16c0d27e16fd3e32c5fec24d06f350762069e01105af95397de29407b0",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "4b16bf1aa4503bc990b91aa886655b6c4d8dbe91ad79ca962878a5b8b8737eeb",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 13,
+          "screenID": "S21",
+          "name": "WF S21 소속 변경과 삭제 영향 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1425",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1425",
+          "sourceSHA256": "e0816b1549adabe3aef19e71a65d11e751a8a407e4e0a88bb5e4518aef9d1a2f",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "43aad67a151acc72b4f14e33924530e23f10d6de364369e77ca8ce96b88b95b8",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 14,
+          "screenID": "S30",
+          "name": "WF S30 장치 속성 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:74",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-74",
+          "sourceSHA256": "9e4e6f7ee9bd189a6b2ba6b564eb0631c454996fad6abe27abd4e3125878aaaf",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "8df7982e0a68d3c0941eb5a5900dc15130c7d7cb07c3feff5a19d7b373acc249",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 15,
+          "screenID": "S31",
+          "name": "WF S31 신호와 포지션 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1452",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1452",
+          "sourceSHA256": "c4cd04a203e4c28e3ba72d5b2f11fad7131d63c5775da0677bb778acdde11343",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "c10b37fd5d3abaa0c9f11bddaa036edcb08ad5eafbb6ace27817a1c3a565c5dd",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 16,
+          "screenID": "S32",
+          "name": "WF S32 Action 정의 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:100",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-100",
+          "sourceSHA256": "e4756adab0aea7fc08d71f4d94c0f67e1dbbe4f8d02d35a567e6b2b3a4d2b351",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "a80be9c6683940b03cd8ccb80220961d3e8843b9f8a9c2eadc0e39f312956604",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 17,
+          "screenID": "S40",
+          "name": "WF S40 자재와 흐름 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:126",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-126",
+          "sourceSHA256": "1f498e27baa53f88e8a9048d6c83f4656e5c4d74c9c06975f6257eaa1a5b83ab",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "516656ee45c1f0050f3f626da4edceb57c84a27422212db4f89228003f1412db",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 18,
+          "screenID": "S41",
+          "name": "WF S41 Station 시퀀스 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:152",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-152",
+          "sourceSHA256": "93f60afdc4e9038c8f1c2b1cca1c940b25900efe665264c3281a5b29f5a32cb1",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "2f1141f52d1ebf076a971c06fe9e421bc125da870770b433ed5d066bf28211a1",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 19,
+          "screenID": "S42",
+          "name": "WF S42 Substation 시퀀스 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:178",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-178",
+          "sourceSHA256": "d302a7767721b269e925ea7912144177b863b109efc93e2a08aa87e13eeab8cd",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "fafae1186318855678a8083e36ff5128b406b4e93c1140c4f30a466400ae9729",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 20,
+          "screenID": "S43",
+          "name": "WF S43 SFC 미리보기 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1479",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1479",
+          "sourceSHA256": "97747be43592de6074afc9857d2720474fe6c8ad30d0b7106d5a229520638f5a",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "d6100d9571181e56785e39f5e2f6c67c5d7748fc23c54e3a7b5b36f591038210",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 21,
+          "screenID": "S44",
+          "name": "WF S44 누락 편집 확장 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1506",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1506",
+          "sourceSHA256": "2746ab8e6a933c98e2e88202060ec7112eb2f163914682a79e75bd3a18c7a2ec",
+          "capturedAtKST": "2026-11-09T07:59:46+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "b8cf6f675c8a0039ac01ef0d7c6cfa6d3f9b767caebf000706aaa80ca4d3a960",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 22,
+          "screenID": "S50",
+          "name": "WF S50 Gap 점검 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:204",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-204",
+          "sourceSHA256": "d65e405192d67260fb00abbdf160f0193ae072912a613c84db2ca0707bcd80d3",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "a4726a4726a679cc670290b93f148f359c674bdfbeeb86938f206c32a9e69fd6",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 23,
+          "screenID": "S51",
+          "name": "WF S51 진단과 저장 복구 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1533",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1533",
+          "sourceSHA256": "b065677ca0a74f09d2b5a8a989c12f29bebf2e2cf70288e551441c54a179f426",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "1c6f1542bf30ac22ec9930e0bcca6bf71908c46176e94109b3e656c103043789",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 24,
+          "screenID": "S52",
+          "name": "WF S52 Export 미리보기와 왕복 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1560",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1560",
+          "sourceSHA256": "f41cbafe4f5d471f019e14e232de1ccb7e2c00af2afe56679962ef32026f2d83",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "aaca80b2f627f9640186e3cadd92d296dd922c6e3d12b48b0d85c9d1c62f6dee",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 25,
+          "screenID": "S53",
+          "name": "WF S53 Evolution Lab · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1587",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1587",
+          "sourceSHA256": "3a958f57c200232e3fc88672de97a5334439703e6cf1ad224bdccf2111bd4f0a",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "c881df3fa1dc8a3ca34e32210376fc7c993cda0f2db25cf56028eac10ae8907b",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 26,
+          "screenID": "S60",
+          "name": "WF S60 Station 논리 실행 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:230",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-230",
+          "sourceSHA256": "6f3c587c1f1263d549f472e2503fbfab70f9fee687a5b5a879614d88faef7fb0",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "bdb24306d838d92e2f2da82699d1eb4dab62d4952f64292c4ada171596564ad2",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 27,
+          "screenID": "S61",
+          "name": "WF S61 Substation 그룹 실행 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:256",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-256",
+          "sourceSHA256": "c9ac33ad03811d4f299c41b1cb0579abe67a98b0d377af671e373977488ce3de",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "80355561fd216528f55c434f9917084293886d33585f291fb00af07dbdfecc5d",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 28,
+          "screenID": "S62",
+          "name": "WF S62 실행 차단과 수정 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "5:282",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=5-282",
+          "sourceSHA256": "7f67b5dd02011f6ffbb70480230abb044442defeac55f63a4afc7da253071ae4",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "dfc5d4fa34fc3d4d9620b5b290e57bb1ef9bd4925d0f2d919d3609922b11f6c8",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 29,
+          "screenID": "S70",
+          "name": "WF S70 공통 탐색 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1614",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1614",
+          "sourceSHA256": "036f5b862d1450fc7bf95707c4ffcf74b1c34c04d8477ae625a34a6e245bcec8",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "e7871f022d469e5b7909c2dfadb8391f90b8524aa8b5b2ada5a8da06e2811487",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 30,
+          "screenID": "S71",
+          "name": "WF S71 보기 설정 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1641",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1641",
+          "sourceSHA256": "b9339a0898edcaad713df24542edc00bef5f230d0f9bd2092a7a38e2c8d26b9c",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": "원본 A/B/C는 이전 기준. 최신 선택은 라이트·다크 둘만.",
+          "pageSHA256": "8248035a46932f3fd67b02e0ff88ab14f87d5e5650bb49a6697a51846791f818",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 31,
+          "screenID": "S72",
+          "name": "WF S72 확인과 이름 대화상자 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1668",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1668",
+          "sourceSHA256": "f70978a7bd696790d70e8eed5bad460d4d42ad27b016fae31d231c205e3d766f",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "2a493f71db0b513c00c499f28a3bc814a91a505251fd9a9c6397bfd44d47f22f",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 32,
+          "screenID": "S73",
+          "name": "WF S73 저장 실패와 복구 차단 · 미구현 설계 시안",
+          "theme": null,
+          "sourceNode": "8:1695",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1695",
+          "sourceSHA256": "284cf90ebd7bd983ad67dafa759f3a69640abdba6f53d169b66d5eecd3e0b080",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "84994f5d370cadd4805f4b084a003e584c831af0f5171b966c2f83823c0abba2",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        }
+      ]
+    },
+    {
+      "file": "Aurora-UX-Scenarios.ko.pdf",
+      "totalPages": 32,
+      "contentPages": 31,
+      "bytes": 670426,
+      "sha256": "a5bd5ccee450e5529b406f1a9df94b265f06704c42b1e815a6f8cac2ce6ac9ab",
+      "pages": [
+        {
+          "page": 1,
+          "screenID": "표지",
+          "theme": null,
+          "sourceNode": null,
+          "sourceSHA256": null,
+          "pageSHA256": "948cefdb32809a1d8bea0355469d2aca142c28783f8be56b043478141dbfc416",
+          "hashRenderPixels": [
+            1280,
+            800
+          ]
+        },
+        {
+          "page": 2,
+          "screenID": "S00",
+          "name": "UX-S00 작업 시작",
+          "theme": null,
+          "sourceNode": "1:101",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-101",
+          "sourceSHA256": "149753073636b388f5f8418ea200a98eac248a1432c4a7f1f3dbdd10d992e899",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "98b0d4ac4d713178ab877efa896936926dbedb38443db0e99c073a01ec065fe5",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 3,
+          "screenID": "S01",
+          "name": "UX-S01 Workspace 관리",
+          "theme": null,
+          "sourceNode": "1:105",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-105",
+          "sourceSHA256": "a83679a3e07671c26ebdb9d6553a6bd07c6cc91a0a0b45d664b9784da339d591",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "fd7af5cdbc0341bb2a483b426c549e89caa2418b554ce7e49da6d9a0a9a46a9d",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 4,
+          "screenID": "S02",
+          "name": "UX-S02 프로젝트 관리",
+          "theme": null,
+          "sourceNode": "1:109",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-109",
+          "sourceSHA256": "cf69151650db81f0442dee8b327fa30acf6de4e97ae23cdbdf12214a8dd8e4e3",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "0501d31317afbe3d4f927e0d029bc2baec4f5b354b8580d0fe45293991063c80",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 5,
+          "screenID": "S03",
+          "name": "UX-S03 프로젝트 파일",
+          "theme": null,
+          "sourceNode": "1:113",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-113",
+          "sourceSHA256": "65017e2bb6ccb36d03d43845e768059439dd9a92e20910e47f8d726e5a16f38c",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "617bc7ea724425fe9998bcdde3bcdbedf1d23264d23c4b38f528715164b58863",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 6,
+          "screenID": "S04",
+          "name": "UX-S04 Workspace 파일 묶음",
+          "theme": null,
+          "sourceNode": "1:117",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-117",
+          "sourceSHA256": "7ea63136f6495859d4774c0611157a58b8f9cc49c3bfaf67f686524bc6ce81f9",
+          "capturedAtKST": "2026-11-09T07:59:54+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "10e954a7f12bc55fcb3bbe9cced35c28b7fe3fdd3a0051516d0339f5d45bc7f5",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 7,
+          "screenID": "S10",
+          "name": "UX-S10 에셋 카드",
+          "theme": null,
+          "sourceNode": "1:121",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-121",
+          "sourceSHA256": "44ce205c05f65446b88b389d059056ce7cff7f8a49e11f4b4c9cf6b92406733f",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "0f16a17fe8f849b23c1170f91df1b40abeb1210913204c94b808f8913ed968be",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 8,
+          "screenID": "S11",
+          "name": "UX-S11 카드 상세",
+          "theme": null,
+          "sourceNode": "1:125",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-125",
+          "sourceSHA256": "0f868bb43639e1fa16c09fe03559e2accae570ee2360bda40d452b2f839aa372",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "2821cbe9200bd6915feb38f5f34cb78669dcb0245fdcc85da4f832c9397476f4",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 9,
+          "screenID": "S12",
+          "name": "UX-S12 AML 결과",
+          "theme": null,
+          "sourceNode": "1:129",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-129",
+          "sourceSHA256": "36445fa9b17ca6910ab53c2d43181d79fd02181550a30d34f3fca2f91919ebac",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "d20c6346b521b887520b5a02c2c1e6246433fdf9b0f1fac9286809d1c37fac27",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 10,
+          "screenID": "S13",
+          "name": "UX-S13 입력 후보표",
+          "theme": null,
+          "sourceNode": "1:133",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-133",
+          "sourceSHA256": "c3ab9c59c5f102f26826dbf54db9549fcbb1b9e60aeb9eaeff78b9181ac88abb",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "379d9632d01f6abf9f0d98eb720f0860319a5b843e6cef1d2cf91277346b5e1a",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 11,
+          "screenID": "S14",
+          "name": "UX-S14 자료 입력",
+          "theme": null,
+          "sourceNode": "1:137",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-137",
+          "sourceSHA256": "b2902259d3ef74799fe9cfc156fdf6edd32560fb619e1eee8c0da6b4db3c0a73",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "0986e4246905639d72ececfb909dc355ea9259746c12b1c3195ce620ef4ca09e",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 12,
+          "screenID": "S20",
+          "name": "UX-S20 장비 구성",
+          "theme": null,
+          "sourceNode": "1:141",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-141",
+          "sourceSHA256": "3e4121dfe88a1e0edaa6dfc63724557964ad1aca49e8eb1da698889835f65241",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "6e9a07ef924616317fcbfa447c1598a7c204a7e8eb0c5ed43c79b543780afbb4",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 13,
+          "screenID": "S21",
+          "name": "UX-S21 삭제와 소속 영향",
+          "theme": null,
+          "sourceNode": "1:145",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-145",
+          "sourceSHA256": "3104b788c7eeb6d5d1a1187ad3f5a3c5da3275a0c3682b16a55b4af4e85915db",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "9078e2242c39a55af9342f506fc4518da3f1a688b9bef17e4dab686a2ffa203b",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 14,
+          "screenID": "S30",
+          "name": "UX-S30 속성",
+          "theme": null,
+          "sourceNode": "1:149",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-149",
+          "sourceSHA256": "67b54dc362d71222813ba2477152e994f654cefd3d878a706c15bce6c22b170c",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "788078401b563f3927032cb3486e67f83537c46a6b4688f2248daa32624edac8",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 15,
+          "screenID": "S31",
+          "name": "UX-S31 신호·포지션",
+          "theme": null,
+          "sourceNode": "1:153",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-153",
+          "sourceSHA256": "ffdb697d39c1fcfa8f0755212dda898bc6ac29cb19e44d679b9051738034e3eb",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "102cff613068670c0b5f6231d280543cbec54c305e4b66bb6f9a056686c9646a",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 16,
+          "screenID": "S32",
+          "name": "UX-S32 Action",
+          "theme": null,
+          "sourceNode": "1:157",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-157",
+          "sourceSHA256": "2f317beea5fa0eecb378d4b18dabb293087090950909c9410b790a3b342ca452",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "31116670fd4d542e2b1613af0e1ad10586378fd840df8100673c4cdaaffe86a3",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 17,
+          "screenID": "S40",
+          "name": "UX-S40 자재·Flow",
+          "theme": null,
+          "sourceNode": "1:161",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-161",
+          "sourceSHA256": "c981b4f72b469dabff409c85e78f4a5428375f45d5d844c4481c0c46408ea15a",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "82669f9274026316feea855854daf779a5370b3b8fdc6ada8d592bef8032c4c5",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 18,
+          "screenID": "S41",
+          "name": "UX-S41 Station Draft",
+          "theme": null,
+          "sourceNode": "1:165",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-165",
+          "sourceSHA256": "8537faeeb8651910f88aa28283a43e1dd8aa91477e801c060109698b95820f6e",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "2266110f4c91e82469bc1db8ffd15563facf31c07bd3980b85e89e029adbd5af",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 19,
+          "screenID": "S42",
+          "name": "UX-S42 Substation 시퀀스",
+          "theme": null,
+          "sourceNode": "1:169",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-169",
+          "sourceSHA256": "b4ad763f7b18628fe9da82073357f390c91ecc91c59a642a00dc7d3b51207346",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "f9173a42794fb8be95c8416a431c6de90b5660124080807eb591b99ea8becbb2",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 20,
+          "screenID": "S43",
+          "name": "UX-S43 SFC 미리보기",
+          "theme": null,
+          "sourceNode": "1:173",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-173",
+          "sourceSHA256": "aa578a5c53feace8ddbe17398ef4e1e3826e6a71b34544ba594ca328be76e791",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "ee56b98afeefc987d20853b38085c26f82319a135f31b6e31e4a5f8aae23454d",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 21,
+          "screenID": "S44",
+          "name": "UX-S44 누락 편집 확장",
+          "theme": null,
+          "sourceNode": "1:177",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-177",
+          "sourceSHA256": "33afb9934e1b1321e3377ed951fdb1fe4042fd29489962a93160e5190a01cea4",
+          "capturedAtKST": "2026-11-09T08:00:03+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "8ac6fb8645f4d2dee236b29d11ebe7127b2a08c042e17229cfaa30510172a155",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 22,
+          "screenID": "S50",
+          "name": "UX-S50 Gap 분석",
+          "theme": null,
+          "sourceNode": "1:181",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-181",
+          "sourceSHA256": "eff63c701243f79aa7095e03e89693831bdb391f0a6913860f8bf96c1bd09563",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "2fd3aa7fcc412a9f3bfa77909620355f42ee9506c65e18831f7a3d97e677d687",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 23,
+          "screenID": "S51",
+          "name": "UX-S51 진단과 격리",
+          "theme": null,
+          "sourceNode": "1:185",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-185",
+          "sourceSHA256": "6736ad5e1aceb6017a54dd87dc4d56855d399c9e20f41c4b92a8bb46de162730",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "706a7080f1e4b0742e12ae0c8338b0ad88619a4fa2a479cf0eb3791e8117807e",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 24,
+          "screenID": "S52",
+          "name": "UX-S52 Export와 역매핑",
+          "theme": null,
+          "sourceNode": "1:189",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-189",
+          "sourceSHA256": "d063ede77cdf2799300b61acf482ab1452fe975fb107378617e7b76c82670ec9",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "b241d5a71b07706134b1619d8de02d89d2a49abe4abc18c4f359faa5eb628410",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 25,
+          "screenID": "S53",
+          "name": "UX-S53 Evolution Lab",
+          "theme": null,
+          "sourceNode": "1:193",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-193",
+          "sourceSHA256": "ad4aeb027bbc4afb96265267f24af8c6d70a36031b3a5af604e51be199d51a21",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "f48a483be83cfd8e7a35ad26ac93720e8b810684ed3a875f06445c864d7b63c8",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 26,
+          "screenID": "S60",
+          "name": "UX-S60 Station 실행",
+          "theme": null,
+          "sourceNode": "1:197",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-197",
+          "sourceSHA256": "ddb32bbf5750a6531f4e5b4ad97f1c341972ca1c5457db5e010fcf465e372a9e",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "294a7423a53cdac266882dfc2583a7f78db1a415fbaba77823fba7ba106d0f32",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 27,
+          "screenID": "S61",
+          "name": "UX-S61 그룹 실행",
+          "theme": null,
+          "sourceNode": "1:201",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-201",
+          "sourceSHA256": "124d2e1fe9cd6c345b41e1114036140a6e1dccbfa88034a396e644695fb6fb69",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "6117280d35e5d2c4bc9a9cffb3194a7e0453de657a33c9100df59f6070a4e5ef",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 28,
+          "screenID": "S62",
+          "name": "UX-S62 실행 차단",
+          "theme": null,
+          "sourceNode": "1:205",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-205",
+          "sourceSHA256": "5c7315c6346118a7271f325887ff801f1b43f67334531982e58169bc8f557393",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "b6b52342ce1485cf20e3e278a7006826b04e03bc9e02bec48481b827163bfac8",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 29,
+          "screenID": "S70",
+          "name": "UX-S70 탭과 트리",
+          "theme": null,
+          "sourceNode": "1:209",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-209",
+          "sourceSHA256": "2b1d88b40410ffebaee6691e15795743bd9edde12820317197807798505b1dfc",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "6933d17efc5e6e33e52e7ac9913513ac443083b6be5aea942cdfe2d2903df148",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 30,
+          "screenID": "S71",
+          "name": "UX-S71 보기 설정",
+          "theme": null,
+          "sourceNode": "1:213",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-213",
+          "sourceSHA256": "8a4fb3bd17261e64a2b8c8106664e49d0a8450351d156694d17636915d83ac78",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "e0e9225cc824569a74a8b700505acedfd3ec00c3f725913222d1c7347f60a08d",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 31,
+          "screenID": "S72",
+          "name": "UX-S72 대화상자",
+          "theme": null,
+          "sourceNode": "1:217",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-217",
+          "sourceSHA256": "8c3541cb3cb7844da48ce9208ce8b3bb1ebe5eea9b1ff7e87bfe4e3fe62e4973",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "cb49f9d657ecb128432f634dfa691176bb7c0db4ff19fb501610b71111192cf7",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        },
+        {
+          "page": 32,
+          "screenID": "S73",
+          "name": "UX-S73 저장 실패",
+          "theme": null,
+          "sourceNode": "1:221",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-221",
+          "sourceSHA256": "60b204a784dcc91d74c8103288ca6d65e66bf4ac3f1adbfe9f1303248e66aaf3",
+          "capturedAtKST": "2026-11-09T08:00:04+09:00",
+          "sourceFrameSize": [
+            564,
+            345
+          ],
+          "uniformScale": 1.5,
+          "notice": null,
+          "pageSHA256": "4a9b0586441ed43b42c29ddc350af79cbd731f484d77cc22092f5aef94fdc25d",
+          "hashRenderPixels": [
+            846,
+            582
+          ]
+        }
+      ]
+    },
+    {
+      "file": "Aurora-GUI-Light-Dark.ko.pdf",
+      "totalPages": 97,
+      "contentPages": 96,
+      "bytes": 1517640,
+      "sha256": "835fd0a7fb325507fad562bfb67f126f673c68dd57c71856458c509d4a02e3ca",
+      "pages": [
+        {
+          "page": 1,
+          "screenID": "표지",
+          "theme": null,
+          "sourceNode": null,
+          "sourceSHA256": null,
+          "pageSHA256": "2e17e307abafc3e551985cfe227af6b17cef2dca2598b7791ddc3fe3cf7b2f5e",
+          "hashRenderPixels": [
+            1280,
+            800
+          ]
+        },
+        {
+          "page": 2,
+          "screenID": "S00",
+          "name": "GUI S00 작업 시작 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "1:416",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-416",
+          "sourceSHA256": "fbee30aca40914062c232021bbd8fc63d5f737ed8009cceb9dc379851a415e22",
+          "capturedAtKST": "2026-11-09T08:01:10+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "5a9cb7e22cb12ed8b70c1705be90d02598aa5d16caf8ffa502ddf2ced65c7cc0",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 3,
+          "screenID": "S00",
+          "name": "GUI S00 작업 시작 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "1:416",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-416",
+          "sourceSHA256": "415c9ef0379d9c7f26b683a0737738d824d74250eb24d08146ce6263c1a63b74",
+          "capturedAtKST": "2026-11-09T08:01:10+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "e4d237225b8510ac6f4dbbe7497f3ba0c3af87ceadbeb2cd307dcad704ab7b58",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 4,
+          "screenID": "S01",
+          "name": "GUI S01 Workspace 관리 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:46",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-46",
+          "sourceSHA256": "0f4beb9f454a7d7a54e5168a0c4bc667bd6a13022286a4b27832ea17df074eb7",
+          "capturedAtKST": "2026-11-09T08:03:58+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "b07dbefe5af4eda7427eba3b202dcc3b8e8c703135af361280d97b9a01f14c4f",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 5,
+          "screenID": "S01",
+          "name": "GUI S01 Workspace 관리 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:46",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-46",
+          "sourceSHA256": "8daf20e53070e37f0093e029e6230447df3629127203bf1328def7a9e7ba68c3",
+          "capturedAtKST": "2026-11-09T08:03:58+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "983286ab2a4bd2f3bd3927675e2f92e6fa1f15f880d8ae199f71c8a03043f896",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 6,
+          "screenID": "S02",
+          "name": "GUI S02 프로젝트 관리 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:50",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-50",
+          "sourceSHA256": "9bba501fcc6034f72a798b151a7a95de840f8518f6c616c17af0e7c40e042c93",
+          "capturedAtKST": "2026-11-09T08:03:58+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "ff7ddf929622d78792d54f5af19e59f0984f76c18291fd07222b7b5a9a2b59e9",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 7,
+          "screenID": "S02",
+          "name": "GUI S02 프로젝트 관리 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:50",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-50",
+          "sourceSHA256": "bcc81d125254428b2d6f09dcd27e937fd9298c5fe7c4e083a9b19ee34ffbc161",
+          "capturedAtKST": "2026-11-09T08:03:58+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "0126e3ef435ffcea7ff49c60c4ed24fcf71df43ed25b28e6c386d96856439056",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 8,
+          "screenID": "S03",
+          "name": "GUI S03 프로젝트 파일 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:54",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-54",
+          "sourceSHA256": "ba00a2ca4d4f036b5d2a28ba6ec5b3ae3d0234f4ac70b8e943c065d9ff35dd56",
+          "capturedAtKST": "2026-11-09T08:05:41+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "e4b639726e2ae671a0c10a1183d6b3ed90ede832279568cde239ceeed53bb3fc",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 9,
+          "screenID": "S03",
+          "name": "GUI S03 프로젝트 파일 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:54",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-54",
+          "sourceSHA256": "45030871590b601a516f3f884e1ac167b12e34ca595184b63c0e76170b7754c2",
+          "capturedAtKST": "2026-11-09T08:05:41+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "cc913f6f83ea9ec3fc85f6ab3ada6113a32778789dafd60089a470ec15ca2859",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 10,
+          "screenID": "S04",
+          "name": "GUI S04 Workspace 파일 묶음 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:244",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-244",
+          "sourceSHA256": "b5c6391a7f8ebbb80536511581c5c39c987f14fed4f9db9aa1be3ed699f7767b",
+          "capturedAtKST": "2026-11-09T08:01:19+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "69b588714682be9e8a2eb324f30f03417ead13c6cbf0aa7dd6f097e104e5f4cc",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 11,
+          "screenID": "S04",
+          "name": "GUI S04 Workspace 파일 묶음 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:244",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-244",
+          "sourceSHA256": "f28cf17430d04a0543117baf8a8da8dc93fd7d90fcf1a6ce3d0f6d9f9994f336",
+          "capturedAtKST": "2026-11-09T08:01:19+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "44bd8170373e3d1afe7f8f644008a602b250af6b1ff3b42152c9c2e83ff3fdd7",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 12,
+          "screenID": "S10",
+          "name": "GUI S10 에셋 라이브러리 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "1:420",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-420",
+          "sourceSHA256": "a521cf6fc63aebb5edf2663478ffef9842e3d647f3229e12647c214497032f5e",
+          "capturedAtKST": "2026-11-09T08:04:05+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "ed373de4dfa4caa2b390e11bac0e52d06b543b3eb4891ffc0cc47cc4224cbfa2",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 13,
+          "screenID": "S10",
+          "name": "GUI S10 에셋 라이브러리 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "1:420",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-420",
+          "sourceSHA256": "2feb745c4d6d9cf0cb6bbbdbc1f602a70c1e798e7143ea7e0f39d74ebe72de02",
+          "capturedAtKST": "2026-11-09T08:04:05+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "2a61bbdbe692f761534135b7763d7a378c2960283baa9fe01ebc135631bf1f9b",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 14,
+          "screenID": "S11",
+          "name": "GUI S11 에셋 카드 상세 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:276",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-276",
+          "sourceSHA256": "e4563376ec550e1df7c3931bb53e9bcc0aef247eef2032dac14e19bb17fbccc4",
+          "capturedAtKST": "2026-11-09T08:04:05+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "a3b7a93eccfb1d296db6867be58318809a9b65dae438d79ffff980d4c2b9dec6",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 15,
+          "screenID": "S11",
+          "name": "GUI S11 에셋 카드 상세 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:276",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-276",
+          "sourceSHA256": "557f1b4aaca5b1a03399cda798011f0180c086dad889713a2cbdc60ab3a3ef34",
+          "capturedAtKST": "2026-11-09T08:04:05+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "17b23974ac4af7bb91c775846ba20b2096e990063e7a9413d4e339c1c4505cbc",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 16,
+          "screenID": "S12",
+          "name": "GUI S12 AML 입출력 결과 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:308",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-308",
+          "sourceSHA256": "83522630ba9f8f01855fcf136f137eb7c4f3a323daddd735580c0d5b178f7b95",
+          "capturedAtKST": "2026-11-09T08:05:41+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "b4ac63bc2120c6dfc0c176d638ffce07fdfde2d069b88439f49e12ed676812de",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 17,
+          "screenID": "S12",
+          "name": "GUI S12 AML 입출력 결과 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:308",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-308",
+          "sourceSHA256": "c8c696073046bc9c4240fc1d0a3e1b76ab7e716f862160d6475af21b921418d3",
+          "capturedAtKST": "2026-11-09T08:05:41+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "07a7e826b372aa88815f0853af3a03f7482d60bcb4e2d6b6a64f47cc888994d6",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 18,
+          "screenID": "S13",
+          "name": "GUI S13 입력 후보표 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:340",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-340",
+          "sourceSHA256": "ac8aff27a1a484cd04fcb792d90c64f6c895e148fc344b79cb1be91d4ee269f6",
+          "capturedAtKST": "2026-11-09T08:01:28+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "0c4e1d451e46b0ca455e4f58f5c788ca2d4a07342801f7d33b3a89194717fbbe",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 19,
+          "screenID": "S13",
+          "name": "GUI S13 입력 후보표 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:340",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-340",
+          "sourceSHA256": "ee76c159e4a916daed7d94c75ee765b97cc9de8b1a932f712661ab53cae254c8",
+          "capturedAtKST": "2026-11-09T08:01:28+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "5649c23a39385cf1a505b70fce84141996fde709467c469f0e3535b4a5d9c144",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 20,
+          "screenID": "S14",
+          "name": "GUI S14 자료 입력 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:372",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-372",
+          "sourceSHA256": "116bb3dc288055a0d94bab8d7198b69fc64fa811049f93d8cc7cde8182d8ace0",
+          "capturedAtKST": "2026-11-09T08:04:11+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "8ea9966a2ad04dfdf5ecc27186bc7911a7f69d12439c84847403e0f85a1115f1",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 21,
+          "screenID": "S14",
+          "name": "GUI S14 자료 입력 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:372",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-372",
+          "sourceSHA256": "312eeb7c0be552d620ebddf57d5e5df6970fea6b7a22d2d6b526075bd4b0afe3",
+          "capturedAtKST": "2026-11-09T08:04:11+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "fd67f8599013ed3dcc03821921b65bd0c100fa0c643ae39020b41ed9522ed1f6",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 22,
+          "screenID": "S20",
+          "name": "GUI S20 장비 구성 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "1:424",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-424",
+          "sourceSHA256": "030a3911c0dd078fddd04ff7262995b432d03d157313ce21beedab02307c311c",
+          "capturedAtKST": "2026-11-09T08:04:11+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "e3507d774e54eb5fd8083cc8ba0ae98e9225a186a8c110c94cebed37b71d926e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 23,
+          "screenID": "S20",
+          "name": "GUI S20 장비 구성 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "1:424",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=1-424",
+          "sourceSHA256": "68e2f4d8d3041b7a3ede8f2b19d042923bdf8b09e16427c31c232b075c9e148a",
+          "capturedAtKST": "2026-11-09T08:04:11+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "21a280e10e96af57b4279e16aca43e096302b54f57de3aa7320f1df3f4d4a2e9",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 24,
+          "screenID": "S21",
+          "name": "GUI S21 소속 변경과 삭제 영향 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:404",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-404",
+          "sourceSHA256": "ce41bd1d0ac7ce5e079ca381c8321caabb578ef2b33741e4d3375f22d568fcbc",
+          "capturedAtKST": "2026-11-09T08:05:48+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "dc9f4b7b71631a4a814d00b1f942845e5b74c74a9c100dd83fa4f7d705da9f4e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 25,
+          "screenID": "S21",
+          "name": "GUI S21 소속 변경과 삭제 영향 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:404",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-404",
+          "sourceSHA256": "db09eaab44815d971106b463831e8e4f6504705bf6672ecdc69a96e276a9e489",
+          "capturedAtKST": "2026-11-09T08:05:48+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "ddc1b615b32124c0144a283f3d61b144abb11020aa80535492f9ebddbd2eaf9d",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 26,
+          "screenID": "S30",
+          "name": "GUI S30 장치 속성 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:58",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-58",
+          "sourceSHA256": "a06c875e8b322ce853cf3beccb8bcd2d90c52905dc306fd270a5cf0ae190a80e",
+          "capturedAtKST": "2026-11-09T08:01:40+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "5a67f460773955d798cbc1829c92a35ec77555d8ed45e69ffbfaa958ed23008e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 27,
+          "screenID": "S30",
+          "name": "GUI S30 장치 속성 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:58",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-58",
+          "sourceSHA256": "02b6f23627a2eef5fdad73568a8deacb5522b60c57e8e7322d903299583f732d",
+          "capturedAtKST": "2026-11-09T08:01:40+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "ab24b2c0225347ac2369e2117f57ed155ee6dbfbb1b68963e974d20d3e8fb07f",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 28,
+          "screenID": "S31",
+          "name": "GUI S31 신호와 포지션 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:436",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-436",
+          "sourceSHA256": "01c7f53967e4090b2c66a4d57da7b0c575daa6981991c68cfc0b6b87a325d4b4",
+          "capturedAtKST": "2026-11-09T08:04:19+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "a72bec1f569d87385d2ecb6d5b23eac538da836d910b418a8db2f89192e17d86",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 29,
+          "screenID": "S31",
+          "name": "GUI S31 신호와 포지션 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:436",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-436",
+          "sourceSHA256": "6231c8ff77953f858948818c68878484404771e7c5c9f668f5b03db30362031d",
+          "capturedAtKST": "2026-11-09T08:04:19+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "aadfc24a5b58a92fa664550d59d092e88afa9070fd6b6443081aa9a56f8467f2",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 30,
+          "screenID": "S32",
+          "name": "GUI S32 Action 정의 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:62",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-62",
+          "sourceSHA256": "1e60a1cb92178647249169ad38b0bedf75b8e35b018a215b2608ff2116d56bb1",
+          "capturedAtKST": "2026-11-09T08:04:19+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "7a6daf20ce0ffbecf848ec08359916cf7806c7af3840fdad77638285811a01fb",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 31,
+          "screenID": "S32",
+          "name": "GUI S32 Action 정의 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:62",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-62",
+          "sourceSHA256": "9814383a20e9bec45c0870e5455c3faef0baeaf8e9b30828504b8adf8b784309",
+          "capturedAtKST": "2026-11-09T08:04:19+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "b336891cdb2dfee934beecdb88fa088ea7f42a2bb0307b60cb83c0b85f7b393f",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 32,
+          "screenID": "S40",
+          "name": "GUI S40 자재와 흐름 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:66",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-66",
+          "sourceSHA256": "6a50c20ec377aac1ff3491b76753ceecb8ac1c848fed9f94b2905c0dbe189074",
+          "capturedAtKST": "2026-11-09T08:05:48+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "e77e5b851734588008cd09b9397a9f66b99a347431b5a42f2b50b418c169ef9b",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 33,
+          "screenID": "S40",
+          "name": "GUI S40 자재와 흐름 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:66",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-66",
+          "sourceSHA256": "fc95d5e0bb27db0052b1236274c1efa12a27d518c4fc714d6a3b1034e564f66d",
+          "capturedAtKST": "2026-11-09T08:05:48+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "2789096c620b2945dd3bff9877fe87f1db00ecd5655202cb2c95737b0280f63d",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 34,
+          "screenID": "S41",
+          "name": "GUI S41 Station 시퀀스 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:70",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-70",
+          "sourceSHA256": "0c9708a5ff43980eebb34c4c1ae1f33609e925e2f5de87a51726d8cd17fa9e41",
+          "capturedAtKST": "2026-11-09T08:01:52+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "dccc0aa6bb2e6b348008c3df111bd8e1ad271d9975cd9d5ca11e398230ac5243",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 35,
+          "screenID": "S41",
+          "name": "GUI S41 Station 시퀀스 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:70",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-70",
+          "sourceSHA256": "e75ad04bf83df0b230597d1a09d12621b50fc69670b97f494b1f8ac3b231efb9",
+          "capturedAtKST": "2026-11-09T08:01:52+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "fb0e188fdbcfcd46bc030203c78b544eb1f74a9f9203ea4783719f8d56cafe46",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 36,
+          "screenID": "S42",
+          "name": "GUI S42 Substation 시퀀스 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:74",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-74",
+          "sourceSHA256": "9c7f8ac746c30fca0e8ddd0f134fea47efd999453390a76ab2331ad7b2d22af2",
+          "capturedAtKST": "2026-11-09T08:04:27+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "3412749e39186ce93f23e779ef500dec40096d77f854772c767de6d2211405fb",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 37,
+          "screenID": "S42",
+          "name": "GUI S42 Substation 시퀀스 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:74",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-74",
+          "sourceSHA256": "ee597c2a5aecddd527b8c6291b831032e4c9622b9e8f0dc607cacc53eb8fa9ea",
+          "capturedAtKST": "2026-11-09T08:04:27+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "5ec8a35d69a782a93915baee752ad116d7e923c257c896947f273a7393723502",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 38,
+          "screenID": "S43",
+          "name": "GUI S43 SFC 미리보기 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:468",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-468",
+          "sourceSHA256": "2448027441a32d4f3d34e8b7ca0d617705555692e771002aaa7d14b38ddbd556",
+          "capturedAtKST": "2026-11-09T08:04:27+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "11b154eb897c27d737565c359b19f95a57d05081642b22da0ca81f4144a5dfaf",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 39,
+          "screenID": "S43",
+          "name": "GUI S43 SFC 미리보기 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:468",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-468",
+          "sourceSHA256": "0afae7411f0ca1a525ed2bc689b6baa2ba337abd4d3e1277ac437e558536dd2b",
+          "capturedAtKST": "2026-11-09T08:04:27+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "a73694381c9864a777844b800c9beef4fb9664179787258a68718bc79ce2428e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 40,
+          "screenID": "S44",
+          "name": "GUI S44 누락 편집 확장 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:500",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-500",
+          "sourceSHA256": "5c284874a2a3b45e57aab8c98244db33b6f0ba1964e5f4e3e8a6798d48f746b6",
+          "capturedAtKST": "2026-11-09T08:05:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "3d29584190a509b2cb0f42733f1ecc5a441dc686ce1124737afd228cea2bc27e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 41,
+          "screenID": "S44",
+          "name": "GUI S44 누락 편집 확장 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:500",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-500",
+          "sourceSHA256": "d4558853e7922c2fefc4830f5fb7eed33f7e122a516a111a41de0a8500747e19",
+          "capturedAtKST": "2026-11-09T08:05:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "f9fb1dda92b48ca3cddedfdaa0c675eb43c271594d8a56ce32f6a8d9c0804060",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 42,
+          "screenID": "S50",
+          "name": "GUI S50 Gap 점검 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:78",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-78",
+          "sourceSHA256": "2be95a0519b4267be8c56335af104e2bde90958c5ea465b6ce4711f38110674a",
+          "capturedAtKST": "2026-11-09T08:02:00+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "a3a5e57fd1499d1097616e0eef92812b659f726ac13533a737a5698379f84f7d",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 43,
+          "screenID": "S50",
+          "name": "GUI S50 Gap 점검 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:78",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-78",
+          "sourceSHA256": "2849d0a7645961c28e3f2b0bf2421a219f6dbd2360ddd93792f45e9d3770b5f4",
+          "capturedAtKST": "2026-11-09T08:02:00+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "71200f9a847838f6b1e26f7dc556a39f23ba8b471f5cf632dedebd2f56ea7e95",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 44,
+          "screenID": "S51",
+          "name": "GUI S51 진단과 저장 복구 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:532",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-532",
+          "sourceSHA256": "94952714cc5287cd9d6e042b88abc168708f7d931deacb4fe2049881067ebfeb",
+          "capturedAtKST": "2026-11-09T08:04:34+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "31aabb64abf623136b2d02b5e0b6ddd0792aa556b780c2c0497542be2c48d735",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 45,
+          "screenID": "S51",
+          "name": "GUI S51 진단과 저장 복구 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:532",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-532",
+          "sourceSHA256": "7d45789d1bdb15e9ccd4c5ca5342ff6e7c0c4f528e66b71123c2f43c87ae4d56",
+          "capturedAtKST": "2026-11-09T08:04:34+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "5397ad192a40931b55b7517ce7ae465292de9b77c83eb9093ee454c181e3bb99",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 46,
+          "screenID": "S52",
+          "name": "GUI S52 Export 미리보기와 왕복 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:564",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-564",
+          "sourceSHA256": "ed6c20ebc87902573dd43d8396b424648cfdf09d54a35924b7082fa8533e485a",
+          "capturedAtKST": "2026-11-09T08:04:34+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "f8886b2709b8ea5f78b9ce1edc21c5b9b9c0b0bac9b453eb306f353899078e76",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 47,
+          "screenID": "S52",
+          "name": "GUI S52 Export 미리보기와 왕복 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:564",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-564",
+          "sourceSHA256": "92ee71bceaa2c1be81a1c3874bcd85e15c822998ecfd175c2ecd3eab44d1258f",
+          "capturedAtKST": "2026-11-09T08:04:34+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "c475002f5a0991bbc903ada22a6dbb8ffcf797de73bb52af45983c3981540860",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 48,
+          "screenID": "S53",
+          "name": "GUI S53 Evolution Lab · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:596",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-596",
+          "sourceSHA256": "bef8a9a08771858576ef37a9b1001347fa26daa4ca3d8b6d42e31e131ce6503a",
+          "capturedAtKST": "2026-11-09T08:05:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "497a53c2f98ed5089a2775908bf864258c4b5a58456ae0b799a8aa53e3ad60df",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 49,
+          "screenID": "S53",
+          "name": "GUI S53 Evolution Lab · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:596",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-596",
+          "sourceSHA256": "071339e6fd7df9bc52eeb99e162402a14c5f29f5a472edb74a0f9561b42f99fd",
+          "capturedAtKST": "2026-11-09T08:05:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "cb79968f6af4e415432c1ed1dc6aa7bef7ed439c2a5d24f1ede6b9d0939e5c3a",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 50,
+          "screenID": "S60",
+          "name": "GUI S60 Station 논리 실행 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:82",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-82",
+          "sourceSHA256": "d005ea3f84938d7b4f2d28df18633078d21c9e15765016e4153808121f82594d",
+          "capturedAtKST": "2026-11-09T08:02:09+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "c831d9c2f61c0724ee113a395b791624cf7ac9a86401b2bba98ecb598a44e275",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 51,
+          "screenID": "S60",
+          "name": "GUI S60 Station 논리 실행 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:82",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-82",
+          "sourceSHA256": "680d720feb84e9fa529b7d42807fe77f63f7bed8da9e3079892c53e7f829070b",
+          "capturedAtKST": "2026-11-09T08:02:09+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "9f4d515c64c200fb0a77ed63ce51f99175ebbc04e7655635c99c1a036701e0ac",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 52,
+          "screenID": "S61",
+          "name": "GUI S61 Substation 그룹 실행 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:86",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-86",
+          "sourceSHA256": "72ed96df158fdb58cad5e13ff78e64ea65c2dcf399889c080dd05f6251fed629",
+          "capturedAtKST": "2026-11-09T08:04:40+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "1b257c2b093d0f3f3a8e7aba9167c5e06407d27ac02e3590038ef2b1be8efafa",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 53,
+          "screenID": "S61",
+          "name": "GUI S61 Substation 그룹 실행 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:86",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-86",
+          "sourceSHA256": "60f25a099c4b0f818344ad142a1eff2e303f5c52a3de20defa60816451555363",
+          "capturedAtKST": "2026-11-09T08:04:40+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "ad4433e201aefbf1acaa4877956f9ed5c5e359ae6b53aad63e5d4fbd0e361c86",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 54,
+          "screenID": "S62",
+          "name": "GUI S62 실행 차단과 수정 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "3:90",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-90",
+          "sourceSHA256": "7b9c3cdf2452b96f7c66ed70f067c1631ca218bc74f6c74b889c624514a2c723",
+          "capturedAtKST": "2026-11-09T08:04:40+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "9a2def74133e023383b7d6c1255f451fabbb207498409be475e6e137609ab866",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 55,
+          "screenID": "S62",
+          "name": "GUI S62 실행 차단과 수정 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "3:90",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=3-90",
+          "sourceSHA256": "d7c906dca4c1caa9c3e347f8026482f668e2fb1f78952e1f4a2b79bd8bebd8d9",
+          "capturedAtKST": "2026-11-09T08:04:40+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "dcd02d661525b33b524e885e1cc7545e2976172b6634a8165d6fa304d3abefba",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 56,
+          "screenID": "S70",
+          "name": "GUI S70 공통 탐색 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:628",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-628",
+          "sourceSHA256": "b3a2217dbbf6c581a77e62661b008365decde684f5a45307d71878d23b239944",
+          "capturedAtKST": "2026-11-09T08:06:05+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "4f044e8e46224b2eb629c3e47e865af70e4dc2f1315854a057e62ed9231851ce",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 57,
+          "screenID": "S70",
+          "name": "GUI S70 공통 탐색 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:628",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-628",
+          "sourceSHA256": "5109bbf8228388192040ddca1290a0b26c3b1ee755f28a7ca4a6b05aa7cddd68",
+          "capturedAtKST": "2026-11-09T08:06:05+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "0f3dee0c0c56338ca4ef6c358c8c4b0f1bcd9f1776283a46eca19d1474793eb2",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 58,
+          "screenID": "S71",
+          "name": "GUI S71 보기 설정 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:660",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-660",
+          "sourceSHA256": "043edfbb8c032b37a582bd5ab2f4d79dd4ed6b8f11366857f87a055643f9955c",
+          "capturedAtKST": "2026-11-09T08:02:15+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "c618ede5fd71aa4b5d7d1ec2619e505a0ec862abf5d74691cc585b804cbc432c",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 59,
+          "screenID": "S71",
+          "name": "GUI S71 보기 설정 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:660",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-660",
+          "sourceSHA256": "db38b154153615725efa2dc28221112f178a6d028364d0fac62923b275b8ff0d",
+          "capturedAtKST": "2026-11-09T08:02:15+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "1b23ea0f56b4617c848c21c5a9943b9bb85bbb78c37b1b201f482f6c7d0db48a",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 60,
+          "screenID": "S72",
+          "name": "GUI S72 확인과 이름 대화상자 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:692",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-692",
+          "sourceSHA256": "a272bba980063d52c3f7db6092d7c7928722fb86f91a7aa5f404b0f454cef30f",
+          "capturedAtKST": "2026-11-09T08:04:48+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "f9e223a9d32ccd1ed7fe00567ad04c7b42886cdad4f37aef5f6d9eeda0570e83",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 61,
+          "screenID": "S72",
+          "name": "GUI S72 확인과 이름 대화상자 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:692",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-692",
+          "sourceSHA256": "8343be62871ba1f812895ed2d3faa8b90ec6b7191f43f23f8df5c81d8255fc69",
+          "capturedAtKST": "2026-11-09T08:04:48+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "f1576472e8e4542bde6e88da980f929a71dc0ea89ef831bd85ac646b84a354ac",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 62,
+          "screenID": "S73",
+          "name": "GUI S73 저장 실패와 복구 차단 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "7:724",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-724",
+          "sourceSHA256": "6046371e4e1ac2a2422a704f937f9ab459ed2c9d198a50d0753e704169eab5da",
+          "capturedAtKST": "2026-11-09T08:04:48+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "3218e23f8ceaceda18c71c95c2deda530a759b20159c78d5f7b98a5afe3a8e9d",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 63,
+          "screenID": "S73",
+          "name": "GUI S73 저장 실패와 복구 차단 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "7:724",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=7-724",
+          "sourceSHA256": "40f91ea5dd44a342d114ae45b8ccb34b87de5fe8b46262c31649815ba0ee4423",
+          "capturedAtKST": "2026-11-09T08:04:48+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "7521a3bdd2994a0957d1ae8641c03e556de6a033199a519985703b80ad6ec679",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 64,
+          "screenID": "V01",
+          "name": "V01 Workspace 만들기 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "6:228",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-228",
+          "sourceSHA256": "b20be0f88ea03ddcb27f8485f4915ef96f8ba6f437412182b57495a3ca628261",
+          "capturedAtKST": "2026-11-09T08:02:15+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "d37596543efec137dcb74f14abd44428d4c6b6a25cddff81537454efaf8c2812",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 65,
+          "screenID": "V01",
+          "name": "V01 Workspace 만들기 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "6:228",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-228",
+          "sourceSHA256": "0ea8c15f759cd023e3ac4ef99f55bf0de99137068b8e4cdea4efa6b3af444404",
+          "capturedAtKST": "2026-11-09T08:02:15+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "74ecc1b6e4041c12ca7d8f83eacfef0a74c33d62b57fffabbf3ae91984529dad",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 66,
+          "screenID": "V02",
+          "name": "V02 프로젝트 삭제 확인 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "6:245",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-245",
+          "sourceSHA256": "6766361e3846b5033c0fd067b1276098ad0833cac1fd3976d639d70347643d27",
+          "capturedAtKST": "2026-11-09T08:02:23+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "4cdfca5a31082869560e0c0d4f97048cf611fe180720460be749c60602f642b8",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 67,
+          "screenID": "V02",
+          "name": "V02 프로젝트 삭제 확인 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "6:245",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-245",
+          "sourceSHA256": "40e344973c97c5366af8b16a4ed4756da40cc94bee0f50e7bf62ea420419e06a",
+          "capturedAtKST": "2026-11-09T08:02:23+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "522336098986a6db79a1369dd394241f828cb573d2c781717ea383452e423b17",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 68,
+          "screenID": "V03",
+          "name": "V03 저장하지 않은 변경 보호 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "6:263",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-263",
+          "sourceSHA256": "b06d5bca19a66034103b2d41d01e5458f496715fafc834f0a485987846a98404",
+          "capturedAtKST": "2026-11-09T08:02:23+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "59f93c457a4f3f5e9cfbdc8ddd540245f9371b72a97cb9b10e3d12e1408401e9",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 69,
+          "screenID": "V03",
+          "name": "V03 저장하지 않은 변경 보호 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "6:263",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-263",
+          "sourceSHA256": "231f79861bf1a2d729e632ce0aa633ec33dadd450810a401ebf228a7eb966c8f",
+          "capturedAtKST": "2026-11-09T08:02:23+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "8e44473cf5e9e730811042d103fa61600e85ef2bd86dfbce85f993adc5ff3ed1",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 70,
+          "screenID": "V04",
+          "name": "V04 검색 결과 없음 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "6:280",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-280",
+          "sourceSHA256": "fbee4f898ffa549c24a7d834cf1a1a199d39ccf9aa55383289819315ca31ea23",
+          "capturedAtKST": "2026-11-09T08:02:23+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "893424bd3bdefab61da8e996a43fc75aa10a039c8c73392442a8552f11c8f9dd",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 71,
+          "screenID": "V04",
+          "name": "V04 검색 결과 없음 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "6:280",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-280",
+          "sourceSHA256": "a50c639326fa6575a36b18cdfb91abddbfc06aca514fa23c32742ce920c58e69",
+          "capturedAtKST": "2026-11-09T08:02:23+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "925d95b51d55d18a3f7aebe6f2e9c5b313ebcdefbe20ff5d67f8dfbe849c6994",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 72,
+          "screenID": "V05",
+          "name": "V05 Station 일시정지 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "6:297",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-297",
+          "sourceSHA256": "6fcdddc9c59d3220122838a9c7934d6121ca35f74eee5b4a268edf784d76840c",
+          "capturedAtKST": "2026-11-09T08:02:23+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "5bd6d06b53cd327d4479c2ce17b2fc1f06542d12c158cb87efd230d5fd08374a",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 73,
+          "screenID": "V05",
+          "name": "V05 Station 일시정지 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "6:297",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-297",
+          "sourceSHA256": "0af63da1c1a50eca7d0dd7df31c60f7c5ea47d16dc05a9d634bf9097b83782bf",
+          "capturedAtKST": "2026-11-09T08:02:23+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "cbff5e83545b612125c12c52294984c4787549bfd501aeabb804714d3963e65c",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 74,
+          "screenID": "V06",
+          "name": "V06 초기화 확인 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "6:314",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-314",
+          "sourceSHA256": "f3c1af5f64bc67cadfe5416541027088df0d34c7f138e5b2bb9334e61051c1bd",
+          "capturedAtKST": "2026-11-09T08:02:31+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "d60d4e1cbaabfc34013704fb6f3968163a79432bb300f01fd2f6e864e210104e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 75,
+          "screenID": "V06",
+          "name": "V06 초기화 확인 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "6:314",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-314",
+          "sourceSHA256": "a447a65f3691b79009daa0f9f416867064b58db29eefdcd42415217076afb6e5",
+          "capturedAtKST": "2026-11-09T08:02:31+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "0e4de733bb93bd35e7bb201d39c82e91090b065ee753de3d934fd1e661196a6b",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 76,
+          "screenID": "V07",
+          "name": "V07 Station 준비 완료 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "6:332",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-332",
+          "sourceSHA256": "81b818722ae4535b703faa7081515fb633becf5d33560792c34d602d50354e9e",
+          "capturedAtKST": "2026-11-09T08:02:31+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "21384912ba8e561836d55fb772b29b6a38518e130413b5af634edaccf6ee8768",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 77,
+          "screenID": "V07",
+          "name": "V07 Station 준비 완료 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "6:332",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-332",
+          "sourceSHA256": "6b95dda3c8b356b8e5f543d8766c84fc586c8b39c8ecd80822a1e312a40c968b",
+          "capturedAtKST": "2026-11-09T08:02:31+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "5066cab2dd73fc81db2a661400b9a7b686b5e876d32d27e16075f3b54505a153",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 78,
+          "screenID": "V08",
+          "name": "V08 실행 오류와 복구 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "6:349",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-349",
+          "sourceSHA256": "6b178879f47566c9beb89096c1c59fdf5f0da513a73f583fd2024204869b4aba",
+          "capturedAtKST": "2026-11-09T08:02:31+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "49e8d193c517be18547594d2c9f874404e24fae7f767a9f41412eec9f1b826d9",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 79,
+          "screenID": "V08",
+          "name": "V08 실행 오류와 복구 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "6:349",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=6-349",
+          "sourceSHA256": "87a5a5555acc3fe1dda56b39548ac8c6fcdad3a47443fd3ffbf1e7fa552754cf",
+          "capturedAtKST": "2026-11-09T08:02:31+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "d88a1d166af3d1a78f80426cfc0d1ae95072b469c580238b8d901ed26963e860",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 80,
+          "screenID": "V09",
+          "name": "V09 프로젝트 만들기 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "8:1722",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1722",
+          "sourceSHA256": "fdf468ec3ae7b3dfdf1f961dbe0ab0381bb69fe4c0fd135f8a0dd08d8c284961",
+          "capturedAtKST": "2026-11-09T08:02:31+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "046b447682c587a4da778d93238e893a43773b9b3a5e2eb41c76b15acc3141d9",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 81,
+          "screenID": "V09",
+          "name": "V09 프로젝트 만들기 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "8:1722",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1722",
+          "sourceSHA256": "820ecdafcf3a896102dc830bd7afcecdac0775204a057c78d649598a05c8d6fa",
+          "capturedAtKST": "2026-11-09T08:02:31+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "3bd985bb5db4188597c3b70ef2714fe016e982dec866be988ccbb3f51ea21c05",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 82,
+          "screenID": "V10",
+          "name": "V10 그룹 일시정지 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "8:1738",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1738",
+          "sourceSHA256": "c3195b948752b760fcbf75a0a4426c4b421cf12a801671d1e78762eaf50b4217",
+          "capturedAtKST": "2026-11-09T08:02:38+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "e848719ca2c11f452ef53b0472b810a03846b16c46e419e53c8672d2168b031f",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 83,
+          "screenID": "V10",
+          "name": "V10 그룹 일시정지 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "8:1738",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1738",
+          "sourceSHA256": "9fbb2977b029918cf356b43b01239cc1941da30b984e5080ebc3ddc365df6a0b",
+          "capturedAtKST": "2026-11-09T08:02:38+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "e30abb39df03130473bf26ae0d513d69f97fa74ccede0ebb37bca35d0fcf09dc",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 84,
+          "screenID": "V11",
+          "name": "V11 그룹 초기화 완료 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "8:1830",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1830",
+          "sourceSHA256": "10e8099e12e5b808894a5972ba7c38795054928474d64ff4f82e8fa2fc317954",
+          "capturedAtKST": "2026-11-09T08:06:05+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "6b480aa9147fe6e751ceedcfec6ce6b98e037761b22e3380a8af975d2a498627",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 85,
+          "screenID": "V11",
+          "name": "V11 그룹 초기화 완료 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "8:1830",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1830",
+          "sourceSHA256": "e64f38ca35c2841166f0cf70db30d8df3c8d1fc11807e3209f0b7b7556927113",
+          "capturedAtKST": "2026-11-09T08:06:05+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "192ab2acfb778056ecf975cddbb9ee7839fa5b9d94accc8617ab98744ae28d5e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 86,
+          "screenID": "V12",
+          "name": "V12 접힌 트리 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "8:1922",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1922",
+          "sourceSHA256": "7280b7ff5767bf7518370ab0414e9e350942a53a381085d8e3aa14c075c92df9",
+          "capturedAtKST": "2026-11-09T08:04:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "5df4c5b98fac5ccad01f272693b34c952b977dae00d33b2b354f82c0c46229a9",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 87,
+          "screenID": "V12",
+          "name": "V12 접힌 트리 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "8:1922",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-1922",
+          "sourceSHA256": "f8d4f238d2abf3e3f2a43f72bd73c1c93e20299d5b25f7932037f924456a8e66",
+          "capturedAtKST": "2026-11-09T08:04:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "f28db07ca4994868a835ad5e11d120b1502d8cd2537fd089cad3d62e94226710",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 88,
+          "screenID": "V13",
+          "name": "V13 병렬 프로젝트 탭 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "8:2010",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2010",
+          "sourceSHA256": "ac59a8c4350a84652ec4872a5e2cc17ae3124df697d83ffad3d01d07a1ad78a1",
+          "capturedAtKST": "2026-11-09T08:04:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "3c48b06881e865b3026b19cc4686afba0beee45f6e458b0b5913861f883ffbe0",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 89,
+          "screenID": "V13",
+          "name": "V13 병렬 프로젝트 탭 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "8:2010",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2010",
+          "sourceSHA256": "da21a97c95bb26d3b936a354cb8144449d089bdf3fed93732cb2a50b8d242ce5",
+          "capturedAtKST": "2026-11-09T08:04:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "13aced5f8cac0be5111984624dc5541d2df691b5c76c107b7278e0400bdb869e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 90,
+          "screenID": "V14",
+          "name": "V14 다크 선택 참고 · 두 테마 설계 시안",
+          "theme": "light",
+          "sourceNode": "8:2098",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2098",
+          "sourceSHA256": "d31c2e7c9739999c1114869cc749c0195e2fc7ef33e348c416051bcf77726fe1",
+          "capturedAtKST": "2026-11-09T08:02:45+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "a78038d738dc015a8fb3a75cda080475bae2c610dfb41c1b353a1cd9eb75c686",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 91,
+          "screenID": "V14",
+          "name": "V14 다크 선택 참고 · 두 테마 설계 시안",
+          "theme": "dark",
+          "sourceNode": "8:2098",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2098",
+          "sourceSHA256": "f14d63a63323731f2d0e4a378808677c2b17485ac5dd1b5d9f5511f828b96849",
+          "capturedAtKST": "2026-11-09T08:02:45+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "253e3401a085974ebfd8b893d875cc0a9fc85a3ac5a615f17aa9d4054d23be75",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 92,
+          "screenID": "V15",
+          "name": "V15 라이트 선택 참고 · 이전 C는 보관",
+          "theme": "light",
+          "sourceNode": "8:2182",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2182",
+          "sourceSHA256": "a0752bb883fb44c5616782e72323f83f789b1d3f8b1175f8178b21c33c777995",
+          "capturedAtKST": "2026-11-09T08:04:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "09ae1d8a5efafe7fb23de7e6c912ce8b743bacbe6a926566b24b6f988c7ce7a0",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 93,
+          "screenID": "V15",
+          "name": "V15 라이트 선택 참고 · 이전 C는 보관",
+          "theme": "dark",
+          "sourceNode": "8:2182",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2182",
+          "sourceSHA256": "3b588712458285ad44183fc473257309e66fd83951192e75dfa7eccf0a59aa4a",
+          "capturedAtKST": "2026-11-09T08:04:55+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "eaf49ef6c40fb855339dc6444929476cda4c43f08418771e1a1bcde487a91acc",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 94,
+          "screenID": "V16",
+          "name": "V16 그룹 초기화 확인 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "8:2266",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2266",
+          "sourceSHA256": "93ee24382eb86dbb14746e1bdcf918358d64e36c737ca20a154e44ece11e714e",
+          "capturedAtKST": "2026-11-09T08:02:45+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "ff13a6844892305fc1dcd35fd63c66ef5aaa868788cb30a87c0367729e58481e",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 95,
+          "screenID": "V16",
+          "name": "V16 그룹 초기화 확인 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "8:2266",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2266",
+          "sourceSHA256": "a97f244a0c611fb4b1327e2df1fb5e6d0ece715b886611ff82b58a1ef886a28f",
+          "capturedAtKST": "2026-11-09T08:02:45+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "56744a1bcd504ad4b43c0e002b2583cad5cfb546955eeedc21e1e8c2d4f2caed",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 96,
+          "screenID": "V17",
+          "name": "V17 프로젝트 이름 변경 · 미구현 설계 시안",
+          "theme": "light",
+          "sourceNode": "8:2282",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2282",
+          "sourceSHA256": "ff74c2372d61b1129c62ae88fc76396f8fbe8bfe5c641d87fac1322d202a6d21",
+          "capturedAtKST": "2026-11-09T08:05:03+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "2cf1732ec1672cbc16855163f0cb23e537820ef5cfb7a83a647f27ecca78cb20",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        },
+        {
+          "page": 97,
+          "screenID": "V17",
+          "name": "V17 프로젝트 이름 변경 · 미구현 설계 시안",
+          "theme": "dark",
+          "sourceNode": "8:2282",
+          "sourceURL": "https://www.figma.com/design/q5gKgslqjwByXykymfZkUh?node-id=8-2282",
+          "sourceSHA256": "1e6e4bf3e3eec02425199ffc40b931fe8e59369f9734ee6ab5868456a182fad0",
+          "capturedAtKST": "2026-11-09T08:05:03+09:00",
+          "sourceFrameSize": [
+            1280,
+            800
+          ],
+          "uniformScale": 1,
+          "notice": null,
+          "pageSHA256": "483b2a32e4489099c17a61cfeb466b18b776b7ea211612d787364ccbdb5e7458",
+          "hashRenderPixels": [
+            1280,
+            864
+          ]
+        }
+      ]
+    }
+  ],
+  "knownSourceNotice": {
+    "screenID": "S71",
+    "document": "와이어프레임",
+    "issue": "원본 프레임에 이전 A/B/C 표기가 남음",
+    "handling": "원본 내용 보존. 표지와 해당 쪽 바깥 주석으로 최신 라이트·다크 두 테마 기준 안내. Figma 원본 변경 없음."
+  },
+  "verification": {
+    "originalContentPages": 158,
+    "missingOriginalCharacters": 0,
+    "duplicateLogicalPages": 0,
+    "blankPages": 0,
+    "outOfFrameTextPages": 0,
+    "allFontsEmbedded": true,
+    "representativeVisualReviewPages": 6,
+    "allTemporaryThemeOverridesRestored": true,
+    "prototypeClickVerified": false,
+    "webImplementationVerified": false,
+    "outOfPageTextBounds": 0
+  },
+  "pageHashMethod": "pageSHA256는 72dpi RGB 렌더의 픽셀 바이트 SHA256. PDF 생성에 이미지를 사용한 것이 아니라 무결성 검사용 렌더다.",
+  "renderEngine": "PyMuPDF 2.1"
+}
