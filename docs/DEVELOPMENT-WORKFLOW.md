@@ -40,6 +40,11 @@ npm run build        # release/equipment-concept-designer.html 갱신 → 변경
 - 앱에서 가져온 AML 정의도 그 브라우저에만 남습니다. 공유하려면 AML 파일 자체를 옮기세요.
 - git이 동기화하는 것은 **코드·문서·에셋 파일뿐**입니다.
 
-## 6. 범위
+## 6. 버전을 올릴 때 — 사용자 매뉴얼 동시 갱신
+- [ ] `docs/user-manual/USER-MANUAL.ko.md`의 바뀐 기능·미검증 항목을 갱신(기능 ID MF-01~MF-26 유지, 새 기능은 MF-27부터) — 절차는 매뉴얼 부록 C
+- [ ] 같은 원고로 PDF 재생성(브라우저 불사용): `docs/user-manual/build_user_manual_pdf.py` (`requirements-pdf.txt`)
+- [ ] MD와 PDF를 **같은 commit**에 올리기 (이전 버전은 git 이력으로 보존)
+
+## 7. 범위
 - 웹 시제품 v0.2(논리 시뮬레이션 전용). WPF 버전은 미구현.
 - 프로젝트 전체 오픈소스 라이선스는 지정하지 않음. 실사진은 개별 라이선스(`assets/visuals/ATTRIBUTION.md`).
