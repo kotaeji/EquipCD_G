@@ -1,0 +1,3 @@
+# Offline PDF build for docs/user-manual (no browser). Install into a virtualenv.
+markdown==3.11.3
+weasyprint==70.0

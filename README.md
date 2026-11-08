@@ -4,6 +4,8 @@
 
 저장소: https://github.com/kotaeji/EquipCD_G · 작업 방법(집 Mac / 회사 Windows): [`docs/DEVELOPMENT-WORKFLOW.md`](docs/DEVELOPMENT-WORKFLOW.md)
 
+사용자 매뉴얼(한국어, 초보자용 단계별 안내): [`docs/user-manual/USER-MANUAL.ko.md`](docs/user-manual/USER-MANUAL.ko.md) · PDF [`docs/user-manual/USER-MANUAL.ko.pdf`](docs/user-manual/USER-MANUAL.ko.pdf)
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
