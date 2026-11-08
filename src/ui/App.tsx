@@ -20,6 +20,8 @@ import { devName, unitName } from './labels';
 import { DiagPanel, ExportPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RuntimePanel, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { GroupRunPanel, SubSequencePanel, SubstationSelect } from './SubstationPanels';
+import type { BlockerGuide } from './blockerTarget';
+import type { Diagnostic } from '../model/validate';
 import { loadView, nextTheme, saveView, THEME_ORDER, THEMES, type LayerId, type UserView } from './viewSettings';
 
 interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; group: GroupRuntime | null; gaps: Gap[]; analyzedRevision: number | null }
@@ -47,7 +49,8 @@ function download(name: string, text: string, mime = 'application/json') {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function App() {
+/** onHistory: test seam (unit tests only) — receives the active tab's undo history after each change. No global exposure. */
+export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const storage = useMemo(() => detectStorage(), []);
   const kv = storage.kv;
   useState(() => { restoreImportedAml(kv); return 0; });
@@ -96,6 +99,7 @@ export function App() {
   const subUnitId = gs?.unitId ?? (p.units.some((u) => u.id === subUnitPref) ? subUnitPref : selUnit ?? p.units.find((u) => (p.substationSequences ?? []).some((q) => q.unitId === u.id))?.id ?? p.units[0]?.id ?? '');
 
   useEffect(() => { saveView(kv, view); }, [kv, view]);
+  useEffect(() => { onHistory?.(tab.history); }, [onHistory, tab.history]);
   // N03: a project that is not active never keeps running in the background → pause (state kept, no auto resume)
   useEffect(() => {
     setTabs((ts) => ts.some((t) => t.key !== activeKey && (t.runtime?.state.status === 'running' || t.group?.state.status === 'running'))
@@ -145,7 +149,7 @@ export function App() {
     let g = tab.group;
     if (!g || g.state.unitId !== subUnitId || g.snapshot.revision !== p.revision || g.state.status !== 'idle') g = createGroupRuntime(p, subUnitId, `grp-${Date.now().toString(36)}`);
     const s2 = startGroup(g);
-    if (s2.state.status !== 'running') say(`그룹 실행 전 검사 차단: ${checkMsg(s2.state)}`, true);
+    if (s2.state.status !== 'running') say(`그룹 실행 전 검사 차단: ${checkMsg(s2.state)} — 오른쪽 「실행 전 검사」의 이동 버튼으로 수정 위치를 엽니다`, true);
     updTab(tab.key, (t) => ({ ...t, group: s2 }));
   };
   const checkMsg = (st: GroupState) => st.log.map((e) => e.message).slice(-1)[0] ?? '';
@@ -385,6 +389,14 @@ export function App() {
     const isNode = p.devices.some((d) => d.id === it.targetId) || p.units.some((u) => u.id === it.targetId);
     if (isNode) { setSelection([it.targetId]); goStep(step === 'canvas' ? 'canvas' : 'attributes'); setRightTab(p.devices.some((d) => d.id === it.targetId) ? 'actions' : 'props'); }
   };
+  // TURN-001: 6단계 그룹 실행 차단 항목 → 원인 수정/확인 화면으로 이동 (보기 상태만 변경, 모델·Undo 불변).
+  // 그룹 실행 대상(subUnitId)은 이동 전에 보기 선호값으로 고정해, 편집 대상 선택이 실행 Substation을 바꾸지 않게 한다.
+  const goBlocker = (_b: Diagnostic, g: BlockerGuide) => {
+    if (!g.dest) return;
+    if (subUnitId) setSubUnitPref(subUnitId);
+    if (g.focus) { setSelection([g.focus.id]); setRightTab(g.focus.kind === 'device' ? 'actions' : 'props'); }
+    goStep(g.dest.step, g.dest.sub);
+  };
   const BADGE = { ready: ['ok', '필수 충족'], blocked: ['err', '필수 누락'], recheck: ['warn', '재확인 필요'], confirmed: ['ok', '확인됨 ✓'] } as const;
   const sub = subTab[step];
   const Sub = ({ items }: { items: [string, string][] }) => <div className="tabs subtabs">{items.map(([k, l]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => setSubTab((t) => ({ ...t, [step]: k }))}>{l}</button>)}</div>;
@@ -599,7 +611,7 @@ export function App() {
         <div className="center">{runCanvasEl}</div>
         <div className="right"><div className="bbody">{runMode === 'station' ? <><RuntimePanel p={p} rt={rt} locked={locked} edit={edit} />
           {rt?.status === 'completed' && <div className="notice">완료 요약: 논리 시뮬레이션 완료 (실제 장비 안전·정밀 물리 검증·Core Export 준비 완료 아님). 남은 가정/미정은 5 점검 단계에서 확인.</div>}</>
-          : <><GroupRunPanel p={p} gs={gs} unitId={subUnitId} />
+          : <><GroupRunPanel p={p} gs={gs} unitId={subUnitId} onGoBlocker={goBlocker} />
             {gs?.status === 'completed' && <div className="notice">그룹 완료: 이 Substation의 시퀀스가 모두 논리적으로 완주했습니다 (실제 장비 동시 동작·안전 검증 아님).</div>}</>}</div></div>
       </div>}
 

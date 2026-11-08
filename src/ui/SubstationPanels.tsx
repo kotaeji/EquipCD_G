@@ -3,7 +3,9 @@ import { useState } from 'react';
 import * as C from '../model/commands';
 import type { Project } from '../model/types';
 import { GROUP_RULES_VERSION } from '../model/types';
+import type { Diagnostic } from '../model/validate';
 import { checkGroupReadiness, type GroupState } from '../runtime/group';
+import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
 import { devName, sigName } from './labels';
 import { fmtTime } from './Panels';
@@ -80,7 +82,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs }: { p
   </div>;
 }
 
-export function GroupRunPanel({ p, gs, unitId }: { p: Project; gs: GroupState | null; unitId: string }) {
+export function GroupRunPanel({ p, gs, unitId, onGoBlocker }: { p: Project; gs: GroupState | null; unitId: string; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
   const unit = p.units.find((u) => u.id === unitId);
   const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === unitId);
   const ready = unit ? checkGroupReadiness(p, unitId) : null;
@@ -94,8 +96,14 @@ export function GroupRunPanel({ p, gs, unitId }: { p: Project; gs: GroupState | 
       <div className="muted small-text">시작 대상 시퀀스 {seqs.length}개: {seqs.map((q) => q.name).join(', ') || '없음'}. 일시정지는 묶음 전체를 동결하고, 재개는 남은 시간부터 이어 갑니다. 한 시퀀스 오류 시 묶음 전체 정지(보수적 정책, 설계 제안).</div>
     </div>
     {ready && !ready.ok && (!gs || gs.status === 'idle') && <div className="section"><h4>실행 전 검사 — 차단 {ready.blockers.length}건</h4>
-      <ul className="diaglist">{ready.blockers.map((b) => <li key={b.id} className="err-text"><span className="mono">[{b.code}]</span> {b.message}</li>)}</ul>
-      <div className="muted small-text">충돌은 임의 우선순위로 진행하지 않고 실행 전에 차단합니다. 3 시퀀스 단계 → “Substation 시퀀스”에서 수정하세요.</div></div>}
+      <ul className="diaglist blockers">{ready.blockers.map((b) => { const g = resolveBlocker(p, b, ready.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
+        <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
+        <div className="blocker-go">
+          {c.badge && <Badge kind="warn">{c.badge}</Badge>}
+          <span className={g.kind === 'fix' ? 'muted blocker-lead' : 'blocker-lead'}>{c.lead}</span>
+          {onGoBlocker && c.button && <button type="button" className="small" data-blocker-code={b.code} data-guide-kind={g.kind} aria-label={c.aria} onClick={() => onGoBlocker(b, g)}>{c.button}</button>}</div>
+      </li>; })}</ul>
+      <div className="muted small-text">충돌·미정 값은 임의 우선순위나 임의 값으로 진행하지 않고 실행 전에 차단합니다. 「수정 위치」는 원인을 고치는 화면, 「원인 확인」은 원인을 볼 수 있는 화면입니다. 이동 버튼은 화면만 바꾸며 모델은 바꾸지 않습니다.</div></div>}
     {gs?.error && <div className="notice err" role="alert">[{gs.error.code}] {gs.error.message}</div>}
     <div className="section"><h4>시퀀스별 상태</h4>
       <table className="grid"><thead><tr><th>시퀀스</th><th>상태</th><th>현재 단계</th><th>진행</th><th>종료 시각</th></tr></thead><tbody>
