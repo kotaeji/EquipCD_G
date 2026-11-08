@@ -22,9 +22,18 @@ export interface UserView {
   /** per project id: step → confirmed fingerprint (UserView only; never in project files) */
   confirmed: Record<string, Partial<Record<StepId, string>>>;
   libraryFilter: { q: string; category: string };
+  /** TURN-002: per project id → ids of collapsed tree rows (Station = equipment id, Substation = unit id). UserView only. */
+  treeCollapsed: Record<string, string[]>;
 }
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
-  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' } };
+  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {} };
+
+function cleanCollapsed(v: unknown): Record<string, string[]> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [k, ids] of Object.entries(v as Record<string, unknown>)) if (Array.isArray(ids)) out[k] = ids.filter((x): x is string => typeof x === 'string');
+  return out;
+}
 
 export function loadView(kv: KV | null): UserView {
   if (!kv) return DEFAULT_VIEW;
@@ -36,7 +45,8 @@ export function loadView(kv: KV | null): UserView {
       step: STEPS.some((s) => s.id === o.step) ? o.step : 'library',
       visualMode: o.visualMode === 'photo' ? 'photo' : 'schematic',
       confirmed: o.confirmed && typeof o.confirmed === 'object' ? o.confirmed : {},
-      libraryFilter: { ...DEFAULT_VIEW.libraryFilter, ...(o.libraryFilter ?? {}) } };
+      libraryFilter: { ...DEFAULT_VIEW.libraryFilter, ...(o.libraryFilter ?? {}) },
+      treeCollapsed: cleanCollapsed(o.treeCollapsed) };
   } catch { return DEFAULT_VIEW; }
 }
 export function saveView(kv: KV | null, v: UserView) { if (!kv) return; try { kv.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* ignore */ } }

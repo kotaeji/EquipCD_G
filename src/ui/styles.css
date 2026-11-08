@@ -193,3 +193,22 @@ details.history summary { cursor: pointer; color: var(--muted); font-size: var(-
 .blocker-go { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: 2px; font-size: var(--fs-xs); }
 .blocker-go .blocker-lead { color: var(--text); }
 .blocker-go .blocker-lead.muted { color: var(--muted); }
+
+/* TURN-002 — workspace bar, name dialog, foldable tree (theme variables only) */
+.wsbar select { flex: 1; min-width: 0; }
+.namefield { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.namefield input { font-size: 13px; padding: 4px 6px; }
+.namefield input[aria-invalid=true] { border-color: var(--danger); }
+.err-text { color: var(--danger); }
+.wslist td, .projlist td { vertical-align: middle; }
+.tree .tunit { padding: 0; }
+.tree .tnode.station { color: var(--text); }
+.tree .twisty { display: inline-block; width: 16px; padding: 0; margin: 0 2px 0 0; border: 0; background: transparent; color: var(--muted); font-size: 11px; line-height: 1; cursor: pointer; }
+.tree .twisty:hover { color: var(--accent); }
+.tree .twisty-pad { display: inline-block; width: 18px; }
+.tree .selmark { margin-left: 6px; font-size: 10px; color: var(--accent); }
+.tree [role=treeitem]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* rev 4: parent treeitems wrap their row + child group → outline only the row */
+.tree .titem { padding: 0; }
+.tree .titem:focus-visible { outline: none; }
+.tree .titem:focus-visible > .tnode { outline: 2px solid var(--accent); outline-offset: -2px; }
