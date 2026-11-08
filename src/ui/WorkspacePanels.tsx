@@ -19,10 +19,18 @@ export function useDialogLayer(bg: React.RefObject<HTMLDivElement | null>, box: 
     const prev = opener.current ?? null;
     if (box.current && !box.current.contains(document.activeElement)) box.current.focus();
     const h = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
       const layers = document.querySelectorAll('.modal-bg');
       if (layers[layers.length - 1] !== bg.current) return;
-      e.preventDefault(); e.stopPropagation(); esc.current();
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); esc.current(); return; }
+      if (e.key !== 'Tab') return;
+      const root = box.current; if (!root) return;
+      const focusable = [...root.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]')]
+        .filter((el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getAttribute('aria-hidden') !== 'true');
+      if (focusable.length === 0) { e.preventDefault(); root.focus(); return; }
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) { if (!active || !root.contains(active) || active === first) { e.preventDefault(); last.focus(); } }
+      else if (!active || !root.contains(active) || active === last) { e.preventDefault(); first.focus(); }
     };
     window.addEventListener('keydown', h, true);
     return () => {
@@ -90,6 +98,11 @@ export function WorkspaceManager({ workspaces, activeId, counts, deleteBlock, on
       })}
     </tbody></table>
     <p className="muted" style={{ fontSize: 12 }}>삭제는 저장 프로젝트가 없는 Workspace만 가능합니다(마지막·현재 Workspace 제외). 프로젝트를 함께 지우지 않습니다.</p>
+    <div className="notice" data-screen-note="S04">
+      <b>Workspace 파일 묶음 — 미구현</b>
+      <p>작업 공간 공통 라이브러리와 묶음 파일 입출력은 없습니다. 프로젝트는 이 브라우저에 개별 JSON으로만 저장되며 다른 PC와 자동으로 공유되지 않습니다.</p>
+      <button type="button" className="small" disabled title="미구현: 작업 공간 묶음 파일을 만들 수 없습니다">묶음 내보내기</button>
+    </div>
     <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
       <button className="small" onClick={onCreate}>+ 새 Workspace</button>
       <button onClick={onClose}>닫기</button></div>

@@ -261,8 +261,8 @@ describe('file format & storage (C01, C05, D02~D04)', () => {
 });
 
 describe('theme / view invariance (C03-AC1, SC-AC4, X06)', () => {
-  it('theme cycles A→B→C→A and is stored separately from project data', () => {
-    expect(nextTheme('A')).toBe('B'); expect(nextTheme('B')).toBe('C'); expect(nextTheme('C')).toBe('A');
+  it('active theme cycle is light↔dark; archived C is stored but not a destination', () => {
+    expect(nextTheme('A')).toBe('B'); expect(nextTheme('B')).toBe('A'); expect(nextTheme('C')).toBe('B');
     const kv = new MemoryKV();
     const p = buildSampleProject();
     saveProject(kv, p);

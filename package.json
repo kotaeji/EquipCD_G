@@ -15,11 +15,13 @@
     "validate:aml": "python3 scripts/validate-aml.py"
   },
   "dependencies": {
+    "@fontsource/noto-sans-kr": "^5.2.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "fast-xml-parser": "^5.12.0"
   },
   "devDependencies": {
+    "playwright-core": "^1.56.1",
     "@types/node": "^26.6.6",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",

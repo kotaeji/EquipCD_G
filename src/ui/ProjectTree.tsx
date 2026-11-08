@@ -6,6 +6,8 @@
 import { useRef } from 'react';
 import { findAsset } from '../assets/library';
 import type { Project } from '../model/types';
+import chevronOpen from './slots/47069.svg?url';
+import chevronFolded from './slots/e5f85.svg?url';
 import { devName } from './labels';
 
 export interface ProjectTreeProps {
@@ -48,7 +50,7 @@ export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick
   };
   const Twisty = ({ id, open, label }: { id: string; open: boolean; label: string }) => (
     <button type="button" className="twisty" tabIndex={-1} aria-label={`${label} ${open ? '접기' : '펼치기'}`} title={open ? '접기' : '펼치기'}
-      onClick={(e) => { e.stopPropagation(); setCol(id, open); }}>{open ? '▾' : '▸'}</button>);
+      onClick={(e) => { e.stopPropagation(); setCol(id, open); }}><img src={open ? chevronOpen : chevronFolded} alt="" width={16} height={16} /></button>);
   const leafPad = <span className="twisty-pad" aria-hidden="true" />;
   const selMark = <span className="selmark" title="선택한 항목이 접힌 행 안에 있습니다">● 선택 포함</span>;
   const hasSel = selection.length > 0;

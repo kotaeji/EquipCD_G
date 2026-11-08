@@ -1,0 +1,367 @@
+[
+  {
+    "shot": "s00-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S00"
+  },
+  {
+    "shot": "s00-dark-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S00"
+  },
+  {
+    "shot": "s10-library-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S10"
+  },
+  {
+    "shot": "s11-detail-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S11"
+  },
+  {
+    "shot": "s12-aml-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S12"
+  },
+  {
+    "shot": "s13-input-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S13"
+  },
+  {
+    "shot": "s14-extract-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S14"
+  },
+  {
+    "shot": "s10-library-dark-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S10"
+  },
+  {
+    "ok": true,
+    "m": "S20 drag reparent"
+  },
+  {
+    "ok": true,
+    "m": "S20 undo after drag"
+  },
+  {
+    "ok": true,
+    "m": "S20 redo after drag"
+  },
+  {
+    "ok": true,
+    "m": "S20 flow connect"
+  },
+  {
+    "ok": true,
+    "m": "S20 signal ports accepted a click"
+  },
+  {
+    "ok": true,
+    "m": "S20 signal mode opens diagram"
+  },
+  {
+    "ok": true,
+    "m": "S20 theme keeps selection and rev"
+  },
+  {
+    "shot": "s20-canvas-dark-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S20"
+  },
+  {
+    "shot": "s20-canvas-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S20"
+  },
+  {
+    "ok": true,
+    "m": "S30 name edit bumps rev"
+  },
+  {
+    "ok": true,
+    "m": "S30 undo restores name"
+  },
+  {
+    "shot": "s30-edit-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S30"
+  },
+  {
+    "shot": "s31-signals-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S31"
+  },
+  {
+    "shot": "s32-action-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S32"
+  },
+  {
+    "shot": "s30-edit-dark-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S30"
+  },
+  {
+    "ok": true,
+    "m": "S41 live sequence rows"
+  },
+  {
+    "shot": "s41-sequence-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S41"
+  },
+  {
+    "ok": true,
+    "m": "S40 material sheet"
+  },
+  {
+    "shot": "s40-material-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S40"
+  },
+  {
+    "shot": "s42-subseq-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S42"
+  },
+  {
+    "shot": "s43-sfc-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S43"
+  },
+  {
+    "ok": true,
+    "m": "S44 branch control disabled"
+  },
+  {
+    "shot": "s44-extend-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S44"
+  },
+  {
+    "shot": "s41-sequence-dark-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S41"
+  },
+  {
+    "ok": true,
+    "m": "S50 reanalyze clicked"
+  },
+  {
+    "shot": "s50-gap-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S50"
+  },
+  {
+    "shot": "s51-diag-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S51"
+  },
+  {
+    "ok": true,
+    "m": "S52 core send disabled"
+  },
+  {
+    "shot": "s52-export-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S52"
+  },
+  {
+    "ok": true,
+    "m": "S53 lab disabled"
+  },
+  {
+    "shot": "s53-lab-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S53"
+  },
+  {
+    "shot": "s50-gap-dark-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S50"
+  },
+  {
+    "ok": true,
+    "m": "S60 pause shows live state"
+  },
+  {
+    "shot": "s60-pause-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S60"
+  },
+  {
+    "ok": true,
+    "m": "S60 theme keeps run text"
+  },
+  {
+    "shot": "s60-pause-dark-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S60"
+  },
+  {
+    "shot": "s61-group-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S61"
+  },
+  {
+    "shot": "s01-workspace-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S61"
+  },
+  {
+    "shot": "s02-projects-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S61"
+  },
+  {
+    "shot": "s03-files-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S03"
+  },
+  {
+    "shot": "s04-bundle-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S04"
+  },
+  {
+    "shot": "s70-search-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S70"
+  },
+  {
+    "shot": "s21-impact-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S20"
+  },
+  {
+    "ok": true,
+    "m": "dialog blocks undo"
+  },
+  {
+    "ok": true,
+    "m": "dialog keeps focus"
+  },
+  {
+    "shot": "s71-view-light-1280",
+    "cssViewport": "1280x800",
+    "w": 1280,
+    "h": 800,
+    "screen": "S20"
+  },
+  {
+    "shot": "s20-canvas-light-1920",
+    "cssViewport": "1280x800",
+    "w": 1920,
+    "h": 1080,
+    "screen": "S20"
+  },
+  {
+    "geometry1920": {
+      "cssViewport": "1920x1080",
+      "noto700": true,
+      "title": {
+        "sel": "h1.stage-title",
+        "x": 248,
+        "y": 196,
+        "w": 1648,
+        "h": 37,
+        "size": "24px",
+        "family": "\"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", system-ui, -apple-system, \"Segoe UI\", sans-serif"
+      },
+      "rail": {
+        "sel": ".canvas-rail",
+        "x": 0,
+        "y": 180,
+        "w": 223,
+        "h": 476,
+        "size": "14px",
+        "family": "\"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", system-ui, -apple-system, \"Segoe UI\", sans-serif"
+      },
+      "field": {
+        "sel": ".form-grid input",
+        "x": 260,
+        "y": 377,
+        "w": 170,
+        "h": 40,
+        "size": "14px",
+        "family": "\"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", system-ui, -apple-system, \"Segoe UI\", sans-serif"
+      }
+    }
+  },
+  {
+    "ok": true,
+    "m": "geometry {\"cssViewport\":\"1920x1080\",\"noto700\":true,\"title\":{\"sel\":\"h1.stage-title\",\"x\":248,\"y\":196,\"w\":1648,\"h\":37,\"size\":\"24px\",\"family\":\"\\\"Noto Sans KR\\\", \\\"Apple SD Gothic Neo\\\", \\\"Malgun Gothic\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\"},\"rail\":{\"sel\":\".canvas-rail\",\"x\":0,\"y\":180,\"w\":223,\"h\":476,\"size\":\"14px\",\"family\":\"\\\"Noto Sans KR\\\", \\\"Apple SD Gothic Neo\\\", \\\"Malgun Gothic\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\"},\"field\":{\"sel\":\".form-grid input\",\"x\":260,\"y\":377,\"w\":170,\"h\":40,\"size\":\"14px\",\"family\":\"\\\"Noto Sans KR\\\", \\\"Apple SD Gothic Neo\\\", \\\"Malgun Gothic\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\"}}"
+  }
+]
