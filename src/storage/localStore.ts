@@ -2,12 +2,13 @@
 // under file:// some browsers/policies disable it → we catch and fall back to memory-only + JSON export.
 import type { Project } from '../model/types';
 import { parseProjectFile, serializeProject, type ParseResult } from './fileFormat';
+import { applyAtomic, type TxnOp } from './txn';
 
 export interface KV { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void; key(i: number): string | null; readonly length: number }
 
 const PREFIX = 'ecd.v1.';
-const PROJECT_KEY = (id: string) => `${PREFIX}project.${id}`;
-const INDEX_KEY = `${PREFIX}index`;
+export const PROJECT_KEY = (id: string) => `${PREFIX}project.${id}`;
+export const INDEX_KEY = `${PREFIX}index`;
 const QUARANTINE_KEY = `${PREFIX}quarantine`;
 export const VIEW_KEY = `${PREFIX}userView`; // user-local view settings (theme etc.) — separate from design data
 
@@ -25,23 +26,37 @@ export function detectStorage(): { kv: KV | null; reason?: string } {
 
 export interface IndexEntry { id: string; name: string; savedAt: string; revision: number }
 
+const isEntry = (e: unknown): e is IndexEntry => !!e && typeof e === 'object' && typeof (e as IndexEntry).id === 'string' && typeof (e as IndexEntry).name === 'string';
+/** TURN-002: saved index with shape check. `ok:false` = present but unreadable/invalid → callers must not overwrite it. */
+export function readIndexStrict(kv: KV): { ok: true; entries: IndexEntry[] } | { ok: false; reason: string } {
+  let v: string | null;
+  try { v = kv.getItem(INDEX_KEY); } catch (e) { return { ok: false, reason: `저장 목록 읽기 실패: ${(e as Error).message}` }; }
+  if (v === null) return { ok: true, entries: [] };
+  try { const o = JSON.parse(v); if (Array.isArray(o) && o.every(isEntry)) return { ok: true, entries: o }; } catch { /* fall through */ }
+  return { ok: false, reason: '저장 목록(index)이 손상되어 있습니다 — 원문을 덮어쓰지 않았습니다' };
+}
+/** lenient read for display: invalid/unreadable index → [] (never throws) */
 export function readIndex(kv: KV): IndexEntry[] {
-  try { const v = kv.getItem(INDEX_KEY); return v ? (JSON.parse(v) as IndexEntry[]) : []; } catch { return []; }
+  const r = readIndexStrict(kv); return r.ok ? r.entries : [];
 }
 
 export type SaveResult = { ok: true; savedAt: string } | { ok: false; reason: string };
 
-/** Save succeeds only after write + read-back verification (D02: "저장 성공 후에만 저장 완료 표시"). */
+/** body + index write ops for saving `p` (index entry moved to the top). Fails when the index is invalid (never overwritten). */
+export function saveOps(kv: KV, p: Project, now = new Date()): { ok: true; ops: TxnOp[]; savedAt: string } | { ok: false; reason: string } {
+  const idx = readIndexStrict(kv); if (!idx.ok) return { ok: false, reason: idx.reason };
+  const savedAt = now.toISOString();
+  const entries = [{ id: p.id, name: p.name, savedAt, revision: p.revision }, ...idx.entries.filter((e) => e.id !== p.id)];
+  // TURN-002: no 50-entry cap — workspaces list projects from this index, so dropping old entries would hide saved projects
+  return { ok: true, savedAt, ops: [{ key: PROJECT_KEY(p.id), value: serializeProject(p) }, { key: INDEX_KEY, value: JSON.stringify(entries) }] };
+}
+
+/** Save succeeds only after write + read-back verification (D02). TURN-002: body + index are written all-or-nothing. */
 export function saveProject(kv: KV, p: Project, now = new Date()): SaveResult {
   try {
-    const text = serializeProject(p);
-    kv.setItem(PROJECT_KEY(p.id), text);
-    if (kv.getItem(PROJECT_KEY(p.id)) !== text) return { ok: false, reason: '저장 후 확인 불일치' };
-    const idx = readIndex(kv).filter((e) => e.id !== p.id);
-    const savedAt = now.toISOString();
-    idx.unshift({ id: p.id, name: p.name, savedAt, revision: p.revision });
-    kv.setItem(INDEX_KEY, JSON.stringify(idx.slice(0, 50)));
-    return { ok: true, savedAt };
+    let savedAt = ''; // plan is computed inside the transaction, after any interrupted one was recovered
+    const t = applyAtomic(kv, `저장 ${p.id}`, () => { const o = saveOps(kv, p, now); if (o.ok) savedAt = o.savedAt; return o; }, now);
+    return t.ok ? { ok: true, savedAt } : { ok: false, reason: `${t.reason} — 메모리 변경은 유지됩니다. JSON 내보내기를 사용하세요` };
   } catch (e) {
     return { ok: false, reason: `저장 실패: ${(e as Error).message} — 메모리 변경은 유지됩니다. JSON 내보내기를 사용하세요` };
   }

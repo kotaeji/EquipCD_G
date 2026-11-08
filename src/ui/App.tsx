@@ -11,7 +11,7 @@ import { APP_VERSION, FILE_FORMAT_VERSION, GROUP_RULES_VERSION, PRODUCT_NAME, RU
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
 import { advanceGroup, createGroupRuntime, pauseGroup, resetGroup, resumeGroup, runGroupToEnd, startGroup, type GroupRuntime, type GroupState } from '../runtime/group';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
-import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, saveProject, type KV, type QuarantineEntry } from '../storage/localStore';
+import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
 import { CapabilityTable, Inspector } from './Inspector';
 import { LibraryWorkspace } from './Library';
@@ -23,9 +23,13 @@ import { GroupRunPanel, SubSequencePanel, SubstationSelect } from './SubstationP
 import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
 import { loadView, nextTheme, saveView, THEME_ORDER, THEMES, type LayerId, type UserView } from './viewSettings';
+import * as W from '../storage/workspaces';
+import { collapseAllIds, ProjectTree } from './ProjectTree';
+import { dialogOpen, NameDialog, ProjectManager, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
 
 interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; group: GroupRuntime | null; gaps: Gap[]; analyzedRevision: number | null }
-interface Modal { title: string; body: React.ReactNode; actions: { label: string; primary?: boolean; danger?: boolean; run: () => void }[] }
+interface Modal { title: string; body: React.ReactNode; actions: { label: string; primary?: boolean; danger?: boolean; focus?: boolean; run: () => void }[] }
+interface NameDlg { title: string; initial: string; hint?: string; submitLabel: string; validate: (n: string) => string | null; onSubmit: (n: string) => void }
 
 let tabSeq = 0;
 export const IMPORTED_AML_KEY = 'ecd.v1.importedAml';
@@ -59,16 +63,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [qlist, setQlist] = useState<QuarantineEntry[]>(() => readQuarantine(kv));
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
   const [modal, setModal] = useState<Modal | null>(null);
+  // TURN-002: workspaces (browser-local management unit). Non-destructive migration on start; memory-only without storage.
+  const [wsInit] = useState(() => (kv ? W.ensureWorkspaces(kv) : null));
+  const [reg, setReg] = useState<W.WorkspaceRegistry>(() => wsInit?.reg ?? { formatVersion: 1, activeId: W.DEFAULT_WS_ID, workspaces: [{ id: W.DEFAULT_WS_ID, name: W.DEFAULT_WS_NAME, createdAt: '', updatedAt: '', projectIds: [] }] });
   const [tabs, setTabs] = useState<Tab[]>(() => {
-    if (kv) {
-      const idx = readIndex(kv);
+    if (kv && wsInit) {
+      const idx = W.listProjects(kv, wsInit.reg, wsInit.reg.activeId);
       if (idx.length) {
         const r = loadProject(kv, idx[0].id);
         if (r.ok) return [makeTab(r.project, { rev: r.project.revision, at: idx[0].savedAt })];
       }
+      // a non-default, empty workspace starts with a blank project; the default workspace keeps the old 5-step sample start
+      if (wsInit.reg.activeId !== W.DEFAULT_WS_ID) return [makeTab(emptyProject('새 프로젝트'))];
     }
     return [makeTab(buildSampleProject())];
   });
+  const [wsPanel, setWsPanel] = useState(false);
+  const [projPanel, setProjPanel] = useState(false);
+  const [nameDlg, setNameDlg] = useState<NameDlg | null>(null);
   const [activeKey, setActiveKey] = useState(() => tabs[0].key);
   const [selection, setSelection] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode>('select');
@@ -99,6 +111,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const subUnitId = gs?.unitId ?? (p.units.some((u) => u.id === subUnitPref) ? subUnitPref : selUnit ?? p.units.find((u) => (p.substationSequences ?? []).some((q) => q.unitId === u.id))?.id ?? p.units[0]?.id ?? '');
 
   useEffect(() => { saveView(kv, view); }, [kv, view]);
+  useEffect(() => { if (wsInit?.warnings.length) say(wsInit.warnings.join(' / '), true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onHistory?.(tab.history); }, [onHistory, tab.history]);
   // N03: a project that is not active never keeps running in the background → pause (state kept, no auto resume)
   useEffect(() => {
@@ -292,6 +305,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   // ---------- keyboard ----------
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
+      if (dialogOpen()) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       const mod = e.metaKey || e.ctrlKey;
@@ -307,10 +322,29 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   // ---------- file / workspace ----------
   const doSave = () => {
     if (!kv) { say(`${storage.reason} — JSON 내보내기를 사용하세요. 메모리 변경은 유지됩니다.`, true); return; }
-    const r = saveProject(kv, p);
+    const owner = W.ownerOf(reg, p.id);
+    if (owner && owner.id !== reg.activeId) {
+      setModal({ title: '다른 Workspace에 같은 ID가 저장되어 있음', body: <p>{p.name} ({p.id})와 같은 ID의 프로젝트가 Workspace 「{owner.name}」에 저장되어 있습니다. 덮어쓰지 않았습니다. 새 ID 사본으로 현재 Workspace 「{curWs.name}」에 저장할 수 있습니다.</p>,
+        actions: [{ label: '취소', focus: true, run: () => {} }, { label: '새 ID 사본으로 저장', primary: true, run: () => saveAsCopy() }] });
+      return;
+    }
+    // TURN-002 rev 2: body + index + membership in one transaction — either all saved or nothing changed
+    const r = W.saveProjectInWorkspace(kv, reg, reg.activeId, p);
     if (!r.ok) { say(r.reason, true); return; }
+    setReg(r.reg);
     updTab(tab.key, (t) => ({ ...t, savedRevision: p.revision, savedAt: r.savedAt }));
-    say('브라우저 저장소에 저장됨 (저장 후 읽기 확인 완료)');
+    say(`브라우저 저장소에 저장됨 (Workspace 「${curWs.name}」, 저장 후 읽기 확인 완료)`);
+  };
+  /** project id saved in another workspace → save a copy with a new id here (the original tab content moves to the copy; nothing lost) */
+  const saveAsCopy = () => {
+    if (!kv) return;
+    const copy = { ...p, id: `${p.id}-copy-${Date.now().toString(36)}` };
+    const r = W.saveProjectInWorkspace(kv, reg, reg.activeId, copy);
+    if (!r.ok) { say(`${r.reason} — 사본을 만들지 않았고 현재 탭은 그대로입니다`, true); return; }
+    setReg(r.reg);
+    const t = makeTab(copy, { rev: copy.revision, at: r.savedAt });
+    setTabs((ts) => ts.map((x) => (x.key === tab.key ? t : x))); setActiveKey(t.key);
+    say(`새 ID 사본 ${copy.id}로 저장했습니다 (원래 Workspace의 프로젝트는 그대로)`);
   };
   const openSaved = (id: string) => {
     const existing = tabs.find((t) => t.history.present.id === id);
@@ -327,13 +361,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const showOpen = () => {
     if (!kv) { say(`${storage.reason}. JSON 가져오기를 사용하세요.`, true); return; }
-    const idx = readIndex(kv);
-    setModal({ title: '저장된 프로젝트 열기 (최근 작업)', body: idx.length ? <table className="grid"><tbody>{idx.map((e) => <tr key={e.id}><td>{e.name}</td><td className="mono" style={{ fontSize: 10 }}>{e.id}</td><td className="muted" style={{ fontSize: 11 }}>rev {e.revision} · {new Date(e.savedAt).toLocaleString()}</td><td><button className="small" onClick={() => { setModal(null); openSaved(e.id); }}>열기</button></td></tr>)}</tbody></table> : <div className="muted">저장된 프로젝트가 없습니다.</div>, actions: [{ label: '닫기', run: () => {} }] });
+    setProjPanel(true);
   };
   const newProject = (kind: 'blank' | 'sample' | 'parallel') => {
-    const proj = kind === 'sample' ? { ...buildSampleProject(), id: `prj-${Date.now().toString(36)}`, name: `5공정 예제 사본 ${tabs.length + 1}` }
-      : kind === 'parallel' ? { ...buildParallelSampleProject(), id: `prj-par-${Date.now().toString(36)}`, name: `병렬 Substation 예제 ${tabs.length + 1}` }
-      : emptyProject(`새 프로젝트 ${tabs.length + 1}`);
+    const used = projectNames();
+    const proj = kind === 'sample' ? { ...buildSampleProject(), id: `prj-${Date.now().toString(36)}`, name: W.uniqueName(`5공정 예제 사본 ${tabs.length + 1}`, used) }
+      : kind === 'parallel' ? { ...buildParallelSampleProject(), id: `prj-par-${Date.now().toString(36)}`, name: W.uniqueName(`병렬 Substation 예제 ${tabs.length + 1}`, used) }
+      : emptyProject(W.uniqueName(`새 프로젝트 ${tabs.length + 1}`, used));
     const t = makeTab(proj); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
   };
   const closeTab = (key: string) => {
@@ -402,17 +436,86 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const Sub = ({ items }: { items: [string, string][] }) => <div className="tabs subtabs">{items.map(([k, l]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => setSubTab((t) => ({ ...t, [step]: k }))}>{l}</button>)}</div>;
   const subCount = (uid: string) => (p.substationSequences ?? []).filter((q) => q.unitId === uid).length;
   const pick = (id: string) => { setSelection([id]); const u = p.units.find((x) => x.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; if (u && !groupLocked) setSubUnitPref(u); };
-  const treeKey = (e: React.KeyboardEvent, id: string) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(id); } };
-  const tree = <div className="tree" role="tree" aria-label="Station / Substation / Device">
-    <div className="tnode muted" role="treeitem" aria-expanded="true">▾ {p.equipment.name} <span className="kind">Station · Equipment</span></div>
-    {p.units.map((u) => <div key={u.id} role="group">
-      <div role="treeitem" tabIndex={0} aria-selected={selection.includes(u.id)} className={`tnode ${selection.includes(u.id) ? 'sel' : ''}`} style={{ paddingLeft: 18 }} onClick={() => pick(u.id)} onKeyDown={(e) => treeKey(e, u.id)} title={`${u.name} — Substation(Unit) ${u.id}`}>
-        ▸ {u.name}{u.templateRef ? ' ⧉' : ''} <span className="kind">Substation · 시퀀스 {subCount(u.id)}</span></div>
-      {u.deviceIds.map((d) => <div key={d} role="treeitem" tabIndex={0} aria-selected={selection.includes(d)} className={`tnode ${selection.includes(d) ? 'sel' : ''}`} style={{ paddingLeft: 34, fontSize: 12 }} onClick={() => pick(d)} onKeyDown={(e) => treeKey(e, d)}>○ {devName(p, d)} <span className="muted">{findAsset(p.devices.find((x) => x.id === d)?.kind ?? '')?.name ?? '정의 없음'}</span></div>)}
-    </div>)}
-    {p.units.length === 0 && <div className="tempty">Substation이 없습니다. 1 라이브러리에서 유닛 템플릿을 추가하거나 2 배치에서 “빈 유닛”을 캔버스로 드래그하세요.</div>}
-  </div>;
-  const recent = kv ? readIndex(kv).slice(0, 6) : [];
+  const collapsed = view.treeCollapsed[p.id] ?? [];
+  const setCollapsed = (ids: string[]) => setView((v) => ({ ...v, treeCollapsed: { ...v.treeCollapsed, [p.id]: ids } }));
+  const tree = <ProjectTree p={p} selection={selection} collapsed={collapsed} onCollapsedChange={setCollapsed} onPick={pick} subCount={subCount} />;
+  const recent = kv ? W.listProjects(kv, reg, reg.activeId).slice(0, 6) : [];
+
+  // ---------- TURN-002: workspace / project management ----------
+  const curWs = W.activeWs(reg);
+  /** names in scope for duplicate checks: saved projects of the current workspace + open tabs (optionally excluding one project id) */
+  const projectNames = (exceptId?: string) => {
+    const saved = kv ? W.listProjects(kv, reg, reg.activeId).filter((e) => e.id !== exceptId).map((e) => e.name) : [];
+    return [...saved, ...tabs.filter((t) => t.history.present.id !== exceptId).map((t) => t.history.present.name)];
+  };
+  const savedCount = (wsId: string) => (kv ? W.listProjects(kv, reg, wsId).length : 0);
+  const commitReg = (next: W.WorkspaceRegistry, okMsg: string) => {
+    if (kv) { const w = W.writeRegistry(kv, next, reg); if (!w.ok) { say(`${w.reason} — 변경하지 않았습니다`, true); return false; } }
+    setReg(next); say(okMsg); return true;
+  };
+  const openIds = new Set(tabs.map((t) => t.history.present.id));
+  /** switching workspaces closes the current tabs, so it is refused while any tab has unsaved edits (never drop user input) */
+  const requestSwitch = (id: string) => {
+    if (id === reg.activeId) return;
+    const target = reg.workspaces.find((w) => w.id === id); if (!target) return;
+    if (tabs.some((t) => t.runtime?.state.status === 'running' || t.runtime?.state.status === 'paused' || t.group?.state.status === 'running' || t.group?.state.status === 'paused')) {
+      say('실행 중이거나 일시정지된 프로젝트가 있어 Workspace를 바꿀 수 없습니다 — 먼저 초기화하세요', true); return;
+    }
+    const edited = tabs.filter((t) => t.savedRevision !== t.history.present.revision && !(t.savedRevision === null && t.history.past.length === 0));
+    if (edited.length) {
+      setModal({ title: 'Workspace 전환 불가 — 저장하지 않은 변경', body: <div><p>다음 프로젝트에 저장하지 않은 변경이 있습니다. 전환하면 탭이 닫히므로 막았습니다. 변경 내용은 그대로 있습니다.</p>
+        <ul>{edited.map((t) => <li key={t.key}>{t.history.present.name}</li>)}</ul><p className="muted">먼저 「저장」하거나 탭을 닫은 뒤 다시 전환하세요.</p></div>, actions: [{ label: '확인', focus: true, run: () => {} }] });
+      return;
+    }
+    const fresh = tabs.filter((t) => t.savedRevision === null);
+    const go = () => {
+      const a = W.setActive(reg, id); if (!a.ok) { say(a.reason, true); return; }
+      if (!commitReg(a.reg, `Workspace 「${target.name}」(으)로 전환했습니다`)) return;
+      const idx = kv ? W.listProjects(kv, a.reg, id) : [];
+      const r = idx.length && kv ? loadProject(kv, idx[0].id) : null;
+      const t = r && r.ok ? makeTab(r.project, { rev: r.project.revision, at: idx[0].savedAt }) : makeTab(emptyProject('새 프로젝트'));
+      setTabs([t]); setActiveKey(t.key); setSelection([]); setConnectFrom(null); setSubUnitPref('');
+    };
+    if (fresh.length) {
+      setModal({ title: `Workspace 「${target.name}」(으)로 전환`, body: <div><p>저장한 적 없는 새 탭 {fresh.length}개(편집 없음)가 닫힙니다:</p><ul>{fresh.map((t) => <li key={t.key}>{t.history.present.name}</li>)}</ul><p className="muted">저장된 프로젝트는 원래 Workspace에 그대로 남습니다.</p></div>,
+        actions: [{ label: '취소', focus: true, run: () => {} }, { label: '닫고 전환', primary: true, run: go }] });
+      return;
+    }
+    go();
+  };
+  const createWs = () => setNameDlg({ title: '새 Workspace', initial: '', submitLabel: '만들기', hint: '이 브라우저 안의 새 프로젝트 묶음을 만듭니다(파일 폴더 아님).',
+    validate: (n) => W.validateName(n, reg.workspaces.map((w) => w.name)),
+    onSubmit: (n) => { const r = W.createWorkspace(reg, n); if (!r.ok) { say(r.reason, true); return; } if (commitReg(r.reg, `Workspace 「${r.ws.name}」을(를) 만들었습니다 — 「전환」으로 이동하세요`)) setNameDlg(null); } });
+  const renameWs = (id: string) => { const w = reg.workspaces.find((x) => x.id === id); if (!w) return;
+    setNameDlg({ title: `Workspace 이름 변경 — ${w.name}`, initial: w.name, submitLabel: '이름 변경', hint: `ID ${w.id}는 바뀌지 않습니다.`,
+      validate: (n) => W.validateName(n, reg.workspaces.filter((x) => x.id !== id).map((x) => x.name)),
+      onSubmit: (n) => { const r = W.renameWorkspace(reg, id, n); if (!r.ok) { say(r.reason, true); return; } if (commitReg(r.reg, `Workspace 이름을 「${n}」(으)로 바꿨습니다`)) setNameDlg(null); } }); };
+  const deleteWs = (id: string) => { const w = reg.workspaces.find((x) => x.id === id); if (!w) return;
+    const why = W.deleteBlockReason(reg, id, savedCount(id)); if (why) { say(why, true); return; }
+    setModal({ title: `Workspace 삭제 — ${w.name}`, body: <p>빈 Workspace 「{w.name}」({w.id})을(를) 삭제합니다. 프로젝트는 없습니다.</p>,
+      actions: [{ label: '취소', focus: true, run: () => {} }, { label: 'Workspace 삭제', danger: true, run: () => { const r = W.deleteWorkspace(reg, id, savedCount(id)); if (!r.ok) { say(r.reason, true); return; } commitReg(r.reg, `Workspace 「${w.name}」을(를) 삭제했습니다`); } }] }); };
+  const renameOpenProject = (key: string) => { const t = tabs.find((x) => x.key === key); if (!t) return;
+    if (key !== tab.key) { switchTab(key); }
+    const cur = t.history.present;
+    setNameDlg({ title: `프로젝트 이름 변경 — ${cur.name}`, initial: cur.name, submitLabel: '이름 변경', hint: '열린 프로젝트의 모델 변경입니다: rev +1, Undo/Redo 가능, 「저장」하면 저장 목록에 반영됩니다. ID는 바뀌지 않습니다.',
+      validate: (n) => W.validateName(n, projectNames(cur.id)),
+      onSubmit: (n) => {
+        const o = applyEdit(t.history, C.renameProject(t.history.present, n), '프로젝트 이름 변경', !!(t.runtime && t.runtime.state.status !== 'idle') || !!(t.group && t.group.state.status !== 'idle'));
+        if (o.error) { say(o.error, true); return; }
+        updTab(key, (x) => ({ ...x, history: o.history, runtime: null, group: null })); setNameDlg(null); say(`프로젝트 이름을 「${n}」(으)로 바꿨습니다 — 저장하면 목록에 반영됩니다`);
+      } }); };
+  const renameSaved = (id: string) => { if (!kv) return; const e = W.listProjects(kv, reg, reg.activeId).find((x) => x.id === id); if (!e) return;
+    if (openIds.has(id)) { say('열린 프로젝트는 탭의 ✎로 이름을 바꾸세요', true); return; }
+    setNameDlg({ title: `저장된 프로젝트 이름 변경 — ${e.name}`, initial: e.name, submitLabel: '이름 변경', hint: '닫힌 저장본의 이름을 바꿔 다시 저장합니다(rev +1, Undo 대상 아님). ID는 바뀌지 않습니다.',
+      validate: (n) => W.validateName(n, projectNames(id)),
+      onSubmit: (n) => { const r = W.renameSavedProject(kv, id, n); if (!r.ok) { say(r.reason, true); return; } setNameDlg(null); setReg((x) => ({ ...x })); say(`저장된 프로젝트 이름을 「${n}」(으)로 바꿨습니다 (rev ${r.revision})`); } }); };
+  const deleteSaved = (id: string) => { if (!kv) return; const e = W.listProjects(kv, reg, reg.activeId).find((x) => x.id === id); if (!e) return;
+    if (openIds.has(id)) { say('열린 프로젝트는 삭제할 수 없습니다 — 먼저 탭을 닫으세요', true); return; }
+    setModal({ title: `프로젝트 영구 삭제 — ${e.name}`, body: <div><p><b>{e.name}</b> <span className="mono">({e.id})</span>, rev {e.revision}</p>
+      <p className="err-text">이 브라우저 저장소에서 영구 삭제합니다. <b>되돌릴 수 없습니다</b>(Undo 대상 아님). 필요하면 먼저 JSON으로 내보내세요.</p></div>,
+      actions: [{ label: '취소', focus: true, run: () => {} },
+        { label: 'JSON 내보내기', run: () => { const raw = kv.getItem(`ecd.v1.project.${id}`); if (raw) download(`${e.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, raw); setTimeout(() => deleteSaved(id), 0); } },
+        { label: '영구 삭제', danger: true, run: () => { const r = W.deleteSavedProject(kv, reg, id); if (!r.ok) { say(r.reason, true); return; } setReg(r.reg); say(`「${e.name}」을(를) 삭제했습니다`); } }] }); };
   /** N03: switching projects while this project runs → pause its run first (state kept, no auto resume). */
   const switchTab = (key: string) => {
     if (key === tab.key) return;
@@ -425,29 +528,40 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <div className="exhead"><button className="small icon" onClick={() => setExplorerOpen(!explorerOpen)} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>WORKSPACE</b>}</div>
     {explorerOpen && <>
       <div className="exsec">
+        <div className="exlabel">Workspace <span className="muted">(이 브라우저)</span></div>
+        <div className="row wsbar" style={{ gap: 4 }}>
+          <select aria-label="Workspace 선택" value={reg.activeId} onChange={(e) => requestSwitch(e.target.value)} disabled={!kv} title={kv ? '전환 시 열린 탭이 닫힙니다 (저장 안 된 편집이 있으면 막음)' : '브라우저 저장소 사용 불가'}>
+            {reg.workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
+          <button className="small" onClick={() => setWsPanel(true)} disabled={!kv}>관리…</button>
+        </div>
+      </div>
+      <div className="exsec">
         <div className="exlabel">열린 프로젝트 ({tabs.length})</div>
         <div className="exlist" role="listbox" aria-label="열린 프로젝트">
           {tabs.map((t) => <div key={t.key} role="option" tabIndex={0} aria-selected={t.key === tab.key} className={`exitem ${t.key === tab.key ? 'on' : ''}`} title={t.history.present.id}
             onClick={() => switchTab(t.key)} onKeyDown={(e) => { if (e.key === 'Enter') switchTab(t.key); }}>
             <span className="nm">{t.history.present.name}</span>{t.savedRevision !== t.history.present.revision && <span className="dirty" title="저장 안 됨">● 미저장</span>}
-            <button className="x" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }} aria-label={`${t.history.present.name} 닫기`}>×</button></div>)}
+            <button className="x" onClick={(e) => { e.stopPropagation(); renameOpenProject(t.key); }} aria-label={`${t.history.present.name} 이름 변경`} title="이름 변경 (Undo 가능, 저장 시 목록 반영)">✎</button>
+            <button className="x" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }} aria-label={`${t.history.present.name} 닫기`} title="탭 닫기 (저장 데이터는 지우지 않음)">×</button></div>)}
         </div>
         <div className="exbtns">
           <button className="small" onClick={() => newProject('blank')} title="빈 프로젝트로 시작">+ 빈 프로젝트</button>
           <button className="small" onClick={() => newProject('sample')} title="기본 5공정 Station 예제 사본">+ 5공정 예제</button>
           <button className="small" onClick={() => newProject('parallel')} title="Substation 하나에 병렬 시퀀스 2개가 있는 예제">+ 병렬 예제</button>
-          <button className="small" onClick={showOpen}>열기…</button>
+          <button className="small" onClick={showOpen} title="현재 Workspace의 저장 프로젝트: 열기·이름 변경·삭제">프로젝트…</button>
           <button className="small" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
         </div>
       </div>
       <div className="exsec">
-        <div className="exlabel">최근 저장 (이 브라우저)</div>
+        <div className="exlabel">최근 저장 ({curWs.name})</div>
         {!kv && <div className="tempty">브라우저 저장소 사용 불가 — JSON 가져오기/내보내기를 사용하세요.</div>}
         {kv && recent.length === 0 && <div className="tempty">아직 저장한 프로젝트가 없습니다.</div>}
         {recent.map((e) => <button key={e.id} className="exrecent" onClick={() => openSaved(e.id)} title={`${e.id} · rev ${e.revision}`}><span className="nm">{e.name}</span><span className="muted">rev {e.revision}</span></button>)}
       </div>
       <div className="exsec grow">
-        <div className="exlabel">구조 — Station › Substation › Device</div>
+        <div className="exlabel row" style={{ justifyContent: 'space-between' }}><span>구조 — Station › Substation › Device</span>
+          <span className="row" style={{ gap: 2 }}><button className="small icon" onClick={() => setCollapsed([])} title="모두 펼치기 (Station·Substation)" aria-label="트리 모두 펼치기">⊞</button>
+          <button className="small icon" onClick={() => setCollapsed(collapseAllIds(p))} title="모두 접기 (Station·Substation)" aria-label="트리 모두 접기">⊟</button></span></div>
         {tree}
       </div>
     </>}
@@ -626,10 +740,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>
 
       {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.msg}</div>}
-      {modal && <div className="modal-bg" style={style} onClick={() => setModal(null)}><div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{modal.title}</h3>{modal.body}
-        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>{modal.actions.map((a) => <button key={a.label} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
-      </div></div>}
+      {wsPanel && <WorkspaceManager workspaces={reg.workspaces} activeId={reg.activeId} counts={Object.fromEntries(reg.workspaces.map((w) => [w.id, savedCount(w.id)]))}
+        deleteBlock={(id) => W.deleteBlockReason(reg, id, savedCount(id))} onSwitch={(id) => { setWsPanel(false); requestSwitch(id); }} onCreate={createWs} onRename={renameWs} onDelete={deleteWs} onClose={() => setWsPanel(false)} />}
+      {projPanel && kv && <ProjectManager wsName={curWs.name} entries={W.listProjects(kv, reg, reg.activeId)} openIds={openIds}
+        onOpen={(id) => { setProjPanel(false); openSaved(id); }} onRename={renameSaved} onDelete={deleteSaved} onClose={() => setProjPanel(false)} />}
+      {nameDlg && <NameDialog key={nameDlg.title} {...nameDlg} onCancel={() => setNameDlg(null)} />}
+      {modal && <StaticModalFrame key={modal.title} title={modal.title} style={style} onCancel={() => setModal(null)}>
+        {modal.body}
+        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>{modal.actions.map((a) => <button key={a.label} autoFocus={a.focus} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
+      </StaticModalFrame>}
     </div>
   );
 }
