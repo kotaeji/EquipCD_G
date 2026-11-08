@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 
 import markdown
+from PIL import Image
 from weasyprint import HTML
 
 REPO_URL = 'https://github.com/kotaeji/EquipCD_G'
@@ -57,7 +58,11 @@ th { background: #eef1f5; }
 td:first-child, th:first-child { min-width: 5em; }
 tr { page-break-inside: avoid; }
 blockquote { margin: 8pt 0; padding: 4pt 10pt; border-left: 3pt solid #f0b429; background: #fff8e6; }
-img { max-width: 100%; height: auto; border: 1px solid #ccd3dc; display: block; margin: 6pt auto 2pt; }
+img { max-width: 100%; height: auto; border: 1px solid #ccd3dc; display: block; margin: 0 auto 3pt; }
+img.full { width: 100%; }
+figure { margin: 8pt 0 10pt; page-break-inside: avoid; break-inside: avoid; }
+figcaption { font-size: 8.8pt; color: #333; line-height: 1.45; }
+figcaption em { color: #333; }
 em { color: #444; }
 '''
 
@@ -85,6 +90,33 @@ def rewrite_links(html: str, md_path: Path, repo_root: Path, ref: str, fallback_
     return re.sub(r'(<a [^>]*href=")([^"]+)"', fix, html)
 
 
+ZOOM_MM_PER_PX = 0.25   # '-zoom.png' crops: 1 source pixel -> 0.25 mm (capped at the text width)
+TEXT_WIDTH_MM = 210 - 2 * 16
+
+
+def figures(html: str, md_dir: Path) -> str:
+    """<p><img></p> followed by an italic caption paragraph -> <figure> kept on one page with its caption."""
+    def size(src: str) -> str:
+        if src.startswith(('http:', 'https:')):
+            return 'class="full"'
+        if src.endswith('-zoom.png'):
+            w_px = Image.open(md_dir / src).size[0]
+            return f'style="width:{min(TEXT_WIDTH_MM, w_px * ZOOM_MM_PER_PX):.1f}mm"'
+        return 'class="full"'
+
+    def fig(m: re.Match) -> str:
+        img, src, cap = m.group(1), m.group(2), m.group(3)
+        img = img.replace('<img ', f'<img {size(src)} ', 1)
+        return f'<figure>{img}<figcaption>{cap}</figcaption></figure>'
+
+    pat = r'<p>(<img [^>]*src="([^"]+)"[^>]*/?>)</p>\s*<p>(<em>그림 [^<]*(?:<code>[^<]*</code>[^<]*)*</em>)</p>'
+    out, n = re.subn(pat, fig, html)
+    left = len(re.findall(r'<p><img ', out))
+    if left:
+        raise SystemExit(f'{left} image(s) without a following "그림 N." caption')
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--md', required=True, type=Path)
@@ -98,6 +130,7 @@ def main() -> int:
     body = markdown.markdown(src, extensions=['tables', 'fenced_code', 'sane_lists', 'toc'],
                              extension_configs={'toc': {'slugify': github_slug, 'permalink': False}}, output_format='html5')
     body = rewrite_links(body, a.md, a.repo_root, a.ref, a.fallback_ref)
+    body = figures(body, a.md.parent)
     title = re.search(r'^# (.+)$', src, re.M).group(1).strip()
     doc = f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>{title}</title><style>{CSS}</style></head><body>{body}</body></html>'
     # base_url = Markdown folder: images such as ../screenshots/x.png are resolved and embedded from local files
