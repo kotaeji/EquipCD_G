@@ -1,0 +1,20 @@
+{
+ "cards": 14,
+ "revAfterDetail": true,
+ "cardImgs": 14,
+ "revAfterPhoto": true,
+ "revAfterAdd": true,
+ "canvasImages": 13,
+ "runStatus": "running",
+ "runStatusEnd": "completed",
+ "importModal": "AML 가져오기 — extra-asset-vacuumGripper.amlXML 구문: 통과 · CAEX SchemaVersion: 3.0 · 앱 subset: 오류 0 / 경고 0 · 공식 XSD: 미검증 (브라우저 내 미실행)추가된 정의 1개: 진공 그리퍼 (가져온 AML 예시)오류가 있는 정의는 라이브러리에 넣지 않았습니다. 기존 정의와 열린 프로젝트는 변경되지 않았습니다 (새 정의만 추가됨, 이 브라우저에 보관).확인",
+ "cardsAfterImport": 15,
+ "importBadModal": "AML 가져오기 — missing-child-ref.amlXML 구문: 통과 · CAEX SchemaVersion: 3.0 · 앱 subset: 오류 2 / 경고 0 · 공식 XSD: 미검증 (브라우저 내 미실행)추가된 정의 0개: 없음건너뜀 13: asset.cylinder (이미 로드됨 (aml/ecd-sample-library.aml)) / asset.pusher (이미 로드됨 (aml/ecd-sample-library.aml)) / asset.barcodeReader (이미 로드됨 (aml/ecd-sample-library.aml)) / asset.conveyor (이미 로드됨 (aml/ecd-sample-library.aml)) / asset.stopper (이미 로드됨 (aml/ecd-sample",
+ "cardsAfterBad": 15,
+ "stepAfterReload": "check",
+ "cardsAfterReload": 15,
+ "logs": [],
+ "externalRequests": [],
+ "at": "Sun Nov 08 2026 01:45:49 GMT+0900 (Korean Standard Time)",
+ "chrome": "Chrome/156.0.8078.47"
+}

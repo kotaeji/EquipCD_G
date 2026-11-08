@@ -1,0 +1,31 @@
+# dependencies / build output
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+coverage/
+
+# regenerable release ZIPs (npm run package:src) — the single-file HTML release IS committed
+release/*.zip
+
+# official CAEX XSD: redistribution terms unconfirmed — keep only a local copy (see standards/caex3.0/SOURCE.md)
+*.xsd
+standards/caex3.0/*.zip
+
+# temp / logs / OS / editor
+tmp/
+*.tmp
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# credentials / local env
+.env
+.env.*
+*.pem
+*.key
+.npmrc
+credentials*

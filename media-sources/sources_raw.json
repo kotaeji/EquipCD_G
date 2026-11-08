@@ -1,0 +1,266 @@
+{
+  "cyl": {
+    "file": "media-sources/photos/cyl.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Pneumatic_cylinder.jpg",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/4/40/Pneumatic_cylinder.jpg",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Pneumatic_cylinder.jpg/960px-Pneumatic_cylinder.jpg",
+    "title": "File:Pneumatic cylinder.jpg",
+    "author": "Grummelbacke",
+    "credit": "Own work",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "usageTerms": "Creative Commons Attribution-Share Alike 4.0",
+    "description": "Pneumatikzylinder",
+    "originalSize": [
+      4263,
+      1788
+    ],
+    "savedSize": [
+      900,
+      378
+    ],
+    "bytes": 26846
+  },
+  "bcr": {
+    "file": "media-sources/photos/bcr.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Honeywell_4600g-8661.jpg",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/1/17/Honeywell_4600g-8661.jpg",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/17/Honeywell_4600g-8661.jpg/960px-Honeywell_4600g-8661.jpg",
+    "title": "File:Honeywell 4600g-8661.jpg",
+    "author": "Raimond Spekking",
+    "credit": "Own work",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "usageTerms": "Creative Commons Attribution-Share Alike 4.0",
+    "description": "Honeywell 4600g - Handheld-Barcode-Scanner",
+    "originalSize": [
+      5767,
+      3845
+    ],
+    "savedSize": [
+      900,
+      600
+    ],
+    "bytes": 65868
+  },
+  "conv": {
+    "file": "media-sources/photos/conv.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Conveyor_system_in_a_factory.jpg",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Conveyor_system_in_a_factory.jpg",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Conveyor_system_in_a_factory.jpg/960px-Conveyor_system_in_a_factory.jpg",
+    "title": "File:Conveyor system in a factory.jpg",
+    "author": "falco",
+    "credit": "https://pixabay.com/photos/factory-industrial-hall-logistics-1137993/",
+    "license": "CC0",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "usageTerms": "Creative Commons Zero, Public Domain Dedication",
+    "description": "Conveyor system in a factory",
+    "originalSize": [
+      4000,
+      3000
+    ],
+    "savedSize": [
+      900,
+      675
+    ],
+    "bytes": 130611
+  },
+  "gantry": {
+    "file": "media-sources/photos/gantry.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Robot_Portico_tecno-840.jpg",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Robot_Portico_tecno-840.jpg",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6f/Robot_Portico_tecno-840.jpg/960px-Robot_Portico_tecno-840.jpg",
+    "title": "File:Robot Portico tecno-840.jpg",
+    "author": "www.tecnowey.com",
+    "credit": "www.tecnowey.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0",
+    "usageTerms": "Creative Commons Attribution 3.0",
+    "description": "Gantry robot tecno-840",
+    "originalSize": [
+      1200,
+      998
+    ],
+    "savedSize": [
+      900,
+      748
+    ],
+    "bytes": 135480
+  },
+  "picker": {
+    "file": "media-sources/photos/picker.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Assembly_line.jpg",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Assembly_line.jpg",
+    "resizedFromUrl": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Assembly_line.jpg",
+    "title": "File:Assembly line.jpg",
+    "author": "Yingz",
+    "credit": "Own work",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "usageTerms": "Creative Commons Attribution-Share Alike 4.0",
+    "description": "RNA Assembly machine",
+    "originalSize": [
+      845,
+      564
+    ],
+    "savedSize": [
+      845,
+      564
+    ],
+    "bytes": 77731
+  },
+  "press": {
+    "file": "media-sources/photos/press.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:%D0%94%D0%B0%D1%82%D1%87%D0%B8%D0%BA_%D0%B4%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D1%8F.JPG",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/a/a0/%D0%94%D0%B0%D1%82%D1%87%D0%B8%D0%BA_%D0%B4%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D1%8F.JPG",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a0/%D0%94%D0%B0%D1%82%D1%87%D0%B8%D0%BA_%D0%B4%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D1%8F.JPG/960px-%D0%94%D0%B0%D1%82%D1%87%D0%B8%D0%BA_%D0%B4%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D1%8F.JPG",
+    "title": "File:Датчик давления.JPG",
+    "author": "Weberman2010",
+    "credit": "Own work",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "usageTerms": "Creative Commons Attribution-Share Alike 4.0",
+    "description": "датчик давления",
+    "originalSize": [
+      3826,
+      2499
+    ],
+    "savedSize": [
+      900,
+      588
+    ],
+    "bytes": 134266
+  },
+  "photo": {
+    "file": "media-sources/photos/photo.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:SICK_WL12G-3B2531_Photoelectric_reflex_switch_angled1.png",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/9/92/SICK_WL12G-3B2531_Photoelectric_reflex_switch_angled1.png",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/92/SICK_WL12G-3B2531_Photoelectric_reflex_switch_angled1.png/960px-SICK_WL12G-3B2531_Photoelectric_reflex_switch_angled1.png",
+    "title": "File:SICK WL12G-3B2531 Photoelectric reflex switch angled1.png",
+    "author": "Lucasbosch",
+    "credit": "Own work",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+    "usageTerms": "Creative Commons Attribution-Share Alike 3.0",
+    "description": "SICK WL12G-3B2531 Reflexlichtschranke",
+    "originalSize": [
+      2266,
+      3474
+    ],
+    "savedSize": [
+      900,
+      1380
+    ],
+    "bytes": 147133
+  },
+  "prox": {
+    "file": "media-sources/photos/prox.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Pepperl%2BFuchs_inductive_proximity_switch_3RG4113-3AG33-PF.jpg",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/2/2e/Pepperl%2BFuchs_inductive_proximity_switch_3RG4113-3AG33-PF.jpg",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2e/Pepperl%2BFuchs_inductive_proximity_switch_3RG4113-3AG33-PF.jpg/960px-Pepperl%2BFuchs_inductive_proximity_switch_3RG4113-3AG33-PF.jpg",
+    "title": "File:Pepperl+Fuchs inductive proximity switch 3RG4113-3AG33-PF.jpg",
+    "author": "Lucasbosch",
+    "credit": "Own work",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+    "usageTerms": "Creative Commons Attribution-Share Alike 3.0",
+    "description": "Inductive proximity switch made by Pepperl+Fuchs, 18mm diameter (M18 screw), lenght 45mm, 8mm operating distance",
+    "originalSize": [
+      3378,
+      2252
+    ],
+    "savedSize": [
+      900,
+      600
+    ],
+    "bytes": 63353
+  },
+  "limit": {
+    "file": "media-sources/photos/limit.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Limit_Switches.JPG",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/7/78/Limit_Switches.JPG",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/78/Limit_Switches.JPG/960px-Limit_Switches.JPG",
+    "title": "File:Limit Switches.JPG",
+    "author": "Mixabest",
+    "credit": "Own work",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+    "usageTerms": "Creative Commons Attribution-Share Alike 3.0",
+    "description": "Limit Switch(es).",
+    "originalSize": [
+      3872,
+      2592
+    ],
+    "savedSize": [
+      900,
+      603
+    ],
+    "bytes": 136369
+  },
+  "ident": {
+    "file": "media-sources/photos/ident.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Kommissionieren_mit_Barcode-Scanner_Regallager.png",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/0/06/Kommissionieren_mit_Barcode-Scanner_Regallager.png",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/06/Kommissionieren_mit_Barcode-Scanner_Regallager.png/960px-Kommissionieren_mit_Barcode-Scanner_Regallager.png",
+    "title": "File:Kommissionieren mit Barcode-Scanner Regallager.png",
+    "author": "MicroSYST Systemelectronic GmbH",
+    "credit": "Own work",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "usageTerms": "Creative Commons Attribution-Share Alike 4.0",
+    "description": "Mit einem Barcode-Scanner werden Lagerentnahmen quittiert.",
+    "originalSize": [
+      1280,
+      800
+    ],
+    "savedSize": [
+      900,
+      562
+    ],
+    "bytes": 46438
+  },
+  "paro": {
+    "file": "media-sources/photos/paro.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:PARO_lineararm.jpg",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/b/b3/PARO_lineararm.jpg",
+    "resizedFromUrl": "https://upload.wikimedia.org/wikipedia/commons/b/b3/PARO_lineararm.jpg",
+    "title": "File:PARO lineararm.jpg",
+    "author": "Firma roTeg Roboter Technologie Gesellschaft mbH, Brennaborstraße 54, 44149 Dortmund, https://www.roteg.de (in ihrer Eigenschaft als juristische Person)",
+    "credit": "https://www.roteg.de",
+    "license": "CC BY-SA 3.0 de",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/de/deed.en",
+    "usageTerms": "Creative Commons Attribution-Share Alike 3.0 de",
+    "description": "Lineararmroboter PARO (veröffentlichtes Messefoto)",
+    "originalSize": [
+      690,
+      600
+    ],
+    "savedSize": [
+      690,
+      600
+    ],
+    "bytes": 51755
+  },
+  "belt": {
+    "file": "media-sources/photos/belt.jpg",
+    "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Horizontal_Belt_Conveyor.jpg",
+    "originalImageUrl": "https://upload.wikimedia.org/wikipedia/commons/9/91/Horizontal_Belt_Conveyor.jpg",
+    "resizedFromUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/91/Horizontal_Belt_Conveyor.jpg/960px-Horizontal_Belt_Conveyor.jpg",
+    "title": "File:Horizontal Belt Conveyor.jpg",
+    "author": "RICHI Manufacture",
+    "credit": "https://www.richipelletmill.com/feed-pellet-machine/",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+    "usageTerms": "Creative Commons Attribution 4.0",
+    "description": "Horizontal Belt Conveyor",
+    "originalSize": [
+      6000,
+      3376
+    ],
+    "savedSize": [
+      900,
+      506
+    ],
+    "bytes": 83749
+  }
+}

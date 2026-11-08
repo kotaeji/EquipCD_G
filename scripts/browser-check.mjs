@@ -1,0 +1,65 @@
+import puppeteer from 'puppeteer-core';
+// Headless Chrome check of the release HTML (agent-run automation, NOT a user manual test).
+// Needs Chrome + puppeteer-core (not a project dependency):  npm i --no-save puppeteer-core@23 && node scripts/browser-check.mjs
+const ROOT = process.env.ECD_ROOT ?? process.cwd();
+const out = `${ROOT}/docs/screenshots/v0.2`;
+const b = await puppeteer.launch({ executablePath: process.env.CHROME ?? '/usr/bin/google-chrome', args: ['--no-sandbox', '--window-size=1600,1000'], defaultViewport: { width: 1600, height: 1000 } });
+const pg = await b.newPage();
+const logs = []; pg.on('console', (m) => logs.push(`${m.type()}: ${m.text()}`)); pg.on('pageerror', (e) => logs.push(`pageerror: ${e.message}`));
+const reqs = []; pg.on('request', (r) => { if (!r.url().startsWith('data:') && !r.url().startsWith('file:')) reqs.push(r.url()); });
+await pg.goto(`file://${ROOT}/release/equipment-concept-designer.html`);
+await pg.waitForSelector('.cards .card');
+const shot = (n) => pg.screenshot({ path: `${out}/${n}.png` });
+const clickText = async (t, sel = 'button') => { await pg.evaluate((t, sel) => { const e = [...document.querySelectorAll(sel)].find((b) => b.textContent.includes(t)); if (!e) throw new Error('no ' + t); e.click(); }, t, sel); await new Promise((r) => setTimeout(r, 250)); };
+const step = async (id) => { await pg.click(`.stepper [data-stepid="${id}"]`); await new Promise((r) => setTimeout(r, 250)); };
+const rev = () => pg.$eval('.statusbar', (e) => /rev (\d+)/.exec(e.textContent)[1]);
+const res = {};
+res.cards = await pg.$$eval('.cards .card', (c) => c.length);
+await shot('01-library-schematic');
+const r0 = await rev();
+await pg.click('.card[data-kind="unitIdentify"]'); await new Promise((r) => setTimeout(r, 200));
+res.revAfterDetail = (await rev()) === r0;
+await clickText('실사진');
+res.cardImgs = await pg.$$eval('.cards img', (i) => i.filter((x) => x.complete && x.naturalWidth > 0).length);
+res.revAfterPhoto = (await rev()) === r0;
+await shot('02-library-photo-detail');
+await clickText('프로젝트에 추가');
+res.revAfterAdd = Number(await rev()) === Number(r0) + 1;
+await step('canvas'); await shot('03-canvas-photo');
+res.canvasImages = await pg.$$eval('svg image', (i) => i.length);
+await clickText('도식'); await shot('04-canvas-schematic');
+await step('attributes');
+await pg.evaluate(() => [...document.querySelectorAll('.tree div')].find((d) => d.textContent.startsWith('○ BCR-S6-BCR1')).click()); await new Promise((r) => setTimeout(r, 200));
+await clickText('Action', '.tabs button'); await shot('05-attributes');
+await step('sequence'); await shot('06-sequence');
+await step('check'); await shot('07-check');
+await step('run'); await clickText('▶ 실행');
+res.runStatus = await pg.$eval('.statusbar', (e) => e.textContent.match(/실행 (\w+)/)[1]);
+await new Promise((r) => setTimeout(r, 400)); await clickText('끝까지'); await new Promise((r) => setTimeout(r, 300));
+res.runStatusEnd = await pg.$eval('.statusbar', (e) => e.textContent.match(/실행 (\w+)/)[1]);
+await shot('08-run');
+// theme B on library photo
+await step('library'); await clickText('테마:'); await shot('09-library-themeB');
+// AML import (valid extra + broken child ref)
+const inp = await pg.$('.libmain input[type=file]');
+await inp.uploadFile(`${ROOT}/samples/aml/extra-asset-vacuumGripper.aml`); await new Promise((r) => setTimeout(r, 500));
+res.importModal = await pg.$eval('.modal', (e) => e.textContent.slice(0, 300));
+await shot('10-aml-import-ok');
+await clickText('확인', '.modal button');
+res.cardsAfterImport = await pg.$$eval('.cards .card', (c) => c.length);
+const inp2 = await pg.$('.libmain input[type=file]');
+await inp2.uploadFile(`${ROOT}/samples/aml/missing-child-ref.aml`); await new Promise((r) => setTimeout(r, 500));
+res.importBadModal = await pg.$eval('.modal', (e) => e.textContent.slice(0, 400));
+await shot('11-aml-import-error');
+await clickText('확인', '.modal button');
+res.cardsAfterBad = await pg.$$eval('.cards .card', (c) => c.length);
+await step('check');
+// reload: UserView step + imported AML restored, gates recomputed
+await pg.reload(); await new Promise((r) => setTimeout(r, 600));
+res.stepAfterReload = await pg.$eval('.app', (e) => e.dataset.step);
+await step('library');
+res.cardsAfterReload = await pg.$$eval('.cards .card', (c) => c.length);
+res.logs = logs; res.externalRequests = reqs;
+res.at = new Date().toString(); res.chrome = await b.version();
+console.log(JSON.stringify(res, null, 1));
+await b.close();

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Equipment Concept Designer sample asset library (prototype). Values are [예시] assumptions, not real device specs. -->
+<!-- "ECD.AppExtension" attributes are an application-specific extension; they carry NO AutomationML standard semantics. -->
+<CAEXFile xmlns="http://www.dke.de/CAEX" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.dke.de/CAEX CAEX_ClassModel_V.3.0.xsd" SchemaVersion="3.0" FileName="ecd-sample-library.aml">
+  <SuperiorStandardVersion>AutomationML 2.10</SuperiorStandardVersion>
+  <SourceDocumentInform

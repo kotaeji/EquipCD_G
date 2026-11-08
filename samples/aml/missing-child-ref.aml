@@ -1,0 +1,916 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Equipment Concept Designer sample asset library (prototype). Values are [예시] assumptions, not real device specs. -->
+<!-- "ECD.AppExtension" attributes are an application-specific extension; they carry NO AutomationML standard semantics. -->
+<CAEXFile xmlns="http://www.dke.de/CAEX" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.dke.de/CAEX CAEX_ClassModel_V.3.0.xsd" SchemaVersion="3.0" FileName="ecd-sample-library.aml">
+  <SuperiorStandardVersion>AutomationML 2.10</SuperiorStandardVersion>
+  <SourceDocumentInformation OriginName="Equipment Concept Designer (web prototype)" OriginID="ecd-web-prototype" OriginVersion="0.2.0" LastWritingDateTime="2026-11-08T00:00:00Z" OriginVendor="prototype (unreleased)" OriginProjectTitle="equipment-concept-prototype" OriginProjectID="unspecified" />
+  <InterfaceClassLib Name="AutomationMLInterfaceClassLib">
+    <Description>EXCERPT (subset) of the AutomationML standard interface class library (structure as published by AutomationML e.V. example models, version 2.10.0). Not the complete library.</Description>
+    <Version>2.10.0</Version>
+    <InterfaceClass Name="AutomationMLBaseInterface">
+      <InterfaceClass Name="Port" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface" />
+      <InterfaceClass Name="ExternalDataConnector" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI" />
+        <InterfaceClass Name="ExternalDataReference" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector">
+          <Attribute Name="MIMEType" AttributeDataType="xs:string" />
+        </InterfaceClass>
+      </InterfaceClass>
+      <InterfaceClass Name="Communication" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface">
+        <InterfaceClass Name="SignalInterface" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/Communication" />
+      </InterfaceClass>
+    </InterfaceClass>
+  </InterfaceClassLib>
+  <InterfaceClassLib Name="ECD_InterfaceClassLib">
+    <Description>Prototype interface classes. ConceptSignal = role-based conceptual boolean signal (no real I/O address).</Description>
+    <Version>0.1.0</Version>
+    <InterfaceClass Name="ConceptSignal" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/Communication/SignalInterface">
+      <Attribute Name="Direction" AttributeDataType="xs:string" />
+      <Attribute Name="SignalRole" AttributeDataType="xs:string" />
+      <Attribute Name="ValueType" AttributeDataType="xs:string" />
+    </InterfaceClass>
+    <InterfaceClass Name="MaterialFlowPort" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface">
+      <Attribute Name="Direction" AttributeDataType="xs:string" />
+    </InterfaceClass>
+  </InterfaceClassLib>
+  <RoleClassLib Name="AutomationMLBaseRoleClassLib">
+    <Description>EXCERPT (subset) of the AutomationML base role class library (version 2.10.0). Not the complete library.</Description>
+    <Version>2.10.0</Version>
+    <RoleClass Name="AutomationMLBaseRole">
+      <RoleClass Name="Resource" RefBaseClassPath="AutomationMLBaseRoleClassLib/AutomationMLBaseRole" />
+    </RoleClass>
+  </RoleClassLib>
+  <RoleClassLib Name="ECD_RoleClassLib">
+    <Version>0.1.0</Version>
+    <RoleClass Name="AxisDevice" RefBaseClassPath="AutomationMLBaseRoleClassLib/AutomationMLBaseRole/Resource"><Description>축/구동 장치</Description></RoleClass>
+    <RoleClass Name="IODevice" RefBaseClassPath="AutomationMLBaseRoleClassLib/AutomationMLBaseRole/Resource"><Description>I/O 장치</Description></RoleClass>
+    <RoleClass Name="SensorDevice" RefBaseClassPath="AutomationMLBaseRoleClassLib/AutomationMLBaseRole/Resource"><Description>센서·식별 장치</Description></RoleClass>
+    <RoleClass Name="TransportDevice" RefBaseClassPath="AutomationMLBaseRoleClassLib/AutomationMLBaseRole/Resource"><Description>이송 장치</Description></RoleClass>
+    <RoleClass Name="EquipmentUnit" RefBaseClassPath="AutomationMLBaseRoleClassLib/AutomationMLBaseRole/Resource"><Description>복합 유닛(장치 묶음)</Description></RoleClass>
+  </RoleClassLib>
+  <SystemUnitClassLib Name="ECD_SampleAssetLib">
+    <Description>Sample assets of the Equipment Concept Designer prototype. All numbers are [예시] assumptions.</Description>
+    <Version>0.1.0</Version>
+    <SystemUnitClass Name="cylinder" ID="asset.cylinder">
+      <Description>실린더</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="stroke" AttributeDataType="xs:double" Unit="mm">
+        <Description>스트로크</Description>
+        <DefaultValue>100</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="moveTime" AttributeDataType="xs:double" Unit="s">
+        <Description>이동 시간</Description>
+        <DefaultValue>0.8</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>axis</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>CYL</Value></Attribute>
+        <Attribute Name="Actions">
+          <Attribute Name="extend">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>전진</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>extend</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>cmdFwd</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>fwdDone</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>0.8</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>3</Value></Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="cmdFwd" ID="asset.cylinder.cmdFwd" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>전진 명령</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="fwdDone" ID="asset.cylinder.fwdDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>전진 완료</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.cylinder.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/cylinder.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.cylinder.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/cyl.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 공압 실린더 2개 제품 실사진.</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/AxisDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="pusher" ID="asset.pusher">
+      <Description>푸셔</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="stroke" AttributeDataType="xs:double" Unit="mm">
+        <Description>푸시 스트로크</Description>
+        <DefaultValue>150</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="pushTime" AttributeDataType="xs:double" Unit="s">
+        <Description>푸시 시간</Description>
+        <DefaultValue>0.8</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>axis</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>PSH</Value></Attribute>
+        <Attribute Name="Actions">
+          <Attribute Name="push">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>푸시</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>extend</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>cmdPush</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>pushDone</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>0.8</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>3</Value></Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="cmdPush" ID="asset.pusher.cmdPush" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>푸시 명령</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="pushDone" ID="asset.pusher.pushDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>푸시 완료</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.pusher.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/pusher.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.pusher.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/cyl.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>component-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 구성요소 참고사진(실린더), 푸셔 조립체 사진 아님.</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/AxisDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="barcodeReader" ID="asset.barcodeReader">
+      <Description>바코드리더</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="readTime" AttributeDataType="xs:double" Unit="s">
+        <Description>읽기 시간</Description>
+        <DefaultValue>0.5</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>BCR</Value></Attribute>
+        <Attribute Name="Actions">
+          <Attribute Name="read">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>읽기</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>read</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>trigger</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>readDone</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>0.5</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>2</Value></Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="trigger" ID="asset.barcodeReader.trigger" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>읽기 트리거</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="readDone" ID="asset.barcodeReader.readDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>읽기 완료</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="readOk" ID="asset.barcodeReader.readOk" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>읽기 결과 OK</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>result</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.barcodeReader.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/barcodeReader.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.barcodeReader.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/bcr.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. Honeywell 4600g 핸드헬드 바코드 스캐너 실사진. 고정식(설비 장착형) 리더가 아님.</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/SensorDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="conveyor" ID="asset.conveyor">
+      <Description>컨베이어</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="length" AttributeDataType="xs:double" Unit="mm">
+        <Description>길이</Description>
+        <DefaultValue>600</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+      </Attribute>
+      <Attribute Name="speed" AttributeDataType="xs:double" Unit="mm/s">
+        <Description>속도</Description>
+        <DefaultValue>300</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>transport</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>CNV</Value></Attribute>
+        <Attribute Name="Actions">
+          <Attribute Name="convey">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>이송</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>convey</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>run</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>exitSensor</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>2</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>5</Value></Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="run" ID="asset.conveyor.run" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>구동 명령</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="exitSensor" ID="asset.conveyor.exitSensor" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>배출 감지</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.conveyor.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/conveyor.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.conveyor.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/conv.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 공장 내 벨트·롤러 컨베이어 시스템 실사진 (Pixabay 원본, CC0).</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/TransportDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="stopper" ID="asset.stopper">
+      <Description>스토퍼</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="actTime" AttributeDataType="xs:double" Unit="s">
+        <Description>동작 시간</Description>
+        <DefaultValue>0.3</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>io</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>STP</Value></Attribute>
+        <Attribute Name="Actions">
+          <Attribute Name="raise">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>상승(정지)</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>raise</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>cmdUp</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>upDone</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>0.3</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>1.5</Value></Attribute>
+          </Attribute>
+          <Attribute Name="lower">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>하강(해제)</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>lower</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>cmdDown</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>downDone</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>0.3</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>1.5</Value></Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="cmdUp" ID="asset.stopper.cmdUp" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>상승 명령</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="upDone" ID="asset.stopper.upDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>상승 완료</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="cmdDown" ID="asset.stopper.cmdDown" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>하강 명령</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="downDone" ID="asset.stopper.downDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>하강 완료</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.stopper.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/stopper.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.stopper.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/cyl.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>component-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 구성요소 참고사진(실린더), 스토퍼 조립체 사진 아님.</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/IODevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="gantry" ID="asset.gantry">
+      <Description>갠트리</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="travelX" AttributeDataType="xs:double" Unit="mm">
+        <Description>X 이동거리</Description>
+        <DefaultValue>400</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="speed" AttributeDataType="xs:double" Unit="mm/s">
+        <Description>축 속도</Description>
+        <DefaultValue>300</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>axis</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>GAN</Value></Attribute>
+        <Attribute Name="Actions">
+          <Attribute Name="move">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>이동</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>move</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>cmdMove</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>inPos</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>1.5</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>4</Value></Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="cmdMove" ID="asset.gantry.cmdMove" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>이동 명령</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="inPos" ID="asset.gantry.inPos" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>위치 도달</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.gantry.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/gantry.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.gantry.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/gantry.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. Tecnowey tecno-840 갠트리(직교) 로봇이 상자 적재 라인 위에 설치된 실사진.</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/AxisDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="picker" ID="asset.picker">
+      <Description>피커</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="zStroke" AttributeDataType="xs:double" Unit="mm">
+        <Description>Z 스트로크</Description>
+        <DefaultValue>80</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="payload" AttributeDataType="xs:double" Unit="kg">
+        <Description>허용 하중</Description>
+        <DefaultValue>2</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>axis</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>PCK</Value></Attribute>
+        <Attribute Name="Actions">
+          <Attribute Name="pick">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>잡기</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>pick</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>cmdPick</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>picked</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>0.6</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>2</Value></Attribute>
+          </Attribute>
+          <Attribute Name="place">
+            <Attribute Name="Label" AttributeDataType="xs:string"><Value>놓기</Value></Attribute>
+            <Attribute Name="Kind" AttributeDataType="xs:string"><Value>place</Value></Attribute>
+            <Attribute Name="CommandPort" AttributeDataType="xs:string"><Value>cmdPlace</Value></Attribute>
+            <Attribute Name="CompletePort" AttributeDataType="xs:string"><Value>placed</Value></Attribute>
+            <Attribute Name="DurationS" AttributeDataType="xs:double" Unit="s"><Value>0.6</Value></Attribute>
+            <Attribute Name="TimeoutS" AttributeDataType="xs:double" Unit="s"><Value>2</Value></Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="cmdPick" ID="asset.picker.cmdPick" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>잡기 명령</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="picked" ID="asset.picker.picked" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>잡기 완료</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="cmdPlace" ID="asset.picker.cmdPlace" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>놓기 명령</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="placed" ID="asset.picker.placed" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>놓기 완료</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.picker.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/picker.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.picker.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/picker.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 컨베이어 위 제품을 집는 픽 로봇/그리퍼 툴 실사진 (원본 설명: &quot;RNA Assembly machine&quot;). 흡착 픽커 특정 모델 아님.</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/AxisDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="sensor" ID="asset.sensor">
+      <Description>센서</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="responseTime" AttributeDataType="xs:double" Unit="s">
+        <Description>응답 시간</Description>
+        <DefaultValue>0.05</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>SEN</Value></Attribute>
+      </Attribute>
+      <ExternalInterface Name="detect" ID="asset.sensor.detect" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>감지</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.sensor.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/sensor.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.sensor.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/press.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 일반 sensor 대표: 실제 센서 종류는 무선 압력 트랜스미터(압력 센서, 원문 &quot;датчик давления&quot;) 현장 설치 실사진.</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/SensorDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="photoelectricSensor" ID="asset.photoelectricSensor">
+      <Description>광전 센서</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="detectRange" AttributeDataType="xs:double" Unit="mm">
+        <Description>검출 거리</Description>
+        <DefaultValue>300</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+      </Attribute>
+      <Attribute Name="responseTime" AttributeDataType="xs:double" Unit="s">
+        <Description>응답 시간</Description>
+        <DefaultValue>0.001</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>PES</Value></Attribute>
+      </Attribute>
+      <ExternalInterface Name="detect" ID="asset.photoelectricSensor.detect" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>광 검출(자재 있음)</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.photoelectricSensor.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/photoelectricSensor.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.photoelectricSensor.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/photo.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. SICK WL12G-3B2531 반사형 광전 센서 실사진 (흰 배경으로 평탄화).</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/SensorDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="proximitySensor" ID="asset.proximitySensor">
+      <Description>근접 센서</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="sensingDistance" AttributeDataType="xs:double" Unit="mm">
+        <Description>검출 거리</Description>
+        <DefaultValue>8</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+      </Attribute>
+      <Attribute Name="responseTime" AttributeDataType="xs:double" Unit="s">
+        <Description>응답 시간</Description>
+        <DefaultValue>0.002</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>PRX</Value></Attribute>
+      </Attribute>
+      <ExternalInterface Name="detect" ID="asset.proximitySensor.detect" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>근접 검출</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.proximitySensor.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/proximitySensor.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.proximitySensor.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/prox.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. Pepperl+Fuchs M18 유도형 근접 스위치 실사진.</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/SensorDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="limitSwitch" ID="asset.limitSwitch">
+      <Description>리밋 스위치</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="actuationTravel" AttributeDataType="xs:double" Unit="mm">
+        <Description>동작 행정</Description>
+        <DefaultValue>2</DefaultValue>
+        <Attribute Name="ECD.requiredForRun" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+      </Attribute>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>LMS</Value></Attribute>
+      </Attribute>
+      <ExternalInterface Name="contact" ID="asset.limitSwitch.contact" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+        <Description>끝단 접점 ON</Description>
+        <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+        <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+        <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="Schematic" ID="asset.limitSwitch.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/limitSwitch.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.limitSwitch.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/limit.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>class-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 설비 프레임에 장착된 리밋 스위치 실사진 (정확한 설비 종류는 원문 미기재).</Value></Attribute>
+      </ExternalInterface>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/SensorDevice" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="unitInput" ID="asset.unitInput">
+      <Description>투입 유닛 템플릿</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>unit</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>UIN</Value></Attribute>
+        <Attribute Name="TemplateLayout">
+          <Attribute Name="W" AttributeDataType="xs:double"><Value>216</Value></Attribute>
+          <Attribute Name="H" AttributeDataType="xs:double"><Value>300</Value></Attribute>
+        </Attribute>
+        <Attribute Name="TemplateRules">
+          <Attribute Name="Rule1">
+            <Attribute Name="Child" AttributeDataType="xs:string"><Value>PSH1</Value></Attribute>
+            <Attribute Name="Action" AttributeDataType="xs:string"><Value>push</Value></Attribute>
+            <Attribute Name="Pre1">
+              <Attribute Name="Child" AttributeDataType="xs:string"><Value>PES1</Value></Attribute>
+              <Attribute Name="Port" AttributeDataType="xs:string"><Value>detect</Value></Attribute>
+              <Attribute Name="Equals" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+            </Attribute>
+          </Attribute>
+          <Attribute Name="Rule2">
+            <Attribute Name="Child" AttributeDataType="xs:string"><Value>CYL1</Value></Attribute>
+            <Attribute Name="Action" AttributeDataType="xs:string"><Value>extend</Value></Attribute>
+            <Attribute Name="Pre1">
+              <Attribute Name="Child" AttributeDataType="xs:string"><Value>PSH1</Value></Attribute>
+              <Attribute Name="Port" AttributeDataType="xs:string"><Value>pushDone</Value></Attribute>
+              <Attribute Name="Equals" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+            </Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="Schematic" ID="asset.unitInput.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/unitInput.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.unitInput.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/belt.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>assembly-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 참고 구조: 투입/이송용 수평 벨트 컨베이어 라인 실사진. 본 앱 예시 투입 유닛의 실사진 아님.</Value></Attribute>
+      </ExternalInterface>
+      <InternalElement Name="PES1" ID="asset.unitInput.PES1" RefBaseSystemUnitPath="ECD_SampleAssetLib/photoelectricSensor">
+        <Description>투입 자재 감지</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>150</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>40</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="detect" ID="asset.unitInput.PES1.detect" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>광 검출(자재 있음)</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <InternalElement Name="PSH1" ID="asset.unitInput.PSH1" RefBaseSystemUnitPath="ECD_SampleAssetLib/ghostPusher">
+        <Description>투입 푸셔</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>20</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>110</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="cmdPush" ID="asset.unitInput.PSH1.cmdPush" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>푸시 명령</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="pushDone" ID="asset.unitInput.PSH1.pushDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>푸시 완료</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <InternalElement Name="CYL1" ID="asset.unitInput.CYL1" RefBaseSystemUnitPath="ECD_SampleAssetLib/cylinder">
+        <Description>고정 실린더</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>130</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>190</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="cmdFwd" ID="asset.unitInput.CYL1.cmdFwd" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>전진 명령</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="fwdDone" ID="asset.unitInput.CYL1.fwdDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>전진 완료</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/EquipmentUnit" />
+      <InternalLink Name="Link1" RefPartnerSideA="asset.unitInput.PES1.detect" RefPartnerSideB="asset.unitInput.PSH1.cmdPush" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="unitIdentify" ID="asset.unitIdentify">
+      <Description>식별 유닛 템플릿</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>unit</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>UID</Value></Attribute>
+        <Attribute Name="TemplateLayout">
+          <Attribute Name="W" AttributeDataType="xs:double"><Value>216</Value></Attribute>
+          <Attribute Name="H" AttributeDataType="xs:double"><Value>300</Value></Attribute>
+        </Attribute>
+        <Attribute Name="TemplateRules">
+          <Attribute Name="Rule1">
+            <Attribute Name="Child" AttributeDataType="xs:string"><Value>BCR1</Value></Attribute>
+            <Attribute Name="Action" AttributeDataType="xs:string"><Value>read</Value></Attribute>
+            <Attribute Name="Pre1">
+              <Attribute Name="Child" AttributeDataType="xs:string"><Value>STP1</Value></Attribute>
+              <Attribute Name="Port" AttributeDataType="xs:string"><Value>upDone</Value></Attribute>
+              <Attribute Name="Equals" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+            </Attribute>
+            <Attribute Name="Pre2">
+              <Attribute Name="Child" AttributeDataType="xs:string"><Value>PRX1</Value></Attribute>
+              <Attribute Name="Port" AttributeDataType="xs:string"><Value>detect</Value></Attribute>
+              <Attribute Name="Equals" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+            </Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="Schematic" ID="asset.unitIdentify.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/unitIdentify.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.unitIdentify.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/ident.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>assembly-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 참고 구조: 창고 선반에서 핸드헬드 바코드 스캐너로 출고를 확인(식별)하는 장면. 컨베이어 고정식 식별 스테이션이 아니며 본 앱 예시 식별 유닛 사진 아님. 사람 손이 일부 보임.</Value></Attribute>
+      </ExternalInterface>
+      <InternalElement Name="STP1" ID="asset.unitIdentify.STP1" RefBaseSystemUnitPath="ECD_SampleAssetLib/stopper">
+        <Description>식별 위치 스토퍼</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>30</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>200</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="cmdUp" ID="asset.unitIdentify.STP1.cmdUp" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>상승 명령</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="upDone" ID="asset.unitIdentify.STP1.upDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>상승 완료</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="cmdDown" ID="asset.unitIdentify.STP1.cmdDown" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>하강 명령</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="downDone" ID="asset.unitIdentify.STP1.downDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>하강 완료</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <InternalElement Name="PRX1" ID="asset.unitIdentify.PRX1" RefBaseSystemUnitPath="ECD_SampleAssetLib/proximitySensor">
+        <Description>도착 근접 감지</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>150</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>200</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="detect" ID="asset.unitIdentify.PRX1.detect" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>근접 검출</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <InternalElement Name="BCR1" ID="asset.unitIdentify.BCR1" RefBaseSystemUnitPath="ECD_SampleAssetLib/barcodeReader">
+        <Description>식별 바코드리더</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>80</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>60</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="trigger" ID="asset.unitIdentify.BCR1.trigger" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>읽기 트리거</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="readDone" ID="asset.unitIdentify.BCR1.readDone" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>읽기 완료</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="readOk" ID="asset.unitIdentify.BCR1.readOk" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>읽기 결과 OK</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>result</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/EquipmentUnit" />
+      <InternalLink Name="Link1" RefPartnerSideA="asset.unitIdentify.PRX1.detect" RefPartnerSideB="asset.unitIdentify.BCR1.trigger" />
+    </SystemUnitClass>
+    <SystemUnitClass Name="unitTransfer" ID="asset.unitTransfer">
+      <Description>이송 유닛 템플릿</Description>
+      <Version>0.1.0</Version>
+      <Attribute Name="ECD.AppExtension">
+        <Description>Application-specific extension of Equipment Concept Designer (category, naming, actions/simulation timing, template layout/rules). Not AutomationML standard semantics.</Description>
+        <Attribute Name="Category" AttributeDataType="xs:string"><Value>unit</Value></Attribute>
+        <Attribute Name="NamePrefix" AttributeDataType="xs:string"><Value>UTR</Value></Attribute>
+        <Attribute Name="TemplateLayout">
+          <Attribute Name="W" AttributeDataType="xs:double"><Value>216</Value></Attribute>
+          <Attribute Name="H" AttributeDataType="xs:double"><Value>300</Value></Attribute>
+        </Attribute>
+        <Attribute Name="TemplateRules">
+          <Attribute Name="Rule1">
+            <Attribute Name="Child" AttributeDataType="xs:string"><Value>PCK1</Value></Attribute>
+            <Attribute Name="Action" AttributeDataType="xs:string"><Value>pick</Value></Attribute>
+            <Attribute Name="Pre1">
+              <Attribute Name="Child" AttributeDataType="xs:string"><Value>GAN1</Value></Attribute>
+              <Attribute Name="Port" AttributeDataType="xs:string"><Value>inPos</Value></Attribute>
+              <Attribute Name="Equals" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+            </Attribute>
+          </Attribute>
+          <Attribute Name="Rule2">
+            <Attribute Name="Child" AttributeDataType="xs:string"><Value>GAN1</Value></Attribute>
+            <Attribute Name="Action" AttributeDataType="xs:string"><Value>move</Value></Attribute>
+            <Attribute Name="Pre1">
+              <Attribute Name="Child" AttributeDataType="xs:string"><Value>LMS1</Value></Attribute>
+              <Attribute Name="Port" AttributeDataType="xs:string"><Value>contact</Value></Attribute>
+              <Attribute Name="Equals" AttributeDataType="xs:boolean"><Value>true</Value></Attribute>
+            </Attribute>
+          </Attribute>
+        </Attribute>
+      </Attribute>
+      <ExternalInterface Name="Schematic" ID="asset.unitTransfer.Schematic" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/schematic/unitTransfer.svg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/svg+xml</Value></Attribute>
+      </ExternalInterface>
+      <ExternalInterface Name="ReferencePhoto" ID="asset.unitTransfer.ReferencePhoto" RefBaseClassPath="AutomationMLInterfaceClassLib/AutomationMLBaseInterface/ExternalDataConnector/ExternalDataReference">
+        <Attribute Name="refURI" AttributeDataType="xs:anyURI"><Value>../visuals/photos/paro.jpg</Value></Attribute>
+        <Attribute Name="MIMEType" AttributeDataType="xs:string"><Value>image/jpeg</Value></Attribute>
+        <Attribute Name="ECD.PhotoMatchType" AttributeDataType="xs:string"><Value>assembly-reference</Value></Attribute>
+        <Attribute Name="ECD.ExactModelMatch" AttributeDataType="xs:boolean"><Value>false</Value></Attribute>
+        <Attribute Name="ECD.ScopeNote" AttributeDataType="xs:string"><Value>참고 사진·실제 촬영·모델/사양 일치 보장 안 함. 참고 구조: roTeg PARO 리니어암(갠트리형) 핸들링 셀 전시회 실사진. 본 앱 예시 이송 유닛 사진 아님.</Value></Attribute>
+      </ExternalInterface>
+      <InternalElement Name="GAN1" ID="asset.unitTransfer.GAN1" RefBaseSystemUnitPath="ECD_SampleAssetLib/gantry">
+        <Description>이송 갠트리</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>30</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>40</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="cmdMove" ID="asset.unitTransfer.GAN1.cmdMove" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>이동 명령</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="inPos" ID="asset.unitTransfer.GAN1.inPos" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>위치 도달</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <InternalElement Name="PCK1" ID="asset.unitTransfer.PCK1" RefBaseSystemUnitPath="ECD_SampleAssetLib/picker">
+        <Description>이송 피커</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>84</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>130</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="cmdPick" ID="asset.unitTransfer.PCK1.cmdPick" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>잡기 명령</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="picked" ID="asset.unitTransfer.PCK1.picked" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>잡기 완료</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="cmdPlace" ID="asset.unitTransfer.PCK1.cmdPlace" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>놓기 명령</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>in</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>command</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+        <ExternalInterface Name="placed" ID="asset.unitTransfer.PCK1.placed" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>놓기 완료</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>complete</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <InternalElement Name="LMS1" ID="asset.unitTransfer.LMS1" RefBaseSystemUnitPath="ECD_SampleAssetLib/limitSwitch">
+        <Description>원점 리밋</Description>
+        <Attribute Name="ECD.AppExtension.LayoutOffset">
+          <Attribute Name="X" AttributeDataType="xs:double"><Value>20</Value></Attribute>
+          <Attribute Name="Y" AttributeDataType="xs:double"><Value>230</Value></Attribute>
+        </Attribute>
+        <ExternalInterface Name="contact" ID="asset.unitTransfer.LMS1.contact" RefBaseClassPath="ECD_InterfaceClassLib/ConceptSignal">
+          <Description>끝단 접점 ON</Description>
+          <Attribute Name="Direction" AttributeDataType="xs:string"><Value>out</Value></Attribute>
+          <Attribute Name="SignalRole" AttributeDataType="xs:string"><Value>sensor</Value></Attribute>
+          <Attribute Name="ValueType" AttributeDataType="xs:string"><Value>xs:boolean</Value></Attribute>
+        </ExternalInterface>
+      </InternalElement>
+      <SupportedRoleClass RefRoleClassPath="ECD_RoleClassLib/EquipmentUnit" />
+      <InternalLink Name="Link1" RefPartnerSideA="asset.unitTransfer.GAN1.inPos" RefPartnerSideB="asset.unitTransfer.PCK1.cmdPick" />
+    </SystemUnitClass>
+  </SystemUnitClassLib>
+</CAEXFile>
