@@ -7,7 +7,7 @@ GrokBot · Cursor Agent · Claude(루카) 등 **이 저장소에 커밋하거나
 | 누구 | 하는 일 | 하지 않는 일 |
 |---|---|---|
 | Matthew | 요구·우선순위 결정, **main 머지(유일한 문)**, 사람 검수 | — |
-| 루카(Claude) | 앰플노트 요구 → TURN Issue 작성, PR을 AC 대비로 검토·코멘트 | 앱 코드 직접 수정(체계 파일 제외), 머지 |
+| 루카(Claude) | 앰플노트 요구 → TURN Issue 작성, `@cursor` 로 구현 에이전트 시작·라벨 관리, PR을 AC 대비로 검토·코멘트 | 앱 코드 직접 수정(체계 파일 제외), 머지 |
 | 구현 에이전트(GrokBot/Cursor) | TURN Issue를 구현해 PR 생성, 자기 검증 결과 기록 | main 직접 push, 머지, Issue 범위 밖 변경 |
 
 ## 2. 요구 정본
@@ -19,7 +19,7 @@ GrokBot · Cursor Agent · Claude(루카) 등 **이 저장소에 커밋하거나
 ## 3. TURN = Issue 하나 = 브랜치 하나 = PR 하나
 
 1. TURN 지시서는 GitHub Issue로 연다(`.github/ISSUE_TEMPLATE/turn.md`). 라벨 `turn:todo`.
-2. 구현 에이전트는 시작할 때 라벨을 `turn:doing` 으로 바꾼다.
+2. 시작 신호는 루카가 Issue 에 `@cursor` 로 시작하는 짧은 코멘트로 보내고(브랜치 이름·PR 제목·`Closes #N` 포함), 그때 라벨을 `turn:doing` 으로 바꾼다. **구현 에이전트는 라벨을 바꾸지 않는다**(Cursor 에이전트 토큰에 라벨 권한이 없음).
 3. 브랜치 이름: `turn/NNN-짧은-설명` (예: `turn/004-header-brand-color`). **항상 최신 `main`에서 갈라진다** — 다른 PR 브랜치 위에 쌓지 않는다.
 4. PR 제목: `TURN-NNN: 제목`, 본문 첫 줄 `Closes #<Issue 번호>`.
 5. PR 본문에 반드시 넣는다:
@@ -33,7 +33,7 @@ GrokBot · Cursor Agent · Claude(루카) 등 **이 저장소에 커밋하거나
 | 라벨 | 붙이는 쪽 | 뜻 |
 |---|---|---|
 | `turn:todo` | 루카(Issue 생성 시) | 착수 전 |
-| `turn:doing` | 구현 에이전트 | 작업 중 |
+| `turn:doing` | 루카(`@cursor` 로 시작시킬 때) | 작업 중 |
 | `review:needed` | **자동**(`.github/workflows/pr-label.yml`, PR 열릴 때) | 루카 검토 대기 |
 | `review:changes` | 루카 | 수정 요청 |
 | `review:ok` | 루카 | AC 충족 확인 — Matthew 머지 대기 |
