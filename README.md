@@ -10,6 +10,8 @@
 
 TURN-004 헤더 브랜드색은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-004.md`](docs/turns/TURN-004.md). 헤더 밖 색, 테마 저장값 A/B/C, 프로젝트 JSON, rev, Undo는 바꾸지 않았습니다.
 
+TURN-005 도면 캔버스(React Flow)는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-005.md`](docs/turns/TURN-005.md). 배치·연결 카드 보드, 프로젝트 JSON, rev, Undo 규칙, 실행 엔진, `release/` 는 바꾸지 않았습니다. 핸들을 끌어 연결하기와 Unit 안의 서브플로는 하지 않았습니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -39,7 +41,7 @@ npm run typecheck && npm test && npm run build   # build → release/equipment-c
   - **도식/실사진 토글**: 14종 모두 Wikimedia Commons 실제 촬영 참고 사진(12장, 출처·저자·라이선스·대표 범위 표시, 정확 모델 일치 아님). 토글은 모델 불변.
   - **단계별 중앙 작업영역(C10 위저드 제안안)**: 1 입력·에셋 선택(라이브러리 카드) → 2 배치·연결(Canvas) → 3 속성·Action → 4 자재·시퀀스 → 5 점검 → 6 실행·저장. 현재 단계·목표·남은 항목·이전/다음, 데이터 기반 준비 판정, 확인 후 데이터가 바뀌면 ‘재확인 필요’.
 - **v0.1부터 있던 것**: Unit/Device 배치·이동·연결·속성 → 수동 순차 시퀀스 → 5공정·자재 1개 논리 시뮬레이션 → localStorage 저장·재열기, JSON 내보내기/가져오기, A/B/C 테마, F1 직접 입력 후보표, F6 기본 Gap.
-- **안 된 것(미구현)**: F7 Evolution Lab 전체, F8 실제 Core Export·역매핑(읽기 전용 미리보기만), F1 문서/USD 추출, 분기·병렬·다중 자재, AI, WPF, 일반 AutomationML 파일(InstanceHierarchy·외부 참조·상속 등) 해석, 브라우저 내 XSD 검사, 가져온 AML의 사진 파일 동봉, C11(노트 갱신 — 앱 기능 아님, 부모 담당).
+- **안 된 것(미구현)**: F7 Evolution Lab 전체, F8 실제 Core Export·역매핑(읽기 전용 미리보기만), F1 문서/USD 추출, 분기·병렬·다중 자재, AI, WPF, 일반 AutomationML 파일(InstanceHierarchy·외부 참조·상속 등) 해석, 브라우저 내 XSD 검사, 가져온 AML의 사진 파일 동봉, C11(노트 갱신 — 앱 기능 아님, 부모 담당), 도면에서 핸들을 끌어 연결하기, Unit 안에 Device를 서브플로로 두기.
 - **요구 상태와 구현 상태는 다릅니다**: v0.2 요구문서의 [확정]/[설계 제안]/[미정]은 요구 승인 상태이고, 이 폴더의 구현·검증 결과는 `REQUIREMENTS-VERIFICATION.md`에 따로 적습니다. 6단계 구성·gate 규칙·14종 구성·카드 배치는 요구문서상 **[설계 제안]**이며 이번 구현은 그 제안을 시제품으로 만든 것일 뿐 확정이 아닙니다.
 - **검증 상태 (v0.3)**: 자동 테스트 **7개 파일 72개 통과** = 기존 57개(ui-smoke 1개는 v0.3 화면에 맞게 수정) + 신규 15개(group 12, visuals 3). **v0.3 실제 브라우저 GUI 검수**(부모 에이전트, 사람 검수 아님, `http://127.0.0.1:8767/…`, 스크린샷 1920×1200): AI 카드 14·배지·상세 메타데이터·토글 rev 불변, A/B/C·1~6 상시 탐색기, 병렬 예제 1.200/1.600 s, DEVICE_CONFLICT 차단·Undo, 그룹 실행/일시정지/재개/끝까지·GROUP_COMPLETE, 프로젝트 전환 자동 일시정지·복귀 재개, 기본 Station 11.100 s, JSON 0.2 내보내기/가져오기 통과 — `BROWSER-VERIFICATION.md` 7절. 현재 페이지 콘솔 오류 0건(세션 전체의 외부 collector.github.com 503 6건은 이전 열람 기원·원인 불명으로 앱 오류로 단정 안 함). 미검증: 1280×800(창 크기 변경 불가), body 전체 overflow 측정, v0.1 파일 가져오기 GUI. 1920에서 6단계 Canvas는 내부 가로 스크롤. 아래는 v0.2 기록 — 자동 테스트 **5개 파일 57개 통과**. 에이전트가 headless Chrome 156으로 release HTML(file://)을 자동 조작해 v0.2 핵심 경로 확인(`BROWSER-VERIFICATION.md` 「v0.2」 절, 스크린샷 `docs/screenshots/v0.2/`). **v0.2 실제 브라우저 GUI 검수**(부모 에이전트, Linux Chrome 1920×1072, `http://127.0.0.1:8766/equipment-concept-designer.html`): 라이브러리 카드·AML 상세·사진 토글, 1~6 중앙 화면, 식별 유닛 템플릿·Undo, NOT_READY 차단, 기본 실행 RUN_COMPLETE(11.100 s, 오류 0), AML 가져오기 2건 관찰 통과 — 자동 결과와 분리해 `BROWSER-VERIFICATION.md` 6절에 기록. 미검증: 1280×800·작은 화면, V01~V16 전체, Mac/Windows, file:// GUI 검수, 유닛 템플릿 포함 실행.
 
@@ -58,7 +60,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 14파일 355개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더 토큰 포함)
+npm test              # vitest 15파일 363개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스 토큰) + React Flow 캔버스
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신

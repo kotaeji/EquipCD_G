@@ -13,5 +13,5 @@ export default defineConfig({
   esbuild: { charset: 'ascii' },
   build: { modulePreload: { polyfill: false }, outDir: 'dist', assetsInlineLimit: 100000000, cssCodeSplit: false },
   server: { host: '0.0.0.0', port: 5173, strictPort: true },
-  test: { environment: 'node', include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'] },
+  test: { environment: 'node', include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'], setupFiles: ['./tests/setup-dom.ts'] },
 } as any);

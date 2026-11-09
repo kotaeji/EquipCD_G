@@ -1,10 +1,31 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Background,
+  BackgroundVariant,
+  BaseEdge,
+  Controls,
+  Handle,
+  MiniMap,
+  Panel,
+  Position,
+  ReactFlow,
+  ReactFlowProvider,
+  getBezierPath,
+  getSmoothStepPath,
+  useReactFlow,
+  type Edge,
+  type EdgeProps,
+  type Node,
+  type NodeProps,
+  type Viewport,
+} from '@xyflow/react';
+import '@xyflow/react/dist/base.css';
 import { findAsset } from '../assets/library';
 import { AI_BADGE, resolveGenerated } from '../assets/visuals';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { Symbol } from './Symbols';
-import type { UserView } from './viewSettings';
+import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
 
 export type Mode = 'select' | 'flow' | 'signal';
 
@@ -24,207 +45,453 @@ interface Props {
   onPortClick: (signalId: string) => void;
   onUnitConnectClick: (unitId: string) => void;
   onBlocked: (msg: string) => void;
+  /** Viewport zoom → UserView.zoom. Pan is not stored. */
+  onZoomChange?: (zoom: number) => void;
 }
 
-const sigState = (rt: RuntimeState | null, p: Project, deviceId: string, port: string) => {
-  if (!rt) return false;
-  const s = p.signals.find((x) => x.deviceId === deviceId && x.portKey === port);
-  return s ? !!rt.signals[s.id] : false;
+const BLOCKED = '실행 중에는 배치 이동(모델 편집)이 차단됩니다. 선택·보기만 가능합니다.';
+
+type DragApi = {
+  down: (e: React.PointerEvent, id: string) => void;
+  move: (e: React.PointerEvent, id: string) => void;
+  up: (e: React.PointerEvent, id: string) => void;
+  port: (e: React.PointerEvent, signalId: string) => void;
 };
 
-export function portPos(d: Device, sigs: Signal[], s: Signal) {
-  const same = sigs.filter((x) => x.deviceId === d.id && x.direction === s.direction);
-  const i = same.findIndex((x) => x.id === s.id);
-  const y = d.layout.y + ((i + 1) * d.layout.h) / (same.length + 1);
-  return { x: s.direction === 'in' ? d.layout.x - 4 : d.layout.x + d.layout.w + 4, y };
+type UnitData = {
+  code: string; name: string; meta: string; w: number; h: number;
+  selected: boolean; from: boolean; off: boolean; api: DragApi;
+};
+type DeviceData = {
+  device: Device; selected: boolean; off: boolean; portsOff: boolean; active: boolean;
+  extended: boolean; raised: boolean; holding: boolean; photo: boolean;
+  signals: Signal[]; onIds: string[]; positions: { id: string; name: string; assumption: boolean; current: boolean }[];
+  showPositions: boolean; mode: Mode; fromPort: string | null; api: DragApi;
+};
+type MatData = { label: string };
+type SigEdgeData = { on: boolean };
+
+const nodeTypes = { unit: UnitNode, device: DeviceNode, material: MaterialNode };
+const edgeTypes = { flow: FlowEdge, signal: SignalEdge };
+
+function hexAlpha(hex: string, a: number) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-export function Canvas(props: Props) {
-  const { project: p, rt, view, selection, mode, connectFrom, locked } = props;
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [drag, setDrag] = useState<{ ids: string[]; sx: number; sy: number; dx: number; dy: number } | null>(null);
-  const W = Math.max(1260, ...p.units.map((u) => u.layout.x + u.layout.w + 120));
-  const H = Math.max(470, ...p.units.map((u) => u.layout.y + u.layout.h + 60));
+function sigTitle(s: Signal, on: boolean) {
+  return `${s.name} [${s.direction === 'in' ? '입력' : '출력'} · ${s.role}] 주소: ${s.address ?? '미정(개념 신호)'}${on ? ' · ON' : ''}`;
+}
+
+function portTop(list: Signal[], s: Signal, h: number) {
+  const i = Math.max(0, list.findIndex((x) => x.id === s.id));
+  return ((i + 1) * h) / (list.length + 1);
+}
+
+function nodeIdOf(el: Element) {
+  return (el.closest('.react-flow__node') as HTMLElement | null)?.dataset.id ?? '';
+}
+
+function UnitNode({ data }: NodeProps) {
+  const d = data as UnitData;
+  return (
+    <div
+      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}`}
+      style={{ width: d.w, height: d.h }}
+      onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
+      onPointerMove={(e) => d.api.move(e, nodeIdOf(e.currentTarget))}
+      onPointerUp={(e) => d.api.up(e, nodeIdOf(e.currentTarget))}
+    >
+      <div className="rf-unit-head">
+        <span className="rf-code">{d.code}</span>
+        <span className="rf-unit-name">{d.name}</span>
+        <span className="rf-unit-meta">{d.meta}</span>
+      </div>
+      <Handle type="target" position={Position.Left} id="flow-in" isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
+        className="rf-flow-anchor" style={{ top: d.h - 18, left: 0, right: 'auto', transform: 'translate(-50%, -50%)' }} />
+      <Handle type="source" position={Position.Right} id="flow-out" isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
+        className="rf-flow-anchor" style={{ top: d.h - 18, right: 0, left: 'auto', transform: 'translate(50%, -50%)' }} />
+    </div>
+  );
+}
+
+function DeviceNode({ data }: NodeProps) {
+  const d = data as DeviceData;
+  const { device: dev } = d;
+  const ins = d.signals.filter((s) => s.direction === 'in');
+  const outs = d.signals.filter((s) => s.direction === 'out');
+  const photo = d.photo ? resolveGenerated(dev.kind) : null;
+  return (
+    <div
+      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}`}
+      style={{ width: dev.layout.w, height: dev.layout.h }}
+      onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
+      onPointerMove={(e) => d.api.move(e, nodeIdOf(e.currentTarget))}
+      onPointerUp={(e) => d.api.up(e, nodeIdOf(e.currentTarget))}
+    >
+      {photo?.status === 'available'
+        ? <svg width={dev.layout.w} height={dev.layout.h}>
+          <clipPath id={`clip-${dev.id}`}><rect width={dev.layout.w} height={dev.layout.h} rx={3} /></clipPath>
+          <rect width={dev.layout.w} height={dev.layout.h} rx={3} fill="var(--panel)" />
+          <image href={photo.url} width={dev.layout.w} height={dev.layout.h} preserveAspectRatio="xMidYMid meet" clipPath={`url(#clip-${dev.id})`} />
+          <rect width={dev.layout.w} height={dev.layout.h} rx={3} fill="none" stroke="var(--border)" strokeWidth={1} />
+        </svg>
+        : <svg width={dev.layout.w} height={dev.layout.h}><Symbol kind={dev.kind} w={dev.layout.w} h={dev.layout.h} st={{ active: d.active, extended: d.extended, raised: d.raised, holding: d.holding }} /></svg>}
+      <div className="rf-dev-name">{dev.name}</div>
+      {d.photo && <div className={`rf-photo-note ${photo?.status === 'available' ? 'ok' : 'miss'}`}>{photo?.status === 'available' ? `${AI_BADGE} 실사풍·실제 사진 아님` : 'AI 이미지 미준비→도식'}</div>}
+      {d.showPositions && d.positions.length > 0 && (
+        <svg className="rf-positions" width={dev.layout.w} height={dev.layout.h + 24} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
+          {d.positions.map((ps, i) => {
+            const x = ((i + 1) * dev.layout.w) / (d.positions.length + 1);
+            const y = dev.layout.h + 4;
+            return <g key={ps.id}><path d={`M${x} ${y} l-4 7 l8 0 z`} fill={ps.current ? 'var(--accent)' : 'none'} stroke="var(--warning)" /><text x={x} y={y + 16} fontSize={8} textAnchor="middle" fill="var(--warning)">{ps.name}{ps.assumption ? '(가정)' : ''}</text></g>;
+          })}
+        </svg>
+      )}
+      {d.signals.map((s) => {
+        const list = s.direction === 'in' ? ins : outs;
+        const on = d.onIds.includes(s.id);
+        return (
+          <Handle key={s.id} id={s.id} type={s.direction === 'in' ? 'target' : 'source'} position={s.direction === 'in' ? Position.Left : Position.Right}
+            isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
+            className={`rf-port ${s.direction}${on ? ' on' : ''}${d.fromPort === s.id ? ' from' : ''}`}
+            style={{ top: portTop(list, s, dev.layout.h) }}
+            title={sigTitle(s, on)}
+            data-device={dev.id} data-dir={s.direction} data-port={s.portKey ?? ''}
+            onPointerDown={(e) => d.api.port(e, s.id)} />
+        );
+      })}
+    </div>
+  );
+}
+
+function MaterialNode({ data }: NodeProps) {
+  const d = data as MatData;
+  return (
+    <div className="rf-mat nopan">
+      <div className="rf-mat-box" />
+      <div className="rf-mat-label">{d.label}</div>
+    </div>
+  );
+}
+
+function FlowEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }: EdgeProps) {
+  const [path] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
+  const color = selected ? 'var(--accent)' : 'var(--text)';
+  const markerId = `flow-arrow-${id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  return (
+    <>
+      <defs>
+        <marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0 0 L10 5 L0 10 Z" fill={color} />
+        </marker>
+      </defs>
+      <BaseEdge id={id} path={path} markerEnd={`url(#${markerId})`} style={{ stroke: color, strokeWidth: selected ? 3 : 2 }} />
+    </>
+  );
+}
+
+function SignalEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, data }: EdgeProps) {
+  const d = data as SigEdgeData | undefined;
+  const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+  const on = !!d?.on && !selected;
+  const color = selected ? 'var(--accent)' : on ? 'var(--success)' : 'var(--muted)';
+  return <BaseEdge id={id} path={path} className={on ? 'rf-sig-on' : undefined} style={{ stroke: color, strokeWidth: selected ? 2.5 : 1.5, strokeDasharray: '5 4' }} />;
+}
+
+function FlowCanvas(props: Props) {
+  const { project: p, rt, view, selection, mode, connectFrom } = props;
+  const hostRef = useRef<HTMLDivElement>(null);
+  const propsRef = useRef(props);
+  propsRef.current = props;
+  const { screenToFlowPosition, zoomTo, fitView, getViewport } = useReactFlow();
+  const flowRef = useRef(screenToFlowPosition);
+  flowRef.current = screenToFlowPosition;
+  const dragRef = useRef<{ ids: string[]; sx: number; sy: number; origin: string } | null>(null);
+  const [preview, setPreview] = useState<{ ids: string[]; dx: number; dy: number } | null>(null);
   const L = view.layers;
 
-  const toSvg = (clientX: number, clientY: number) => {
-    const svg = svgRef.current!; const pt = svg.createSVGPoint(); pt.x = clientX; pt.y = clientY;
-    const m = svg.getScreenCTM(); if (!m) return { x: 0, y: 0 };
-    const r = pt.matrixTransform(m.inverse()); return { x: r.x, y: r.y };
+  const modelIds = useCallback((ids: string[]) => {
+    const ok = new Set<string>([...p.units.map((u) => u.id), ...p.devices.map((d) => d.id)]);
+    return ids.filter((id) => ok.has(id));
+  }, [p.units, p.devices]);
+
+  const api: DragApi = {
+    down: (e, id) => {
+      if (!id) return;
+      const cur = propsRef.current;
+      if (cur.mode === 'flow') {
+        e.stopPropagation();
+        if (cur.project.units.some((u) => u.id === id)) cur.onUnitConnectClick(id);
+        return;
+      }
+      if (cur.mode !== 'select') return;
+      e.stopPropagation();
+      const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+      const have = modelIds(cur.selection);
+      const ids = have.includes(id) && !additive ? have : additive ? [...new Set([...have, id])] : [id];
+      cur.onSelect(ids, false);
+      if (cur.locked) { cur.onBlocked(BLOCKED); return; }
+      const pt = flowRef.current({ x: e.clientX, y: e.clientY });
+      dragRef.current = { ids, sx: pt.x, sy: pt.y, origin: id };
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* jsdom */ }
+    },
+    move: (e, id) => {
+      const d = dragRef.current;
+      if (!d || d.origin !== id) return;
+      const pt = flowRef.current({ x: e.clientX, y: e.clientY });
+      const dx = Math.round(pt.x - d.sx);
+      const dy = Math.round(pt.y - d.sy);
+      setPreview((prev) => (prev && prev.dx === dx && prev.dy === dy && prev.ids === d.ids ? prev : { ids: d.ids, dx, dy }));
+    },
+    up: (e, id) => {
+      const d = dragRef.current;
+      if (!d || d.origin !== id) return;
+      dragRef.current = null;
+      const pt = flowRef.current({ x: e.clientX, y: e.clientY });
+      const dx = Math.round(pt.x - d.sx);
+      const dy = Math.round(pt.y - d.sy);
+      setPreview(null);
+      if (Math.abs(dx) + Math.abs(dy) >= 2) propsRef.current.onMoveCommit(d.ids, dx, dy, pt);
+    },
+    port: (e, signalId) => {
+      if (propsRef.current.mode !== 'signal') return;
+      e.stopPropagation();
+      propsRef.current.onPortClick(signalId);
+    },
   };
 
-  const dragOffset = (id: string, unitId?: string) => {
-    if (!drag) return { dx: 0, dy: 0 };
-    if (drag.ids.includes(id) || (unitId && drag.ids.includes(unitId))) return { dx: drag.dx, dy: drag.dy };
+  const off = (id: string, unitId?: string) => {
+    if (!preview) return { dx: 0, dy: 0 };
+    if (preview.ids.includes(id) || (unitId && preview.ids.includes(unitId))) return preview;
     return { dx: 0, dy: 0 };
   };
 
-  const startDrag = (e: React.PointerEvent, id: string) => {
-    e.stopPropagation();
-    if (mode !== 'select') return;
-    const additive = e.shiftKey || e.metaKey || e.ctrlKey;
-    const ids = selection.includes(id) && !additive ? selection : additive ? [...new Set([...selection, id])] : [id];
-    props.onSelect(ids, false);
-    if (locked) { props.onBlocked('실행 중에는 배치 이동(모델 편집)이 차단됩니다. 선택·보기만 가능합니다.'); return; }
-    const pt = toSvg(e.clientX, e.clientY);
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDrag({ ids, sx: pt.x, sy: pt.y, dx: 0, dy: 0 });
-  };
-  const onMove = (e: React.PointerEvent) => {
-    if (!drag) return;
-    const pt = toSvg(e.clientX, e.clientY);
-    setDrag({ ...drag, dx: Math.round(pt.x - drag.sx), dy: Math.round(pt.y - drag.sy) });
-  };
-  const onUp = (e: React.PointerEvent) => {
-    if (!drag) return;
-    const pt = toSvg(e.clientX, e.clientY);
-    const d = drag; setDrag(null);
-    if (Math.abs(d.dx) + Math.abs(d.dy) >= 2) props.onMoveCommit(d.ids, d.dx, d.dy, pt);
-  };
-
-  // material marker
-  let mat: { x: number; y: number; label: string } | null = null;
-  const m0 = p.materials[0];
-  const mi = rt?.material ?? (m0 && m0.initialLocation ? { location: m0.initialLocation, state: m0.initialState ?? '', holder: null, instanceId: `${m0.id}#1` } : null);
-  const unitAnchor = (uid: string | 'EXIT') => {
-    if (uid === 'EXIT') { const last = p.units[p.units.length - 1]; return last ? { x: last.layout.x + last.layout.w + 40, y: last.layout.y + last.layout.h - 34 } : { x: 20, y: 20 }; }
-    const u = p.units.find((x) => x.id === uid); return u ? { x: u.layout.x + u.layout.w / 2, y: u.layout.y + u.layout.h - 34 } : null;
-  };
-  if (mi) {
-    let pos = unitAnchor(mi.location);
-    if (mi.holder) { const d = p.devices.find((x) => x.id === mi.holder); if (d) pos = { x: d.layout.x + d.layout.w / 2, y: d.layout.y + d.layout.h + 10 }; }
-    if (rt?.active) {
-      const step = p.sequence.steps[rt.active.stepIndex]; const a = p.actions.find((x) => x.id === step?.actionId);
-      if (a?.effect.moveTo && a.duration.value) {
-        const to = a.effect.moveTo === 'EXIT' ? unitAnchor('EXIT') : unitAnchor(a.effect.moveTo);
-        const f = Math.min(1, Math.max(0, (rt.timeMs - rt.active.startMs) / (a.duration.value * 1000)));
-        if (pos && to && rt.active.completeAtMs !== null) pos = { x: pos.x + (to.x - pos.x) * f, y: pos.y + (to.y - pos.y) * f };
-      }
-    }
-    if (pos) mat = { ...pos, label: `${m0?.name.split(' ')[0] ?? 'M'} · ${mi.state}` };
-  }
   const activeDevice = rt?.active ? p.actions.find((a) => a.id === p.sequence.steps[rt.active!.stepIndex]?.actionId)?.deviceId : undefined;
+  const sigOn = (deviceId: string, port: string) => {
+    const s = p.signals.find((x) => x.deviceId === deviceId && x.portKey === port);
+    return !!(s && rt?.signals?.[s.id]);
+  };
 
+  const nodes: Node[] = [];
+  for (const u of p.units) {
+    const o = off(u.id);
+    const short = u.name.replace(new RegExp(`^${u.code}\\s*`), '');
+    nodes.push({
+      id: u.id, type: 'unit', zIndex: selection.includes(u.id) ? 4 : 1,
+      position: { x: u.layout.x + o.dx, y: u.layout.y + o.dy },
+      width: u.layout.w, height: u.layout.h, measured: { width: u.layout.w, height: u.layout.h },
+      draggable: false, selectable: false, connectable: false, deletable: false,
+      className: 'nopan',
+      data: {
+        code: u.code, name: short, meta: `${u.deviceIds.length} dev · cap ${u.capacity.maxMaterials.value ?? '?'}`,
+        w: u.layout.w, h: u.layout.h, selected: selection.includes(u.id), from: connectFrom === u.id,
+        off: !L.units, api,
+      } satisfies UnitData,
+    });
+  }
+  for (const d of p.devices) {
+    const cat = findAsset(d.kind)?.category;
+    const axisOff = !L.axis && (cat === 'axis' || cat === 'transport');
+    const o = off(d.id, d.unitId);
+    const onIds = p.signals.filter((s) => s.deviceId === d.id && rt?.signals?.[s.id]).map((s) => s.id);
+    const positions = p.positions.filter((ps) => ps.deviceId === d.id).map((ps) => ({
+      id: ps.id, name: ps.name.replace(d.name, '').trim(), assumption: !!ps.value.assumption, current: rt?.devicePositions?.[d.id] === ps.id,
+    }));
+    nodes.push({
+      id: d.id, type: 'device', zIndex: selection.includes(d.id) ? 6 : 3,
+      position: { x: d.layout.x + o.dx, y: d.layout.y + o.dy },
+      width: d.layout.w, height: d.layout.h, measured: { width: d.layout.w, height: d.layout.h },
+      draggable: false, selectable: false, connectable: false, deletable: false,
+      className: 'nopan',
+      data: {
+        device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff,
+        active: activeDevice === d.id || !!props.activeDeviceIds?.includes(d.id),
+        extended: d.kind === 'cylinder' ? sigOn(d.id, 'cmdFwd') || sigOn(d.id, 'fwdDone')
+          : d.kind === 'pusher' ? sigOn(d.id, 'cmdPush') || sigOn(d.id, 'pushDone')
+          : d.kind === 'gantry' ? (rt?.devicePositions?.[d.id] ?? null) !== null || sigOn(d.id, 'cmdMove') : false,
+        raised: d.kind === 'stopper' && (sigOn(d.id, 'upDone') || sigOn(d.id, 'cmdUp')),
+        holding: rt?.material?.holder === d.id,
+        photo: view.visualMode === 'photo',
+        signals: p.signals.filter((s) => s.deviceId === d.id), onIds, positions, showPositions: L.positions,
+        mode, fromPort: connectFrom, api,
+      } satisfies DeviceData,
+    });
+  }
+
+  const mat = materialMarker(p, rt, off);
+  if (mat && L.flow) {
+    nodes.push({
+      id: 'runtime-material', type: 'material', zIndex: 8,
+      position: { x: mat.x - 11, y: mat.y - 11 },
+      width: 22, height: 22, measured: { width: 22, height: 22 },
+      draggable: false, selectable: false, connectable: false, deletable: false, focusable: false,
+      className: 'nopan',
+      style: { pointerEvents: 'none' },
+      data: { label: mat.label } satisfies MatData,
+    });
+  }
+
+  const edges: Edge[] = [];
+  if (L.flow) {
+    for (const c of p.connections) if (c.kind === 'flow') {
+      edges.push({
+        id: c.id, type: 'flow', source: c.from.nodeId, target: c.to.nodeId, sourceHandle: 'flow-out', targetHandle: 'flow-in',
+        selected: selection.includes(c.id), selectable: true, deletable: false, className: 'nopan rf-edge-flow',
+      });
+    }
+  }
+  if (L.io) {
+    for (const c of p.connections) if (c.kind === 'signal' && c.from.signalId && c.to.signalId) {
+      edges.push({
+        id: c.id, type: 'signal', source: c.from.nodeId, target: c.to.nodeId, sourceHandle: c.from.signalId, targetHandle: c.to.signalId,
+        selected: selection.includes(c.id), selectable: true, deletable: false, className: 'nopan rf-edge-sig',
+        data: { on: !!rt?.signals?.[c.from.signalId] } satisfies SigEdgeData,
+      });
+    }
+  }
+
+  useEffect(() => {
+    const el = hostRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let fitted = false;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 40 && r.height > 40) {
+        if (!fitted) {
+          fitted = true;
+          void fitView({ padding: 0.15, duration: 0, minZoom: 0.5, maxZoom: 2 });
+        }
+      } else fitted = false;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fitView]);
+
+  useEffect(() => {
+    const vp = getViewport();
+    if (Math.abs(vp.zoom - view.zoom) < 0.001) return;
+    void zoomTo(view.zoom, { duration: 0 });
+  }, [view.zoom, getViewport, zoomTo]);
+
+  const onMove = useCallback((_: unknown, vp: Viewport) => {
+    const z = Math.min(2, Math.max(0.5, vp.zoom));
+    if (Math.abs(z - propsRef.current.view.zoom) < 0.001) return;
+    propsRef.current.onZoomChange?.(z);
+  }, []);
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const k = e.dataTransfer?.getData('application/x-ecd-asset') as AssetKind | 'unit' | '';
+    if (!k) return;
+    propsRef.current.onDropAsset(k, flowRef.current({ x: e.clientX, y: e.clientY }));
+  };
+
+  const pal = THEMES[paletteTheme(view.theme)].vars;
   return (
-    <svg ref={svgRef} className="canvas-svg" width={W * view.zoom} height={H * view.zoom} viewBox={`0 0 ${W} ${H}`}
-      onPointerMove={onMove} onPointerUp={onUp}
-      onPointerDown={() => { if (mode === 'select') props.onSelect([], false); }}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => { e.preventDefault(); const k = e.dataTransfer.getData('application/x-ecd-asset') as AssetKind | 'unit'; if (k) props.onDropAsset(k, toSvg(e.clientX, e.clientY)); }}>
-      <defs>
-        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="var(--grid)" strokeWidth="1" /></pattern>
-        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--text)" /></marker>
-      </defs>
-      {L.background && <rect x={0} y={0} width={W} height={H} fill="url(#grid)" />}
-      {L.background && <text x={12} y={H - 10} fontSize={10} fill="var(--muted)">배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작)</text>}
+    <div ref={hostRef} className="rf-host" data-mode={mode} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onMove={onMove}
+        onNodeClick={() => undefined /* NodeWrapper turns pointer events on only when a click handler exists. Selection stays on pointerdown. */}
+        onEdgeClick={(_, edge) => propsRef.current.onSelect([edge.id], false)}
+        onPaneClick={(e) => {
+          const t = e.target as HTMLElement;
+          if (t.closest('.react-flow__node, .react-flow__edge, .react-flow__handle, .react-flow__controls, .react-flow__minimap, .rf-legend, .react-flow__attribution')) return;
+          if (propsRef.current.mode === 'select') propsRef.current.onSelect([], false);
+        }}
+        defaultViewport={{ x: 0, y: 0, zoom: view.zoom }}
+        minZoom={0.5}
+        maxZoom={2}
+        panOnDrag
+        zoomOnScroll
+        zoomOnPinch
+        zoomOnDoubleClick={false}
+        selectionOnDrag={false}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        connectOnClick={false}
+        elementsSelectable
+        nodesFocusable={false}
+        edgesFocusable={false}
+        elevateNodesOnSelect={false}
+        deleteKeyCode={null}
+        selectionKeyCode={null}
+        multiSelectionKeyCode={null}
+        selectNodesOnDrag={false}
+        edgesReconnectable={false}
+        preventScrolling
+        colorMode={appearanceOf(view.theme) === 'dark' ? 'dark' : 'light'}
+        proOptions={{ hideAttribution: false }}
+        style={{ background: 'var(--canvas)' }}
+      >
+        {L.background && <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--grid)" />}
+        <Controls showInteractive={false} position="bottom-left" className="nopan" aria-label="도면 확대 축소" />
+        <MiniMap
+          className="nopan"
+          position="bottom-right"
+          pannable
+          zoomable
+          style={{ width: 160, height: 110 }}
+          bgColor={pal.panel}
+          maskColor={hexAlpha(pal.canvas, 0.7)}
+          nodeStrokeWidth={0}
+          nodeColor={(n) => n.type === 'unit' ? pal.selected : n.type === 'device' ? pal.muted : pal.warning}
+          ariaLabel="도면 미니맵"
+        />
+        <Panel position="top-left" className="rf-legend nopan">
+          <div><svg width="28" height="10" aria-hidden="true"><line x1="0" y1="5" x2="20" y2="5" stroke="var(--text)" strokeWidth="2" /><path d="M16 1.5 L26 5 L16 8.5 Z" fill="var(--text)" /></svg>자재 흐름(물류)</div>
+          <div><svg width="28" height="10" aria-hidden="true"><line x1="0" y1="5" x2="28" y2="5" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="5 4" /></svg>논리 신호 (out●→in○)</div>
+          <div><svg width="16" height="12" aria-hidden="true"><path d="M8 1 L4 10 L12 10 Z" fill="none" stroke="var(--warning)" /></svg>Position</div>
+          <div><svg width="16" height="12" aria-hidden="true"><rect x="2" y="0" width="12" height="12" fill="var(--warning)" fillOpacity={0.2} stroke="var(--warning)" /></svg>자재(런타임 개체)</div>
+          {L.background && <div className="rf-bg-note">배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작)</div>}
+        </Panel>
+      </ReactFlow>
+    </div>
+  );
+}
 
-      {/* units */}
-      {p.units.map((u) => {
-        const o = dragOffset(u.id); const sel = selection.includes(u.id); const isFrom = connectFrom === u.id;
-        if (!L.units) return null;
-        return (
-          <g key={u.id} transform={`translate(${u.layout.x + o.dx},${u.layout.y + o.dy})`}
-            onPointerDown={(e) => { if (mode === 'flow') { e.stopPropagation(); props.onUnitConnectClick(u.id); } else startDrag(e, u.id); }}
-            style={{ cursor: mode === 'flow' ? 'crosshair' : 'move' }}>
-            <rect width={u.layout.w} height={u.layout.h} fill="var(--panel)" fillOpacity={0.55} stroke={sel || isFrom ? 'var(--accent)' : 'var(--border)'} strokeWidth={sel || isFrom ? 2 : 1} strokeDasharray={isFrom ? '5 3' : undefined} />
-            <rect width={u.layout.w} height={22} fill={sel ? 'var(--selected)' : 'var(--canvas)'} stroke="var(--border)" />
-            <text x={8} y={15} fontSize={12} fontWeight={600} fill="var(--text)">{u.code}</text>
-            <text x={32} y={15} fontSize={12} fill="var(--text)">{u.name.replace(/^S\d+\s*/, '')}</text>
-            <text x={u.layout.w - 6} y={15} fontSize={10} textAnchor="end" fill="var(--muted)">{u.deviceIds.length} dev · cap {u.capacity.maxMaterials.value ?? '?'}</text>
-            <line x1={4} y1={u.layout.h - 18} x2={u.layout.w - 4} y2={u.layout.h - 18} stroke="var(--muted)" strokeDasharray="2 4" />
-          </g>
-        );
-      })}
+function materialMarker(p: Project, rt: RuntimeState | null, off: (id: string, unitId?: string) => { dx: number; dy: number }) {
+  const m0 = p.materials[0];
+  const mi = rt?.material ?? (m0 && m0.initialLocation ? { location: m0.initialLocation, state: m0.initialState ?? '', holder: null as string | null, instanceId: `${m0.id}#1` } : null);
+  const unitAnchor = (uid: string | 'EXIT') => {
+    if (uid === 'EXIT') {
+      const last = p.units[p.units.length - 1];
+      if (!last) return { x: 20, y: 20 };
+      const o = off(last.id);
+      return { x: last.layout.x + o.dx + last.layout.w + 40, y: last.layout.y + o.dy + last.layout.h - 34 };
+    }
+    const u = p.units.find((x) => x.id === uid);
+    if (!u) return null;
+    const o = off(u.id);
+    return { x: u.layout.x + o.dx + u.layout.w / 2, y: u.layout.y + o.dy + u.layout.h - 34 };
+  };
+  if (!mi) return null;
+  let pos = unitAnchor(mi.location as string | 'EXIT');
+  if (mi.holder) {
+    const d = p.devices.find((x) => x.id === mi.holder);
+    if (d) { const o = off(d.id, d.unitId); pos = { x: d.layout.x + o.dx + d.layout.w / 2, y: d.layout.y + o.dy + d.layout.h + 10 }; }
+  }
+  if (rt?.active) {
+    const step = p.sequence.steps[rt.active.stepIndex];
+    const a = p.actions.find((x) => x.id === step?.actionId);
+    if (a?.effect.moveTo && a.duration.value) {
+      const to = a.effect.moveTo === 'EXIT' ? unitAnchor('EXIT') : unitAnchor(a.effect.moveTo);
+      const f = Math.min(1, Math.max(0, (rt.timeMs - rt.active.startMs) / (a.duration.value * 1000)));
+      if (pos && to && rt.active.completeAtMs !== null) pos = { x: pos.x + (to.x - pos.x) * f, y: pos.y + (to.y - pos.y) * f };
+    }
+  }
+  if (!pos) return null;
+  return { ...pos, label: `${m0?.name.split(' ')[0] ?? 'M'} · ${mi.state}` };
+}
 
-      {/* flow connections */}
-      {L.flow && p.connections.filter((c) => c.kind === 'flow').map((c) => {
-        const a = p.units.find((u) => u.id === c.from.nodeId); const b = p.units.find((u) => u.id === c.to.nodeId);
-        if (!a || !b) return null;
-        const oa = dragOffset(a.id), ob = dragOffset(b.id);
-        const y1 = a.layout.y + a.layout.h - 18 + oa.dy, y2 = b.layout.y + b.layout.h - 18 + ob.dy;
-        const sel = selection.includes(c.id);
-        return <line key={c.id} x1={a.layout.x + a.layout.w + oa.dx} y1={y1} x2={b.layout.x + ob.dx} y2={y2} stroke={sel ? 'var(--accent)' : 'var(--text)'} strokeWidth={sel ? 3 : 2} markerEnd="url(#arrow)"
-          onPointerDown={(e) => { e.stopPropagation(); props.onSelect([c.id], false); }} style={{ cursor: 'pointer' }} />;
-      })}
-
-      {/* devices */}
-      {p.devices.map((d) => {
-        const def = findAsset(d.kind);
-        if (!L.axis && def && (def.category === 'axis' || def.category === 'transport')) return null;
-        const photo = view.visualMode === 'photo' ? resolveGenerated(d.kind) : null;
-        const o = dragOffset(d.id, d.unitId); const sel = selection.includes(d.id);
-        const st = {
-          active: activeDevice === d.id || !!props.activeDeviceIds?.includes(d.id),
-          extended: d.kind === 'cylinder' ? sigState(rt, p, d.id, 'cmdFwd') || sigState(rt, p, d.id, 'fwdDone')
-            : d.kind === 'pusher' ? sigState(rt, p, d.id, 'cmdPush') || sigState(rt, p, d.id, 'pushDone')
-            : d.kind === 'gantry' ? (rt?.devicePositions[d.id] ?? null) !== null || sigState(rt, p, d.id, 'cmdMove') : false,
-          raised: d.kind === 'stopper' && (sigState(rt, p, d.id, 'upDone') || sigState(rt, p, d.id, 'cmdUp')),
-          holding: rt?.material?.holder === d.id,
-        };
-        return (
-          <g key={d.id} transform={`translate(${d.layout.x + o.dx},${d.layout.y + o.dy})`} onPointerDown={(e) => startDrag(e, d.id)} style={{ cursor: mode === 'select' ? 'move' : 'default' }}>
-            <rect x={-3} y={-3} width={d.layout.w + 6} height={d.layout.h + 6} fill="transparent" stroke={sel ? 'var(--accent)' : 'none'} strokeWidth={1.5} strokeDasharray="4 2" />
-            {photo?.status === 'available'
-              ? <g><clipPath id={`clip-${d.id}`}><rect width={d.layout.w} height={d.layout.h} rx={3} /></clipPath>
-                <rect width={d.layout.w} height={d.layout.h} rx={3} fill="#eceef1" />
-                <image href={photo.url} width={d.layout.w} height={d.layout.h} preserveAspectRatio="xMidYMid meet" clipPath={`url(#clip-${d.id})`} />
-                <rect width={d.layout.w} height={d.layout.h} rx={3} fill="none" stroke={st.active ? 'var(--accent)' : 'var(--border)'} strokeWidth={st.active ? 3 : 1} /></g>
-              : <Symbol kind={d.kind} w={d.layout.w} h={d.layout.h} st={st} />}
-            <text x={d.layout.w / 2} y={-6} fontSize={10} textAnchor="middle" fill={st.active ? 'var(--accent)' : 'var(--text)'} fontWeight={sel ? 700 : 400}>{d.name}</text>
-            {photo && <text x={d.layout.w / 2} y={d.layout.h + 11} fontSize={8} textAnchor="middle" fill={photo.status === 'available' ? 'var(--muted)' : 'var(--warning)'}>{photo.status === 'available' ? `${AI_BADGE} 실사풍·실제 사진 아님` : 'AI 이미지 미준비→도식'}</text>}
-          </g>
-        );
-      })}
-
-      {/* positions (gantry etc.) */}
-      {L.positions && p.positions.map((ps) => {
-        const d = p.devices.find((x) => x.id === ps.deviceId); if (!d) return null;
-        const o = dragOffset(d.id, d.unitId);
-        const list = p.positions.filter((x) => x.deviceId === d.id); const i = list.indexOf(ps);
-        const x = d.layout.x + o.dx + ((i + 1) * d.layout.w) / (list.length + 1); const y = d.layout.y + o.dy + d.layout.h + 4;
-        const cur = rt?.devicePositions[d.id] === ps.id;
-        return <g key={ps.id}><path d={`M${x} ${y} l-4 7 l8 0 z`} fill={cur ? 'var(--accent)' : 'none'} stroke="var(--warning)" /><text x={x} y={y + 17} fontSize={8} textAnchor="middle" fill="var(--warning)">{ps.name.replace(d.name, '').trim()}{ps.value.assumption ? '(가정)' : ''}</text></g>;
-      })}
-
-      {/* signal connections */}
-      {L.io && p.connections.filter((c) => c.kind === 'signal').map((c) => {
-        const s1 = p.signals.find((s) => s.id === c.from.signalId); const s2 = p.signals.find((s) => s.id === c.to.signalId);
-        const d1 = p.devices.find((d) => d.id === s1?.deviceId); const d2 = p.devices.find((d) => d.id === s2?.deviceId);
-        if (!s1 || !s2 || !d1 || !d2) return null;
-        const o1 = dragOffset(d1.id, d1.unitId), o2 = dragOffset(d2.id, d2.unitId);
-        const a = portPos(d1, p.signals, s1), b = portPos(d2, p.signals, s2);
-        const on = rt ? !!rt.signals[s1.id] : false; const sel = selection.includes(c.id);
-        const x1 = a.x + o1.dx, y1 = a.y + o1.dy, x2 = b.x + o2.dx, y2 = b.y + o2.dy;
-        const midY = Math.min(y1, y2) - 26;
-        return <path key={c.id} d={`M${x1} ${y1} C${x1 + 30} ${midY}, ${x2 - 30} ${midY}, ${x2} ${y2}`} fill="none" stroke={sel ? 'var(--accent)' : on ? 'var(--success)' : 'var(--muted)'} strokeWidth={sel ? 2.5 : 1.3} strokeDasharray="5 4"
-          onPointerDown={(e) => { e.stopPropagation(); props.onSelect([c.id], false); }} style={{ cursor: 'pointer' }} />;
-      })}
-
-      {/* ports */}
-      {L.io && p.signals.map((s) => {
-        const d = p.devices.find((x) => x.id === s.deviceId); if (!d) return null;
-        if (!L.axis && ['axis', 'transport'].includes(findAsset(d.kind)?.category ?? '')) return null;
-        const o = dragOffset(d.id, d.unitId); const pt = portPos(d, p.signals, s);
-        const on = rt ? !!rt.signals[s.id] : false; const isFrom = connectFrom === s.id;
-        return <circle key={s.id} cx={pt.x + o.dx} cy={pt.y + o.dy} r={mode === 'signal' ? 5 : 3.5} fill={on ? 'var(--success)' : isFrom ? 'var(--accent)' : 'var(--panel)'} stroke={s.direction === 'in' ? 'var(--accent)' : 'var(--text)'} strokeWidth={1.3}
-          onPointerDown={(e) => { if (mode === 'signal') { e.stopPropagation(); props.onPortClick(s.id); } }} style={{ cursor: mode === 'signal' ? 'crosshair' : 'default' }}>
-          <title>{`${s.name} [${s.direction === 'in' ? '입력' : '출력'} · ${s.role}] 주소: ${s.address ?? '미정(개념 신호)'}${on ? ' · ON' : ''}`}</title>
-        </circle>;
-      })}
-
-      {/* material */}
-      {mat && L.flow && (
-        <g transform={`translate(${mat.x},${mat.y})`} pointerEvents="none">
-          <rect x={-11} y={-11} width={22} height={22} fill="var(--warning)" fillOpacity={0.25} stroke="var(--warning)" strokeWidth={2} />
-          <text y={26} fontSize={10} textAnchor="middle" fill="var(--text)">{mat.label}</text>
-        </g>
-      )}
-      <g transform={`translate(12, ${H - 40})`} fontSize={10} fill="var(--muted)">
-        <line x1={0} y1={0} x2={26} y2={0} stroke="var(--text)" strokeWidth={2} /><text x={32} y={3}>자재 흐름(물류)</text>
-        <line x1={120} y1={0} x2={146} y2={0} stroke="var(--muted)" strokeDasharray="5 4" /><text x={152} y={3}>논리 신호 (out●→in○)</text>
-        <path d="M290 -4 l-4 7 l8 0z" fill="none" stroke="var(--warning)" /><text x={300} y={3}>Position</text>
-        <rect x={360} y={-6} width={12} height={12} fill="var(--warning)" fillOpacity={0.25} stroke="var(--warning)" /><text x={378} y={3}>자재(런타임 개체)</text>
-      </g>
-    </svg>
+export function Canvas(props: Props) {
+  return (
+    <ReactFlowProvider>
+      <FlowCanvas {...props} />
+    </ReactFlowProvider>
   );
 }

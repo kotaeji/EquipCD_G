@@ -100,6 +100,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const m = map[k]; if (m) goStep(m[0], m[1]);
   };
   const [layerOpen, setLayerOpen] = useState(false);
+  const [diagramOpen, setDiagramOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -637,12 +638,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <span className="mono" style={{ minWidth: 80 }}>{fmtTime(gs?.timeMs ?? 0)}</span></>;
   const groupCanvasRt = gs ? ({ ...gs, stepIndex: 0, active: null, steps: [] } as unknown as typeof rt) : null;
   const activeDeviceIds = gs ? gs.lanes.filter((l) => l.active).map((l) => { const q = (p.substationSequences ?? []).find((x) => x.id === l.seqId); const a = p.actions.find((x) => x.id === q?.steps[l.stepIndex]?.actionId); return a?.deviceId ?? ''; }) : [];
+  const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
   const runCanvasEl = <Canvas project={p} rt={runMode === 'group' ? groupCanvasRt : rt} activeDeviceIds={runMode === 'group' ? activeDeviceIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} />;
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} />;
   const canvasEl = <Canvas project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} />;
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} />;
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
@@ -760,7 +762,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
             onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick} onReparent={requestReparent} />
           <p className="path-note">{flowSummary(p)}<br />카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 아래 도면에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
-          <details className="diagram-fold" open={mode === 'signal'}>
+          <details className="diagram-fold" open={mode === 'signal' || diagramOpen} onToggle={(e) => { const open = (e.currentTarget as HTMLDetailsElement).open; setDiagramOpen((v) => (v === open ? v : open)); }}>
             <summary>도면 도식 열기 · 좌표 이동, 포트, 신호선, 실사풍</summary>
             <div className="diagram-tools">
               {visualToggle}
