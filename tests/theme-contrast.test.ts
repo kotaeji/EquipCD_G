@@ -65,4 +65,21 @@ describe('theme colors', () => {
     expect(css).toMatch(/\.app\[data-appearance="light"\] button\.btn-main\.secondary \{ background-color: #e5edff; color: #17283f; \}/);
     expect(css).toMatch(/\.app\[data-appearance="dark"\] button\.btn-main\.secondary \{ background-color: #203d4c; color: #eff5fd; \}/);
   });
+
+  it('header icon buttons are transparent with white text, and hover rules do not draw an outline', () => {
+    const css = readFileSync('src/ui/styles.css', 'utf8');
+    const header = css.slice(css.lastIndexOf('/* TURN-004'));
+    const icon = header.match(/\.app > \.header button\.icon \{[\s\S]*?\}/)?.[0] ?? '';
+    expect(icon).toMatch(/color:\s*#FFFFFF/);
+    expect(icon).toMatch(/background-color:\s*transparent/);
+    expect(icon).toMatch(/border-color:\s*transparent/);
+    const iconHover = header.match(/\.app > \.header button\.icon:hover:not\(:disabled\) \{[\s\S]*?\}/)?.[0] ?? '';
+    expect(iconHover).toMatch(/background-color:\s*rgba\(255,\s*255,\s*255,\s*\.12\)/);
+    expect(iconHover).toMatch(/border-color:\s*transparent/);
+    const hoverBlocks = [...header.matchAll(/:hover:not\(:disabled\) \{[\s\S]*?\}/g)].map((m) => m[0]);
+    expect(hoverBlocks.length).toBeGreaterThanOrEqual(4);
+    for (const block of hoverBlocks) expect(block).not.toMatch(/outline/);
+    expect(header).toMatch(/\.header :focus-visible \{[\s\S]*?outline:\s*2px solid #FFFFFF/);
+    expect(header).toMatch(/\.header :focus-visible \{[\s\S]*?outline-offset:\s*2px/);
+  });
 });

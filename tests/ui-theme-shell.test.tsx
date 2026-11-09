@@ -99,6 +99,12 @@ describe('theme shell (jsdom)', () => {
     expect(getComputedStyle(save).color).toBe('rgb(162, 0, 52)');
     expect(getComputedStyle(outside).backgroundColor).not.toBe('rgb(255, 255, 255)');
     expect(getComputedStyle(outside).backgroundColor).not.toBe('rgb(162, 0, 52)');
+    const icon = stored.el.querySelector('.header button.icon') as HTMLElement;
+    const iconStyle = getComputedStyle(icon);
+    expect(iconStyle.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+    expect(iconStyle.color).toBe('rgb(255, 255, 255)');
+    expect(iconStyle.borderTopColor).toBe('rgba(0, 0, 0, 0)');
+    expect(iconStyle.opacity).toBe('0.5');
   });
 
   it('Tab stays inside the top dialog and Ctrl+Z does not undo behind it', async () => {
