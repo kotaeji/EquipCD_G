@@ -124,7 +124,7 @@ body { font-size: var(--fs-md); line-height: 1.4; -webkit-font-smoothing: antial
 .app > .statusbar { grid-row: 4; grid-column: 1 / 3; overflow: hidden; white-space: nowrap; }
 .header { gap: var(--sp-2); padding: 0 var(--sp-3); min-width: 0; }
 .header .brand { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.header .brand .logo { color: var(--accent); font-size: 14px; }
+.header .brand .logo { color: var(--header-fg); font-size: 14px; }
 .header .title { font-size: 14px; font-weight: 650; letter-spacing: .1px; }
 .header .crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--text); }
 /* focus & interaction */
@@ -360,4 +360,51 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   .app, .app.ex-collapsed { --exw: 224px; }
   .app .ws-canvas { grid-template-columns: minmax(0, 1fr) 256px; }
   .libws { grid-template-columns: minmax(0, 1fr) 256px; }
+}
+
+/* TURN-004: 헤더만 브랜드색. 라이트, 다크, 저장값 C가 같은 토큰을 쓴다. 헤더 밖 버튼은 이 블록에 없다. */
+.app > .header {
+  background: var(--header-bg);
+  color: var(--header-fg);
+  border-bottom: 1px solid #7A0027;
+}
+.header .title { color: var(--header-fg); }
+.header .subtitle,
+.header .save-hint { color: var(--header-muted); }
+.app > .header button.btn-main.primary {
+  background-color: #FFFFFF;
+  color: #A20034;
+  border-color: #FFFFFF;
+}
+.app > .header button.btn-main.secondary {
+  background-color: transparent;
+  color: #FFFFFF;
+  border-color: #FFFFFF;
+}
+.app > .header button.icon {
+  color: #FFFFFF;
+  background-color: transparent;
+  border-color: transparent;
+}
+.app > .header button:disabled { opacity: .5; }
+.app > .header button:hover:not(:disabled) {
+  border-color: #FFFFFF;
+}
+.app > .header button.btn-main.primary:hover:not(:disabled) {
+  background-color: #F5D6DE;
+  color: #A20034;
+  border-color: #FFFFFF;
+}
+.app > .header button.btn-main.secondary:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, .12);
+  color: #FFFFFF;
+  border-color: #FFFFFF;
+}
+.app > .header button.icon:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, .12);
+  border-color: transparent;
+}
+.header :focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: 2px;
 }

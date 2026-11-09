@@ -8,6 +8,8 @@
 
 회의용 설계 PDF(와이어프레임·사용자 흐름·화면 시안. 웹 실행 결과가 아님): [`docs/design-review/figma/README.ko.md`](docs/design-review/figma/README.ko.md)
 
+TURN-004 헤더 브랜드색은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-004.md`](docs/turns/TURN-004.md). 헤더 밖 색, 테마 저장값 A/B/C, 프로젝트 JSON, rev, Undo는 바꾸지 않았습니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -56,7 +58,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 72개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비
+npm test              # vitest 14파일 355개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더 토큰 포함)
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
@@ -117,7 +119,7 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 - 그룹 실행 중에도 모델 편집·Undo 차단, Station 시퀀스 실행과 동시에 돌리지 않음.
 
 ## 알려진 한계
-- v0.3 화면은 부모 에이전트의 실제 브라우저 GUI 검수(1920×1200, 사람 검수 아님) 일부 항목만 통과 기록이 있습니다. 1280×800은 미검증입니다(창 크기 변경 불가).
+- v0.3 화면은 부모 에이전트의 실제 브라우저 GUI 검수(1920×1200, 사람 검수 아님) 일부 항목만 통과 기록이 있습니다. 1280×800은 미검증입니다(창 크기 변경 불가). TURN-004는 헤더 색만 1280×800 라이트·다크 스크린샷으로 보았고, 사람 검수는 아직입니다.
 - AI 이미지의 방향·정렬은 생성 후 에이전트가 도식과 대조했을 뿐 사람 검수 전입니다. 세부 형상(포트 위치 등)은 도식과 다를 수 있으며, 포트 앵커는 항상 모델 좌표를 씁니다.
 - 개별 시퀀스만 일시정지, 여러 Substation 동시 실행, 시퀀스 사이 대기/동기화, 자원 예약은 미구현([미정], `AMBIGUITIES.md` A41~A48).
 - 실제 브라우저 GUI 검수는 v0.1 빌드 일부, v0.2 빌드 일부 항목(Linux Chrome, 6절)만 수행됨. 그 외 v0.2 항목은 headless 자동 조작 결과만 (`BROWSER-VERIFICATION.md`).
