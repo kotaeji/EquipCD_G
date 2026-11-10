@@ -50,6 +50,15 @@ interface Props {
 }
 
 const BLOCKED = '실행 중에는 배치 이동(모델 편집)이 차단됩니다. 선택·보기만 가능합니다.';
+const FIT_MIN_ZOOM = 0.5;
+const FIT_LEFT = 52;
+const FIT_PADDING = { top: '48px', right: '188px', bottom: '140px', left: '52px' } as const;
+
+/** When a fit is clamped to the minimum zoom, pin the leftmost node to the left inset and keep the vertical center. */
+export function leftAlignedViewport(vp: { x: number; y: number; zoom: number }, minZoom: number, leftmostX: number, leftInset: number) {
+  if (vp.zoom > minZoom + 0.001) return vp;
+  return { x: leftInset - leftmostX * vp.zoom, y: vp.y, zoom: vp.zoom };
+}
 
 type DragApi = {
   down: (e: React.PointerEvent, id: string) => void;
@@ -204,7 +213,7 @@ function FlowCanvas(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
-  const { screenToFlowPosition, zoomTo, fitView, getViewport } = useReactFlow();
+  const { screenToFlowPosition, zoomTo, fitView, getViewport, getNodes, setViewport } = useReactFlow();
   const flowRef = useRef(screenToFlowPosition);
   flowRef.current = screenToFlowPosition;
   const dragRef = useRef<{ ids: string[]; sx: number; sy: number; origin: string } | null>(null);
@@ -351,6 +360,22 @@ function FlowCanvas(props: Props) {
     }
   }
 
+  const alignLeftIfMin = useCallback(() => {
+    const vp = getViewport();
+    const nodes = getNodes();
+    if (!nodes.length) return;
+    const minX = Math.min(...nodes.map((n) => n.position.x));
+    const next = leftAlignedViewport(vp, FIT_MIN_ZOOM, minX, FIT_LEFT);
+    if (Math.abs(next.x - vp.x) < 0.5) return;
+    void setViewport(next, { duration: 0 });
+  }, [getViewport, getNodes, setViewport]);
+
+  const fitCanvas = useCallback(async () => {
+    // Insets clear the 28px legend, 28px controls, and 160×110 minimap. Panel margin is 15px.
+    await fitView({ padding: FIT_PADDING, duration: 0, minZoom: FIT_MIN_ZOOM, maxZoom: 2 });
+    alignLeftIfMin();
+  }, [fitView, alignLeftIfMin]);
+
   useEffect(() => {
     const el = hostRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -360,15 +385,13 @@ function FlowCanvas(props: Props) {
       if (r.width > 40 && r.height > 40) {
         if (!fitted) {
           fitted = true;
-          // Side insets keep the first fit clear of the 28px legend, 28px controls, and 160×110 minimap.
-          // Panel margin is 15px. Later pan and zoom may overlap those; that is allowed.
-          void fitView({ padding: { top: '48px', right: '188px', bottom: '140px', left: '52px' }, duration: 0, minZoom: 0.5, maxZoom: 2 });
+          void fitCanvas();
         }
       } else fitted = false;
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [fitView]);
+  }, [fitCanvas]);
 
   useEffect(() => {
     const vp = getViewport();
@@ -432,7 +455,9 @@ function FlowCanvas(props: Props) {
         style={{ background: 'var(--canvas)' }}
       >
         {L.background && <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--grid)" />}
-        <Controls showInteractive={false} position="bottom-left" className="nopan" aria-label="도면 확대 축소" />
+        <Controls showInteractive={false} position="bottom-left" className="nopan" aria-label="도면 확대 축소"
+          fitViewOptions={{ padding: FIT_PADDING, duration: 0, minZoom: FIT_MIN_ZOOM, maxZoom: 2 }}
+          onFitView={() => { requestAnimationFrame(() => requestAnimationFrame(() => alignLeftIfMin())); }} />
         <MiniMap
           className="nopan"
           position="bottom-right"

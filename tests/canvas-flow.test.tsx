@@ -6,6 +6,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
 import { App } from '../src/ui/App';
+import { leftAlignedViewport } from '../src/ui/Canvas';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -39,6 +40,15 @@ async function mount() {
 }
 
 describe('React Flow canvas (TURN-005)', () => {
+  it('a min-zoom fit pins the leftmost node to the left inset and keeps the vertical center', () => {
+    const fitted = leftAlignedViewport({ x: -180, y: 36, zoom: 0.5 }, 0.5, 30, 52);
+    expect(fitted.y).toBe(36);
+    expect(fitted.zoom).toBe(0.5);
+    expect(30 * fitted.zoom + fitted.x).toBeCloseTo(52);
+    expect(30 * fitted.zoom + fitted.x).toBeGreaterThanOrEqual(52);
+    expect(leftAlignedViewport({ x: 12, y: 20, zoom: 0.8 }, 0.5, 30, 52)).toEqual({ x: 12, y: 20, zoom: 0.8 });
+  });
+
   it('AC1 both diagram and run step mount React Flow and drop the hand-drawn svg', async () => {
     const { el, root, click } = await mount();
     expect(el.querySelector('svg.canvas-svg')).toBeNull();
