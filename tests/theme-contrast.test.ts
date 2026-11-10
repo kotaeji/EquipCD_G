@@ -66,6 +66,34 @@ describe('theme colors', () => {
     expect(css).toMatch(/\.app\[data-appearance="dark"\] button\.btn-main\.secondary \{ background-color: #203d4c; color: #eff5fd; \}/);
   });
 
+  it('AC8 canvas: node text ≥ 4.5:1 and port/edge colors ≥ 3:1 on panel and canvas', () => {
+    for (const t of ['A', 'B'] as const) {
+      const v = THEMES[t].vars;
+      for (const bg of [v.panel, v.canvas, v.selected]) {
+        expect(ratio(v.text, bg), `${t} text on ${bg}`).toBeGreaterThanOrEqual(4.5);
+        expect(ratio(v.muted, bg), `${t} muted on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      }
+      for (const bg of [v.panel, v.canvas]) {
+        expect(ratio(v.accent, bg), `${t} accent`).toBeGreaterThanOrEqual(3);
+        expect(ratio(v.success, bg), `${t} success`).toBeGreaterThanOrEqual(3);
+        expect(ratio(v.warning, bg), `${t} warning`).toBeGreaterThanOrEqual(3);
+        expect(ratio(v.text, bg), `${t} edge`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it('AC8 control icon --text is at least 3:1 on --panel, and the button border stays --border', () => {
+    const css = readFileSync('src/ui/styles.css', 'utf8');
+    const section = css.slice(css.indexOf('/* TURN-005'));
+    expect(section).toMatch(/\.react-flow__controls-button \{[\s\S]*border: 1px solid var\(--border\)/);
+    expect(section).toMatch(/\.react-flow__controls-button \{[\s\S]*color: var\(--text\)/);
+    expect(section).toMatch(/\.react-flow__controls-button \{[\s\S]*background: var\(--panel\)/);
+    for (const t of ['A', 'B'] as const) {
+      const v = THEMES[t].vars;
+      expect(ratio(v.text, v.panel), `${t} control icon`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   it('header icon buttons are transparent with white text, and hover rules do not draw an outline', () => {
     const css = readFileSync('src/ui/styles.css', 'utf8');
     const header = css.slice(css.lastIndexOf('/* TURN-004'));
