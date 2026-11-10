@@ -12,6 +12,8 @@ TURN-004 헤더 브랜드색은 검토 후보입니다. 사람 검수 전이며 
 
 TURN-005 도면 캔버스(React Flow)는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-005.md`](docs/turns/TURN-005.md). 배치·연결 카드 보드, 프로젝트 JSON, rev, Undo 규칙, 실행 엔진, `release/` 는 바꾸지 않았습니다. 핸들을 끌어 연결하기와 Unit 안의 서브플로는 하지 않았습니다.
 
+TURN-006 에셋 카드 도식은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-006.md`](docs/turns/TURN-006.md). 14종 카드 그림은 100×48 한 칸이고 바탕은 투명합니다. 도면 캔버스의 장치 도식, 카드 상세, 실사풍 이미지 파일, `release/` 는 바꾸지 않았습니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -60,7 +62,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 15파일 365개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스 토큰) + React Flow 캔버스
+npm test              # vitest 16파일 371개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스 토큰) + React Flow 캔버스 + 라이브러리 카드 도식
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신

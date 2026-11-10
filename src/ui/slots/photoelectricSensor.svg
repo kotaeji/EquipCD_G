@@ -1,0 +1,7 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="100" height="48" viewBox="0 0 100 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="photoelectric-sensor">
+<rect x="8" y="10" width="38" height="28" rx="4" fill="#E5EDFF" stroke="#245BCE"/>
+<circle cx="36" cy="24" r="7" fill="#E5EDFF" stroke="#245BCE"/>
+<path d="M50 18H92M50 30H92" stroke="#245BCE" stroke-width="2" stroke-dasharray="3 2"/>
+</g>
+</svg>
