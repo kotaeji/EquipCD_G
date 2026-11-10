@@ -278,7 +278,7 @@ function FlowCanvas(props: Props) {
     const o = off(u.id);
     const short = u.name.replace(new RegExp(`^${u.code}\\s*`), '');
     nodes.push({
-      id: u.id, type: 'unit', zIndex: selection.includes(u.id) ? 4 : 1,
+      id: u.id, type: 'unit', zIndex: selection.includes(u.id) ? 2 : 1,
       position: { x: u.layout.x + o.dx, y: u.layout.y + o.dy },
       width: u.layout.w, height: u.layout.h, measured: { width: u.layout.w, height: u.layout.h },
       draggable: false, selectable: false, connectable: false, deletable: false,
@@ -337,7 +337,7 @@ function FlowCanvas(props: Props) {
     for (const c of p.connections) if (c.kind === 'flow') {
       edges.push({
         id: c.id, type: 'flow', source: c.from.nodeId, target: c.to.nodeId, sourceHandle: 'flow-out', targetHandle: 'flow-in',
-        selected: selection.includes(c.id), selectable: true, deletable: false, className: 'nopan rf-edge-flow',
+        selected: selection.includes(c.id), selectable: true, deletable: false, zIndex: 3, className: 'nopan rf-edge-flow',
       });
     }
   }
@@ -345,7 +345,7 @@ function FlowCanvas(props: Props) {
     for (const c of p.connections) if (c.kind === 'signal' && c.from.signalId && c.to.signalId) {
       edges.push({
         id: c.id, type: 'signal', source: c.from.nodeId, target: c.to.nodeId, sourceHandle: c.from.signalId, targetHandle: c.to.signalId,
-        selected: selection.includes(c.id), selectable: true, deletable: false, className: 'nopan rf-edge-sig',
+        selected: selection.includes(c.id), selectable: true, deletable: false, zIndex: 3, className: 'nopan rf-edge-sig',
         data: { on: !!rt?.signals?.[c.from.signalId] } satisfies SigEdgeData,
       });
     }
@@ -360,7 +360,9 @@ function FlowCanvas(props: Props) {
       if (r.width > 40 && r.height > 40) {
         if (!fitted) {
           fitted = true;
-          void fitView({ padding: 0.15, duration: 0, minZoom: 0.5, maxZoom: 2 });
+          // Side insets keep the first fit clear of the 28px legend, 28px controls, and 160×110 minimap.
+          // Panel margin is 15px. Later pan and zoom may overlap those; that is allowed.
+          void fitView({ padding: { top: '48px', right: '188px', bottom: '140px', left: '52px' }, duration: 0, minZoom: 0.5, maxZoom: 2 });
         }
       } else fitted = false;
     });
@@ -418,6 +420,7 @@ function FlowCanvas(props: Props) {
         nodesFocusable={false}
         edgesFocusable={false}
         elevateNodesOnSelect={false}
+        zIndexMode="manual"
         deleteKeyCode={null}
         selectionKeyCode={null}
         multiSelectionKeyCode={null}
@@ -442,12 +445,11 @@ function FlowCanvas(props: Props) {
           nodeColor={(n) => n.type === 'unit' ? pal.selected : n.type === 'device' ? pal.muted : pal.warning}
           ariaLabel="도면 미니맵"
         />
-        <Panel position="top-left" className="rf-legend nopan">
-          <div><svg width="28" height="10" aria-hidden="true"><line x1="0" y1="5" x2="20" y2="5" stroke="var(--text)" strokeWidth="2" /><path d="M16 1.5 L26 5 L16 8.5 Z" fill="var(--text)" /></svg>자재 흐름(물류)</div>
-          <div><svg width="28" height="10" aria-hidden="true"><line x1="0" y1="5" x2="28" y2="5" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="5 4" /></svg>논리 신호 (out●→in○)</div>
-          <div><svg width="16" height="12" aria-hidden="true"><path d="M8 1 L4 10 L12 10 Z" fill="none" stroke="var(--warning)" /></svg>Position</div>
-          <div><svg width="16" height="12" aria-hidden="true"><rect x="2" y="0" width="12" height="12" fill="var(--warning)" fillOpacity={0.2} stroke="var(--warning)" /></svg>자재(런타임 개체)</div>
-          {L.background && <div className="rf-bg-note">배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작)</div>}
+        <Panel position="top-left" className="rf-legend nopan" title="배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작)">
+          <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="var(--text)" strokeWidth="2" /><path d="M12 1 L20 4 L12 7 Z" fill="var(--text)" /></svg>자재 흐름(물류)</div>
+          <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="5 4" /></svg>논리 신호 (out●→in○)</div>
+          <div><svg width="12" height="8" aria-hidden="true"><path d="M6 0 L2 8 L10 8 Z" fill="none" stroke="var(--warning)" /></svg>Position</div>
+          <div><svg width="12" height="8" aria-hidden="true"><rect x="1" y="0" width="10" height="8" fill="var(--warning)" fillOpacity={0.2} stroke="var(--warning)" /></svg>자재(런타임 개체)</div>
         </Panel>
       </ReactFlow>
     </div>

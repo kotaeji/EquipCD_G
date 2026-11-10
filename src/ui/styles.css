@@ -607,16 +607,22 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px 10px;
+  box-sizing: border-box;
+  height: 28px;
+  max-height: 28px;
+  padding: 0 8px;
   font-size: 11px;
+  line-height: 1;
   color: var(--text);
   font-family: var(--font);
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  overflow: hidden;
 }
-.rf-legend > div { display: flex; align-items: center; gap: 8px; }
-.rf-bg-note { color: var(--muted); font-size: 10px; }
+.rf-legend > div { display: flex; align-items: center; gap: 4px; }
 .react-flow__attribution {
   background: var(--panel);
   border: 1px solid var(--border);

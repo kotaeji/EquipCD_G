@@ -103,6 +103,23 @@ describe('React Flow canvas (TURN-005)', () => {
     await act(async () => { root.unmount(); });
   });
 
+  it('a selected unit stays under its devices, signal edges, and the material', async () => {
+    const { el, root, point } = await mount();
+    const z = (id: string) => Number((el.querySelector(`.react-flow__node[data-id="${id}"]`) as HTMLElement).style.zIndex);
+    const at = pos(el, 'U-S2');
+    await point(el.querySelector('[data-id="U-S2"] .rf-unit')!, 'pointerdown', at.x + 8, at.y + 8);
+    await point(el.querySelector('[data-id="U-S2"] .rf-unit')!, 'pointerup', at.x + 8, at.y + 8);
+    expect(el.querySelector('[data-id="U-S2"] .rf-unit')?.classList.contains('is-sel')).toBe(true);
+    expect(z('BCR-02')).toBeGreaterThan(z('U-S2'));
+    expect(z('STP-02')).toBeGreaterThan(z('U-S2'));
+    expect(z('runtime-material')).toBeGreaterThan(z('U-S2'));
+    const edgeSvg = el.querySelector('.rf-edge-sig')?.closest('svg') as SVGElement;
+    expect(Number(edgeSvg.style.zIndex)).toBeGreaterThan(z('U-S2'));
+    expect(el.querySelector('.rf-legend')?.getAttribute('title')).toContain('배경: 도면/VC 탑뷰 없음');
+    expect(el.querySelector('.rf-bg-note')).toBeNull();
+    await act(async () => { root.unmount(); });
+  });
+
   it('AC4 toolbar, controls, and wheel change zoom without writing model coordinates', async () => {
     const { el, root, click, rev } = await mount();
     const before = pos(el, 'U-S1');
@@ -209,6 +226,8 @@ describe('React Flow canvas (TURN-005)', () => {
     expect(section).toContain('background: var(--panel)');
     expect(section).toContain('border: 1px solid var(--border)');
     expect(section).toContain('height: 28px');
+    expect(section).toMatch(/\.rf-legend \{[\s\S]*?height: 28px/);
+    expect(section).toMatch(/\.rf-legend \{[\s\S]*?flex-direction: row/);
     expect(section).toContain('background: var(--selected)');
     expect(section).toContain('border-radius: 6px');
     expect(section).toContain('font-weight: 600');

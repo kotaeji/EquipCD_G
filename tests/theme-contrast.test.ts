@@ -82,15 +82,16 @@ describe('theme colors', () => {
     }
   });
 
-  it('AC8 control border uses --border; light panel pair stays under 3:1 so no new color is introduced', () => {
+  it('AC8 control icon --text is at least 3:1 on --panel, and the button border stays --border', () => {
     const css = readFileSync('src/ui/styles.css', 'utf8');
     const section = css.slice(css.indexOf('/* TURN-005'));
     expect(section).toMatch(/\.react-flow__controls-button \{[\s\S]*border: 1px solid var\(--border\)/);
-    // --border on the button face (--panel): light 1.48, dark 2.75. Dark --border on --canvas clears 3.
-    expect(ratio(THEMES.A.vars.border, THEMES.A.vars.panel)).toBeLessThan(3);
-    expect(ratio(THEMES.A.vars.border, THEMES.A.vars.canvas)).toBeLessThan(3);
-    expect(ratio(THEMES.B.vars.border, THEMES.B.vars.panel)).toBeLessThan(3);
-    expect(ratio(THEMES.B.vars.border, THEMES.B.vars.canvas)).toBeGreaterThanOrEqual(3);
+    expect(section).toMatch(/\.react-flow__controls-button \{[\s\S]*color: var\(--text\)/);
+    expect(section).toMatch(/\.react-flow__controls-button \{[\s\S]*background: var\(--panel\)/);
+    for (const t of ['A', 'B'] as const) {
+      const v = THEMES[t].vars;
+      expect(ratio(v.text, v.panel), `${t} control icon`).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it('header icon buttons are transparent with white text, and hover rules do not draw an outline', () => {
