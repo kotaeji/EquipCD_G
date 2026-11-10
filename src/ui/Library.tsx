@@ -8,18 +8,40 @@ import type { AssetDefinition, Project } from '../model/types';
 import diagramPusher from './slots/a3687.svg?url';
 import diagramBarcode from './slots/238b4.svg?url';
 import diagramConveyor from './slots/91c95.svg?url';
+import diagramStopper from './slots/stopper.svg?url';
+import diagramGantry from './slots/gantry.svg?url';
+import diagramPicker from './slots/picker.svg?url';
+import diagramSensor from './slots/sensor.svg?url';
+import diagramPhotoelectric from './slots/photoelectricSensor.svg?url';
+import diagramProximity from './slots/proximitySensor.svg?url';
+import diagramLimit from './slots/limitSwitch.svg?url';
+import diagramUnitInput from './slots/unitInput.svg?url';
+import diagramUnitIdentify from './slots/unitIdentify.svg?url';
+import diagramUnitTransfer from './slots/unitTransfer.svg?url';
 import { Symbol } from './Symbols';
 import { Badge } from './widgets';
 
 /**
- * Official static diagrams. Slot size is 100×48 (root SVG). Cylinder card 1:594 was returned as the same file as the pusher slot 1:585
- * (assets-manifest callsites both reference a3687.svg). This app does not redraw a second cylinder.
+ * Card diagrams, 100×48. Four kinds keep the handed slot files. Cylinder card 1:594 was returned as the same file as the
+ * pusher slot 1:585 (assets-manifest callsites both reference a3687.svg). This app does not redraw a second cylinder.
+ * The other ten are card-only SVGs: same size, stroke #245BCE, fill #E5EDFF, no backdrop. Files (not a second Symbol)
+ * so every card uses one img path and the canvas Symbol stays unchanged.
  */
 export const DIAGRAM_SLOTS: Record<string, { src: string; slot: string; file: string }> = {
   pusher: { src: diagramPusher, slot: '1:585', file: 'a3687.svg' },
   cylinder: { src: diagramPusher, slot: '1:594', file: 'a3687.svg' },
   barcodeReader: { src: diagramBarcode, slot: '1:774', file: '238b4.svg' },
   conveyor: { src: diagramConveyor, slot: '1:778', file: '91c95.svg' },
+  stopper: { src: diagramStopper, slot: 'card:stopper', file: 'stopper.svg' },
+  gantry: { src: diagramGantry, slot: 'card:gantry', file: 'gantry.svg' },
+  picker: { src: diagramPicker, slot: 'card:picker', file: 'picker.svg' },
+  sensor: { src: diagramSensor, slot: 'card:sensor', file: 'sensor.svg' },
+  photoelectricSensor: { src: diagramPhotoelectric, slot: 'card:photoelectricSensor', file: 'photoelectricSensor.svg' },
+  proximitySensor: { src: diagramProximity, slot: 'card:proximitySensor', file: 'proximitySensor.svg' },
+  limitSwitch: { src: diagramLimit, slot: 'card:limitSwitch', file: 'limitSwitch.svg' },
+  unitInput: { src: diagramUnitInput, slot: 'card:unitInput', file: 'unitInput.svg' },
+  unitIdentify: { src: diagramUnitIdentify, slot: 'card:unitIdentify', file: 'unitIdentify.svg' },
+  unitTransfer: { src: diagramUnitTransfer, slot: 'card:unitTransfer', file: 'unitTransfer.svg' },
 };
 export const DIAGRAM_SLOT_W = 100;
 export const DIAGRAM_SLOT_H = 48;
@@ -37,17 +59,26 @@ export function xsdStatus(def: AssetDefinition): { kind: 'ok' | 'warn'; text: st
   return { kind: 'warn', text: '공식 XSD 미검증 (브라우저 안에서는 XSD 검사 안 함 — scripts/validate-aml.py로 별도 검사)' };
 }
 
-/** v0.3: 'photo' view mode = AI-generated photorealistic-style image (NOT a real photo). Same box size as the schematic. */
-export function Visual({ def, mode, w, h }: { def: AssetDefinition; mode: 'schematic' | 'photo'; w: number; h: number }) {
-  const slot = mode === 'schematic' ? DIAGRAM_SLOTS[def.kind] : undefined;
-  if (slot) return <div className="slot-diagram" data-slot={slot.slot} data-slot-file={slot.file} style={{ width: DIAGRAM_SLOT_W, height: DIAGRAM_SLOT_H }}>
-    <img src={slot.src} alt="" width={DIAGRAM_SLOT_W} height={DIAGRAM_SLOT_H} /></div>;
-  const g = mode === 'photo' ? resolveGenerated(def.kind) : null;
-  if (g && g.status === 'available') return <div className="vis" style={{ width: w, height: h }}>
-    <img src={g.url} alt={`${def.name} — AI 생성 실사풍 이미지 (실제 사진 아님)`} style={{ width: w, height: h, objectFit: 'contain', display: 'block' }} />
-    <span className="aichip" title={GENERATED_META.label}>{AI_BADGE}</span></div>;
-  return <div className="vis" style={{ width: w, height: h }}><svg width={w} height={h} style={{ display: 'block' }} role="img" aria-label={`${def.name} 도식`}><Symbol kind={def.kind} w={w} h={h} /></svg>
-    {g && <span className="badge warn" style={{ position: 'absolute', left: 2, bottom: 2, background: 'var(--panel)' }}>AI 이미지 미준비 → 도식</span>}</div>;
+/** Card figure. Schematic and photo share one slot so the name column does not move. Photo is an AI image, not a real photo. */
+export function Visual({ def, mode }: { def: AssetDefinition; mode: 'schematic' | 'photo' }) {
+  const slot = DIAGRAM_SLOTS[def.kind];
+  const frame = { width: DIAGRAM_SLOT_W, height: DIAGRAM_SLOT_H };
+  const diagram = slot
+    ? <img src={slot.src} alt="" width={DIAGRAM_SLOT_W} height={DIAGRAM_SLOT_H} />
+    : <svg width={DIAGRAM_SLOT_W} height={DIAGRAM_SLOT_H} role="img" aria-label={`${def.name} 도식`}><Symbol kind={def.kind} w={DIAGRAM_SLOT_W} h={DIAGRAM_SLOT_H} /></svg>;
+  if (mode === 'photo') {
+    const g = resolveGenerated(def.kind);
+    if (g.status === 'available') return <div className="slot-diagram" data-visual="photo" style={frame}>
+      <img src={g.url} alt={`${def.name} — AI 생성 실사풍 이미지 (실제 사진 아님)`} width={DIAGRAM_SLOT_W} height={DIAGRAM_SLOT_H} />
+      <span className="aichip" title={GENERATED_META.label}>{AI_BADGE}</span>
+    </div>;
+    return <div className="slot-diagram" data-visual="photo-missing" style={frame}>
+      {diagram}
+      <span className="badge warn slot-missing">AI 이미지 미준비 → 도식</span>
+    </div>;
+  }
+  if (slot) return <div className="slot-diagram" data-visual="schematic" data-slot={slot.slot} data-slot-file={slot.file} style={frame}>{diagram}</div>;
+  return <div className="slot-diagram" data-visual="schematic-fallback" style={frame}>{diagram}</div>;
 }
 
 interface Props {
@@ -84,7 +115,7 @@ export function LibraryWorkspace(props: Props) {
         {defs.map((d) => { const g = resolveGenerated(d.kind); const x = xsdStatus(d); return (
           <div key={d.id} className={`card ${sel === d.id ? 'sel' : ''}`} onClick={() => setSel(d.id)} data-kind={d.kind} role="button" tabIndex={0} aria-pressed={sel === d.id}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(d.id); } }}>
-            <Visual def={d} mode={mode} w={168} h={96} />
+            <Visual def={d} mode={mode} />
             <div className="cname">{d.name}</div>
             <div className="mono muted card-id">{d.id} · {d.version}</div>
             <div className="card-note">선택하면 상세란 열립니다.</div>
