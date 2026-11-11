@@ -79,7 +79,8 @@ describe('TURN-001 group-run blocker guidance (jsdom)', () => {
   it('UI-built DEVICE_CONFLICT: navigation keeps history deep-equal; Undo/Redo restore the exact projects', async () => {
     localStorage.clear();
     const u = await mount();
-    await u.click(u.btn('+ 병렬 예제'));
+    await u.click(u.el.querySelector('[aria-label="프로젝트 추가"]')!);
+    await u.click(u.btn('병렬 예제'));
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]')!);
     await u.click(u.btn('Substation 시퀀스', u.el.querySelector('.subtabs')!));
     const cardA = [...u.el.querySelectorAll('.seqcard')].find((c) => [...c.querySelectorAll('input')].some((i) => (i as HTMLInputElement).value.includes('시퀀스 A')))!;

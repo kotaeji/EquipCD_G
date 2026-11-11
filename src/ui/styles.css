@@ -723,3 +723,37 @@ details[open] .fold-open { display: inline; }
 .layout-tabs .path-note { flex: 0 0 auto; }
 .layout-tabs .diagram-tools { flex: 0 0 auto; margin: 0; }
 .layout-tabs .diagram-canvas { flex: 1 1 auto; height: auto; min-height: 360px; }
+
+/* TURN-010: short project list above the equipment tree. Six rows fit; the seventh scrolls inside the list. */
+.proj-line { padding: 4px 8px 0; }
+.proj-line .work-crumb { height: auto; min-height: 0; font-size: 13px; line-height: 1.3; }
+.proj-sec { position: relative; padding: 2px 8px 4px; }
+.proj-head { display: flex; align-items: center; justify-content: space-between; height: 28px; gap: 8px; }
+.proj-head .exlabel { margin: 0; }
+.proj-add {
+  width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0;
+  font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+}
+.proj-menu {
+  position: absolute; right: 8px; top: 30px; z-index: 5;
+  display: flex; flex-direction: column; min-width: 168px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px;
+}
+.proj-menu button { height: 28px; text-align: left; border: 0; background: transparent; width: 100%; }
+.proj-menu button:hover:not(:disabled) { background: var(--selected); }
+.proj-list { display: flex; flex-direction: column; max-height: 168px; overflow: auto; }
+.proj-list .exitem { height: 28px; min-height: 28px; flex: 0 0 28px; padding: 0 4px 0 6px; gap: 4px; }
+.proj-list .open-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+.proj-list .dirty { font-size: 12px; }
+.proj-detail { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; }
+.proj-detail div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; font-size: 13px; }
+.proj-detail dt { color: var(--muted); }
+.proj-detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.proj-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.modal.proj-pop { width: 440px; }
+.canvas-rail { padding: 4px 8px 8px; gap: 2px; }
+.canvas-rail .rail-tools, .canvas-rail .rail-station { font-size: 13px; line-height: 1.3; gap: 4px; flex-wrap: nowrap; }
+.canvas-rail .rail-tools .small { height: 22px; padding: 0 4px; }
+.canvas-rail .tree .tnode { padding: 1px 4px; }
+.canvas-rail .tree div { font-size: 13px; line-height: 1.25; }
+.canvas-rail .muted { margin: 0; font-size: 12px; line-height: 1.35; }

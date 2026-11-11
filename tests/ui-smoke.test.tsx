@@ -80,7 +80,8 @@ describe('UI smoke (jsdom)', () => {
     expect(saved).not.toContain('"step"');
     expect(saved).not.toContain('visualMode');
     // v0.3: parallel sample → Substation sequences → group run on the run step
-    await click(btn('+ 병렬 예제'));
+    await click(el.querySelector('[aria-label="프로젝트 추가"]')!);
+    await click(btn('병렬 예제'));
     await click(el.querySelector('.stepper [data-stepid="sequence"]')!);
     await click(btn('Substation 시퀀스', el.querySelector('.subtabs')!));
     expect(el.querySelectorAll('.seqcard').length).toBe(2);
