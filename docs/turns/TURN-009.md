@@ -1,6 +1,6 @@
 # TURN-009 배치·연결 카드 보드 · 도면 도식 탭
 
-상태: 검토 후보. 사람 검수 전. 정식 릴리스가 아니다. 앱 버전은 `0.3.0-prototype` 그대로다. 파일 형식 `0.2.0` 과 실행 규칙은 바꾸지 않았다. `release/` 는 다시 빌드해 커밋하지 않았다. CI 확인 대기 — 통과 판정은 Actions를 따른다. AC8은 Matthew 검수 전이다.
+상태: 검토 후보. 사람 검수 전. 정식 릴리스가 아니다. 앱 버전은 `0.3.0-prototype` 그대로다. 파일 형식 `0.2.0` 과 실행 규칙은 바꾸지 않았다. `release/` 는 다시 빌드해 커밋하지 않았다. CI(`check`)는 `c169cf7`에서 통과했다(run 42991187584). AC8은 Matthew 검수 전이다.
 
 ## 한 일
 
@@ -25,8 +25,8 @@
 
 | 종류 | 결과 |
 |---|---|
-| 자동 테스트 | 로컬 `npm test` 19파일 388개. `tests/ui-turn009.test.tsx` 4개(탭 위치·ARIA·←/→, 신호 연결과 선택 유지, 두 탭 끌어 놓기·카드 두 번 클릭 연결·도식 토글, UserView 유지). `tests/canvas-flow.test.tsx` · `tests/ui-smoke.test.tsx` 는 「도식」 버튼을 탭 글자와 구분하도록 고쳤다. 통과 판정은 CI를 따른다 |
-| 형식 검사 | 로컬 `npm run typecheck` 통과. 통과 판정은 CI를 따른다 |
+| 자동 테스트 | GitHub Actions `check` 통과 (`c169cf7`, run 42991187584). typecheck · test · build, 그리고 TURN PR의 `release/` 불변 검사까지 포함. 로컬 `npm test`도 19파일 388개였다. `tests/ui-turn009.test.tsx` 4개(탭 위치·ARIA·←/→, 신호 연결과 선택 유지, 두 탭 끌어 놓기·카드 두 번 클릭 연결·도식 토글, UserView 유지). `tests/canvas-flow.test.tsx` · `tests/ui-smoke.test.tsx` 는 「도식」 버튼을 탭 글자와 구분하도록 고쳤다 |
+| 형식 검사 | 같은 `check` 잡의 typecheck · build 통과. 로컬 `npm run typecheck`도 통과 |
 | Chrome | 156.0.8078.47, CSS 뷰포트 1280×800, devicePixelRatio 1. 콘솔 오류 0. 문서 스크롤 0. 카드 보드·도면 도식 모두 단계 칸 스크롤 0. 도면 `.diagram-canvas` 높이 367px, 아래 끝 744px(창 800). 탐색기 Project 탭이 선택된 상태다. 카드의 PSH-01을 고른 뒤 신호 연결을 누르면 도면 탭이 열리고 그 선택은 남는다 |
 
 - `docs/turns/TURN-009-board-light-1280.png`
