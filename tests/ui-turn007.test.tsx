@@ -111,8 +111,8 @@ describe('TURN-007 icons and name dialog', () => {
     }
     const u = await mount({ css: true });
     const buttons = [...u.el.querySelectorAll('.exitem .x')] as HTMLElement[];
-    expect(buttons.length).toBeGreaterThanOrEqual(2);
-    expect(buttons.map((b) => b.textContent)).toEqual(expect.arrayContaining(['✎', '×']));
+    expect(buttons.length).toBeGreaterThanOrEqual(1);
+    expect(buttons.map((b) => b.textContent)).toEqual(expect.arrayContaining(['…']));
     for (const b of buttons) {
       const s = getComputedStyle(b);
       expect(parseFloat(s.width)).toBeGreaterThanOrEqual(24);
@@ -125,6 +125,7 @@ describe('TURN-007 icons and name dialog', () => {
     expect(css).toMatch(/\.name-note \{ margin-top: 8px/);
     const u = await mount({ css: true });
     await u.click(u.el.querySelector('.exitem .x')!);
+    await u.click(u.btn('이름 변경', u.el.querySelector('[role=dialog]')!));
     const note = u.el.querySelector('#name-err') as HTMLElement;
     expect(note.className).toContain('name-note');
     expect(note.textContent).toContain('이름이 바뀌지 않았습니다');
@@ -287,10 +288,10 @@ describe('TURN-007 folds', () => {
 
     await u.click(u.el.querySelector('[aria-label="탐색기 접기"]')!);
     expect(u.app().className).toContain('ex-collapsed');
-    expect(u.el.querySelector('.exsec')).toBeNull();
+    expect(u.el.querySelector('.proj-sec')).toBeNull();
     await u.click(u.el.querySelector('[aria-label="탐색기 펼치기"]')!);
     expect(u.app().className).not.toContain('ex-collapsed');
-    expect(u.el.querySelector('.exsec')).not.toBeNull();
+    expect(u.el.querySelector('.proj-sec')).not.toBeNull();
 
     await u.click(u.el.querySelector('.stepper [data-stepid="attributes"]')!);
     expectAllOpen(u.el, 'attributes');

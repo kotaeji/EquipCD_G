@@ -29,7 +29,7 @@ import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
 import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
-import { dialogOpen, NameDialog, ProjectManager, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
+import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
 import { Tabs } from './Tabs';
@@ -534,7 +534,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         updTab(key, (x) => ({ ...x, history: o.history, runtime: null, group: null })); setNameDlg(null); say(`프로젝트 이름을 「${n}」(으)로 바꿨습니다 — 저장하면 목록에 반영됩니다`);
       } }); };
   const renameSaved = (id: string) => { if (!kv) return; const e = W.listProjects(kv, reg, reg.activeId).find((x) => x.id === id); if (!e) return;
-    if (openIds.has(id)) { say('열린 프로젝트는 탭의 ✎로 이름을 바꾸세요', true); return; }
+    if (openIds.has(id)) { say('열린 프로젝트는 프로젝트 상세에서 이름을 바꾸세요', true); return; }
     setNameDlg({ title: `저장된 프로젝트 이름 변경 — ${e.name}`, initial: e.name, submitLabel: '이름 변경', hint: '닫힌 저장본의 이름을 바꿔 다시 저장합니다(rev +1, Undo 대상 아님). ID는 바뀌지 않습니다.',
       validate: (n) => W.validateName(n, projectNames(id)),
       onSubmit: (n) => { const r = W.renameSavedProject(kv, id, n); if (!r.ok) { say(r.reason, true); return; } setNameDlg(null); setReg((x) => ({ ...x })); say(`저장된 프로젝트 이름을 「${n}」(으)로 바꿨습니다 (rev ${r.revision})`); } }); };
@@ -556,6 +556,22 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setView((v) => ({ ...v, home: false }));
   };
   const savedList = kv ? W.listProjects(kv, reg, reg.activeId) : [];
+  const savedById = new Map(savedList.map((e) => [e.id, e]));
+  const projectRows: ProjectListRow[] = [
+    ...tabs.map((t) => {
+      const id = t.history.present.id;
+      const saved = savedById.get(id);
+      return {
+        id, name: t.history.present.name, tabKey: t.key, current: t.key === tab.key, open: true,
+        dirty: t.savedRevision !== t.history.present.revision,
+        savedRevision: t.savedRevision, savedAt: t.savedAt ?? saved?.savedAt ?? null,
+      };
+    }),
+    ...savedList.filter((e) => !openIds.has(e.id)).map((e) => ({
+      id: e.id, name: e.name, tabKey: null, current: false, open: false, dirty: false,
+      savedRevision: e.revision, savedAt: e.savedAt,
+    })),
+  ];
   const selDev = p.devices.find((d) => d.id === selection[0]);
   const selUnitOnly = p.units.find((u) => u.id === selection[0]);
   const selCaption = selDev?.name ?? (selUnitOnly ? `${selUnitOnly.code} ${selUnitOnly.name}` : '없음');
@@ -568,30 +584,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   </div>;
   const projectPanel = <div className="ex-panel">
     <div className="proj-line"><button type="button" className="work-crumb" onClick={() => openExplorerTab('workspace')}>Workspace: {curWs.name}</button></div>
-    <div className="exsec">
-      <div className="exlabel">열린 프로젝트 ({tabs.length})</div>
-      <div className="exlist" role="listbox" aria-label="열린 프로젝트">
-        {tabs.map((t) => <div key={t.key} role="option" tabIndex={0} aria-selected={t.key === tab.key} className={`exitem ${t.key === tab.key ? 'on' : ''}`} title={t.history.present.id}
-          onClick={() => switchTab(t.key)} onKeyDown={(e) => { if (e.key === 'Enter') switchTab(t.key); }}>
-          <span className="nm">{t.history.present.name}</span>{t.savedRevision !== t.history.present.revision && <span className="dirty" title="저장 안 됨">● 미저장</span>}
-          <button className="x" onClick={(e) => { e.stopPropagation(); renameOpenProject(t.key); }} aria-label={`${t.history.present.name} 이름 변경`} title="이름 변경 (Undo 가능, 저장 시 목록 반영)">✎</button>
-          <button className="x" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }} aria-label={`${t.history.present.name} 닫기`} title="탭 닫기 (저장 데이터는 지우지 않음)">×</button></div>)}
-      </div>
-      <div className="exlabel">새 프로젝트</div>
-      <div className="exbtns">
-        <button className="small" onClick={() => newProject('blank')} title="빈 프로젝트로 시작">+ 빈 프로젝트</button>
-        <button className="small" onClick={() => newProject('sample')} title="기본 5공정 Station 예제 사본">+ 5공정 예제</button>
-        <button className="small" onClick={() => newProject('parallel')} title="Substation 하나에 병렬 시퀀스 2개가 있는 예제">+ 병렬 예제</button>
-      </div>
-    </div>
-    <div className="exsec">
-      {!kv && <div className="tempty">브라우저 저장소 사용 불가 — JSON 가져오기/내보내기를 사용하세요.</div>}
-      {kv && <ProjectManager wsName={curWs.name} entries={savedList} openIds={openIds} onOpen={openSaved} onRename={renameSaved} onDelete={deleteSaved} />}
-      <div className="exbtns">
-        <button className="small" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
-        <button className="small" onClick={() => { setGuide('files'); setView((v) => ({ ...v, home: false })); }}>프로젝트 파일</button>
-      </div>
-    </div>
+    <ProjectList rows={projectRows} kv={!!kv} wsName={curWs.name}
+      onActivate={(row) => { if (row.tabKey) switchTab(row.tabKey); else openSaved(row.id); }}
+      onCreate={newProject} onImport={() => fileRef.current?.click()}
+      onFiles={() => { setGuide('files'); setView((v) => ({ ...v, home: false })); }}
+      onSwitch={switchTab} onOpen={openSaved} onRenameOpen={renameOpenProject} onRenameSaved={renameSaved} onClose={closeTab} onDelete={deleteSaved} />
     <div className="canvas-rail">
       <div className="rail-tools"><span>장비 구조</span>
         <button type="button" className="small" aria-label="트리 모두 펼치기" onClick={() => setCollapsed([])}>모두 펼치기</button>

@@ -1,6 +1,5 @@
 /** TURN-002 — live dialogs for Workspace / project management (re-render with current props, unlike the static modal). */
 import { useEffect, useRef, useState } from 'react';
-import type { IndexEntry } from '../storage/localStore';
 import { NAME_MAX, normalizeName, type Workspace } from '../storage/workspaces';
 
 /** true while any dialog layer (management overlay or static confirm) is open — background shortcuts must not act */
@@ -42,10 +41,10 @@ export function useDialogLayer(bg: React.RefObject<HTMLDivElement | null>, box: 
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export function Overlay({ title, onClose, children, label }: { title: string; onClose: () => void; children: React.ReactNode; label?: string }) {
+export function Overlay({ title, onClose, children, label, className }: { title: string; onClose: () => void; children: React.ReactNode; label?: string; className?: string }) {
   const bg = useRef<HTMLDivElement>(null); const box = useRef<HTMLDivElement>(null);
   useDialogLayer(bg, box, onClose);
-  return <div ref={bg} className="modal-bg" onClick={onClose}><div ref={box} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-label={label ?? title} onClick={(e) => e.stopPropagation()}>
+  return <div ref={bg} className="modal-bg" onClick={onClose}><div ref={box} tabIndex={-1} className={`modal${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={label ?? title} onClick={(e) => e.stopPropagation()}>
     <h3>{title}</h3>{children}</div></div>;
 }
 
@@ -117,27 +116,113 @@ export function WorkspaceManager({ workspaces, activeId, counts, deleteBlock, on
   </div>;
 }
 
-/** Saved projects of the current workspace, inside the explorer Project tab. */
-export function ProjectManager({ wsName, entries, openIds, onOpen, onRename, onDelete }: {
-  wsName: string; entries: IndexEntry[]; openIds: Set<string>;
-  onOpen: (id: string) => void; onRename: (id: string) => void; onDelete: (id: string) => void;
+/** One row in the Project tab: an open tab, a saved project, or both merged by id. */
+export interface ProjectListRow {
+  id: string;
+  name: string;
+  tabKey: string | null;
+  /** the tab being edited */
+  current: boolean;
+  /** open in some tab */
+  open: boolean;
+  /** open and the model revision is ahead of the last save */
+  dirty: boolean;
+  /** null when this browser has never saved it */
+  savedRevision: number | null;
+  savedAt: string | null;
+}
+
+const presenceLabel = (row: ProjectListRow) => (row.current ? '편집 중' : row.open ? '열림' : '닫힘');
+
+function saveStatus(row: ProjectListRow, kv: boolean): string {
+  if (!kv) return '브라우저 저장소 사용 불가';
+  if (row.savedRevision === null) return '아직 저장한 적 없음';
+  if (row.dirty) return '저장 안 됨';
+  const when = row.savedAt ? new Date(row.savedAt).toLocaleString() : '';
+  return `저장됨 rev ${row.savedRevision}${when ? ` · ${when}` : ''}`;
+}
+
+/**
+ * Compact project list for the explorer Project tab (TURN-010).
+ * Open tabs come first, then saved projects of this workspace that are not already open.
+ * `+` creates or imports. `…` opens the detail popup. The list itself scrolls after six rows.
+ */
+export function ProjectList({ rows, kv, wsName, onActivate, onCreate, onImport, onFiles, onSwitch, onOpen, onRenameOpen, onRenameSaved, onClose, onDelete }: {
+  rows: ProjectListRow[];
+  kv: boolean;
+  wsName: string;
+  onActivate: (row: ProjectListRow) => void;
+  onCreate: (kind: 'blank' | 'sample' | 'parallel') => void;
+  onImport: () => void;
+  onFiles: () => void;
+  onSwitch: (tabKey: string) => void;
+  onOpen: (id: string) => void;
+  onRenameOpen: (tabKey: string) => void;
+  onRenameSaved: (id: string) => void;
+  onClose: (tabKey: string) => void;
+  onDelete: (id: string) => void;
 }) {
-  return <div className="proj-inline">
-    <div className="exlabel">저장된 프로젝트 ({wsName})</div>
-    <p className="muted ex-note">현재 Workspace에 저장된 프로젝트만 보입니다. 새 프로젝트는 「저장」할 때 이 Workspace에 들어옵니다. 탭 닫기(×)는 저장 데이터를 지우지 않습니다.</p>
-    {entries.length ? entries.map((e) => {
-      const open = openIds.has(e.id);
-      return <div key={e.id} data-project-id={e.id} className="saved-row">
-        <div className="saved-main"><b>{e.name}</b>{open && <span className="badge">열림</span>}<div className="mono muted">{e.id}</div></div>
-        <div className="muted saved-rev">rev {e.revision} · {new Date(e.savedAt).toLocaleString()}</div>
-        <div className="ws-actions">
-          <button type="button" className="small" onClick={() => onOpen(e.id)}>{open ? '탭으로 이동' : '열기'}</button>
-          <button type="button" className="small" disabled={open} title={open ? '열린 프로젝트는 탭의 ✎로 이름을 바꾸세요 (저장 시 목록에 반영)' : undefined}
-            aria-label={open ? `${e.name} 이름 변경 불가: 열린 프로젝트는 탭에서 변경` : `${e.name} 이름 변경`} onClick={() => onRename(e.id)}>이름 변경</button>
-          <button type="button" className="small danger" disabled={open} title={open ? '열린 프로젝트는 삭제할 수 없습니다 — 먼저 탭을 닫으세요' : '영구 삭제'}
-            aria-label={open ? `${e.name} 삭제 불가: 열린 프로젝트` : `${e.name} 영구 삭제`} onClick={() => onDelete(e.id)}>삭제</button>
-        </div>
-      </div>;
-    }) : <div className="tempty">아직 저장한 프로젝트가 없습니다.</div>}
+  const box = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = detailId ? rows.find((r) => r.id === detailId) ?? null : null;
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setMenu(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || dialogOpen()) return;
+      e.preventDefault(); e.stopPropagation(); setMenu(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey, true);
+    return () => { document.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey, true); };
+  }, [menu]);
+  const pick = (fn: () => void) => { setMenu(false); fn(); };
+  const openDetail = (id: string, opener: HTMLElement) => { opener.focus(); setMenu(false); setDetailId(id); };
+  return <div className="proj-sec" ref={box}>
+    <div className="proj-head">
+      <div className="exlabel">프로젝트 ({rows.length})</div>
+      <button type="button" className="proj-add" aria-label="프로젝트 추가" aria-haspopup="menu" aria-expanded={menu} title="새 프로젝트, 가져오기" onClick={() => setMenu((v) => !v)}>+</button>
+    </div>
+    {menu && <div className="proj-menu" role="menu" aria-label="프로젝트 추가">
+      <button type="button" role="menuitem" title="빈 프로젝트로 시작" onClick={() => pick(() => onCreate('blank'))}>빈 프로젝트</button>
+      <button type="button" role="menuitem" title="기본 5공정 Station 예제 사본" onClick={() => pick(() => onCreate('sample'))}>5공정 예제</button>
+      <button type="button" role="menuitem" title="Substation 하나에 병렬 시퀀스 2개가 있는 예제" onClick={() => pick(() => onCreate('parallel'))}>병렬 예제</button>
+      <button type="button" role="menuitem" onClick={() => pick(onImport)}>JSON 가져오기</button>
+      <button type="button" role="menuitem" onClick={() => pick(onFiles)}>프로젝트 파일</button>
+    </div>}
+    <div className="proj-list" role="listbox" aria-label="프로젝트">
+      {rows.map((row) => <div key={row.id} role="option" tabIndex={0} data-project-id={row.id} data-open={row.open ? 'true' : 'false'} data-current={row.current ? 'true' : 'false'} data-dirty={row.dirty ? 'true' : 'false'}
+        aria-selected={row.current} className={`exitem ${row.current ? 'on' : ''}`} title={row.id}
+        onClick={() => onActivate(row)} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onActivate(row); }}>
+        <span className="nm">{row.name}</span>
+        {row.open && !row.current && <span className="open-dot" role="img" aria-label="열림" title="열림" />}
+        {row.dirty && <span className="dirty" title="미저장" aria-label="미저장">●</span>}
+        <button type="button" className="x" aria-label={`${row.name} 프로젝트 상세`} title="프로젝트 상세" onClick={(e) => { e.stopPropagation(); openDetail(row.id, e.currentTarget); }}>…</button>
+      </div>)}
+    </div>
+    {detail && <Overlay className="proj-pop" title={`프로젝트 — ${detail.name}`} onClose={() => setDetailId(null)}>
+      <dl className="proj-detail">
+        <div><dt>이름</dt><dd>{detail.name}</dd></div>
+        <div><dt>ID</dt><dd className="mono">{detail.id}</dd></div>
+        <div><dt>상태</dt><dd>{presenceLabel(detail)}</dd></div>
+        <div><dt>저장 상태</dt><dd>{saveStatus(detail, kv)}</dd></div>
+        <div><dt>소속 Workspace</dt><dd>{wsName}</dd></div>
+      </dl>
+      <div className="proj-actions">
+        <button type="button" disabled={detail.current} title={detail.current ? '이미 편집 중인 프로젝트입니다' : undefined}
+          onClick={() => { if (detail.tabKey) onSwitch(detail.tabKey); else onOpen(detail.id); }}>{detail.open ? '이 프로젝트로 전환' : '열기'}</button>
+        <button type="button" aria-label={`${detail.name} 이름 변경`} title={detail.open ? '이름 변경 (Undo 가능, 저장 시 목록 반영)' : '닫힌 저장본의 이름을 바꿉니다 (rev +1, Undo 대상 아님)'}
+          onClick={() => { if (detail.tabKey) onRenameOpen(detail.tabKey); else onRenameSaved(detail.id); }}>이름 변경</button>
+        <button type="button" disabled={!detail.open} title={detail.open ? '탭 닫기 (저장 데이터는 지우지 않음)' : '닫힌 프로젝트에는 닫을 탭이 없습니다'}
+          aria-label={detail.open ? `${detail.name} 닫기` : `${detail.name} 탭 닫기 불가: 닫힌 프로젝트`}
+          onClick={() => { if (detail.tabKey) onClose(detail.tabKey); }}>탭 닫기</button>
+        <button type="button" className="danger" disabled={detail.open} title={detail.open ? '열린 프로젝트는 삭제할 수 없습니다 — 먼저 탭을 닫으세요' : '영구 삭제'}
+          aria-label={detail.open ? `${detail.name} 삭제 불가: 열린 프로젝트` : `${detail.name} 영구 삭제`}
+          onClick={() => onDelete(detail.id)}>삭제</button>
+        <button type="button" onClick={() => setDetailId(null)}>닫기</button>
+      </div>
+      <p className="muted ex-note">탭 닫기는 저장 데이터를 지우지 않습니다. 새 프로젝트는 저장할 때 이 Workspace에 들어옵니다.</p>
+    </Overlay>}
   </div>;
 }

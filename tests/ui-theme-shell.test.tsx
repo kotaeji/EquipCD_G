@@ -112,7 +112,9 @@ describe('theme shell (jsdom)', () => {
     await u.click(u.btn('시작하기'));
     const before = u.history();
     await u.click(u.el.querySelector('.exitem .x')!);
-    const dlg = u.el.querySelector('[role=dialog]') as HTMLElement;
+    const detail = u.el.querySelector('[role=dialog]') as HTMLElement;
+    await u.click([...detail.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === '이름 변경')!);
+    const dlg = [...u.el.querySelectorAll<HTMLElement>('[role=dialog]')].find((d) => d.querySelector('input'))!;
     expect(dlg.getAttribute('aria-modal')).toBe('true');
     const focusable = [...dlg.querySelectorAll<HTMLElement>('button, input, select, textarea')].filter((b) => !b.hasAttribute('disabled'));
     focusable[focusable.length - 1].focus();

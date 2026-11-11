@@ -32,11 +32,14 @@ async function mount() {
   const top = () => { const d = el.querySelectorAll<HTMLElement>('[role=dialog]'); return d[d.length - 1]; };
   const modal = () => el.querySelector<HTMLElement>('.modal:not([role=dialog])');
   const tabNames = () => all('.exitem .nm').map((n) => n.textContent);
+  const openDetail = async (name: string) => {
+    const b = btn(`${name} 프로젝트 상세`); b.focus(); await click(b); return top();
+  };
   const wsRow = (id: string) => el.querySelector<HTMLElement>(`[data-ws-id="${id}"]`)!;
   const switchWs = async (id: string) => { await click(btn('전환', wsRow(id))); };
   const wsNames = () => [...el.querySelectorAll<HTMLElement>('[data-ws-id] .ws-name')].map((n) => n.textContent);
   const activeWsId = () => el.querySelector<HTMLElement>('[data-ws-id].on')?.getAttribute('data-ws-id') ?? '';
-  return { el, all, btn, click, key, type, choose, item, history, dialog, top, modal, tabNames, wsRow, switchWs, wsNames, activeWsId, txt: () => el.textContent ?? '' };
+  return { el, all, btn, click, key, type, choose, item, history, dialog, top, modal, tabNames, openDetail, wsRow, switchWs, wsNames, activeWsId, txt: () => el.textContent ?? '' };
 }
 const reg = () => JSON.parse(localStorage.getItem(W.WS_KEY)!) as W.WorkspaceRegistry;
 const projKeys = () => Object.keys(localStorage).filter((k) => k.startsWith('ecd.v1.project.')).sort();
@@ -135,6 +138,7 @@ describe('TURN-002 workspace management (AC1/AC2)', () => {
     expect(u.txt()).not.toContain('A 라인');
     expect(projKeys()).toEqual(['ecd.v1.project.prj-a', 'ecd.v1.project.prj-par']); // nothing deleted
     // edit the new tab (rename via ✎) → switching back is blocked and the tab stays
+    await u.openDetail('새 프로젝트');
     await u.click(u.btn('새 프로젝트 이름 변경'));
     await u.type(u.el.querySelector<HTMLInputElement>('[role=dialog] input')!, 'B 설비 프로젝트');
     await u.click(u.btn('이름 변경', u.top()));
@@ -179,6 +183,7 @@ describe('TURN-002 project rename / delete (AC3)', () => {
   it('open project rename = model edit (rev+1, Undo restores exactly, saved list updates on save); duplicate refused', async () => {
     seedTwo(); const u = await mount();
     const h0 = u.history(); const name0 = h0.present.name;
+    await u.openDetail(name0);
     await u.click(u.btn(`${name0} 이름 변경`));
     const inp = u.el.querySelector<HTMLInputElement>('[role=dialog] input')!;
     const other = readIndex(localStorage).find((e) => e.id !== h0.present.id)!.name;
@@ -187,7 +192,8 @@ describe('TURN-002 project rename / delete (AC3)', () => {
     const h1 = u.history();
     expect(h1.present.name).toBe('새 이름 라인'); expect(h1.present.revision).toBe(h0.present.revision + 1);
     expect(h1.labels[h1.labels.length - 1]).toBe('프로젝트 이름 변경');
-    expect(u.tabNames()).toEqual(['새 이름 라인']); expect(u.txt()).toContain('● 미저장');
+    expect(u.el.querySelector('.exitem.on .nm')!.textContent).toBe('새 이름 라인');
+    expect(u.el.querySelector('.exitem.on .dirty')!.getAttribute('aria-label')).toBe('미저장');
     expect(readIndex(localStorage).find((e) => e.id === h0.present.id)!.name).toBe(name0); // not saved yet
     await u.click(u.btn('실행 취소'));
     expect(u.history().present).toEqual(h0.present);
@@ -200,22 +206,29 @@ describe('TURN-002 project rename / delete (AC3)', () => {
     seedTwo(); const u = await mount();
     const openId = u.history().present.id; const closedId = openId === 'prj-a' ? 'prj-par' : 'prj-a';
     const row = (id: string) => u.el.querySelector<HTMLElement>(`[data-project-id="${id}"]`)!;
-    const danger = (id: string) => row(id).querySelector<HTMLButtonElement>('button.danger')!;
-    expect(danger(openId).disabled).toBe(true); expect(danger(openId).getAttribute('aria-label')).toContain('삭제 불가');
-    expect(row(openId).querySelector<HTMLButtonElement>('button[aria-label*="이름 변경"]')!.disabled).toBe(true);
+    const openName = row(openId).querySelector('.nm')!.textContent!;
+    const closedName = row(closedId).querySelector('.nm')!.textContent!;
+    // row buttons are only "…"; rename and delete live in the detail popup (TURN-010)
+    expect(row(openId).querySelector('button.danger')).toBeNull();
+    await u.openDetail(openName);
+    const openDelete = u.btn(`${openName} 삭제 불가: 열린 프로젝트`);
+    expect(openDelete.disabled).toBe(true); expect(openDelete.getAttribute('aria-label')).toContain('삭제 불가');
+    expect(u.btn(`${openName} 이름 변경`).disabled).toBe(false);
+    await u.key(document.body, 'Escape');
     // rename closed
-    await u.click(row(closedId).querySelector('button[aria-label$="이름 변경"]')!);
+    await u.openDetail(closedName);
+    await u.click(u.btn(`${closedName} 이름 변경`));
     const inp = u.el.querySelectorAll<HTMLInputElement>('[role=dialog] input'); const ri = inp[inp.length - 1];
     await u.type(ri, '바뀐 이름'); await u.click(u.btn('이름 변경', u.top()));
     expect(readIndex(localStorage).find((e) => e.id === closedId)!.name).toBe('바뀐 이름');
     expect(row(closedId).textContent).toContain('바뀐 이름');
     // delete closed: cancel first (default focus) → unchanged; then confirm
     const openBody = localStorage.getItem(`ecd.v1.project.${openId}`); const before = projKeys();
-    await u.click(danger(closedId));
+    await u.click(u.btn('바뀐 이름 영구 삭제'));
     expect(u.modal()!.textContent).toContain('되돌릴 수 없습니다'); expect(u.modal()!.textContent).toContain(closedId);
     expect((document.activeElement as HTMLElement).textContent).toBe('취소');
     await u.click(u.btn('취소', u.modal()!)); expect(projKeys()).toEqual(before);
-    await u.click(danger(closedId)); await u.click(u.btn('영구 삭제'));
+    await u.click(u.btn('바뀐 이름 영구 삭제')); await u.click(u.btn('영구 삭제'));
     expect(projKeys()).toEqual([`ecd.v1.project.${openId}`]);
     expect(readIndex(localStorage).map((e) => e.id)).toEqual([openId]);
     expect(reg().workspaces[0].projectIds).toEqual([openId]);
@@ -225,6 +238,7 @@ describe('TURN-002 project rename / delete (AC3)', () => {
 
   it('closing a tab never deletes saved data', async () => {
     seedTwo(); const u = await mount(); const before = projKeys().map((k) => localStorage.getItem(k));
+    await u.openDetail(u.history().present.name);
     await u.click(u.btn(`${u.history().present.name} 닫기`));
     expect(projKeys().map((k) => localStorage.getItem(k))).toEqual(before);
   });
@@ -358,9 +372,10 @@ describe('TURN-002 rev 4 — dialog layers: static confirm Esc = 취소, backgro
 
   it('static project-delete confirm: Esc = 취소 (project kept, storage unchanged); backdrop click also cancels', async () => {
     seedTwo(); const u = await mount(); const before = data(); const closed = 'prj-a'; expect(u.history().present.id).not.toBe(closed);
-    await u.click(delBtn(u.el, `[data-project-id="${closed}"]`)); expect(u.modal()!.textContent).toContain('영구 삭제');
+    await u.openDetail('A 라인');
+    await u.click(u.btn('A 라인 영구 삭제')); expect(u.modal()!.textContent).toContain('영구 삭제');
     await u.key(document.body, 'Escape'); expect(u.modal()).toBeNull(); expect(data()).toEqual(before);
-    await u.click(delBtn(u.el, `[data-project-id="${closed}"]`));
+    await u.click(u.btn('A 라인 영구 삭제'));
     await u.click(u.el.querySelectorAll('.modal-bg')[u.el.querySelectorAll('.modal-bg').length - 1]); expect(u.modal()).toBeNull();
     expect(data()).toEqual(before); expect(localStorage.getItem(`ecd.v1.project.${closed}`)).not.toBeNull();
   });
@@ -368,6 +383,7 @@ describe('TURN-002 rev 4 — dialog layers: static confirm Esc = 취소, backgro
   it('Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z / Delete while a management dialog or static confirm is open never touch the model; text field keeps native undo', async () => {
     seedWithEmptyWs(); const u = await mount();
     const name0 = u.history().present.name;
+    await u.openDetail(name0);
     await u.click(u.btn(`${name0} 이름 변경`)); await u.type(u.top().querySelector('input')!, 'Renamed'); await u.click(u.btn('이름 변경', u.top()));
     const h1 = u.history(); expect(h1.present.name).toBe('Renamed'); expect(h1.past.length).toBeGreaterThan(0);
     // select something so Delete would normally ask to delete it
@@ -386,9 +402,12 @@ describe('TURN-002 rev 4 — dialog layers: static confirm Esc = 취소, backgro
     expect(u.history()).toEqual(hSel); expect(u.modal()).not.toBeNull();
     await u.key(document.body, 'Escape'); await u.key(document.body, 'Escape');
     // 3) name dialog: Ctrl+Z inside the text field is left to the browser (not prevented) and does not undo the model
+    await u.openDetail('Renamed');
     await u.click(u.btn(`Renamed 이름 변경`)); const inp = u.top().querySelector('input')!;
     const ev = await ctrl(inp, 'z'); expect(ev.defaultPrevented).toBe(false); expect(u.history()).toEqual(hSel);
-    await u.key(inp, 'Escape'); expect(u.all('[role=dialog]')).toHaveLength(0);
+    await u.key(inp, 'Escape'); // name dialog only; the project detail stays underneath
+    expect(u.all('[role=dialog]')).toHaveLength(1);
+    await u.key(document.body, 'Escape'); expect(u.all('[role=dialog]')).toHaveLength(0);
     // 4) no dialog → shortcuts work again
     await ctrl(document.body, 'z'); expect(u.history().present.name).toBe(name0);
   });
