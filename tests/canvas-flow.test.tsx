@@ -190,7 +190,7 @@ describe('React Flow canvas (TURN-005)', () => {
     await click(btn('실사풍(AI)')!);
     expect(el.querySelectorAll('svg image').length).toBeGreaterThan(0);
     expect(rev()).toBe(rPhoto);
-    await click(btn('도식')!);
+    await click([...el.querySelectorAll('.diagram-tools button')].find((b) => (b.textContent ?? '').trim() === '도식')!);
     expect(el.querySelectorAll('svg image').length).toBe(0);
     expect(rev()).toBe(rPhoto);
     const a = pos(el, 'CYL-01');

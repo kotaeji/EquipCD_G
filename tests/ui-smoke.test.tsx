@@ -48,7 +48,7 @@ describe('UI smoke (jsdom)', () => {
     expect(el.querySelectorAll('.palette .pi').length).toBe(15);
     expect(txt()).toContain('S1'); expect(txt()).toContain('S6 이송 유닛 1');
     expect(el.querySelectorAll('svg image').length).toBeGreaterThan(0); // photo mode on canvas
-    await click(btn('도식'));
+    await click([...el.querySelectorAll('.diagram-tools button')].find((b) => (b.textContent ?? '').trim() === '도식')!);
     expect(el.querySelectorAll('svg image').length).toBe(0);
     const treeItem = [...el.querySelectorAll('.tree div')].find((d) => (d.textContent ?? '').startsWith('○ CYL-03'))! as HTMLElement;
     await click(treeItem);
