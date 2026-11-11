@@ -38,7 +38,7 @@ input.num { width: 76px; font-family: var(--mono); text-align: right; }
 .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); background: transparent; }
 .ptab { display: flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px 0 8px; height: 28px; cursor: pointer; }
 .ptab.on { background: var(--selected); border-color: var(--accent); color: var(--accent); }
-.ptab .x { border: none; background: transparent; height: 20px; padding: 0 4px; }
+.ptab .x { border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; font-size: 16px; line-height: 1; color: var(--text); }
 .section { padding: var(--pad); border-bottom: 1px solid var(--border); }
 .section h4 { margin: 0 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .row { display: flex; align-items: center; gap: 6px; min-height: var(--rowh); }
@@ -146,7 +146,8 @@ button.icon { width: 24px; padding: 0; }
 .exitem.on { background: var(--selected); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .exitem .nm, .exrecent .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exitem .dirty { font-size: 10px; color: var(--warning); white-space: nowrap; }
-.exitem .x { border: none; background: transparent; height: 18px; padding: 0 4px; color: var(--muted); }
+.exitem .x { border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; font-size: 16px; line-height: 1; color: var(--text); }
+.exitem .x:hover, .ptab .x:hover { background: var(--selected); color: var(--text); }
 .exbtns { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .exrecent { display: flex; width: 100%; gap: 6px; align-items: center; border: none; background: transparent; height: 24px; padding: 0 6px; text-align: left; font-size: var(--fs-sm); }
 .exrecent:hover { background: var(--selected); }
@@ -199,6 +200,7 @@ details.history summary { cursor: pointer; color: var(--muted); font-size: var(-
 .namefield { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .namefield input { font-size: 13px; padding: 4px 6px; }
 .namefield input[aria-invalid=true] { border-color: var(--danger); }
+.name-note { margin-top: 8px; font-size: 12px; min-height: 18px; }
 .err-text { color: var(--danger); }
 .wslist td, .projlist td { vertical-align: middle; }
 .tree .tunit { padding: 0; }
@@ -632,3 +634,41 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
 }
 .react-flow__attribution.bottom { top: 0; bottom: auto; }
 .react-flow__attribution a { color: var(--muted); font-family: var(--font); }
+
+/* TURN-007: panel widths live on .app as --exw/--libw/--propw/--runw (UserView). The 6px hit target overlays the edge. */
+.app { grid-template-columns: var(--exw, 224px) minmax(0, 1fr); }
+/* The open browser-work fold must not squeeze the equipment tree. The explorer scrolls as one column. */
+.app > .explorer { overflow-x: hidden; overflow-y: auto; }
+.explorer { position: relative; border-right: 0; }
+.canvas-rail { flex: 0 0 auto; height: auto; min-height: auto; overflow: visible; }
+.canvas-rail .tree { flex: none; min-height: auto; overflow: visible; }
+.ex-extra { flex: 0 0 auto; }
+.libws { position: relative; grid-template-columns: minmax(0, 1fr) var(--libw, 256px); }
+.libdetail { position: relative; width: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-left: 0; }
+.libdetail-body { flex: 1; min-height: 0; overflow: auto; }
+.app .ws-canvas { position: relative; grid-template-columns: minmax(0, 1fr) var(--propw, 256px); }
+.app .ws-canvas > .right { width: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-left: 0; position: relative; }
+.prop-body { flex: 1; min-height: 0; overflow: auto; }
+.app .ws-run { grid-template-columns: minmax(0, 1fr) var(--runw, 380px); }
+.app .ws-run > .right,
+.run-side { position: relative; width: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-left: 0; }
+.run-side-body { flex: 1; min-height: 0; overflow: auto; }
+.vsplit { position: absolute; top: 0; bottom: 0; width: 6px; min-width: 6px; z-index: 6; cursor: col-resize; touch-action: none; background: transparent; }
+.explorer > .vsplit { right: 0; }
+.libws > .libmain { grid-column: 1; grid-row: 1; min-width: 0; }
+.libws > .libdetail { grid-column: 2; grid-row: 1; }
+.libws > .vsplit { grid-column: 1 / -1; grid-row: 1; right: calc(var(--libw, 256px) - 3px); }
+.app .ws-canvas > .vsplit { grid-column: 1 / -1; grid-row: 1; right: calc(var(--propw, 256px) - 3px); }
+details.history { margin-top: 8px; }
+.run-side > .vsplit { left: 0; }
+.vsplit::after { content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--border); }
+.explorer > .vsplit::after, .libws > .vsplit::after, .app .ws-canvas > .vsplit::after { right: 0; }
+.run-side > .vsplit::after { left: 0; }
+.vsplit:hover::after, .vsplit:focus-visible::after, .vsplit[data-dragging="true"]::after { background: var(--accent); }
+details .fold-open { display: none; }
+details[open] .fold-closed { display: none; }
+details[open] .fold-open { display: inline; }
+.palette-fold > summary, .diagram-fold > summary { list-style: none; cursor: pointer; }
+.palette-fold > summary::-webkit-details-marker, .diagram-fold > summary::-webkit-details-marker { display: none; }
+.palette-fold > summary::before, .diagram-fold > summary::before { content: '▶ '; color: var(--muted); }
+.palette-fold[open] > summary::before, .diagram-fold[open] > summary::before { content: '▼ '; }

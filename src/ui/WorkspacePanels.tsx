@@ -70,7 +70,7 @@ export function NameDialog({ title, initial, hint, validate, submitLabel, onSubm
     <label className="namefield">이름
       <input autoFocus value={v} maxLength={NAME_MAX + 20} aria-invalid={!!err} aria-describedby="name-err"
         onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} /></label>
-    <div id="name-err" className={err ? 'err-text' : 'muted'} role={err ? 'alert' : undefined} style={{ fontSize: 12, minHeight: 18 }}>
+    <div id="name-err" className={`name-note ${err ? 'err-text' : 'muted'}`} role={err ? 'alert' : undefined}>
       {err ?? (unchanged ? '이름이 바뀌지 않았습니다' : `앞뒤 공백은 지워집니다 · ${NAME_MAX}자 이하 · 같은 범위에서 중복 금지(대소문자 무시)`)}</div>
     <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12, gap: 6 }}>
       <button onClick={onCancel}>취소</button>

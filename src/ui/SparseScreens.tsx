@@ -6,6 +6,7 @@ import type { Project } from '../model/types';
 import { validateProject, type Diagnostic } from '../model/validate';
 import type { QuarantineEntry } from '../storage/localStore';
 import { xsdStatus, AmlLoadStatus } from './Library';
+import { Fold } from './Fold';
 import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
 import { devName, sigName, unitName } from './labels';
 
@@ -31,7 +32,7 @@ export function AmlResultSheet({ onCandidates }: { onCandidates: () => void }) {
       <button type="button" disabled title="대기 중인 AML 가져오기가 없습니다">AML 취소</button>
     </div>
     <p className="warn-note">원본은 격리 보관합니다. 검사 실패를 빈 목록이나 성공으로 바꾸지 않습니다.</p>
-    <details className="fold-panel"><summary>검사 상세 보기</summary><AmlLoadStatus libVersion={LOADED_LIBRARIES.length} /></details>
+    <Fold className="fold-panel" summary={<><span className="fold-closed">검사 상세 보기</span><span className="fold-open">검사 상세</span></>}><AmlLoadStatus libVersion={LOADED_LIBRARIES.length} /></Fold>
   </section>;
 }
 
