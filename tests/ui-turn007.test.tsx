@@ -264,8 +264,8 @@ describe('TURN-007 folds', () => {
     await u.click(u.el.querySelector('.stepper [data-stepid="canvas"]')!);
     expectAllOpen(u.el, 'canvas');
     expect(u.el.querySelector('.palette-fold[open] .fold-open')!.textContent).toBe(`팔레트 (${u.el.querySelectorAll('.palette .pi').length - 1}종 + 빈 유닛)`);
-    expect(u.el.querySelector('.diagram-fold[open] .fold-open')!.textContent).toContain('도면 도식 ·');
-    expect(u.el.querySelector('.diagram-fold[open] .fold-open')!.textContent).not.toContain('열기');
+    expect(u.el.querySelector('.diagram-fold')).toBeNull();
+    expect(u.el.querySelector('#layout-tab-board')!.getAttribute('aria-selected')).toBe('true');
     const palette = u.el.querySelector('.palette-fold') as HTMLDetailsElement;
     await act(async () => {
       palette.open = false;
@@ -276,14 +276,9 @@ describe('TURN-007 folds', () => {
     expect(palette.open).toBe(false);
     expect(u.history().present.revision).toBe(rev0);
 
-    const diagram = u.el.querySelector('.diagram-fold') as HTMLDetailsElement;
-    await act(async () => {
-      diagram.open = false;
-      diagram.dispatchEvent(new Event('toggle'));
-    });
-    expect(diagram.open).toBe(false);
     await u.click(u.btn('신호 연결'));
-    expect((u.el.querySelector('.diagram-fold') as HTMLDetailsElement).open).toBe(true);
+    expect(u.el.querySelector('#layout-tab-diagram')!.getAttribute('aria-selected')).toBe('true');
+    expect(u.el.querySelector('#layout-panel-board')!.hasAttribute('hidden')).toBe(true);
     await u.click(u.btn('레이어'));
     const layer = [...u.el.querySelectorAll('.layerpop input')].find((i) => (i.parentElement?.textContent ?? '').includes('배경')) as HTMLInputElement;
     await u.click(layer);

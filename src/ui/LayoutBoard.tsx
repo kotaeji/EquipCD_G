@@ -1,5 +1,5 @@
 // S20 concept board. Units and devices are the live model (select, drop, reparent, flow click).
-// Pixel-accurate port wiring stays on the diagram below; this board does not invent a second layout.
+// Pixel-accurate port wiring stays on the diagram tab; this board does not invent a second layout.
 import { findAsset } from '../assets/library';
 import type { AssetKind, Project } from '../model/types';
 import type { Mode } from './Canvas';

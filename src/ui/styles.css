@@ -312,7 +312,7 @@ button.btn-main:disabled { opacity: .5; }
 .zoom-pill { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--selected); border: 1px solid var(--border); }
 .zoom-pill button { height: 32px; border: 0; background: transparent; width: 28px; }
 .palette-hint, .path-note { margin: 0; font-size: 12px; line-height: 1.55; color: var(--muted); }
-.palette-fold, .diagram-fold { font-size: 14px; }
+.palette-fold { font-size: 14px; }
 .palette-fold .palette { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 0; }
 .board-row { display: flex; gap: 24px; min-height: 304px; padding: 24px 16px; overflow: auto; background: var(--bg); align-items: flex-start; }
 .station-card { width: 216px; min-height: 220px; flex: 0 0 216px; box-sizing: border-box; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
@@ -698,7 +698,28 @@ details.history { margin-top: 8px; }
 details .fold-open { display: none; }
 details[open] .fold-closed { display: none; }
 details[open] .fold-open { display: inline; }
-.palette-fold > summary, .diagram-fold > summary { list-style: none; cursor: pointer; }
-.palette-fold > summary::-webkit-details-marker, .diagram-fold > summary::-webkit-details-marker { display: none; }
-.palette-fold > summary::before, .diagram-fold > summary::before { content: '▶ '; color: var(--muted); }
-.palette-fold[open] > summary::before, .diagram-fold[open] > summary::before { content: '▼ '; }
+.palette-fold > summary { list-style: none; cursor: pointer; }
+.palette-fold > summary::-webkit-details-marker { display: none; }
+.palette-fold > summary::before { content: '▶ '; color: var(--muted); }
+.palette-fold[open] > summary::before { content: '▼ '; }
+
+/* TURN-009: one place under the palette for the card board and the diagram. The stage fills the workspace. */
+.app .ws-canvas > .stage.layout-stage { overflow: hidden; gap: 8px; padding: 8px 16px; }
+.layout-stage .stage-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.layout-stage .stage-head .stage-title { flex: 0 0 auto; font-size: 20px; line-height: 1.2; }
+.layout-stage .stage-head .tool-pills { flex: 1 1 auto; min-width: 0; }
+.layout-stage .palette-hint { line-height: 1.35; }
+.layout-stage .palette-fold { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.layout-stage .palette-fold > summary { flex: 0 0 auto; }
+.layout-stage .palette-fold .palette { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; padding: 0; border-top: 0; }
+.layout-stage .palette-fold .pi { flex: 0 0 auto; display: flex; flex-direction: row; align-items: center; gap: 4px; white-space: nowrap; padding: 4px 8px; }
+.layout-stage .palette-fold .pi svg { margin: 0; }
+.layout-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.layout-tabs > .ui-tabs-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.layout-tabs .ui-tabs-panel:not([hidden]) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.layout-tabs #layout-panel-board:not([hidden]) { overflow: auto; }
+.layout-tabs .board { min-height: 0; display: flex; flex-direction: column; }
+.layout-tabs .board-row { flex: 1 1 auto; min-height: 160px; }
+.layout-tabs .path-note { flex: 0 0 auto; }
+.layout-tabs .diagram-tools { flex: 0 0 auto; margin: 0; }
+.layout-tabs .diagram-canvas { flex: 1 1 auto; height: auto; min-height: 360px; }

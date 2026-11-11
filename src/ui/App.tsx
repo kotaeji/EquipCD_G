@@ -24,7 +24,7 @@ import { PaletteIcon } from './Symbols';
 import { GroupRunPanel, SubSequencePanel, SubstationSelect } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
-import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type PanelKey, type UserView } from './viewSettings';
+import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type UserView } from './viewSettings';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
 import * as W from '../storage/workspaces';
@@ -101,7 +101,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const m = map[k]; if (m) goStep(m[0], m[1]);
   };
   const [layerOpen, setLayerOpen] = useState(false);
-  const [diagramOpen, setDiagramOpen] = useState(true);
   const [viewOpen, setViewOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -378,6 +377,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const openExplorerTab = (id: ExplorerTab) => {
     setExplorerOpen(true);
     setView((v) => (v.explorerTab === id ? v : { ...v, explorerTab: id }));
+  };
+  const openLayoutTab = (id: LayoutTab) => {
+    setView((v) => (v.layoutTab === id ? v : { ...v, layoutTab: id }));
   };
   const showOpen = () => {
     if (!kv) { say(`${storage.reason}. JSON 가져오기를 사용하세요.`, true); return; }
@@ -733,17 +735,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
       {!guide && !view.home && step === 'canvas' && <div className="workspace ws-canvas">
         <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
-        <div className="stage">
-          <h1 className="stage-title">배치·연결</h1>
-          <div className="tool-pills">
-            <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
-            <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결">물류 연결</button>
-            <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); }} title="출력 포트에서 입력 포트로 연결. 포트는 아래 도면에 있습니다">신호 연결</button>
-            <div className="layerbox"><button className={layerOpen ? 'on' : ''} onClick={() => setLayerOpen(!layerOpen)}>레이어</button>
-              {layerOpen && <div className="layerpop">{([['background', '배경'], ['units', 'Substation'], ['axis', '축·이송'], ['io', '포트·신호선'], ['positions', '포지션'], ['flow', '물류·자재']] as [LayerId, string][]).map(([k, l]) =>
-                <label key={k}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
-                <div className="muted">숨김은 삭제가 아니고 실행에서도 빼지 않습니다.</div></div>}</div>
-            <span className="zoom-pill"><button type="button" aria-label="축소" onClick={() => setView({ ...view, zoom: Math.max(0.5, +(view.zoom - 0.1).toFixed(2)) })}>−</button><span>{Math.round(view.zoom * 100)}%</span><button type="button" aria-label="확대" onClick={() => setView({ ...view, zoom: Math.min(2, +(view.zoom + 0.1).toFixed(2)) })}>+</button></span>
+        <div className="stage layout-stage">
+          <div className="stage-head">
+            <h1 className="stage-title">배치·연결</h1>
+            <div className="tool-pills">
+              <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
+              <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결">물류 연결</button>
+              <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트에서 입력 포트로 연결. 포트는 도면 도식 탭에 있습니다">신호 연결</button>
+              <div className="layerbox"><button className={layerOpen ? 'on' : ''} onClick={() => setLayerOpen(!layerOpen)}>레이어</button>
+                {layerOpen && <div className="layerpop">{([['background', '배경'], ['units', 'Substation'], ['axis', '축·이송'], ['io', '포트·신호선'], ['positions', '포지션'], ['flow', '물류·자재']] as [LayerId, string][]).map(([k, l]) =>
+                  <label key={k}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
+                  <div className="muted">숨김은 삭제가 아니고 실행에서도 빼지 않습니다.</div></div>}</div>
+              <span className="zoom-pill"><button type="button" aria-label="축소" onClick={() => setView({ ...view, zoom: Math.max(0.5, +(view.zoom - 0.1).toFixed(2)) })}>−</button><span>{Math.round(view.zoom * 100)}%</span><button type="button" aria-label="확대" onClick={() => setView({ ...view, zoom: Math.min(2, +(view.zoom + 0.1).toFixed(2)) })}>+</button></span>
+            </div>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
           <Fold className="palette-fold" summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span></>}>
@@ -753,19 +757,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
           </Fold>
           {connectFrom && <p className="notice">연결 시작: {connectFrom}. Esc로 취소합니다.</p>}
-          <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
-            onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick} onReparent={requestReparent} />
-          <p className="path-note">{flowSummary(p)}<br />카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 아래 도면에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
-          <details className="diagram-fold" open={mode === 'signal' || diagramOpen} onToggle={(e) => { const open = (e.currentTarget as HTMLDetailsElement).open; setDiagramOpen((v) => (v === open ? v : open)); }}>
-            <summary><span className="fold-closed">도면 도식 열기 · 좌표 이동, 포트, 신호선, 실사풍</span><span className="fold-open">도면 도식 · 좌표 이동, 포트, 신호선, 실사풍</span></summary>
-            <div className="diagram-tools">
-              {visualToggle}
-              <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
-              <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
-              <button className="danger" onClick={() => selectedId && requestDelete(selectedId)} disabled={!selectedId || locked}>삭제</button>
-            </div>
-            <div className="diagram-canvas">{canvasEl}</div>
-          </details>
+          <div className="layout-tabs">
+            <Tabs label="배치·연결" idBase="layout" value={view.layoutTab} onChange={openLayoutTab} tabs={[
+              { id: 'board', label: '카드 보드', panel: <>
+                <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
+                  onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick} onReparent={requestReparent} />
+                <p className="path-note">{flowSummary(p)}<br />카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 도면 도식 탭에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
+              </> },
+              { id: 'diagram', label: '도면 도식', panel: <>
+                <div className="diagram-tools">
+                  {visualToggle}
+                  <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
+                  <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
+                  <button className="danger" onClick={() => selectedId && requestDelete(selectedId)} disabled={!selectedId || locked}>삭제</button>
+                </div>
+                <div className="diagram-canvas">{canvasEl}</div>
+              </> },
+            ]} />
+          </div>
         </div>
         <div className="right prop-col">
           <div className="prop-body">{(() => {
