@@ -1,6 +1,6 @@
 # TURN-008 탐색기 Workspace·Project 탭 · 작업 정보 줄
 
-상태: 검토 후보. 사람 검수 전. 정식 릴리스가 아니다. 앱 버전은 `0.3.0-prototype` 그대로다. 파일 형식 `0.2.0` 과 실행 규칙은 바꾸지 않았다. `release/` 는 다시 빌드해 커밋하지 않았다. CI 확인 대기 — 통과 판정은 Actions를 따른다.
+상태: 검토 후보. 사람 검수 전. 정식 릴리스가 아니다. 앱 버전은 `0.3.0-prototype` 그대로다. 파일 형식 `0.2.0` 과 실행 규칙은 바꾸지 않았다. `release/` 는 다시 빌드해 커밋하지 않았다. CI(`check`)는 `7d2e5b4`에서 통과했다. AC10은 Matthew 검수 전이다.
 
 ## 한 일
 
@@ -49,8 +49,8 @@
 
 | 종류 | 결과 |
 |---|---|
-| 자동 테스트 | `npm test` 18파일 384개 통과. `tests/ui-turn008.test.tsx` 4개(탭 ARIA·←/→, Project 탭 구성, 저장 칩, UserView 유지). `tests/ui-workspace-tree.test.tsx` 18개는 탭 안의 전환·이름·삭제로 고쳤다. `tests/theme-contrast.test.ts` 에 미저장 칩 대비를 더했다. 이 숫자는 로컬 실행이다. 통과 판정은 CI 를 따른다 |
-| 형식 검사 | `npm run typecheck` 통과 |
+| 자동 테스트 | GitHub Actions `check` 통과 (`7d2e5b4`, run 42986209616). 로컬 `npm test`도 18파일 384개였다. `tests/ui-turn008.test.tsx` 4개(탭 ARIA·←/→, Project 탭 구성, 저장 칩, UserView 유지). `tests/ui-workspace-tree.test.tsx` 18개는 탭 안의 전환·이름·삭제로 고쳤다. `tests/theme-contrast.test.ts` 에 미저장 칩 대비를 더했다 |
+| 형식 검사 | 같은 `check` 잡의 typecheck·build 통과. 로컬 `npm run typecheck`도 통과 |
 | Chrome | 156.0.8078.47, CSS 뷰포트 1280×800, devicePixelRatio 1. 콘솔 오류 0. Workspace·Project 탭을 누르고, 저장한 뒤 이름을 바꾸면 정보 줄이 바로 `● 저장 안 됨` 이 되고 rev 가 오른다. 작업 시작 화면 버튼은 시작 화면을 연다. Esc 는 새 Workspace 이름 창만 닫는다 |
 
 - `docs/turns/TURN-008-workspace-light-1280.png`
