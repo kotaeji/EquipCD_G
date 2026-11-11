@@ -231,6 +231,21 @@ describe('TURN-007 panel resize', () => {
 });
 
 describe('TURN-007 folds', () => {
+  it('AC7: the open browser-work fold does not collapse the equipment tree', async () => {
+    const block = css.slice(css.lastIndexOf('open browser-work fold'));
+    expect(block).toMatch(/\.app > \.explorer \{ overflow-x: hidden; overflow-y: auto; \}/);
+    expect(block).toMatch(/\.canvas-rail \{ flex: 0 0 auto; height: auto; min-height: auto; overflow: visible; \}/);
+    expect(block).toMatch(/\.canvas-rail \.tree \{ flex: none; min-height: auto; overflow: visible; \}/);
+    expect(block).toMatch(/\.ex-extra \{ flex: 0 0 auto; \}/);
+    const u = await mount();
+    await u.click(u.el.querySelector('.stepper [data-stepid="canvas"]')!);
+    const extra = u.el.querySelector('.explorer .ex-extra') as HTMLDetailsElement;
+    expect(extra.open).toBe(true);
+    const units = [...u.el.querySelectorAll('.canvas-rail [aria-level="2"]')].map((n) => (n.querySelector('.tnode')?.textContent ?? ''));
+    for (const code of ['S1', 'S2', 'S3', 'S4', 'S5']) expect(units.some((t) => t.includes(code))).toBe(true);
+    expect(u.el.querySelector('.canvas-rail')!.textContent).toContain('접기는 모델을 바꾸지 않습니다');
+  });
+
   it('AC6 AC7: every details starts open, the user can close one, signal mode opens the diagram, explorer collapse still works', async () => {
     const u = await mount();
     expectAllOpen(u.el, 'home');

@@ -64,7 +64,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 17파일 378개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스 토큰) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸
+npm test              # vitest 17파일 379개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스 토큰) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신

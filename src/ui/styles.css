@@ -637,8 +637,11 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
 
 /* TURN-007: panel widths live on .app as --exw/--libw/--propw/--runw (UserView). The 6px hit target overlays the edge. */
 .app { grid-template-columns: var(--exw, 224px) minmax(0, 1fr); }
+/* The open browser-work fold must not squeeze the equipment tree. The explorer scrolls as one column. */
+.app > .explorer { overflow-x: hidden; overflow-y: auto; }
 .explorer { position: relative; border-right: 0; }
-.canvas-rail { flex: 1 1 auto; min-height: 0; height: auto; }
+.canvas-rail { flex: 0 0 auto; height: auto; min-height: auto; overflow: visible; }
+.canvas-rail .tree { flex: none; min-height: auto; overflow: visible; }
 .ex-extra { flex: 0 0 auto; }
 .libws { position: relative; grid-template-columns: minmax(0, 1fr) var(--libw, 256px); }
 .libdetail { position: relative; width: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-left: 0; }
