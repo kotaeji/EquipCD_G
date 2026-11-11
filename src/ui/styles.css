@@ -224,7 +224,7 @@ details.history summary { cursor: pointer; color: var(--muted); font-size: var(-
   font-size: 14px;
 }
 .app > .header { grid-row: 1; grid-column: 1 / -1; height: 64px; padding: 0 24px; gap: 8px; }
-.app > .tabbar { grid-row: 2; grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 24px; background: var(--bg); overflow: auto; }
+.app > .workbar { grid-row: 2; grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 24px; background: var(--bg); overflow: auto; min-width: 0; }
 .app > .stepper { grid-row: 3; grid-column: 1 / -1; height: 72px; padding: 0 24px; gap: 12px; align-items: center; background: var(--panel); }
 .app > .explorer { grid-row: 4; grid-column: 1; }
 .app > .workspace { grid-row: 4; grid-column: 2; }
@@ -328,7 +328,7 @@ button.btn-main:disabled { opacity: .5; }
 .rail-tools, .rail-station { font-size: 14px; line-height: 1.55; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .canvas-rail .tree { font-size: 14px; }
 .canvas-rail .kind { display: none; }
-.app.is-home .canvas-rail, .app.is-home .ex-extra { display: none; }
+.app.is-home .ex-extra { display: none; }
 .ex-extra { border-top: 1px solid var(--border); }
 .ex-extra > summary { padding: 8px 16px; font-size: 12px; color: var(--muted); cursor: pointer; }
 .sparse-page { padding: 16px 24px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg); overflow: auto; }
@@ -412,6 +412,37 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   outline: 2px solid #FFFFFF;
   outline-offset: 2px;
 }
+
+/* TURN-008: underline tabs (shared), work line, unsaved mark. Header save stays white, so its dot is a fixed brown. */
+.ui-tabs { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--panel); }
+.ui-tabs [role="tab"] {
+  flex: 1; margin: 0; height: 36px; padding: 0 8px;
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+  background: transparent; color: var(--muted); font-weight: 400; font-size: 13px;
+}
+.ui-tabs [role="tab"][aria-selected="true"] { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
+.ui-tabs-panel[hidden] { display: none; }
+.ex-panel { display: flex; flex-direction: column; min-width: 0; }
+.ex-note { margin: 0; font-size: 12px; line-height: 1.45; }
+.ws-inline, .proj-inline { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ws-cards { display: flex; flex-direction: column; gap: 8px; }
+.ws-card { border: 1px solid var(--border); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 4px; background: var(--panel); }
+.ws-card.on { background: var(--selected); border-color: var(--accent); }
+.ws-card .ws-name { font-weight: 600; }
+.ws-card .badge { margin-left: 6px; }
+.ws-id { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.proj-line { padding: 8px 12px 0; }
+.saved-row { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.saved-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.saved-rev { font-size: 11px; }
+.work-crumb { background: transparent; border: 0; padding: 0; height: auto; font-weight: 600; color: var(--text); white-space: nowrap; }
+.work-sep, .work-rev { color: var(--muted); white-space: nowrap; font-size: 13px; }
+.save-chip { white-space: nowrap; font-size: 13px; font-weight: 600; }
+.save-chip.dirty { color: var(--warning); }
+.save-chip.saved { color: var(--muted); }
+.app > .header button.btn-main.primary { position: relative; }
+.save-dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #8b4800; }
 
 /* TURN-005 canvas — tokens only; the shadow literals below are the only new colors. */
 .diagram-canvas .rf-host,
@@ -637,12 +668,11 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
 
 /* TURN-007: panel widths live on .app as --exw/--libw/--propw/--runw (UserView). The 6px hit target overlays the edge. */
 .app { grid-template-columns: var(--exw, 224px) minmax(0, 1fr); }
-/* The open browser-work fold must not squeeze the equipment tree. The explorer scrolls as one column. */
+/* The explorer scrolls as one column so the Project-tab tree is not squeezed. */
 .app > .explorer { overflow-x: hidden; overflow-y: auto; }
 .explorer { position: relative; border-right: 0; }
 .canvas-rail { flex: 0 0 auto; height: auto; min-height: auto; overflow: visible; }
 .canvas-rail .tree { flex: none; min-height: auto; overflow: visible; }
-.ex-extra { flex: 0 0 auto; }
 .libws { position: relative; grid-template-columns: minmax(0, 1fr) var(--libw, 256px); }
 .libdetail { position: relative; width: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-left: 0; }
 .libdetail-body { flex: 1; min-height: 0; overflow: auto; }

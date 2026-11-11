@@ -32,8 +32,11 @@ async function mount() {
   const top = () => { const d = el.querySelectorAll<HTMLElement>('[role=dialog]'); return d[d.length - 1]; };
   const modal = () => el.querySelector<HTMLElement>('.modal:not([role=dialog])');
   const tabNames = () => all('.exitem .nm').map((n) => n.textContent);
-  const wsSelect = () => el.querySelector<HTMLSelectElement>('select[aria-label="Workspace 선택"]')!;
-  return { el, all, btn, click, key, type, choose, item, history, dialog, top, modal, tabNames, wsSelect, txt: () => el.textContent ?? '' };
+  const wsRow = (id: string) => el.querySelector<HTMLElement>(`[data-ws-id="${id}"]`)!;
+  const switchWs = async (id: string) => { await click(btn('전환', wsRow(id))); };
+  const wsNames = () => [...el.querySelectorAll<HTMLElement>('[data-ws-id] .ws-name')].map((n) => n.textContent);
+  const activeWsId = () => el.querySelector<HTMLElement>('[data-ws-id].on')?.getAttribute('data-ws-id') ?? '';
+  return { el, all, btn, click, key, type, choose, item, history, dialog, top, modal, tabNames, wsRow, switchWs, wsNames, activeWsId, txt: () => el.textContent ?? '' };
 }
 const reg = () => JSON.parse(localStorage.getItem(W.WS_KEY)!) as W.WorkspaceRegistry;
 const projKeys = () => Object.keys(localStorage).filter((k) => k.startsWith('ecd.v1.project.')).sort();
@@ -112,12 +115,12 @@ describe('TURN-002 workspace management (AC1/AC2)', () => {
     expect(reg().workspaces).toHaveLength(1);
     expect(new Set(reg().workspaces[0].projectIds)).toEqual(new Set(['prj-a', 'prj-par']));
     expect(projKeys().map((k) => localStorage.getItem(k))).toEqual(before); expect(localStorage.getItem('ecd.v1.index')).toBe(idx);
-    expect(u.wsSelect().value).toBe(W.DEFAULT_WS_ID);
+    expect(u.activeWsId()).toBe(W.DEFAULT_WS_ID);
   });
 
   it('create (validation) → switch → isolation → unsaved-edit switch block → save attaches → rename → delete rules', async () => {
     seedTwo(); const u = await mount();
-    await u.click(u.btn('관리…')); await u.click(u.btn('+ 새 Workspace'));
+    await u.click(u.btn('+ 새 Workspace'));
     const inp = u.el.querySelector<HTMLInputElement>('[role=dialog] input')!;
     const make = () => u.btn('만들기', u.top());
     expect(make().disabled).toBe(true);
@@ -126,9 +129,8 @@ describe('TURN-002 workspace management (AC1/AC2)', () => {
     await u.type(inp, '  설비   B '); expect(make().disabled).toBe(false);
     await u.click(make());
     const b = reg().workspaces.find((w) => w.name === '설비 B')!; expect(b.id).toMatch(/^ws-/);
-    // still in the manager; close it, then switch via the explorer select (current tab is clean → allowed)
-    await u.click(u.btn('닫기'));
-    await u.choose(u.wsSelect(), b.id);
+    // switch from the Workspace tab list (current tab is clean → allowed)
+    await u.switchWs(b.id);
     expect(reg().activeId).toBe(b.id); expect(u.tabNames()).toEqual(['새 프로젝트']);
     expect(u.txt()).not.toContain('A 라인');
     expect(projKeys()).toEqual(['ecd.v1.project.prj-a', 'ecd.v1.project.prj-par']); // nothing deleted
@@ -137,7 +139,7 @@ describe('TURN-002 workspace management (AC1/AC2)', () => {
     await u.type(u.el.querySelector<HTMLInputElement>('[role=dialog] input')!, 'B 설비 프로젝트');
     await u.click(u.btn('이름 변경', u.top()));
     expect(u.tabNames()).toEqual(['B 설비 프로젝트']);
-    await u.choose(u.wsSelect(), W.DEFAULT_WS_ID);
+    await u.switchWs(W.DEFAULT_WS_ID);
     expect(reg().activeId).toBe(b.id); expect(u.modal()!.textContent).toContain('Workspace 전환 불가');
     expect(u.tabNames()).toEqual(['B 설비 프로젝트']);
     await u.click(u.btn('저장하러 돌아가기'));
@@ -145,14 +147,11 @@ describe('TURN-002 workspace management (AC1/AC2)', () => {
     await u.click(u.btn('저장'));
     const pid = u.history().present.id;
     expect(reg().workspaces.find((w) => w.id === b.id)!.projectIds).toEqual([pid]);
-    await u.choose(u.wsSelect(), W.DEFAULT_WS_ID);
+    await u.switchWs(W.DEFAULT_WS_ID);
     expect(reg().activeId).toBe(W.DEFAULT_WS_ID);
-    await u.click(u.btn('프로젝트…'));
     const ids = [...u.el.querySelectorAll('[data-project-id]')].map((r) => r.getAttribute('data-project-id')).sort();
     expect(ids).toEqual(['prj-a', 'prj-par']);
-    await u.click(u.btn('닫기'));
-    // workspace delete rules in the manager
-    await u.click(u.btn('관리…'));
+    // workspace delete rules live on the Workspace tab list
     const delOf = (id: string) => u.el.querySelector<HTMLButtonElement>(`[data-ws-id="${id}"] button.danger`)!;
     expect(delOf(W.DEFAULT_WS_ID).disabled).toBe(true); // current
     expect(delOf(b.id).disabled).toBe(true); // not empty
@@ -200,7 +199,6 @@ describe('TURN-002 project rename / delete (AC3)', () => {
   it('saved-project list: open project cannot be renamed/deleted; closed one renamed then deleted (cancel default, no other data touched)', async () => {
     seedTwo(); const u = await mount();
     const openId = u.history().present.id; const closedId = openId === 'prj-a' ? 'prj-par' : 'prj-a';
-    await u.click(u.btn('프로젝트…'));
     const row = (id: string) => u.el.querySelector<HTMLElement>(`[data-project-id="${id}"]`)!;
     const danger = (id: string) => row(id).querySelector<HTMLButtonElement>('button.danger')!;
     expect(danger(openId).disabled).toBe(true); expect(danger(openId).getAttribute('aria-label')).toContain('삭제 불가');
@@ -235,15 +233,15 @@ describe('TURN-002 project rename / delete (AC3)', () => {
 describe('TURN-002 switch with a never-saved, unedited tab', () => {
   it('asks before closing it (cancel = default focus, nothing changes); confirm switches', async () => {
     const u = await mount(); // empty storage → start sample tab (never saved, no edits)
-    await u.click(u.btn('관리…')); await u.click(u.btn('+ 새 Workspace'));
-    await u.type(u.top().querySelector('input')!, 'WS 2'); await u.click(u.btn('만들기', u.top())); await u.click(u.btn('닫기'));
+    await u.click(u.btn('+ 새 Workspace'));
+    await u.type(u.top().querySelector('input')!, 'WS 2'); await u.click(u.btn('만들기', u.top()));
     const id = reg().workspaces.find((w) => w.name === 'WS 2')!.id; const names0 = u.tabNames();
-    await u.choose(u.wsSelect(), id);
+    await u.switchWs(id);
     expect(u.modal()!.textContent).toContain('새 탭 1개');
     expect((document.activeElement as HTMLElement).textContent).toBe('취소');
     await u.click(u.btn('취소', u.modal()!));
-    expect(reg().activeId).toBe(W.DEFAULT_WS_ID); expect(u.tabNames()).toEqual(names0); expect(u.wsSelect().value).toBe(W.DEFAULT_WS_ID);
-    await u.choose(u.wsSelect(), id); await u.click(u.btn('닫고 전환'));
+    expect(reg().activeId).toBe(W.DEFAULT_WS_ID); expect(u.tabNames()).toEqual(names0); expect(u.activeWsId()).toBe(W.DEFAULT_WS_ID);
+    await u.switchWs(id); await u.click(u.btn('닫고 전환'));
     expect(reg().activeId).toBe(id); expect(u.tabNames()).toEqual(['새 프로젝트']);
   });
 });
@@ -305,31 +303,29 @@ describe('TURN-002 rev 3 — R1 in the real App: registry read fails at start �
     try { u = await mount(); } finally { Storage.prototype.getItem = orig; }
     expect(hits).toBe(1);
     expect(u.txt()).toContain('읽지 못했습니다');
-    await u.click(u.btn('관리…')); await u.click(u.btn('+ 새 Workspace'));
+    await u.click(u.btn('+ 새 Workspace'));
     await u.type(u.top().querySelector('input')!, 'WS C'); await u.click(u.btn('만들기', u.top()));
     expect(u.txt()).toContain('변경하지 않았습니다');
-    await u.click(u.btn('닫기'));
     await u.click(u.btn('저장'));
     expect(snap()).toEqual(before);
     // reload (read works) → original registry with ws-b
     if (root) await act(async () => { root!.unmount(); }); root = null; document.body.innerHTML = '';
-    const u2 = await mount(); expect([...u2.wsSelect().options].map((o) => o.textContent)).toEqual([W.DEFAULT_WS_NAME, 'B']);
+    const u2 = await mount(); expect(u2.wsNames()).toEqual([W.DEFAULT_WS_NAME, 'B']);
   });
 });
 
 describe('TURN-002 rev 3 — Esc closes the top-most management dialog even when focus stayed outside (jsdom)', () => {
-  it('Workspace 관리 / 이름 dialog / 프로젝트 목록: Esc from outside focus closes only the top layer', async () => {
+  it('이름 dialog: Esc from outside focus closes it and creates nothing; the project list is not a dialog', async () => {
     seedTwo(); const u = await mount();
     const esc = async (t: Element = document.body) => u.key(t, 'Escape');
-    const opener = u.btn('관리…'); opener.focus(); await u.click(opener);
+    const opener = u.btn('+ 새 Workspace'); opener.focus(); await u.click(opener);
     expect(u.all('[role=dialog]')).toHaveLength(1); expect(u.top().contains(document.activeElement)).toBe(true);
+    expect(document.activeElement?.tagName).toBe('INPUT');
     await esc(opener); expect(u.all('[role=dialog]')).toHaveLength(0);
-    await u.click(u.btn('관리…')); await u.click(u.btn('+ 새 Workspace')); expect(u.all('[role=dialog]')).toHaveLength(2);
-    expect(document.activeElement?.tagName).toBe('INPUT'); // name field keeps its autofocus
-    await esc(document.activeElement!); expect(u.all('[role=dialog]')).toHaveLength(1);
-    await esc(); expect(u.all('[role=dialog]')).toHaveLength(0);
-    await u.click(u.btn('프로젝트…')); expect(u.all('[role=dialog]')).toHaveLength(1);
-    await esc(); expect(u.all('[role=dialog]')).toHaveLength(0);
+    await u.click(u.btn('+ 새 Workspace'));
+    await esc(document.activeElement!); expect(u.all('[role=dialog]')).toHaveLength(0);
+    expect(u.el.querySelector('[data-project-id]')).not.toBeNull();
+    expect(u.all('[role=dialog]')).toHaveLength(0);
     expect(reg().workspaces).toHaveLength(1); // nothing created by closing
   });
 });
@@ -350,12 +346,11 @@ describe('TURN-002 rev 4 — dialog layers: static confirm Esc = 취소, backgro
 
   it('static Workspace-delete confirm: Esc closes ONLY the confirm (nothing deleted, no write), focus back to its 삭제 button; Esc again closes 관리', async () => {
     seedWithEmptyWs(); const u = await mount(); const before = data();
-    await u.click(u.btn('관리…'));
-    const del = delBtn(u.top(), '[data-ws-id="ws-b"]'); del.focus(); await u.click(del);
+    const del = delBtn(u.el, '[data-ws-id="ws-b"]'); del.focus(); await u.click(del);
     const conf = u.modal()!; expect(conf.getAttribute('role')).toBe('alertdialog'); expect(conf.textContent).toContain('삭제');
     expect(document.activeElement?.textContent).toBe('취소'); // cancel is the default focus
     await u.key(document.activeElement!, 'Escape');
-    expect(u.modal()).toBeNull(); expect(u.all('[role=dialog]')).toHaveLength(1); // manager still open
+    expect(u.modal()).toBeNull(); expect(u.all('[role=dialog]')).toHaveLength(0);
     expect(document.activeElement).toBe(del);
     expect(data()).toEqual(before); expect(reg().workspaces.map((w) => w.id)).toEqual([W.DEFAULT_WS_ID, 'ws-b']);
     await u.key(document.activeElement!, 'Escape'); expect(u.all('[role=dialog]')).toHaveLength(0);
@@ -363,10 +358,9 @@ describe('TURN-002 rev 4 — dialog layers: static confirm Esc = 취소, backgro
 
   it('static project-delete confirm: Esc = 취소 (project kept, storage unchanged); backdrop click also cancels', async () => {
     seedTwo(); const u = await mount(); const before = data(); const closed = 'prj-a'; expect(u.history().present.id).not.toBe(closed);
-    await u.click(u.btn('프로젝트…'));
-    await u.click(delBtn(u.top(), `[data-project-id="${closed}"]`)); expect(u.modal()!.textContent).toContain('영구 삭제');
+    await u.click(delBtn(u.el, `[data-project-id="${closed}"]`)); expect(u.modal()!.textContent).toContain('영구 삭제');
     await u.key(document.body, 'Escape'); expect(u.modal()).toBeNull(); expect(data()).toEqual(before);
-    await u.click(delBtn(u.top(), `[data-project-id="${closed}"]`));
+    await u.click(delBtn(u.el, `[data-project-id="${closed}"]`));
     await u.click(u.el.querySelectorAll('.modal-bg')[u.el.querySelectorAll('.modal-bg').length - 1]); expect(u.modal()).toBeNull();
     expect(data()).toEqual(before); expect(localStorage.getItem(`ecd.v1.project.${closed}`)).not.toBeNull();
   });
@@ -378,15 +372,16 @@ describe('TURN-002 rev 4 — dialog layers: static confirm Esc = 취소, backgro
     const h1 = u.history(); expect(h1.present.name).toBe('Renamed'); expect(h1.past.length).toBeGreaterThan(0);
     // select something so Delete would normally ask to delete it
     await u.click(u.item('U-PS1') ?? u.all('[role=treeitem]')[1]); const hSel = u.history();
-    // 1) management overlay open, keys on a button inside it and on the body
-    await u.click(u.btn('관리…'));
-    for (const t of [u.btn('닫기', u.top()), document.body]) {
+    // 1) name dialog open, keys on a button inside it and on the body
+    await u.click(u.btn('+ 새 Workspace'));
+    for (const t of [u.btn('취소', u.top()), document.body]) {
       await ctrl(t, 'z'); await ctrl(t, 'y'); await ctrl(t, 'z', true);
       await u.key(t, 'Delete'); await u.key(t, 'Backspace');
     }
     expect(u.history()).toEqual(hSel); expect(u.modal()).toBeNull();
+    await u.key(document.body, 'Escape');
     // 2) static confirm on top
-    await u.click(delBtn(u.top(), '[data-ws-id="ws-b"]'));
+    await u.click(delBtn(u.el, '[data-ws-id="ws-b"]'));
     await ctrl(document.activeElement!, 'z'); await ctrl(document.body, 'y');
     expect(u.history()).toEqual(hSel); expect(u.modal()).not.toBeNull();
     await u.key(document.body, 'Escape'); await u.key(document.body, 'Escape');

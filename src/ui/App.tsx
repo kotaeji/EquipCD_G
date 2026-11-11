@@ -24,7 +24,7 @@ import { PaletteIcon } from './Symbols';
 import { GroupRunPanel, SubSequencePanel, SubstationSelect } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
-import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type LayerId, type PanelKey, type UserView } from './viewSettings';
+import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type PanelKey, type UserView } from './viewSettings';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
 import * as W from '../storage/workspaces';
@@ -32,6 +32,7 @@ import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectManager, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
+import { Tabs } from './Tabs';
 
 interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; group: GroupRuntime | null; gaps: Gap[]; analyzedRevision: number | null }
 interface Modal { title: string; body: React.ReactNode; actions: { label: string; primary?: boolean; danger?: boolean; focus?: boolean; run: () => void }[] }
@@ -84,8 +85,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     }
     return [makeTab(buildSampleProject())];
   });
-  const [wsPanel, setWsPanel] = useState(false);
-  const [projPanel, setProjPanel] = useState(false);
   const [nameDlg, setNameDlg] = useState<NameDlg | null>(null);
   const [activeKey, setActiveKey] = useState(() => tabs[0].key);
   const [selection, setSelection] = useState<string[]>([]);
@@ -376,9 +375,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]); setView((v) => ({ ...v, home: false }));
     if (r.warnings.length) say(`경고 ${r.warnings.length}: ${r.warnings[0].message}`);
   };
+  const openExplorerTab = (id: ExplorerTab) => {
+    setExplorerOpen(true);
+    setView((v) => (v.explorerTab === id ? v : { ...v, explorerTab: id }));
+  };
   const showOpen = () => {
     if (!kv) { say(`${storage.reason}. JSON 가져오기를 사용하세요.`, true); return; }
-    setProjPanel(true);
+    openExplorerTab('project');
   };
   const newProject = (kind: 'blank' | 'sample' | 'parallel') => {
     const used = projectNames();
@@ -464,7 +467,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const collapsed = view.treeCollapsed[p.id] ?? [];
   const setCollapsed = (ids: string[]) => setView((v) => ({ ...v, treeCollapsed: { ...v.treeCollapsed, [p.id]: ids } }));
   const tree = <ProjectTree p={p} selection={selection} collapsed={collapsed} onCollapsedChange={setCollapsed} onPick={pick} subCount={subCount} />;
-  const recent = kv ? W.listProjects(kv, reg, reg.activeId).slice(0, 6) : [];
 
   // ---------- TURN-002: workspace / project management ----------
   const curWs = W.activeWs(reg);
@@ -555,70 +557,56 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const selDev = p.devices.find((d) => d.id === selection[0]);
   const selUnitOnly = p.units.find((u) => u.id === selection[0]);
   const selCaption = selDev?.name ?? (selUnitOnly ? `${selUnitOnly.code} ${selUnitOnly.name}` : '없음');
-  const canvasRail = <div className="canvas-rail">
-    <h2>{curWs.name}</h2>
-    <button type="button" className="btn-main secondary" onClick={showOpen}>프로젝트 관리</button>
-    <div className="rail-tools"><span>장비 구조</span>
-      <button type="button" className="small" aria-label="트리 모두 펼치기" onClick={() => setCollapsed([])}>모두 펼치기</button>
-      <button type="button" className="small" aria-label="트리 모두 접기" onClick={() => setCollapsed(collapseAllIds(p))}>모두 접기</button>
+  const workspacePanel = <div className="ex-panel">
+    <WorkspaceManager workspaces={reg.workspaces} activeId={reg.activeId} counts={Object.fromEntries(reg.workspaces.map((w) => [w.id, savedCount(w.id)]))}
+      deleteBlock={(id) => W.deleteBlockReason(reg, id, savedCount(id))} onSwitch={requestSwitch} onCreate={createWs} onRename={renameWs} onDelete={deleteWs} disabled={!kv}
+      onBundle={() => { setGuide('bundle'); setView((v) => ({ ...v, home: false })); }}
+      onSearch={() => { setGuide('search'); setView((v) => ({ ...v, home: false })); }}
+      onHome={() => setView((v) => ({ ...v, home: true }))} />
+  </div>;
+  const projectPanel = <div className="ex-panel">
+    <div className="proj-line"><button type="button" className="work-crumb" onClick={() => openExplorerTab('workspace')}>Workspace: {curWs.name}</button></div>
+    <div className="exsec">
+      <div className="exlabel">열린 프로젝트 ({tabs.length})</div>
+      <div className="exlist" role="listbox" aria-label="열린 프로젝트">
+        {tabs.map((t) => <div key={t.key} role="option" tabIndex={0} aria-selected={t.key === tab.key} className={`exitem ${t.key === tab.key ? 'on' : ''}`} title={t.history.present.id}
+          onClick={() => switchTab(t.key)} onKeyDown={(e) => { if (e.key === 'Enter') switchTab(t.key); }}>
+          <span className="nm">{t.history.present.name}</span>{t.savedRevision !== t.history.present.revision && <span className="dirty" title="저장 안 됨">● 미저장</span>}
+          <button className="x" onClick={(e) => { e.stopPropagation(); renameOpenProject(t.key); }} aria-label={`${t.history.present.name} 이름 변경`} title="이름 변경 (Undo 가능, 저장 시 목록 반영)">✎</button>
+          <button className="x" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }} aria-label={`${t.history.present.name} 닫기`} title="탭 닫기 (저장 데이터는 지우지 않음)">×</button></div>)}
+      </div>
+      <div className="exlabel">새 프로젝트</div>
+      <div className="exbtns">
+        <button className="small" onClick={() => newProject('blank')} title="빈 프로젝트로 시작">+ 빈 프로젝트</button>
+        <button className="small" onClick={() => newProject('sample')} title="기본 5공정 Station 예제 사본">+ 5공정 예제</button>
+        <button className="small" onClick={() => newProject('parallel')} title="Substation 하나에 병렬 시퀀스 2개가 있는 예제">+ 병렬 예제</button>
+      </div>
     </div>
-    <div className="rail-station">Station · {p.equipment.name}</div>
-    {tree}
-    <p className="muted">선택: {selCaption}<br />접기는 모델을 바꾸지 않습니다.</p>
+    <div className="exsec">
+      {!kv && <div className="tempty">브라우저 저장소 사용 불가 — JSON 가져오기/내보내기를 사용하세요.</div>}
+      {kv && <ProjectManager wsName={curWs.name} entries={savedList} openIds={openIds} onOpen={openSaved} onRename={renameSaved} onDelete={deleteSaved} />}
+      <div className="exbtns">
+        <button className="small" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
+        <button className="small" onClick={() => { setGuide('files'); setView((v) => ({ ...v, home: false })); }}>프로젝트 파일</button>
+      </div>
+    </div>
+    <div className="canvas-rail">
+      <div className="rail-tools"><span>장비 구조</span>
+        <button type="button" className="small" aria-label="트리 모두 펼치기" onClick={() => setCollapsed([])}>모두 펼치기</button>
+        <button type="button" className="small" aria-label="트리 모두 접기" onClick={() => setCollapsed(collapseAllIds(p))}>모두 접기</button>
+      </div>
+      <div className="rail-station">Station · {p.equipment.name}</div>
+      {tree}
+      <p className="muted">선택: {selCaption}<br />접기는 모델을 바꾸지 않습니다.</p>
+    </div>
   </div>;
   const explorer = <aside className={`explorer ${explorerOpen ? '' : 'collapsed'}`} aria-label="Workspace / Project 탐색기">
     <PanelSplit kind="explorer" value={view.panels.explorer} onChange={(n) => setPanel('explorer', n)} label="탐색기 너비" />
-    <div className="home-summary">
-      <h2>작업 공간</h2>
-      <button className="btn-main secondary" onClick={() => setWsPanel(true)} disabled={!kv}>Workspace 관리</button>
-      <button className="btn-main secondary" onClick={() => { setGuide('files'); setView((v) => ({ ...v, home: false })); }}>프로젝트 파일</button>
-      <button className="btn-main secondary" onClick={() => { setGuide('bundle'); setView((v) => ({ ...v, home: false })); }}>파일 묶음</button>
-      <button className="btn-main secondary" onClick={() => { setGuide('search'); setView((v) => ({ ...v, home: false })); }}>공통 탐색</button>
-      <ul className="ws-counts">{reg.workspaces.map((w) => <li key={w.id}><b>{w.name}</b><span>프로젝트 {savedCount(w.id)}개</span></li>)}</ul>
-      <p className="muted">이 브라우저의 작업 묶음. 다른 PC와 자동 공유되지 않습니다.</p>
-    </div>
-    {canvasRail}
-    <Fold className="ex-extra" summary="이 브라우저 작업">
-    <div className="ex-work">
-    <div className="exhead"><button className="small icon" onClick={() => setExplorerOpen(!explorerOpen)} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>작업 공간</b>}</div>
-    {explorerOpen && <>
-      <div className="exsec">
-        <div className="exlabel">Workspace <span className="muted">(이 브라우저)</span></div>
-        <div className="row wsbar" style={{ gap: 4 }}>
-          <select aria-label="Workspace 선택" value={reg.activeId} onChange={(e) => requestSwitch(e.target.value)} disabled={!kv} title={kv ? '전환 시 열린 탭이 닫힙니다 (저장 안 된 편집이 있으면 막음)' : '브라우저 저장소 사용 불가'}>
-            {reg.workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
-          <button className="small" onClick={() => setWsPanel(true)} disabled={!kv}>관리…</button>
-        </div>
-      </div>
-      <div className="exsec">
-        <div className="exlabel">열린 프로젝트 ({tabs.length})</div>
-        <div className="exlist" role="listbox" aria-label="열린 프로젝트">
-          {tabs.map((t) => <div key={t.key} role="option" tabIndex={0} aria-selected={t.key === tab.key} className={`exitem ${t.key === tab.key ? 'on' : ''}`} title={t.history.present.id}
-            onClick={() => switchTab(t.key)} onKeyDown={(e) => { if (e.key === 'Enter') switchTab(t.key); }}>
-            <span className="nm">{t.history.present.name}</span>{t.savedRevision !== t.history.present.revision && <span className="dirty" title="저장 안 됨">● 미저장</span>}
-            <button className="x" onClick={(e) => { e.stopPropagation(); renameOpenProject(t.key); }} aria-label={`${t.history.present.name} 이름 변경`} title="이름 변경 (Undo 가능, 저장 시 목록 반영)">✎</button>
-            <button className="x" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }} aria-label={`${t.history.present.name} 닫기`} title="탭 닫기 (저장 데이터는 지우지 않음)">×</button></div>)}
-        </div>
-        <div className="exbtns">
-          <button className="small" onClick={() => newProject('blank')} title="빈 프로젝트로 시작">+ 빈 프로젝트</button>
-          <button className="small" onClick={() => newProject('sample')} title="기본 5공정 Station 예제 사본">+ 5공정 예제</button>
-          <button className="small" onClick={() => newProject('parallel')} title="Substation 하나에 병렬 시퀀스 2개가 있는 예제">+ 병렬 예제</button>
-          <button className="small" onClick={showOpen} title="현재 Workspace의 저장 프로젝트: 열기·이름 변경·삭제">프로젝트…</button>
-          <button className="small" onClick={() => { setGuide('files'); setView((v) => ({ ...v, home: false })); }}>프로젝트 파일</button>
-          <button className="small" onClick={() => { setGuide('bundle'); setView((v) => ({ ...v, home: false })); }}>파일 묶음</button>
-          <button className="small" onClick={() => { setGuide('search'); setView((v) => ({ ...v, home: false })); }}>공통 탐색</button>
-          <button className="small" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
-        </div>
-      </div>
-      <div className="exsec">
-        <div className="exlabel">최근 저장 ({curWs.name})</div>
-        {!kv && <div className="tempty">브라우저 저장소 사용 불가 — JSON 가져오기/내보내기를 사용하세요.</div>}
-        {kv && recent.length === 0 && <div className="tempty">아직 저장한 프로젝트가 없습니다.</div>}
-        {recent.map((e) => <button key={e.id} className="exrecent" onClick={() => openSaved(e.id)} title={`${e.id} · rev ${e.revision}`}><span className="nm">{e.name}</span><span className="muted">rev {e.revision}</span></button>)}
-      </div>
-    </>}
-    </div>
-    </Fold>
+    <div className="exhead"><button className="small icon" onClick={() => setExplorerOpen(!explorerOpen)} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>탐색기</b>}</div>
+    {explorerOpen && <Tabs label="탐색기" idBase="explorer" value={view.explorerTab} onChange={openExplorerTab} tabs={[
+      { id: 'workspace', label: 'Workspace', panel: workspacePanel },
+      { id: 'project', label: 'Project', panel: projectPanel },
+    ]} />}
   </aside>;
   const visualToggle = <>
     <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
@@ -665,19 +653,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><span className="title">{PRODUCT_NAME}</span></span>
         <span className="subtitle">논리 시뮬레이션</span>
         <span className="grow" />
-        <span className="save-hint">{dirty ? '저장 안 됨' : '이 브라우저에 저장'}</span>
-        <button className="btn-main primary" onClick={doSave}>저장</button>
+        <button className="btn-main primary" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}>저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</button>
         <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}>내보내기</button>
         <button className="btn-main secondary" onClick={() => setViewOpen(true)}>보기 설정</button>
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
         <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title="실행 취소 (Ctrl/Cmd+Z)" aria-label="실행 취소">↶</button>
         <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title="다시 실행 (Ctrl/Cmd+Shift+Z)" aria-label="다시 실행">↷</button>
       </header>
-      <div className="tabbar" role="tablist" aria-label="프로젝트 탭">
-        <button role="tab" className={`ptab ${view.home ? 'on' : ''}`} aria-selected={view.home} onClick={() => setView((v) => ({ ...v, home: true }))}>작업 시작</button>
-        {tabs.map((t) => <button key={t.key} role="tab" className={`ptab ${!view.home && t.key === tab.key ? 'on' : ''}`} aria-selected={!view.home && t.key === tab.key} onClick={() => switchTab(t.key)}>
-          {t.history.present.name}{t.savedRevision !== t.history.present.revision ? <span className="dirty"> 미저장</span> : null}</button>)}
-        <button className="btn-main secondary" onClick={() => newProject('blank')}>새 프로젝트</button>
+      <div className="workbar" aria-label="현재 작업">
+        <button type="button" className="work-crumb" onClick={() => openExplorerTab('workspace')}>Workspace {curWs.name}</button>
+        <span className="work-sep" aria-hidden="true">›</span>
+        <button type="button" className="work-crumb" onClick={() => openExplorerTab('project')}>Project {p.name}</button>
+        <span className="work-rev">rev {p.revision}</span>
+        <span className={dirty ? 'save-chip dirty' : 'save-chip saved'}>{dirty ? '● 저장 안 됨' : '저장됨'}</span>
       </div>
       <div className="stepper" role="navigation" aria-label="단계">
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); return (
@@ -1049,10 +1037,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>
 
       {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.msg}</div>}
-      {wsPanel && <WorkspaceManager workspaces={reg.workspaces} activeId={reg.activeId} counts={Object.fromEntries(reg.workspaces.map((w) => [w.id, savedCount(w.id)]))}
-        deleteBlock={(id) => W.deleteBlockReason(reg, id, savedCount(id))} onSwitch={(id) => { setWsPanel(false); requestSwitch(id); }} onCreate={createWs} onRename={renameWs} onDelete={deleteWs} onClose={() => setWsPanel(false)} />}
-      {projPanel && kv && <ProjectManager wsName={curWs.name} entries={W.listProjects(kv, reg, reg.activeId)} openIds={openIds}
-        onOpen={(id) => { setProjPanel(false); openSaved(id); }} onRename={renameSaved} onDelete={deleteSaved} onClose={() => setProjPanel(false)} />}
       {viewOpen && <StaticModalFrame title="보기 설정" style={style} onCancel={() => setViewOpen(false)}>
         <p className="muted">보기만 바꿉니다. 모델, rev, 실행, 선택, 입력은 그대로입니다. 보관된 이전 팔레트는 고를 수 없습니다.</p>
         <div className="row" style={{ gap: 8 }}>{visualToggle}</div>

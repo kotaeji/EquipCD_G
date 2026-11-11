@@ -16,6 +16,8 @@ TURN-006 에셋 카드 도식은 검토 후보입니다. 사람 검수 전이며
 
 TURN-007 이름 아이콘·구분선·접는 칸은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-007.md`](docs/turns/TURN-007.md). 이름 변경 버튼, 이름 창 간격, 이 브라우저의 패널 너비, 접는 칸의 처음 상태를 바꿨습니다. 프로젝트 JSON, rev, Undo, `release/` 는 바꾸지 않았습니다.
 
+TURN-008 탐색기 탭·작업 정보 줄은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-008.md`](docs/turns/TURN-008.md). 왼쪽 탐색기는 Workspace · Project 탭이고, 위쪽 줄은 현재 Workspace · Project · rev · 저장 상태입니다. 프로젝트 JSON, rev, Undo, `release/` 는 바꾸지 않았습니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -64,7 +66,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 17파일 379개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스 토큰) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸
+npm test              # vitest 18파일 384개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
@@ -95,8 +97,8 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 ```
 
 ## 화면 구성 (중앙 작업영역 = 현재 단계)
-- **v0.3**: 상단 헤더 = 제품명·버전·현재 프로젝트/단계·저장·JSON 내보내기·Undo/Redo·테마. 프로젝트 탭과 새/예제/열기/가져오기는 **왼쪽 탐색기**로 이동(모든 단계 공통). 아래 v0.2 설명 중 “상단 프로젝트 탭”, 2·3단계의 “트리”는 왼쪽 탐색기로 읽으세요. 4단계에 「Substation 시퀀스」 하위 탭, 6단계에 「Station 시퀀스 / Substation 그룹」 전환이 추가됨.
-- 상단: 제품명, 저장·내보내기·보기 설정, 프로젝트 탭, 1~6 단계, 라이트/다크(저장값 A=라이트, B=다크. 예전 C는 보관이며 화면에서는 라이트로 보이고 사용자가 고르기 전까지 저장값을 지우지 않음). 자세한 화면 표는 `docs/turns/TURN-003.md`
+- **v0.3**: 상단 헤더 = 제품명·버전·저장·JSON 내보내기·Undo/Redo. 그 아래 줄은 현재 Workspace · Project · rev · 저장 상태입니다. 프로젝트 만들기·열기·전환과 장비 구조 트리는 **왼쪽 탐색기**의 Workspace · Project 탭입니다(모든 단계 공통). 아래 v0.2 설명 중 “상단 프로젝트 탭”, 2·3단계의 “트리”는 왼쪽 Project 탭으로 읽으세요. 4단계에 「Substation 시퀀스」 하위 탭, 6단계에 「Station 시퀀스 / Substation 그룹」 전환이 추가됨.
+- 상단: 제품명, 저장·내보내기·보기 설정, 현재 작업 정보 줄, 1~6 단계, 라이트/다크(저장값 A=라이트, B=다크. 예전 C는 보관이며 화면에서는 라이트로 보이고 사용자가 고르기 전까지 저장값을 지우지 않음). 자세한 화면 표는 `docs/turns/TURN-003.md`. 탐색기 탭은 `docs/turns/TURN-008.md`
 - 단계 바: 1~6 단계 버튼(각 단계 판정 배지: 필수 충족 / 필수 누락 / 재확인 필요 / 확인됨 ✓), 현재 단계·작업영역·목표, 「남은 항목」(필수 데이터 누락·가정값 존재·미정·선택 사항 미확보·사람 확인 필요 구분, ‘편집으로 이동’), ◀ 이전 / 다음 ▶
 - 1 입력·에셋 선택: **에셋 라이브러리 카드**(검색·분류·도식/실사진·AML 번들/가져옴·XSD 상태 배지) + 카드 상세(AML 파일·SUC 경로·RoleClass·CAEX 버전·속성·포트·Action·템플릿 자식/링크/규칙·사진 출처/라이선스/대표 범위) + 「프로젝트에 추가」(상세 보기와 분리) + AML 가져오기/내보내기 + AML 로드 상태 / 하위 탭 입력 후보표(F1)
 - 2 배치·연결: 툴바(선택/이동·물류/신호 연결·정렬·삭제·도식/실사진·레이어·줌) + 트리·팔레트(14종 + 빈 유닛) + Canvas + 속성 패널
