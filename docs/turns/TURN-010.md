@@ -1,6 +1,6 @@
 # TURN-010 Project 탭 — 짧은 프로젝트 목록 · 트리 위로 · 상세 팝업
 
-상태: 검토 후보. 사람 검수 전. 정식 릴리스가 아니다. 앱 버전은 `0.3.0-prototype` 그대로다. 파일 형식 `0.2.0` 과 실행 규칙은 바꾸지 않았다. `release/` 는 다시 빌드해 커밋하지 않았다. CI 확인 대기 — 통과 판정은 Actions를 따른다. AC10은 Matthew 검수 전이다.
+상태: 검토 후보. 사람 검수 전. 정식 릴리스가 아니다. 앱 버전은 `0.3.0-prototype` 그대로다. 파일 형식 `0.2.0` 과 실행 규칙은 바꾸지 않았다. `release/` 는 다시 빌드해 커밋하지 않았다. CI(`check`)는 `850b705`에서 통과했다 (run [42997223976](https://github.com/kotaeji/EquipCD_G/actions/runs/42997223976), 20파일 394개, typecheck·build, `release/` 변경 없음). AC10은 Matthew 검수 전이다.
 
 ## 한 일
 
@@ -45,8 +45,8 @@
 
 | 종류 | 결과 |
 |---|---|
-| 자동 테스트 | 로컬 `npm test` 20파일 394개. `tests/ui-turn010.test.tsx` 6개(탭 순서, 합친 목록 4줄과 표시, 줄 클릭과 `+` 메뉴, 팝업·Esc 포커스, 닫힌 프로젝트, 저장소 불가). 통과 판정은 CI를 따른다 |
-| 형식 검사 | 로컬 `npm run typecheck` 통과. 통과 판정은 CI를 따른다 |
+| 자동 테스트 | GitHub Actions `check` 통과 (`850b705`, run 42997223976, 20파일 394개). `tests/ui-turn010.test.tsx` 6개(탭 순서, 합친 목록 4줄과 표시, 줄 클릭과 `+` 메뉴, 팝업·Esc 포커스, 닫힌 프로젝트, 저장소 불가) |
+| 형식 검사 | 같은 `check` 잡의 typecheck·build 통과. `release/` 는 diff에 없다 |
 | Chrome | 156.0.8078.47, CSS 뷰포트 1280×800, devicePixelRatio 1. 콘솔 오류 0. 문서 스크롤 0. 프로젝트 1개(5공정 예제), 배치·연결, Project 탭. 탐색기 `scrollHeight` = `clientHeight` = 572, `scrollTop` 0. S1–S5 Unit 줄이 탐색기 안에 보인다(S5 줄 bottom 656, 탐색기 bottom 752). 라이트·다크 같음. 목록 7줄일 때 목록 칸은 168px, `scrollHeight` 196, 목록만 `scrollTop` 28. 탐색기 `scrollTop` 은 0 |
 
 - `docs/turns/TURN-010-project-light-1280.png`
