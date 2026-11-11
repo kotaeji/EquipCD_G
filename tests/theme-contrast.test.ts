@@ -94,6 +94,20 @@ describe('theme colors', () => {
     }
   });
 
+  it('TURN-008 unsaved chip: warning text is at least 4.5:1 on bg and panel in light and dark', () => {
+    const css = readFileSync('src/ui/styles.css', 'utf8');
+    const chip = css.match(/\.save-chip\.dirty \{[^}]*\}/)?.[0] ?? '';
+    expect(chip).toMatch(/color:\s*var\(--warning\)/);
+    // The header save button is white in both themes, so its dot is a fixed brown rather than the dark-theme warning.
+    expect(css).toMatch(/\.save-dot \{[^}]*background:\s*#8b4800/);
+    expect(ratio('#8b4800', '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+    for (const t of ['A', 'B'] as const) {
+      const v = THEMES[t].vars;
+      expect(ratio(v.warning, v.bg), `${t} warning on bg`).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(v.warning, v.panel), `${t} warning on panel`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it('header icon buttons are transparent with white text, and hover rules do not draw an outline', () => {
     const css = readFileSync('src/ui/styles.css', 'utf8');
     const header = css.slice(css.lastIndexOf('/* TURN-004'));

@@ -78,56 +78,66 @@ export function NameDialog({ title, initial, hint, validate, submitLabel, onSubm
   </Overlay>;
 }
 
-export function WorkspaceManager({ workspaces, activeId, counts, deleteBlock, onSwitch, onCreate, onRename, onDelete, onClose }: {
+/** Workspace list inside the explorer Workspace tab. Same rules as the old management dialog, without a separate window. */
+export function WorkspaceManager({ workspaces, activeId, counts, deleteBlock, onSwitch, onCreate, onRename, onDelete, onBundle, onSearch, onHome, disabled }: {
   workspaces: Workspace[]; activeId: string; counts: Record<string, number>; deleteBlock: (id: string) => string | null;
-  onSwitch: (id: string) => void; onCreate: () => void; onRename: (id: string) => void; onDelete: (id: string) => void; onClose: () => void;
+  onSwitch: (id: string) => void; onCreate: () => void; onRename: (id: string) => void; onDelete: (id: string) => void;
+  onBundle: () => void; onSearch: () => void; onHome: () => void; disabled?: boolean;
 }) {
-  return <Overlay title="Workspace 관리" onClose={onClose}>
-    <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>Workspace는 <b>이 브라우저 저장소 안의 프로젝트 묶음</b>입니다. 파일 폴더가 아니며 다른 PC·브라우저와 공유되지 않습니다(옮기려면 프로젝트별 JSON 내보내기). 공유 에셋·파일 묶음·협업은 지원하지 않습니다.</p>
-    <table className="grid wslist"><thead><tr><th>이름</th><th>저장 프로젝트</th><th /></tr></thead><tbody>
+  return <div className="ws-inline">
+    <p className="muted ex-note">이 브라우저의 작업 묶음. 다른 PC와 자동 공유되지 않습니다.</p>
+    <div className="ws-cards">
       {workspaces.map((w) => {
         const block = deleteBlock(w.id); const cur = w.id === activeId;
-        return <tr key={w.id} data-ws-id={w.id}>
-          <td>{w.name}{cur && <span className="badge ok" style={{ marginLeft: 6 }}>현재</span>}<div className="mono muted" style={{ fontSize: 10 }}>{w.id}</div></td>
-          <td>{counts[w.id] ?? 0}개</td>
-          <td className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
-            <button className="small" disabled={cur} onClick={() => onSwitch(w.id)} aria-label={`${w.name}(으)로 전환`}>전환</button>
-            <button className="small" onClick={() => onRename(w.id)} aria-label={`${w.name} 이름 변경`}>이름 변경</button>
-            <button className="small danger" disabled={!!block} title={block ?? '빈 Workspace 삭제'} aria-label={block ? `${w.name} 삭제 불가: ${block}` : `${w.name} 삭제`} onClick={() => onDelete(w.id)}>삭제</button>
-          </td></tr>;
+        return <div key={w.id} data-ws-id={w.id} className={`ws-card ${cur ? 'on' : ''}`}>
+          <div><b className="ws-name">{w.name}</b>{cur && <span className="badge ok">현재</span>}</div>
+          <div className="muted">프로젝트 {counts[w.id] ?? 0}개</div>
+          <div className="mono muted ws-id">{w.id}</div>
+          <div className="ws-actions">
+            <button type="button" className="small" disabled={disabled || cur} onClick={() => onSwitch(w.id)} aria-label={`${w.name}(으)로 전환`} title={disabled ? '브라우저 저장소 사용 불가' : '전환 시 열린 탭이 닫힙니다 (저장 안 된 편집이 있으면 막음)'}>전환</button>
+            <button type="button" className="small" disabled={disabled} onClick={() => onRename(w.id)} aria-label={`${w.name} 이름 변경`}>이름 변경</button>
+            <button type="button" className="small danger" disabled={disabled || !!block} title={block ?? '빈 Workspace 삭제'} aria-label={block ? `${w.name} 삭제 불가: ${block}` : `${w.name} 삭제`} onClick={() => onDelete(w.id)}>삭제</button>
+          </div>
+        </div>;
       })}
-    </tbody></table>
-    <p className="muted" style={{ fontSize: 12 }}>삭제는 저장 프로젝트가 없는 Workspace만 가능합니다(마지막·현재 Workspace 제외). 프로젝트를 함께 지우지 않습니다.</p>
+    </div>
+    <button type="button" className="small" onClick={onCreate} disabled={disabled}>+ 새 Workspace</button>
+    <div className="exbtns">
+      <button type="button" className="small" onClick={onBundle}>파일 묶음</button>
+      <button type="button" className="small" onClick={onSearch}>공통 탐색</button>
+      <button type="button" className="small" onClick={onHome}>작업 시작 화면</button>
+    </div>
+    <p className="muted ex-note">Workspace는 <b>이 브라우저 저장소 안의 프로젝트 묶음</b>입니다. 파일 폴더가 아니며 다른 PC·브라우저와 공유되지 않습니다(옮기려면 프로젝트별 JSON 내보내기). 공유 에셋·파일 묶음·협업은 지원하지 않습니다.</p>
+    <p className="muted ex-note">삭제는 저장 프로젝트가 없는 Workspace만 가능합니다(마지막·현재 Workspace 제외). 프로젝트를 함께 지우지 않습니다.</p>
     <div className="notice" data-screen-note="S04">
       <b>Workspace 파일 묶음 — 미구현</b>
       <p>작업 공간 공통 라이브러리와 묶음 파일 입출력은 없습니다. 프로젝트는 이 브라우저에 개별 JSON으로만 저장되며 다른 PC와 자동으로 공유되지 않습니다.</p>
       <button type="button" className="small" disabled title="미구현: 작업 공간 묶음 파일을 만들 수 없습니다">묶음 내보내기</button>
     </div>
-    <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
-      <button className="small" onClick={onCreate}>+ 새 Workspace</button>
-      <button onClick={onClose}>닫기</button></div>
-  </Overlay>;
+  </div>;
 }
 
-export function ProjectManager({ wsName, entries, openIds, onOpen, onRename, onDelete, onClose }: {
+/** Saved projects of the current workspace, inside the explorer Project tab. */
+export function ProjectManager({ wsName, entries, openIds, onOpen, onRename, onDelete }: {
   wsName: string; entries: IndexEntry[]; openIds: Set<string>;
-  onOpen: (id: string) => void; onRename: (id: string) => void; onDelete: (id: string) => void; onClose: () => void;
+  onOpen: (id: string) => void; onRename: (id: string) => void; onDelete: (id: string) => void;
 }) {
-  return <Overlay title={`저장된 프로젝트 — ${wsName}`} onClose={onClose}>
-    <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>현재 Workspace에 저장된 프로젝트만 보입니다. 새 프로젝트는 「저장」할 때 이 Workspace에 들어옵니다. 탭 닫기(×)는 저장 데이터를 지우지 않습니다.</p>
-    {entries.length ? <table className="grid projlist"><tbody>{entries.map((e) => {
+  return <div className="proj-inline">
+    <div className="exlabel">저장된 프로젝트 ({wsName})</div>
+    <p className="muted ex-note">현재 Workspace에 저장된 프로젝트만 보입니다. 새 프로젝트는 「저장」할 때 이 Workspace에 들어옵니다. 탭 닫기(×)는 저장 데이터를 지우지 않습니다.</p>
+    {entries.length ? entries.map((e) => {
       const open = openIds.has(e.id);
-      return <tr key={e.id} data-project-id={e.id}>
-        <td>{e.name}{open && <span className="badge" style={{ marginLeft: 6 }}>열림</span>}<div className="mono muted" style={{ fontSize: 10 }}>{e.id}</div></td>
-        <td className="muted" style={{ fontSize: 11 }}>rev {e.revision} · {new Date(e.savedAt).toLocaleString()}</td>
-        <td className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
-          <button className="small" onClick={() => onOpen(e.id)}>{open ? '탭으로 이동' : '열기'}</button>
-          <button className="small" disabled={open} title={open ? '열린 프로젝트는 탭의 ✎로 이름을 바꾸세요 (저장 시 목록에 반영)' : undefined}
+      return <div key={e.id} data-project-id={e.id} className="saved-row">
+        <div className="saved-main"><b>{e.name}</b>{open && <span className="badge">열림</span>}<div className="mono muted">{e.id}</div></div>
+        <div className="muted saved-rev">rev {e.revision} · {new Date(e.savedAt).toLocaleString()}</div>
+        <div className="ws-actions">
+          <button type="button" className="small" onClick={() => onOpen(e.id)}>{open ? '탭으로 이동' : '열기'}</button>
+          <button type="button" className="small" disabled={open} title={open ? '열린 프로젝트는 탭의 ✎로 이름을 바꾸세요 (저장 시 목록에 반영)' : undefined}
             aria-label={open ? `${e.name} 이름 변경 불가: 열린 프로젝트는 탭에서 변경` : `${e.name} 이름 변경`} onClick={() => onRename(e.id)}>이름 변경</button>
-          <button className="small danger" disabled={open} title={open ? '열린 프로젝트는 삭제할 수 없습니다 — 먼저 탭을 닫으세요' : '영구 삭제'}
+          <button type="button" className="small danger" disabled={open} title={open ? '열린 프로젝트는 삭제할 수 없습니다 — 먼저 탭을 닫으세요' : '영구 삭제'}
             aria-label={open ? `${e.name} 삭제 불가: 열린 프로젝트` : `${e.name} 영구 삭제`} onClick={() => onDelete(e.id)}>삭제</button>
-        </td></tr>;
-    })}</tbody></table> : <div className="muted">이 Workspace에 저장된 프로젝트가 없습니다.</div>}
-    <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button onClick={onClose}>닫기</button></div>
-  </Overlay>;
+        </div>
+      </div>;
+    }) : <div className="tempty">아직 저장한 프로젝트가 없습니다.</div>}
+  </div>;
 }

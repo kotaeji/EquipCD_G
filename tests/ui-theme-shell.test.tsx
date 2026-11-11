@@ -93,7 +93,7 @@ describe('theme shell (jsdom)', () => {
     expect(headerBg(stored.app())).toBe(lightBg);
     expect(JSON.parse(localStorage.getItem('ecd.v1.userView')!).theme).toBe('C');
     expect(stored.app().style.getPropertyValue('--header-bg').toUpperCase()).toBe(THEMES.C.vars['header-bg']);
-    const outside = stored.el.querySelector('.tabbar button.btn-main.secondary') as HTMLElement;
+    const outside = stored.el.querySelector('.statusbar button.btn-main.secondary') as HTMLElement;
     const save = stored.el.querySelector('.header button.btn-main.primary') as HTMLElement;
     expect(getComputedStyle(save).backgroundColor).toBe('rgb(255, 255, 255)');
     expect(getComputedStyle(save).color).toBe('rgb(162, 0, 52)');
@@ -111,7 +111,7 @@ describe('theme shell (jsdom)', () => {
     const u = await mount();
     await u.click(u.btn('시작하기'));
     const before = u.history();
-    await u.click(u.btn('관리…'));
+    await u.click(u.el.querySelector('.exitem .x')!);
     const dlg = u.el.querySelector('[role=dialog]') as HTMLElement;
     expect(dlg.getAttribute('aria-modal')).toBe('true');
     const focusable = [...dlg.querySelectorAll<HTMLElement>('button, input, select, textarea')].filter((b) => !b.hasAttribute('disabled'));
