@@ -52,6 +52,8 @@ GrokBot · Cursor Agent · Claude(루카) 등 **이 저장소에 커밋하거나
 ## 7. 동시 작업 금지 파일
 
 - `release/equipment-concept-designer.html` — **TURN PR에서 다시 빌드해 커밋하지 않는다.** Matthew가 머지한 뒤 릴리스 커밋에서 한 번만 갱신한다.
+  - 릴리스는 루카가 최신 `main` 에서 `release/…` 브랜치 PR 로 올린다(바뀌는 파일은 이 HTML 하나).
+  - 릴리스 PR 에도 `review:needed` 가 자동으로 붙는다. 루카는 CI 통과와 「바뀐 파일이 `release/` HTML 하나」임을 확인해 코멘트로 남기고 `review:ok` 를 붙인다. 머지는 Matthew.
 - `package-lock.json`, `assets/aml/*.aml` — 의존성·에셋을 바꾸는 TURN만 수정하고 PR 본문에 이유를 적는다.
 
 ## 8. 금지
