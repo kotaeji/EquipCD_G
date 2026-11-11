@@ -6,6 +6,8 @@
 
 사용자 매뉴얼(한국어, 초보자용 단계별 안내): [`docs/user-manual/USER-MANUAL.ko.md`](docs/user-manual/USER-MANUAL.ko.md) · PDF [`docs/user-manual/USER-MANUAL.ko.pdf`](docs/user-manual/USER-MANUAL.ko.pdf)
 
+기능 목록과 연결표(기능 → 요구 ID → 화면 ID → 와이어프레임·UX·GUI 시안, 개발 상태): [`docs/FEATURE-LIST.md`](docs/FEATURE-LIST.md)
+
 회의용 설계 PDF(와이어프레임·사용자 흐름·화면 시안. 웹 실행 결과가 아님): [`docs/design-review/figma/README.ko.md`](docs/design-review/figma/README.ko.md)
 
 TURN-004 헤더 브랜드색은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-004.md`](docs/turns/TURN-004.md). 헤더 밖 색, 테마 저장값 A/B/C, 프로젝트 JSON, rev, Undo는 바꾸지 않았습니다.
