@@ -27,6 +27,7 @@ GrokBot · Cursor Agent · Claude(루카) 등 **이 저장소에 커밋하거나
    - 바꾼 파일 목록, 하지 않은 것
    - 「확인 필요」
 6. 같은 PR에 `docs/turns/TURN-NNN.md` 를 추가하거나 갱신한다(검수 기록).
+   - **CI 결과만 적으려고 커밋을 더하지 않는다.** 새 커밋은 `review:ok` 를 `review:needed` 로 되돌린다. 검수 기록·PR 본문의 CI 줄은 처음부터 `CI 확인 대기 — 루카가 Actions로 확인` 으로 쓴다. 통과 판정은 루카가 Actions 를 보고 검토 코멘트에 남긴다.
 
 ## 4. 라벨
 
