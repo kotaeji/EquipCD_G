@@ -35,9 +35,55 @@ export interface UserView {
   treeCollapsed: Record<string, string[]>;
   /** S00 start hub. View only — does not change the open project, revision, or run. */
   home: boolean;
+  /** TURN-007: panel widths in px. This browser only — never written into a project file. */
+  panels: PanelWidths;
 }
+
+/** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
+export type PanelKey = 'explorer' | 'library' | 'canvas' | 'run';
+export interface PanelWidths { explorer: number; library: number; canvas: number; run: number }
+export const PANEL_LIMITS: Record<PanelKey, { min: number; max: number; def: number }> = {
+  explorer: { min: 180, max: 420, def: 224 },
+  library: { min: 240, max: 560, def: 256 },
+  canvas: { min: 240, max: 560, def: 256 },
+  run: { min: 240, max: 560, def: 380 },
+};
+export const PANEL_MAIN_MIN = 480;
+export const DEFAULT_PANELS: PanelWidths = {
+  explorer: PANEL_LIMITS.explorer.def, library: PANEL_LIMITS.library.def, canvas: PANEL_LIMITS.canvas.def, run: PANEL_LIMITS.run.def,
+};
+
+/**
+ * Clamp a panel width. `container` is the width of the row that holds the panel and the main column
+ * (app for the explorer, the workspace for a right panel). Null or 0 skips the main-column floor
+ * (jsdom has no layout) and keeps only the panel min/max. When the window cannot satisfy both,
+ * the 480px main floor wins and the panel may sit below its minimum.
+ */
+export function clampPanel(kind: PanelKey, value: number, container: number | null): number {
+  const lim = PANEL_LIMITS[kind];
+  const n = Number.isFinite(value) ? Math.round(value) : lim.def;
+  let hi = lim.max;
+  if (container !== null && container > 0) {
+    const room = container - PANEL_MAIN_MIN;
+    if (room > 0) hi = Math.min(lim.max, room);
+  }
+  const lo = Math.min(lim.min, hi);
+  return Math.min(hi, Math.max(lo, n));
+}
+
+function cleanPanels(v: unknown): PanelWidths {
+  const out: PanelWidths = { ...DEFAULT_PANELS };
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  const o = v as Record<string, unknown>;
+  (Object.keys(PANEL_LIMITS) as PanelKey[]).forEach((k) => {
+    const n = o[k];
+    if (typeof n === 'number' && Number.isFinite(n)) out[k] = clampPanel(k, n, null);
+  });
+  return out;
+}
+
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
-  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true };
+  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS } };
 
 function cleanCollapsed(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -58,6 +104,7 @@ export function loadView(kv: KV | null): UserView {
       confirmed: o.confirmed && typeof o.confirmed === 'object' ? o.confirmed : {},
       libraryFilter: { ...DEFAULT_VIEW.libraryFilter, ...(o.libraryFilter ?? {}) },
       treeCollapsed: cleanCollapsed(o.treeCollapsed),
+      panels: cleanPanels(o.panels),
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
       home: o.home === false ? false : true };
   } catch { return DEFAULT_VIEW; }

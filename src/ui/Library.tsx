@@ -20,6 +20,8 @@ import diagramUnitIdentify from './slots/unitIdentify.svg?url';
 import diagramUnitTransfer from './slots/unitTransfer.svg?url';
 import { Symbol } from './Symbols';
 import { Badge } from './widgets';
+import { Fold } from './Fold';
+import { PanelSplit } from './PanelSplit';
 
 /**
  * Card diagrams, 100×48. Four kinds keep the handed slot files. Cylinder card 1:594 was returned as the same file as the
@@ -87,6 +89,7 @@ interface Props {
   onAdd: (def: AssetDefinition, unitId: string | null) => void;
   onImportAml: (f: File) => void; onExportAml: () => void;
   detail: boolean; setDetail: (open: boolean) => void;
+  detailWidth: number; onDetailWidth: (n: number) => void;
 }
 
 export function LibraryWorkspace(props: Props) {
@@ -130,9 +133,12 @@ export function LibraryWorkspace(props: Props) {
       </div>
       </>}
     </div>
+    <PanelSplit kind="library" value={props.detailWidth} onChange={props.onDetailWidth} label="카드 상세 너비" />
     <div className="libdetail">
+      <div className="libdetail-body">
       {!def ? <div className="section"><h2>카드 상세</h2><p className="muted">카드를 고르면 이름, AML 출처, 넣을 Unit이 여기에 열립니다. 고르는 것만으로 모델은 바뀌지 않습니다.</p></div>
         : <CardDetail def={def} p={p} mode={mode} locked={props.locked} target={target} setTarget={setTarget} onAdd={props.onAdd} onOpen={() => props.setDetail(true)} />}
+      </div>
     </div>
   </div>;
 }
@@ -184,7 +190,7 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd, onOpen }: 
       {!isUnit && p.units.length === 0 && <div className="notice">Device는 Unit 안에만 놓을 수 있습니다. 먼저 유닛 템플릿을 추가하거나 2단계 Canvas에서 빈 Unit을 배치하세요.</div>}
       {locked && <div className="notice warn">실행 중 — 조회만 가능, 추가·수정 차단 (C10-08)</div>}
     </div>
-    <details className="lib-more"><summary>AML·속성·포트 자세히</summary>
+    <Fold className="lib-more" summary="AML·속성·포트 자세히">
     <div className="section"><h4>AML 원본 · 지원 상태</h4>
       <div className="row"><label>파일</label><span className="mono" style={{ fontSize: 11 }}>{def.amlSource.file}</span></div>
       <div className="row"><label>SUC 경로</label><span className="mono" style={{ fontSize: 11 }}>{def.amlSource.sucPath}</span></div>
@@ -220,17 +226,16 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd, onOpen }: 
         </tbody></table>
         <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{gen.meta.toggleRule}. {gen.meta.reviewNote}. AI 이미지는 앱 표시 계층이며 AML에 들어가지 않습니다.</div>
       </div> : <div className="notice warn">{gen.reason}</div>}
-      <details className="history" style={{ marginTop: 8 }}>
-        <summary>이전 참고 사진 (v0.2 출처 이력 — 기본 표시 안 함)</summary>
+      <Fold className="history" summary="이전 참고 사진 (v0.2 출처 이력)">
         <div className="row"><label>AML 사진 참조</label><span className="mono" style={{ fontSize: 11 }}>{def.visualRefs.photo ?? '없음'}</span></div>
         {ph.status === 'available' ? <div style={{ fontSize: 12 }}>
           <div><Badge>{MATCH_LABEL[ph.scope?.matchType ?? 'class-reference']}</Badge> <Badge>촬영 유형: {ph.info.captureType === 'actual-photo' ? '실제 촬영 사진(제3자, 생성 이미지 아님)' : '미확인'}</Badge></div>
           <div style={{ marginTop: 4 }}>{ph.info.title} — {ph.info.author} — <a href={ph.info.licenseUrl} target="_blank" rel="noreferrer">{ph.info.license}</a> — <a href={ph.info.sourcePageUrl} target="_blank" rel="noreferrer">출처 페이지</a></div>
           <div className="muted" style={{ fontSize: 11 }}>{ph.info.attribution}. {GENERATED_META.previousPhotos}.</div>
         </div> : <div className="muted">{ph.reason}</div>}
-      </details>
+      </Fold>
     </div>
-    </details>
+    </Fold>
   </div>;
 }
 

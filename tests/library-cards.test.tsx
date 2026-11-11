@@ -30,7 +30,7 @@ async function mount(node: ReactNode) {
 function library(mode: 'schematic' | 'photo') {
   return <LibraryWorkspace p={buildSampleProject()} locked={false} mode={mode} filter={{ q: '', category: '' }} libVersion={0}
     setFilter={() => {}} setMode={() => {}} onAdd={() => {}} onImportAml={() => {}} onExportAml={() => {}}
-    detail={false} setDetail={() => {}} />;
+    detail={false} setDetail={() => {}} detailWidth={256} onDetailWidth={() => {}} />;
 }
 
 describe('library card diagrams', () => {
