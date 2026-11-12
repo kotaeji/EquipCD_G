@@ -1,6 +1,7 @@
 // S20 concept board. Units and devices are the live model (select, drop, reparent, flow click).
 // Pixel-accurate port wiring stays on the diagram tab; this board does not invent a second layout.
 import { findAsset } from '../assets/library';
+import { nextDeviceSlot } from '../model/unitLayout';
 import type { AssetKind, Project } from '../model/types';
 import type { Mode } from './Canvas';
 
@@ -10,7 +11,7 @@ interface Props {
   mode: Mode;
   locked: boolean;
   onSelect: (ids: string[]) => void;
-  onDropAsset: (kind: AssetKind | 'unit', at: { x: number; y: number }) => void;
+  onDropAsset: (kind: AssetKind | 'unit', at: { x: number; y: number }, unitId?: string) => void;
   onUnitConnectClick: (unitId: string) => void;
   onSignalHint: () => void;
   onReparent: (deviceId: string, unitId: string) => void;
@@ -53,7 +54,7 @@ export function LayoutBoard(props: Props) {
           e.stopPropagation();
           const { kind, deviceId } = take(e);
           if (deviceId && deviceId !== u.id) { props.onReparent(deviceId, u.id); return; }
-          if (kind && kind !== 'unit' && !findAsset(kind)?.template) props.onDropAsset(kind, { x: u.layout.x + 48, y: u.layout.y + 90 });
+          if (kind && kind !== 'unit' && !findAsset(kind)?.template) props.onDropAsset(kind, nextDeviceSlot(p, u.id, kind), u.id);
         }}>
         <h3>{u.code} {u.name.replace(new RegExp(`^${u.code}\\s*`), '')}</h3>
         {u.deviceIds.map((id) => {

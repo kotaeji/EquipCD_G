@@ -683,6 +683,20 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
 .react-flow__attribution.bottom { top: 0; bottom: auto; }
 .react-flow__attribution a { color: var(--muted); font-family: var(--font); }
 
+/* TURN-013: overlap hint and the single bottom-right size handle. Tokens only. */
+.rf-unit.is-overlap {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 45%, transparent);
+}
+.rf-host .react-flow__resize-control.handle.rf-unit-resize {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--accent);
+  border-radius: 3px;
+  background: var(--panel);
+  z-index: 5;
+}
+
 /* TURN-007: panel widths live on .app as --exw/--libw/--propw/--runw (UserView). The 6px hit target overlays the edge. */
 .app { grid-template-columns: var(--exw, 224px) minmax(0, 1fr); }
 /* The explorer scrolls as one column so the Project-tab tree is not squeezed. */
