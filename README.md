@@ -4,7 +4,7 @@
 
 저장소: https://github.com/kotaeji/EquipCD_G · 작업 방법(집 Mac / 회사 Windows): [`docs/DEVELOPMENT-WORKFLOW.md`](docs/DEVELOPMENT-WORKFLOW.md)
 
-사용자 매뉴얼(한국어, 초보자용 단계별 안내): [`docs/user-manual/USER-MANUAL.ko.md`](docs/user-manual/USER-MANUAL.ko.md) · PDF [`docs/user-manual/USER-MANUAL.ko.pdf`](docs/user-manual/USER-MANUAL.ko.pdf)
+사용자 매뉴얼(한국어, 지금 화면 기준, 검토 후보): [`docs/user-manual/USER-MANUAL.ko.md`](docs/user-manual/USER-MANUAL.ko.md) · PDF [`docs/user-manual/USER-MANUAL.ko.pdf`](docs/user-manual/USER-MANUAL.ko.pdf) (2026-11-12에 다시 만듦, 35쪽). 사람 검수 전입니다.
 
 기능 목록과 연결표(기능 → 요구 ID → 화면 ID → 와이어프레임·UX·GUI 시안, 개발 상태): [`docs/FEATURE-LIST.md`](docs/FEATURE-LIST.md)
 
@@ -23,6 +23,8 @@ TURN-008 탐색기 탭·작업 정보 줄은 검토 후보입니다. 사람 검�
 TURN-009 배치·연결 탭은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-009.md`](docs/turns/TURN-009.md). 팔레트 아래에서 카드 보드와 도면 도식을 탭으로 바꿉니다. 고른 탭은 이 브라우저의 UserView에만 남습니다. 프로젝트 JSON, rev, Undo, `release/` 는 바꾸지 않았습니다.
 
 TURN-010 Project 탭은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-010.md`](docs/turns/TURN-010.md). 탐색기 Project 탭은 짧은 프로젝트 목록과 그 아래 장비 구조입니다. 상세 정보와 열기·이름 변경·탭 닫기·삭제는 각 줄의 「…」 팝업입니다. 프로젝트 JSON, rev, Undo, `release/` 는 바꾸지 않았습니다.
+
+TURN-011 사용자 매뉴얼은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-011.md`](docs/turns/TURN-011.md). `main` `4bc0f6a` 화면 기준으로 매뉴얼과 PDF를 다시 썼습니다. 앱 코드, 테스트, `release/` 는 바꾸지 않았습니다.
 
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
