@@ -6,6 +6,7 @@ import {
   Controls,
   Handle,
   MiniMap,
+  NodeResizeControl,
   Panel,
   Position,
   ReactFlow,
@@ -20,6 +21,8 @@ import {
   type Node,
   type NodeProps,
   type OnConnectEnd,
+  type ResizeParams,
+  type ResizeParamsWithDirection,
   type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/base.css';
@@ -28,6 +31,7 @@ import { AI_BADGE, resolveGenerated } from '../assets/visuals';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { Symbol } from './Symbols';
+import { overlappingUnitIds, unitMinSize, type Box } from '../model/unitLayout';
 import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
 
 export type Mode = 'select' | 'flow' | 'signal';
@@ -52,6 +56,8 @@ interface Props {
   onConnectCancel: () => void;
   onUnitConnectClick: (unitId: string) => void;
   onBlocked: (msg: string) => void;
+  /** Bottom-right handle released. One resizeUnit command. */
+  onResizeCommit: (unitId: string, w: number, h: number) => void;
   /** Shown over the diagram. Null keeps the canvas from growing. */
   connectNote: string | null;
   /** Viewport zoom → UserView.zoom. Pan is not stored. */
@@ -77,11 +83,14 @@ type DragApi = {
   move: (e: React.PointerEvent, id: string) => void;
   up: (e: React.PointerEvent, id: string) => void;
   port: (e: React.PointerEvent, signalId: string) => void;
+  resize: (id: string, w: number, h: number) => void;
+  resizeEnd: (id: string, w: number, h: number) => void;
 };
 
 type UnitData = {
-  code: string; name: string; meta: string; w: number; h: number;
-  selected: boolean; from: boolean; off: boolean; api: DragApi;
+  unitId: string; code: string; name: string; meta: string; w: number; h: number;
+  selected: boolean; from: boolean; off: boolean; overlap: boolean;
+  showResize: boolean; minW: number; minH: number; api: DragApi;
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
@@ -116,14 +125,35 @@ function nodeIdOf(el: Element) {
 
 function UnitNode({ data }: NodeProps) {
   const d = data as UnitData;
+  const live = useRef(d);
+  live.current = d;
+  const onResize = useCallback((_: unknown, params: ResizeParamsWithDirection) => {
+    live.current.api.resize(live.current.unitId, params.width, params.height);
+  }, []);
+  const onResizeEnd = useCallback((_: unknown, params: ResizeParams) => {
+    live.current.api.resizeEnd(live.current.unitId, params.width, params.height);
+  }, []);
   return (
     <div
-      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}`}
+      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}`}
       style={{ width: d.w, height: d.h }}
-      onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest('.react-flow__resize-control')) { e.stopPropagation(); return; }
+        d.api.down(e, nodeIdOf(e.currentTarget));
+      }}
       onPointerMove={(e) => d.api.move(e, nodeIdOf(e.currentTarget))}
       onPointerUp={(e) => d.api.up(e, nodeIdOf(e.currentTarget))}
     >
+      {d.showResize && (
+        <NodeResizeControl
+          position="bottom-right"
+          className="rf-unit-resize"
+          minWidth={d.minW}
+          minHeight={d.minH}
+          onResize={onResize}
+          onResizeEnd={onResizeEnd}
+        />
+      )}
       <div className="rf-unit-head">
         <span className="rf-code">{d.code}</span>
         <span className="rf-unit-name">{d.name}</span>
@@ -236,9 +266,14 @@ function FlowCanvas(props: Props) {
   const dragRef = useRef<{ ids: string[]; sx: number; sy: number; origin: string } | null>(null);
   const abortRef = useRef(false);
   const [preview, setPreview] = useState<{ ids: string[]; dx: number; dy: number } | null>(null);
+  const [resizePreview, setResizePreview] = useState<{ id: string; w: number; h: number } | null>(null);
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const store = useStoreApi();
   const L = view.layers;
+
+  useEffect(() => {
+    if (props.locked && resizePreview) setResizePreview(null);
+  }, [props.locked, resizePreview]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -321,6 +356,22 @@ function FlowCanvas(props: Props) {
       setPreview(null);
       if (Math.abs(dx) + Math.abs(dy) >= 2) propsRef.current.onMoveCommit(d.ids, dx, dy, pt);
     },
+    resize: (id, w, h) => {
+      const nw = Math.round(w);
+      const nh = Math.round(h);
+      setResizePreview((prev) => (prev && prev.id === id && prev.w === nw && prev.h === nh ? prev : { id, w: nw, h: nh }));
+    },
+    resizeEnd: (id, w, h) => {
+      setResizePreview(null);
+      const cur = propsRef.current;
+      const u = cur.project.units.find((x) => x.id === id);
+      if (!u) return;
+      const min = unitMinSize(cur.project, id);
+      const nw = Math.round(Math.max(w, min.w));
+      const nh = Math.round(Math.max(h, min.h));
+      if (nw === u.layout.w && nh === u.layout.h) return;
+      cur.onResizeCommit(id, nw, nh);
+    },
     port: (e, signalId) => {
       // Keep the event from reaching the device body. Do not preventDefault — that would swallow the mouse down React Flow uses to start a connection line.
       e.stopPropagation();
@@ -355,20 +406,30 @@ function FlowCanvas(props: Props) {
     taken: p.connections.filter((c) => c.kind === 'signal' && c.from.signalId === pendingSig.id && c.to.signalId).map((c) => c.to.signalId!),
   } : null;
 
+  const boxes: (Box & { id: string })[] = p.units.map((u) => {
+    const o = off(u.id);
+    const rz = resizePreview?.id === u.id ? resizePreview : null;
+    return { id: u.id, x: u.layout.x + o.dx, y: u.layout.y + o.dy, w: rz?.w ?? u.layout.w, h: rz?.h ?? u.layout.h };
+  });
+  const overlap = new Set(overlappingUnitIds(boxes));
   const nodes: Node[] = [];
   for (const u of p.units) {
-    const o = off(u.id);
+    const box = boxes.find((b) => b.id === u.id)!;
     const short = u.name.replace(new RegExp(`^${u.code}\\s*`), '');
+    const min = unitMinSize(p, u.id);
+    const selected = selection.includes(u.id);
     nodes.push({
-      id: u.id, type: 'unit', zIndex: selection.includes(u.id) ? 2 : 1,
-      position: { x: u.layout.x + o.dx, y: u.layout.y + o.dy },
-      width: u.layout.w, height: u.layout.h, measured: { width: u.layout.w, height: u.layout.h },
+      id: u.id, type: 'unit', zIndex: selected ? 2 : 1,
+      position: { x: box.x, y: box.y },
+      width: box.w, height: box.h, measured: { width: box.w, height: box.h },
       draggable: false, selectable: false, connectable: false, deletable: false,
       className: 'nopan',
       data: {
-        code: u.code, name: short, meta: `${u.deviceIds.length} dev · cap ${u.capacity.maxMaterials.value ?? '?'}`,
-        w: u.layout.w, h: u.layout.h, selected: selection.includes(u.id), from: connectFrom === u.id,
-        off: !L.units, api,
+        unitId: u.id, code: u.code, name: short, meta: `${u.deviceIds.length} dev · cap ${u.capacity.maxMaterials.value ?? '?'}`,
+        w: box.w, h: box.h, selected, from: connectFrom === u.id,
+        off: !L.units, overlap: overlap.has(u.id),
+        showResize: selected && mode === 'select' && !props.locked && L.units,
+        minW: min.w, minH: min.h, api,
       } satisfies UnitData,
     });
   }

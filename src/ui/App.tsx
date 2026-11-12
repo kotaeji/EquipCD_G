@@ -216,13 +216,20 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
 
   // ---------- canvas handlers ----------
-  const onDropAsset = (kind: AssetKind | 'unit', at: { x: number; y: number }) => {
+  const onDropAsset = (kind: AssetKind | 'unit', at: { x: number; y: number }, unitId?: string) => {
     if (locked) { say('실행 중에는 배치(모델 편집)가 차단됩니다', true); return; }
     if (kind === 'unit') { const r = C.addUnit(p, '', { x: Math.round(at.x - 108), y: Math.round(at.y - 20) }); if (edit(r, 'Unit 배치') && r.ok) setSelection([r.note!]); return; }
     const def = findAsset(kind);
     if (def?.template) { const r2 = C.addUnitFromTemplate(p, kind, { x: Math.round(at.x - 108), y: Math.round(at.y - 20) }); if (edit(r2, `${def.name} 배치`) && r2.ok) setSelection([r2.note!]); return; }
-    const r = C.addDevice(p, kind, { x: Math.round(at.x - 25), y: Math.round(at.y - 20) });
+    const pt = unitId ? { x: Math.round(at.x), y: Math.round(at.y) } : { x: Math.round(at.x - 25), y: Math.round(at.y - 20) };
+    const r = C.addDevice(p, kind, pt, undefined, undefined, unitId);
     if (edit(r, `${def?.name ?? kind} 배치`) && r.ok) { setSelection([r.note!]); setRightTab('props'); }
+  };
+  const onResizeCommit = (unitId: string, w: number, h: number) => { edit(C.resizeUnit(p, unitId, w, h), 'Unit 크기'); };
+  const fitSelectedUnit = () => {
+    const id = selection.length === 1 && p.units.some((u) => u.id === selection[0]) ? selection[0] : null;
+    if (!id) return;
+    edit(C.fitUnitToContent(p, id), '크기 맞춤');
   };
   /** Library card "프로젝트에 추가" (C03-AC5): the only path from the library that changes the model. */
   const onAddFromLibrary = (def: AssetDefinition, unitId: string | null) => {
@@ -639,11 +646,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
   const runCanvasEl = <Canvas project={p} rt={runMode === 'group' ? groupCanvasRt : rt} activeDeviceIds={runMode === 'group' ? activeDeviceIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
-    onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
+    onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
   const canvasEl = <Canvas project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
-    onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
+    onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
@@ -777,6 +784,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   {visualToggle}
                   <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
                   <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
+                  <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}>크기 맞춤</button>
                   <button className="danger" onClick={() => selectedId && requestDelete(selectedId)} disabled={!selectedId || locked}>삭제</button>
                 </div>
                 <div className="diagram-canvas">{canvasEl}</div>
@@ -800,6 +808,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               if (!qv) return null;
               return <p key={pd.key}>{pd.label}<br />{qv.value ?? '미정'} {qv.unit}{qv.assumption ? ' · 가정값' : ''}</p>;
             })}
+            {!d && host && <button type="button" className="btn-main secondary" onClick={fitSelectedUnit}>크기 맞춤</button>}
             <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); setRightTab('actions'); goStep('attributes'); }}>Action 편집</button>
             {missingComplete && <p className="warn-note">완료 신호 미정 · 실행 차단<br />필수 값은 임의로 채우지 않습니다.</p>}
             <button type="button" className="btn-main secondary" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}>삭제 영향 확인</button>

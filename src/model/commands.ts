@@ -3,6 +3,7 @@ import { findAsset, getAssetById } from '../assets/library';
 import { instantiateDevice, makeUnit, newId } from './factory';
 import type { Action, AssetKind, Condition, Connection, Device, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { q } from './types';
+import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, tightUnitLayout, unitMinSize } from './unitLayout';
 
 export type CmdResult = { ok: true; project: Project; note?: string } | { ok: false; reason: string };
 
@@ -19,7 +20,7 @@ export function unitAt(p: Project, x: number, y: number): Unit | undefined {
 export function addUnit(p0: Project, name: string, at: { x: number; y: number }, idOf: (s: string) => string = newId): CmdResult {
   const p = clone(p0);
   const code = `S${p.units.length + 1}`;
-  const u = makeUnit(name || `${code} 새 유닛`, code, { x: at.x, y: at.y, w: 216, h: 300 }, idOf);
+  const u = makeUnit(name || `${code} 새 유닛`, code, { x: at.x, y: at.y, w: UNIT_DEFAULT_W, h: UNIT_DEFAULT_H }, idOf);
   p.units.push(u); p.equipment.unitIds.push(u.id);
   return ok(p, u.id);
 }
@@ -61,16 +62,18 @@ export function addUnitFromTemplate(p0: Project, kind: AssetKind, at: { x: numbe
     for (const pr of r.pre) { const s = sig(pr.child, pr.port); if (!s) return no(`템플릿 규칙 조건 ${pr.child}.${pr.port} 해석 실패 — 배치 취소`); act.pre.push({ kind: 'signal', signalId: s.id, equals: pr.equals }); }
     act.note = `유닛 템플릿 ${def.id}@${def.version} 규칙에서 생성된 사전조건 (가정, 확인 필요)`;
   }
+  fitUnit(p, u.id);
   return ok(p, u.id);
 }
 
-export function addDevice(p0: Project, kind: AssetKind, at: { x: number; y: number }, name?: string, idOf: (s: string) => string = newId): CmdResult {
-  const unit = unitAt(p0, at.x, at.y);
-  if (!unit) return no('Device는 Unit 영역 안에 놓아야 합니다 (Equipment > Unit > Device). 먼저 Unit을 배치하세요.');
+export function addDevice(p0: Project, kind: AssetKind, at: { x: number; y: number }, name?: string, idOf: (s: string) => string = newId, unitId?: string): CmdResult {
+  const unit = unitId ? p0.units.find((u) => u.id === unitId) : unitAt(p0, at.x, at.y);
+  if (!unit) return no(unitId ? '대상 Unit 없음' : 'Device는 Unit 영역 안에 놓아야 합니다 (Equipment > Unit > Device). 먼저 Unit을 배치하세요.');
   const p = clone(p0);
   const b = instantiateDevice(kind, unit.id, at, name, idOf);
   p.devices.push(b.device); p.signals.push(...b.signals); p.positions.push(...b.positions); p.actions.push(...b.actions);
   p.units.find((u) => u.id === unit.id)!.deviceIds.push(b.device.id);
+  fitUnit(p, unit.id);
   return ok(p, b.device.id);
 }
 
@@ -88,6 +91,9 @@ export function moveNodes(p0: Project, ids: string[], dx: number, dy: number): C
     const d = p.devices.find((x) => x.id === id);
     if (d && !moved.has(d.id)) { mv(d.layout); moved.add(d.id); }
   }
+  const grow = new Set<string>();
+  for (const d of p.devices) if (moved.has(d.id) && !moved.has(d.unitId)) grow.add(d.unitId);
+  for (const id of grow) fitUnit(p, id);
   return ok(p);
 }
 
@@ -104,6 +110,9 @@ export function alignNodes(p0: Project, ids: string[], mode: 'left' | 'top'): Cm
     if (mode === 'left') u.layout.x = v; else u.layout.y = v;
     for (const d of p.devices) if (d.unitId === u.id && !ids.includes(d.id)) { if (mode === 'left') d.layout.x += delta; else d.layout.y += delta; }
   }
+  const grow = new Set<string>();
+  for (const d of p.devices) if (ids.includes(d.id)) grow.add(d.unitId);
+  for (const id of grow) fitUnit(p, id);
   return ok(p);
 }
 
@@ -188,6 +197,35 @@ export function reparentDevice(p0: Project, deviceId: string, newUnitId: string,
   d.unitId = newUnitId;
   if (at) { d.layout.x = Math.round(at.x); d.layout.y = Math.round(at.y); }
   for (const a of p.actions) if (a.deviceId === deviceId) a.unitId = newUnitId;
+  fitUnit(p, newUnitId);
+  return ok(p);
+}
+
+/** Bottom-right resize. x/y stay. Smaller than the Devices (plus header and pad) is clamped, not applied as a cut. */
+export function resizeUnit(p0: Project, unitId: string, w: number, h: number): CmdResult {
+  const u0 = p0.units.find((u) => u.id === unitId);
+  if (!u0) return no('Unit 없음');
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return no('크기가 올바르지 않습니다');
+  const min = unitMinSize(p0, unitId);
+  const nw = Math.round(Math.max(w, min.w));
+  const nh = Math.round(Math.max(h, min.h));
+  if (nw === u0.layout.w && nh === u0.layout.h) return no('크기 변화 없음');
+  const p = clone(p0);
+  const u = p.units.find((x) => x.id === unitId)!;
+  u.layout.w = nw;
+  u.layout.h = nh;
+  return ok(p);
+}
+
+/** 「크기 맞춤」: shrink (or snap) to the Devices. Empty unit returns to 216×300. One undo step. */
+export function fitUnitToContent(p0: Project, unitId: string): CmdResult {
+  const u0 = p0.units.find((u) => u.id === unitId);
+  if (!u0) return no('Unit 없음');
+  const layout = tightUnitLayout(p0, unitId);
+  if (!layout) return no('Unit 없음');
+  if (layout.x === u0.layout.x && layout.y === u0.layout.y && layout.w === u0.layout.w && layout.h === u0.layout.h) return no('크기 변화 없음');
+  const p = clone(p0);
+  p.units.find((u) => u.id === unitId)!.layout = layout;
   return ok(p);
 }
 
