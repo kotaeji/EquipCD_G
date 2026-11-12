@@ -659,6 +659,22 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   overflow: hidden;
 }
 .rf-legend > div { display: flex; align-items: center; gap: 4px; }
+.rf-connect-note {
+  margin: 0;
+  max-width: calc(100% - 40px);
+  pointer-events: none;
+  background: var(--panel);
+  z-index: 5;
+}
+.layout-tabs .board { position: relative; }
+.board-connect-note {
+  top: 8px;
+  left: 16px;
+  z-index: 2;
+  margin: 0;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+}
 .react-flow__attribution {
   background: var(--panel);
   border: 1px solid var(--border);

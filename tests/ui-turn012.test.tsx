@@ -122,6 +122,22 @@ describe('TURN-012 port connect', () => {
     expect(u.startNote()).toBe('');
   });
 
+  it('AC3: the start notice does not move the diagram canvas', async () => {
+    const u = await mount();
+    await u.click(u.btn('신호 연결'));
+    const host = () => u.el.querySelector('.diagram-canvas .rf-host') as HTMLElement;
+    const before = host().getBoundingClientRect().top;
+    await u.point(u.port('CYL-01', 'out', 'fwdDone'), 'pointerdown', 0, 0);
+    expect(u.startNote()).toContain('연결 시작');
+    expect(host().getBoundingClientRect().top).toBe(before);
+    const notes = [...u.el.querySelectorAll('.notice')].filter((n) => (n.textContent ?? '').includes('연결 시작'));
+    expect(notes.length).toBeGreaterThan(0);
+    for (const n of notes) {
+      expect(n.closest('.rf-host, .board')).not.toBeNull();
+      expect((n as HTMLElement).style.position).toBe('absolute');
+    }
+  });
+
   it('AC4: in-port start, same device, duplicate, empty drop, and Esc do not connect', async () => {
     const u = await mount();
     const rev0 = u.rev();

@@ -14,6 +14,8 @@ interface Props {
   onUnitConnectClick: (unitId: string) => void;
   onSignalHint: () => void;
   onReparent: (deviceId: string, unitId: string) => void;
+  /** Overlay. It does not take a row, so the cards stay put. */
+  connectNote: string | null;
 }
 
 const kindLabel = (kind: string) => findAsset(kind)?.name ?? kind;
@@ -39,6 +41,7 @@ export function LayoutBoard(props: Props) {
     return { kind, deviceId };
   };
   return <div className="board" data-board="live">
+    {props.connectNote && <p className="notice board-connect-note" style={{ position: 'absolute' }}>{props.connectNote}</p>}
     <div className="board-row" onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
       const { kind } = take(e);
       if (kind === 'unit' || (kind && findAsset(kind)?.template)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
