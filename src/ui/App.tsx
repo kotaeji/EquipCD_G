@@ -17,7 +17,7 @@ import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
-import { devName, sigName, unitName } from './labels';
+import { connectStartLabel, devName, sigName, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
 import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RuntimePanel, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
@@ -289,6 +289,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (edit(r, '신호 연결')) say('신호 연결 추가');
     setConnectFrom(null);
   };
+  const onSignalConnect = (fromId: string, toId: string) => {
+    const r = C.addConnection(p, 'signal', fromId, toId);
+    if (edit(r, '신호 연결')) say('신호 연결 추가');
+    setConnectFrom(null);
+  };
+  const onConnectCancel = () => setConnectFrom(null);
   const requestDelete = (id: string) => {
     if (locked) { say('실행 중에는 삭제가 차단됩니다', true); return; }
     if (p.connections.some((c) => c.id === id)) { edit(C.deleteConnection(p, id), '연결 삭제'); setSelection([]); return; }
@@ -631,12 +637,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const groupCanvasRt = gs ? ({ ...gs, stepIndex: 0, active: null, steps: [] } as unknown as typeof rt) : null;
   const activeDeviceIds = gs ? gs.lanes.filter((l) => l.active).map((l) => { const q = (p.substationSequences ?? []).find((x) => x.id === l.seqId); const a = p.actions.find((x) => x.id === q?.steps[l.stepIndex]?.actionId); return a?.deviceId ?? ''; }) : [];
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
+  const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
   const runCanvasEl = <Canvas project={p} rt={runMode === 'group' ? groupCanvasRt : rt} activeDeviceIds={runMode === 'group' ? activeDeviceIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} />;
+    onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
   const canvasEl = <Canvas project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} />;
+    onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
@@ -738,7 +747,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <div className="tool-pills">
               <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
               <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결">물류 연결</button>
-              <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트에서 입력 포트로 연결. 포트는 도면 도식 탭에 있습니다">신호 연결</button>
+              <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트를 입력 포트로 끌어 연결합니다. 이 모드에서는 두 번 눌러서도 됩니다. 포트는 도면 도식 탭에 있습니다">신호 연결</button>
               <div className="layerbox"><button className={layerOpen ? 'on' : ''} onClick={() => setLayerOpen(!layerOpen)}>레이어</button>
                 {layerOpen && <div className="layerpop">{([['background', '배경'], ['units', 'Substation'], ['axis', '축·이송'], ['io', '포트·신호선'], ['positions', '포지션'], ['flow', '물류·자재']] as [LayerId, string][]).map(([k, l]) =>
                   <label key={k}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
@@ -753,16 +762,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
             </div>
           </Fold>
-          {connectFrom && <p className="notice">연결 시작: {connectFrom}. Esc로 취소합니다.</p>}
           <div className="layout-tabs">
             <Tabs label="배치·연결" idBase="layout" value={view.layoutTab} onChange={openLayoutTab} tabs={[
               { id: 'board', label: '카드 보드', panel: <>
                 <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
-                  onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick} onReparent={requestReparent} />
+                  onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick}
+                  onSignalHint={() => say('신호 연결은 도면 도식 탭의 포트에서 합니다')} onReparent={requestReparent}
+                  connectNote={connectNote} />
                 <p className="path-note">{flowSummary(p)}<br />카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 도면 도식 탭에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
               </> },
               { id: 'diagram', label: '도면 도식', panel: <>
                 <div className="diagram-tools">
+                  <p className="diagram-hint">신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기</p>
                   {visualToggle}
                   <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
                   <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>

@@ -1,8 +1,22 @@
+import { findAsset } from '../assets/library';
 import type { Condition, MaterialEffect, Project } from '../model/types';
 
 export function sigName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; return p.signals.find((s) => s.id === id)?.name ?? `⚠없음:${id}`; }
 export function unitName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; if (id === 'EXIT') return '배출(장비 밖)'; return p.units.find((u) => u.id === id)?.name ?? `⚠없음:${id}`; }
 export function devName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; return p.devices.find((d) => d.id === id)?.name ?? `⚠없음:${id}`; }
+
+/** Connection-start notice: device name, signal name, direction — not the internal id. */
+export function connectStartLabel(p: Project, id: string): string {
+  const s = p.signals.find((x) => x.id === id);
+  if (s) {
+    const d = p.devices.find((x) => x.id === s.deviceId);
+    const kind = d ? findAsset(d.kind)?.name : '';
+    const who = [d?.name, kind].filter(Boolean).join(' ');
+    const dir = s.direction === 'out' ? '출력' : '입력';
+    return `${who} · ${s.portKey || s.name} (${dir})`;
+  }
+  return p.units.find((u) => u.id === id)?.name ?? id;
+}
 export function condLabel(p: Project, c: Condition): string {
   switch (c.kind) {
     case 'signal': return `${sigName(p, c.signalId)} = ${c.equals}`;

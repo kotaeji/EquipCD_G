@@ -12,7 +12,10 @@ interface Props {
   onSelect: (ids: string[]) => void;
   onDropAsset: (kind: AssetKind | 'unit', at: { x: number; y: number }) => void;
   onUnitConnectClick: (unitId: string) => void;
+  onSignalHint: () => void;
   onReparent: (deviceId: string, unitId: string) => void;
+  /** Overlay. It does not take a row, so the cards stay put. */
+  connectNote: string | null;
 }
 
 const kindLabel = (kind: string) => findAsset(kind)?.name ?? kind;
@@ -38,12 +41,13 @@ export function LayoutBoard(props: Props) {
     return { kind, deviceId };
   };
   return <div className="board" data-board="live">
+    {props.connectNote && <p className="notice board-connect-note" style={{ position: 'absolute' }}>{props.connectNote}</p>}
     <div className="board-row" onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
       const { kind } = take(e);
       if (kind === 'unit' || (kind && findAsset(kind)?.template)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
     }}>
       {units.map((u) => <article key={u.id} className={`station-card ${selection.includes(u.id) ? 'on' : ''}`}
-        onClick={() => { if (mode === 'flow' || mode === 'signal') props.onUnitConnectClick(u.id); else props.onSelect([u.id]); }}
+        onClick={() => { if (mode === 'flow') props.onUnitConnectClick(u.id); else if (mode === 'signal') props.onSignalHint(); else props.onSelect([u.id]); }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.stopPropagation();
