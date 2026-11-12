@@ -6,7 +6,7 @@
 
 사용자 매뉴얼(한국어, 지금 화면 기준, 검토 후보): [`docs/user-manual/USER-MANUAL.ko.md`](docs/user-manual/USER-MANUAL.ko.md) · PDF [`docs/user-manual/USER-MANUAL.ko.pdf`](docs/user-manual/USER-MANUAL.ko.pdf) (2026-11-12에 다시 만듦, 35쪽). 사람 검수 전입니다.
 
-기능 목록과 연결표(기능 → 요구 ID → 화면 ID → 와이어프레임·UX·GUI 시안, 개발 상태): [`docs/FEATURE-LIST.md`](docs/FEATURE-LIST.md)
+기능 목록과 연결표(기능 → 요구 ID → 화면 ID → 와이어프레임·UX·GUI 시안, 개발 상태): [`docs/FEATURE-LIST.md`](docs/FEATURE-LIST.md) · 보기용 [`Feature_Map.html`](docs/traceability/Feature_Map.html) · [`Feature_Traceability.xlsx`](docs/traceability/Feature_Traceability.xlsx)
 
 회의용 설계 PDF(와이어프레임·사용자 흐름·화면 시안. 웹 실행 결과가 아님): [`docs/design-review/figma/README.ko.md`](docs/design-review/figma/README.ko.md)
 

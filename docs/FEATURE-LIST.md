@@ -4,6 +4,7 @@
 - 요구 ID는 공개 통합본 [`requirements-v0.3.md`](requirements-v0.3.md)를 따른다. 정본은 앰플노트 `<Requirement> Aurora Concept Designer`다. 이 표는 정본과 대조하지 않았다(아래 「확인 필요」).
 - 이 문서는 지금 앱에 **있는 것**을 적는다. 요구의 [확정]/[설계 제안]/[미정]은 요구 쪽 상태라서 여기 「상태」와 다르다.
 - 검토 후보다. 사람 검수 전인 기능은 「👤」로 따로 표시한다.
+- 보기용 사본: [`traceability/Feature_Map.html`](traceability/Feature_Map.html)(필터·검색·기능별 연결 고리) · [`traceability/Feature_Traceability.xlsx`](traceability/Feature_Traceability.xlsx)(시트별 커버리지). 이 문서에서 `traceability/build_traceability.py` 로 만든다 — 이 문서를 고치면 다시 만든다.
 
 ## 0. 읽는 법
 
@@ -211,4 +212,4 @@
 
 - 요구 ID 는 공개 통합본 v0.3(2026-11-08) 기준이다. 앰플노트 정본과 다른 곳이 있으면 정본이 이긴다 — 정본 대조는 아직 안 했다.
 - 텍스트 와이어프레임·UX 시나리오(`WIREFRAMES.md` · `UX-SCENARIOS.md`)와 시안 PDF 는 TURN-008~010 이전 배치다. 고칠지(N06) 정해야 한다.
-- 사용자 매뉴얼(`user-manual/USER-MANUAL.ko.md`)은 TURN-007~010 이전 화면이다. 이 기능 목록을 기준으로 다시 쓰는 TURN 을 따로 연다.
+- 사용자 매뉴얼은 TURN-011 에서 이 기능 목록 기준으로 다시 썼다(부록 A 「기능 ID와 절」). 처음 쓰는 사람이 매뉴얼만으로 5공정 예제를 실행할 수 있는지(AC10)는 사람 검수 전이다.
