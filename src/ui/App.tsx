@@ -101,6 +101,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const m = map[k]; if (m) goStep(m[0], m[1]);
   };
   const [layerOpen, setLayerOpen] = useState(false);
+  const [arrangeOpen, setArrangeOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -130,6 +131,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       : ts);
   }, [activeKey]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.err ? 6000 : 3000); return () => clearTimeout(t); }, [toast]);
+  useEffect(() => {
+    if (!arrangeOpen) return;
+    const close = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest('.arrange-menu')) setArrangeOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [arrangeOpen]);
   const say = (msg: string, err = false) => setToast({ msg, err });
 
   const updTab = useCallback((key: string, f: (t: Tab) => Tab) => setTabs((ts) => ts.map((t) => (t.key === key ? f(t) : t))), []);
@@ -231,6 +241,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!id) return;
     edit(C.fitUnitToContent(p, id), '크기 맞춤');
   };
+  const selectedUnitCount = p.units.filter((u) => selection.includes(u.id)).length;
+  const runArrange = (r: C.CmdResult, label: string) => {
+    setArrangeOpen(false);
+    if (edit(r, label) && r.ok && r.note) say(r.note);
+  };
+  const arrangeItems: { label: string; min: number; undo: string; run: () => C.CmdResult }[] = [
+    { label: '가로 간격 같게', min: 3, undo: '가로 간격 같게', run: () => C.distributeUnits(p, selection, 'x') },
+    { label: '세로 간격 같게', min: 3, undo: '세로 간격 같게', run: () => C.distributeUnits(p, selection, 'y') },
+    { label: '너비 같게', min: 2, undo: '너비 같게', run: () => C.matchUnitSize(p, selection, 'w') },
+    { label: '높이 같게', min: 2, undo: '높이 같게', run: () => C.matchUnitSize(p, selection, 'h') },
+    { label: '겹침 풀기', min: 2, undo: '겹침 풀기', run: () => C.spreadUnits(p, selection, C.UNIT_SPREAD_GAP) },
+  ];
   /** Library card "프로젝트에 추가" (C03-AC5): the only path from the library that changes the model. */
   const onAddFromLibrary = (def: AssetDefinition, unitId: string | null) => {
     if (locked) { say('실행 중에는 추가(모델 편집)가 차단됩니다', true); return; }
@@ -784,6 +806,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   {visualToggle}
                   <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
                   <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
+                  <div className="layerbox arrange-menu">
+                    <button type="button" className={arrangeOpen ? 'on' : ''} aria-expanded={arrangeOpen} aria-haspopup="menu" aria-controls="arrange-menu" title="고른 Unit의 간격·크기·겹침" onClick={() => setArrangeOpen((v) => !v)}>배치 ▾</button>
+                    {arrangeOpen && <div className="layerpop arrange-pop" id="arrange-menu" role="menu">
+                      {arrangeItems.map((item) => {
+                        const reason = selectedUnitCount < item.min ? (item.min >= 3 ? C.ARRANGE_NEED_3 : C.ARRANGE_NEED_2) : undefined;
+                        return <button key={item.label} type="button" role="menuitem" disabled={!!reason} title={reason} onClick={() => runArrange(item.run(), item.undo)}>{item.label}</button>;
+                      })}
+                    </div>}
+                  </div>
                   <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}>크기 맞춤</button>
                   <button className="danger" onClick={() => selectedId && requestDelete(selectedId)} disabled={!selectedId || locked}>삭제</button>
                 </div>
