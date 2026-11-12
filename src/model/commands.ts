@@ -116,6 +116,109 @@ export function alignNodes(p0: Project, ids: string[], mode: 'left' | 'top'): Cm
   return ok(p);
 }
 
+/** User-facing refusal when a Unit arrange command has nothing to do. */
+export const ARRANGE_UNCHANGED = '바뀐 것 없음';
+export const ARRANGE_NEED_2 = 'Unit 을 2개 이상 고르세요';
+export const ARRANGE_NEED_3 = 'Unit 을 3개 이상 고르세요';
+/** Shown with a successful distribute when the equal gap is still an overlap. */
+export const ARRANGE_OVERLAP_HINT = '먼저 겹침 풀기를 누르세요';
+/** 「겹침 풀기」 minimum horizontal gap. Same pitch as the 5-step sample (236 − 216). */
+export const UNIT_SPREAD_GAP = 20;
+
+type ArrangeAxis = 'x' | 'y';
+
+function pickedUnits(p: Project, ids: string[]): Unit[] {
+  const want = new Set(ids);
+  return p.units.filter((u) => want.has(u.id));
+}
+
+function sortUnits(units: Unit[], axis: ArrangeAxis): Unit[] {
+  const other: ArrangeAxis = axis === 'x' ? 'y' : 'x';
+  return [...units].sort((a, b) => a.layout[axis] - b.layout[axis] || a.layout[other] - b.layout[other] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/** Move a Unit and every Device that belongs to it. Devices named in the selection are not a separate target. */
+function shiftUnit(unit: Unit, devices: Device[], dx: number, dy: number): boolean {
+  const mx = Math.round(dx);
+  const my = Math.round(dy);
+  if (mx === 0 && my === 0) return false;
+  unit.layout.x += mx;
+  unit.layout.y += my;
+  for (const d of devices) if (d.unitId === unit.id) { d.layout.x += mx; d.layout.y += my; }
+  return true;
+}
+
+/**
+ * PowerPoint-style distribute. The first and last Unit on `axis` stay put.
+ * Middles move so the empty gap between neighbors (previous far edge → next near edge) is equal.
+ * The other axis is unchanged. Fewer than 3 Units is refused. Devices in `ids` are ignored.
+ */
+export function distributeUnits(p0: Project, ids: string[], axis: ArrangeAxis): CmdResult {
+  if (pickedUnits(p0, ids).length < 3) return no(ARRANGE_NEED_3);
+  const p = clone(p0);
+  const sorted = sortUnits(pickedUnits(p, ids), axis);
+  const size = axis === 'x' ? 'w' : 'h';
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const gapCount = sorted.length - 1;
+  const middleSum = sorted.slice(1, -1).reduce((sum, u) => sum + u.layout[size], 0);
+  const span = last.layout[axis] - (first.layout[axis] + first.layout[size]);
+  const gap = (span - middleSum) / gapCount;
+  const start = first.layout[axis] + first.layout[size];
+  let changed = false;
+  let placed = 0;
+  for (let i = 1; i < sorted.length - 1; i++) {
+    const ideal = start + i * gap + placed;
+    const delta = Math.round(ideal) - sorted[i].layout[axis];
+    const moved = axis === 'x' ? shiftUnit(sorted[i], p.devices, delta, 0) : shiftUnit(sorted[i], p.devices, 0, delta);
+    changed = moved || changed;
+    placed += sorted[i].layout[size];
+  }
+  if (!changed) return no(ARRANGE_UNCHANGED);
+  const overlaps = sorted.some((u, i) => i > 0 && u.layout[axis] < sorted[i - 1].layout[axis] + sorted[i - 1].layout[size]);
+  return ok(p, overlaps ? ARRANGE_OVERLAP_HINT : undefined);
+}
+
+/**
+ * Match the chosen side to the largest selected Unit. Origin stays.
+ * Never smaller than `unitMinSize`, so a Device is not cut. Devices in `ids` are ignored.
+ */
+export function matchUnitSize(p0: Project, ids: string[], dim: 'w' | 'h'): CmdResult {
+  const picked = pickedUnits(p0, ids);
+  if (picked.length < 2) return no(ARRANGE_NEED_2);
+  const target = Math.max(...picked.map((u) => u.layout[dim]));
+  const p = clone(p0);
+  let changed = false;
+  for (const u of pickedUnits(p, ids)) {
+    const min = unitMinSize(p, u.id);
+    const next = Math.round(Math.max(target, dim === 'w' ? min.w : min.h));
+    if (u.layout[dim] !== next) { u.layout[dim] = next; changed = true; }
+  }
+  if (!changed) return no(ARRANGE_UNCHANGED);
+  return ok(p);
+}
+
+/**
+ * Push selected Units to the right until each neighbor gap is at least `gap`.
+ * Order is x. The leftmost Unit stays. A Unit that is already far enough stays. y stays.
+ * Units that were not selected do not move. Devices in `ids` are ignored.
+ */
+export function spreadUnits(p0: Project, ids: string[], gap: number): CmdResult {
+  if (pickedUnits(p0, ids).length < 2) return no(ARRANGE_NEED_2);
+  if (!Number.isFinite(gap) || gap < 0) return no('간격이 올바르지 않습니다');
+  const p = clone(p0);
+  const sorted = sortUnits(pickedUnits(p, ids), 'x');
+  let changed = false;
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    const space = cur.layout.x - (prev.layout.x + prev.layout.w);
+    if (space < gap) changed = shiftUnit(cur, p.devices, prev.layout.x + prev.layout.w + gap - cur.layout.x, 0) || changed;
+  }
+  if (!changed) return no(ARRANGE_UNCHANGED);
+  return ok(p);
+}
+
 export interface Impact { actions: Action[]; steps: SequenceStep[]; connections: Connection[]; materials: Material[]; constraints: string[]; subSteps: { seq: string; step: SequenceStep }[]; subSequences: SubstationSequence[] }
 
 export function impactOf(p: Project, id: string): Impact {
