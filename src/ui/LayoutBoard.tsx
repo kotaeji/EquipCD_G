@@ -12,6 +12,7 @@ interface Props {
   onSelect: (ids: string[]) => void;
   onDropAsset: (kind: AssetKind | 'unit', at: { x: number; y: number }) => void;
   onUnitConnectClick: (unitId: string) => void;
+  onSignalHint: () => void;
   onReparent: (deviceId: string, unitId: string) => void;
 }
 
@@ -43,7 +44,7 @@ export function LayoutBoard(props: Props) {
       if (kind === 'unit' || (kind && findAsset(kind)?.template)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
     }}>
       {units.map((u) => <article key={u.id} className={`station-card ${selection.includes(u.id) ? 'on' : ''}`}
-        onClick={() => { if (mode === 'flow' || mode === 'signal') props.onUnitConnectClick(u.id); else props.onSelect([u.id]); }}
+        onClick={() => { if (mode === 'flow') props.onUnitConnectClick(u.id); else if (mode === 'signal') props.onSignalHint(); else props.onSelect([u.id]); }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.stopPropagation();

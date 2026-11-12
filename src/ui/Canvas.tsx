@@ -13,10 +13,13 @@ import {
   getBezierPath,
   getSmoothStepPath,
   useReactFlow,
+  useStoreApi,
+  type Connection,
   type Edge,
   type EdgeProps,
   type Node,
   type NodeProps,
+  type OnConnectEnd,
   type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/base.css';
@@ -43,6 +46,10 @@ interface Props {
   onMoveCommit: (ids: string[], dx: number, dy: number, pointer: { x: number; y: number }) => void;
   onDropAsset: (kind: AssetKind | 'unit', at: { x: number; y: number }) => void;
   onPortClick: (signalId: string) => void;
+  /** Drag from an out port onto an in port. Model update stays in addConnection. */
+  onSignalConnect: (fromSignalId: string, toSignalId: string) => void;
+  /** Drag released on empty space, or Esc while a line is out. No model change. */
+  onConnectCancel: () => void;
   onUnitConnectClick: (unitId: string) => void;
   onBlocked: (msg: string) => void;
   /** Viewport zoom → UserView.zoom. Pan is not stored. */
@@ -50,6 +57,9 @@ interface Props {
 }
 
 const BLOCKED = '실행 중에는 배치 이동(모델 편집)이 차단됩니다. 선택·보기만 가능합니다.';
+/** Same sentence as applyEdit when a model edit is refused while running. */
+const EDIT_LOCKED = '실행 중(또는 일시정지 중)에는 모델 편집이 차단됩니다. 초기화 후 편집하세요. (화면 이동·선택·테마·레이어는 허용)';
+const START_OUT = '출력(out) 포트에서 시작하세요';
 const FIT_MIN_ZOOM = 0.5;
 const FIT_LEFT = 52;
 const FIT_PADDING = { top: '48px', right: '188px', bottom: '140px', left: '52px' } as const;
@@ -71,11 +81,12 @@ type UnitData = {
   code: string; name: string; meta: string; w: number; h: number;
   selected: boolean; from: boolean; off: boolean; api: DragApi;
 };
+type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
-  device: Device; selected: boolean; off: boolean; portsOff: boolean; active: boolean;
+  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean;
   extended: boolean; raised: boolean; holding: boolean; photo: boolean;
   signals: Signal[]; onIds: string[]; positions: { id: string; name: string; assumption: boolean; current: boolean }[];
-  showPositions: boolean; mode: Mode; fromPort: string | null; api: DragApi;
+  showPositions: boolean; mode: Mode; link: SignalLink | null; api: DragApi;
 };
 type MatData = { label: string };
 type SigEdgeData = { on: boolean };
@@ -160,10 +171,14 @@ function DeviceNode({ data }: NodeProps) {
       {d.signals.map((s) => {
         const list = s.direction === 'in' ? ins : outs;
         const on = d.onIds.includes(s.id);
+        const live = !d.locked && !d.portsOff;
+        const mine = d.link?.fromId === s.id;
+        const canEnd = !!d.link && s.direction === 'in' && dev.id !== d.link.fromDevice && !d.link.taken.includes(s.id);
+        const dim = !!d.link && !mine && !canEnd;
         return (
           <Handle key={s.id} id={s.id} type={s.direction === 'in' ? 'target' : 'source'} position={s.direction === 'in' ? Position.Left : Position.Right}
-            isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
-            className={`rf-port ${s.direction}${on ? ' on' : ''}${d.fromPort === s.id ? ' from' : ''}`}
+            isConnectable={live} isConnectableStart={live && s.direction === 'out'} isConnectableEnd={live && s.direction === 'in'}
+            className={`rf-port ${s.direction}${on ? ' on' : ''}${mine ? ' from' : ''}${canEnd ? ' is-target' : ''}${dim ? ' is-dim' : ''}`}
             style={{ top: portTop(list, s, dev.layout.h) }}
             title={sigTitle(s, on)}
             data-device={dev.id} data-dir={s.direction} data-port={s.portKey ?? ''}
@@ -217,8 +232,48 @@ function FlowCanvas(props: Props) {
   const flowRef = useRef(screenToFlowPosition);
   flowRef.current = screenToFlowPosition;
   const dragRef = useRef<{ ids: string[]; sx: number; sy: number; origin: string } | null>(null);
+  const abortRef = useRef(false);
   const [preview, setPreview] = useState<{ ids: string[]; dx: number; dy: number } | null>(null);
+  const [dragFrom, setDragFrom] = useState<string | null>(null);
+  const store = useStoreApi();
   const L = view.layers;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      abortRef.current = true;
+      store.getState().cancelConnection();
+      setDragFrom(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [store]);
+
+  const onConnect = useCallback((c: Connection) => {
+    if (abortRef.current || !c.sourceHandle || !c.targetHandle) return;
+    propsRef.current.onSignalConnect(c.sourceHandle, c.targetHandle);
+  }, []);
+  const onConnectStart = useCallback((_: unknown, params: { handleId: string | null }) => {
+    abortRef.current = false;
+    if (params.handleId) setDragFrom(params.handleId);
+  }, []);
+  const onConnectEnd = useCallback<OnConnectEnd>((_, state) => {
+    setDragFrom(null);
+    if (abortRef.current) { abortRef.current = false; propsRef.current.onConnectCancel(); return; }
+    // A valid drop is already applied in onConnect. A drop on a port that React Flow marked invalid still goes through addConnection so the existing refusal is shown.
+    if (state.isValid === true) return;
+    const from = state.fromHandle?.id ?? null;
+    const to = state.toHandle?.id ?? null;
+    if (from && to) { propsRef.current.onSignalConnect(from, to); return; }
+    propsRef.current.onConnectCancel();
+  }, []);
+  const isValidConnection = useCallback((c: Connection | Edge) => {
+    const proj = propsRef.current.project;
+    const a = proj.signals.find((s) => s.id === c.sourceHandle);
+    const b = proj.signals.find((s) => s.id === c.targetHandle);
+    if (!a || !b || a.direction !== 'out' || b.direction !== 'in' || a.deviceId === b.deviceId) return false;
+    return !proj.connections.some((x) => x.kind === 'signal' && x.from.signalId === a.id && x.to.signalId === b.id);
+  }, []);
 
   const modelIds = useCallback((ids: string[]) => {
     const ok = new Set<string>([...p.units.map((u) => u.id), ...p.devices.map((d) => d.id)]);
@@ -231,7 +286,8 @@ function FlowCanvas(props: Props) {
       const cur = propsRef.current;
       if (cur.mode === 'flow') {
         e.stopPropagation();
-        if (cur.project.units.some((u) => u.id === id)) cur.onUnitConnectClick(id);
+        const unitId = cur.project.units.some((u) => u.id === id) ? id : cur.project.devices.find((d) => d.id === id)?.unitId;
+        if (unitId) cur.onUnitConnectClick(unitId);
         return;
       }
       if (cur.mode !== 'select') return;
@@ -264,9 +320,17 @@ function FlowCanvas(props: Props) {
       if (Math.abs(dx) + Math.abs(dy) >= 2) propsRef.current.onMoveCommit(d.ids, dx, dy, pt);
     },
     port: (e, signalId) => {
-      if (propsRef.current.mode !== 'signal') return;
+      // Keep the event from reaching the device body. Do not preventDefault — that would swallow the mouse down React Flow uses to start a connection line.
       e.stopPropagation();
-      propsRef.current.onPortClick(signalId);
+      const cur = propsRef.current;
+      if (cur.locked) { cur.onBlocked(EDIT_LOCKED); return; }
+      const sig = cur.project.signals.find((s) => s.id === signalId);
+      if (!sig) return;
+      const pending = cur.mode === 'signal' && !!cur.connectFrom;
+      if (sig.direction === 'in' && !pending) { cur.onBlocked(START_OUT); return; }
+      if (cur.mode !== 'signal') return;
+      if (cur.connectFrom === signalId) return;
+      cur.onPortClick(signalId);
     },
   };
 
@@ -281,6 +345,13 @@ function FlowCanvas(props: Props) {
     const s = p.signals.find((x) => x.deviceId === deviceId && x.portKey === port);
     return !!(s && rt?.signals?.[s.id]);
   };
+
+  const pendingId = dragFrom ?? (mode === 'signal' ? connectFrom : null);
+  const pendingSig = pendingId ? p.signals.find((s) => s.id === pendingId) : undefined;
+  const link: SignalLink | null = pendingSig ? {
+    fromId: pendingSig.id, fromDevice: pendingSig.deviceId,
+    taken: p.connections.filter((c) => c.kind === 'signal' && c.from.signalId === pendingSig.id && c.to.signalId).map((c) => c.to.signalId!),
+  } : null;
 
   const nodes: Node[] = [];
   for (const u of p.units) {
@@ -311,10 +382,10 @@ function FlowCanvas(props: Props) {
       id: d.id, type: 'device', zIndex: selection.includes(d.id) ? 6 : 3,
       position: { x: d.layout.x + o.dx, y: d.layout.y + o.dy },
       width: d.layout.w, height: d.layout.h, measured: { width: d.layout.w, height: d.layout.h },
-      draggable: false, selectable: false, connectable: false, deletable: false,
+      draggable: false, selectable: false, connectable: !props.locked, deletable: false,
       className: 'nopan',
       data: {
-        device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff,
+        device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked,
         active: activeDevice === d.id || !!props.activeDeviceIds?.includes(d.id),
         extended: d.kind === 'cylinder' ? sigOn(d.id, 'cmdFwd') || sigOn(d.id, 'fwdDone')
           : d.kind === 'pusher' ? sigOn(d.id, 'cmdPush') || sigOn(d.id, 'pushDone')
@@ -323,7 +394,7 @@ function FlowCanvas(props: Props) {
         holding: rt?.material?.holder === d.id,
         photo: view.visualMode === 'photo',
         signals: p.signals.filter((s) => s.deviceId === d.id), onIds, positions, showPositions: L.positions,
-        mode, fromPort: connectFrom, api,
+        mode, link, api,
       } satisfies DeviceData,
     });
   }
@@ -414,7 +485,7 @@ function FlowCanvas(props: Props) {
 
   const pal = THEMES[paletteTheme(view.theme)].vars;
   return (
-    <div ref={hostRef} className="rf-host" data-mode={mode} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div ref={hostRef} className="rf-host" data-mode={mode} data-linking={link ? '1' : '0'} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -437,8 +508,13 @@ function FlowCanvas(props: Props) {
         zoomOnDoubleClick={false}
         selectionOnDrag={false}
         nodesDraggable={false}
-        nodesConnectable={false}
+        nodesConnectable={!props.locked}
         connectOnClick={false}
+        onConnect={onConnect}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
+        isValidConnection={isValidConnection}
+        connectionLineStyle={{ stroke: 'var(--muted)', strokeWidth: 1.5, strokeDasharray: '5 4' }}
         elementsSelectable
         nodesFocusable={false}
         edgesFocusable={false}
