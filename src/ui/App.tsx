@@ -30,6 +30,7 @@ import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, Exte
 import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
+import { BrandMark } from './BrandMark';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
 import { Tabs } from './Tabs';
@@ -687,7 +688,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   return (
     <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen}>
       <header className="header">
-        <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><span className="title">{PRODUCT_NAME}</span></span>
+        <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><BrandMark /><span className="title">{PRODUCT_NAME}</span></span>
         <span className="subtitle">논리 시뮬레이션</span>
         <span className="grow" />
         <button className="btn-main primary" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}>저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</button>
