@@ -18,11 +18,13 @@ const dash = (ms: number | null) => (ms === null ? '-' : fmt(ms));
 
 /** Station run summary, placed above the runtime log table. Starts expanded. */
 export function RunSummary({ p, rt }: { p: Project; rt: RuntimeState | null }) {
-  const empty = !rt || rt.log.length === 0;
-  const summary = empty ? null : summarizeRun(p, rt);
+  // Before a run: no runtime, or no step has started. A log line that is not a step
+  // (for example a sensor turning on) does not count as a start.
+  const summary = rt ? summarizeRun(p, rt) : null;
+  const notStarted = !summary || summary.steps.every((step) => step.startMs === null);
   return (
     <Fold className="run-summary" summary="실행 결과 요약">
-      {empty || !summary ? <p className="run-summary-empty">실행하면 단계별 시간이 여기에 나옵니다</p> : (
+      {notStarted || !summary ? <p className="run-summary-empty">실행하면 단계별 시간이 여기에 나옵니다</p> : (
         <>
           <p className="run-summary-head">
             {summary.aborted && <span className="run-summary-abort">오류로 중단 </span>}

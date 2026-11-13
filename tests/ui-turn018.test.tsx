@@ -4,7 +4,10 @@ import { readFileSync } from 'node:fs';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
+import { buildSampleProject } from '../src/model/sample';
+import { createRuntime } from '../src/runtime/engine';
 import { App } from '../src/ui/App';
+import { RunSummary } from '../src/ui/RunSummary';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -66,6 +69,21 @@ describe('TURN-018 run summary UI', () => {
     expect(again.querySelector('.run-summary-empty')!.textContent).toBe('실행하면 단계별 시간이 여기에 나옵니다');
     expect(again.querySelector('table')).toBeNull();
     expect(logTable(u.el).textContent).toContain('로그 없음');
+  });
+
+  it('AC4 a log line that is not a step still shows only the empty note', async () => {
+    const p = buildSampleProject();
+    const rt = createRuntime(p);
+    rt.state.log.push({ t: 0, level: 'info', code: 'SENSOR_ON', message: '센서가 켜짐' });
+    expect(rt.state.steps.every((s) => s.status === 'pending' && s.startMs === undefined)).toBe(true);
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    root = createRoot(el);
+    await act(async () => { root!.render(<RunSummary p={p} rt={rt.state} />); });
+    const box = el.querySelector('.run-summary')!;
+    expect(box.querySelector('.run-summary-empty')!.textContent).toBe('실행하면 단계별 시간이 여기에 나옵니다');
+    expect(box.querySelector('table')).toBeNull();
+    expect(box.textContent).not.toContain('총 -');
   });
 
   it('AC5 the summary sits above the log, names the longest step in words, and states the assumption', async () => {
