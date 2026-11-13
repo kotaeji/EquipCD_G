@@ -52,7 +52,7 @@ describe('TURN-015 brand mark', () => {
     expect(svg.getAttribute('height')).toBe('22');
     expect(svg.getAttribute('viewBox')).toBe('0 0 24 24');
     expect(svg.getAttribute('fill')).toBe('none');
-    expect(svg.getAttribute('stroke')).toBe('var(--header-bg)');
+    expect(svg.getAttribute('stroke')).toBeNull();
     expect(svg.getAttribute('stroke-width')).toBe('2.2');
     expect(svg.getAttribute('stroke-linecap')).toBe('round');
     expect(svg.getAttribute('stroke-linejoin')).toBe('round');
@@ -60,16 +60,21 @@ describe('TURN-015 brand mark', () => {
     expect(paths).toEqual(['M4.5 20L12 4l7.5 16', 'M10 13.5h4']);
     expect(svg.querySelectorAll('path')[1].getAttribute('stroke-dasharray')).toBe('1.6 1.4');
     const circles = [...svg.querySelectorAll('circle')];
-    expect(circles.map((c) => [c.getAttribute('cx'), c.getAttribute('cy'), c.getAttribute('r'), c.getAttribute('fill')])).toEqual([
-      ['8.3', '13.5', '1.7', 'var(--header-bg)'],
-      ['15.7', '13.5', '1.7', null],
+    expect(circles.map((c) => [c.getAttribute('cx'), c.getAttribute('cy'), c.getAttribute('r'), c.getAttribute('fill'), c.getAttribute('class')])).toEqual([
+      ['8.3', '13.5', '1.7', null, 'dot'],
+      ['15.7', '13.5', '1.7', null, null],
     ]);
+    expect(tile.outerHTML).not.toContain('var(--header-bg)');
     expect(getComputedStyle(tile).width).toBe('32px');
     expect(getComputedStyle(tile).height).toBe('32px');
     expect(getComputedStyle(tile).borderRadius).toBe('7px');
     const tileRule = /\.header \.brand \.logo-tile \{[^}]*\}/.exec(css.textContent!)?.[0] ?? '';
     expect(tileRule).toMatch(/background:\s*var\(--header-fg\)/);
     expect(tileRule).toMatch(/border:\s*none/);
+    const svgRule = /\.header \.brand \.logo-tile svg \{[^}]*\}/.exec(css.textContent!)?.[0] ?? '';
+    const dotRule = /\.header \.brand \.logo-tile svg \.dot \{[^}]*\}/.exec(css.textContent!)?.[0] ?? '';
+    expect(svgRule).toMatch(/stroke:\s*var\(--header-bg\)/);
+    expect(dotRule).toMatch(/fill:\s*var\(--header-bg\)/);
     const app = el.querySelector('.app') as HTMLElement;
     expect(app.style.getPropertyValue('--header-fg').toUpperCase()).toBe('#FFFFFF');
     expect(app.style.getPropertyValue('--header-bg').toUpperCase()).toBe('#A20034');
@@ -94,8 +99,9 @@ describe('TURN-015 brand mark', () => {
     const svg = mark(el);
     const app = el.querySelector('.app') as HTMLElement;
     expect(app.getAttribute('data-theme')).toBe('C');
-    expect(svg.getAttribute('stroke')).toBe('var(--header-bg)');
-    expect(svg.querySelector('circle')!.getAttribute('fill')).toBe('var(--header-bg)');
+    expect(svg.getAttribute('stroke')).toBeNull();
+    expect(svg.querySelector('circle')!.getAttribute('fill')).toBeNull();
+    expect(svg.querySelector('circle')!.getAttribute('class')).toBe('dot');
     expect(svg.querySelector('path')!.getAttribute('d')).toBe('M4.5 20L12 4l7.5 16');
     expect(app.style.getPropertyValue('--header-fg').toUpperCase()).toBe('#FFFFFF');
     expect(app.style.getPropertyValue('--header-bg').toUpperCase()).toBe('#A20034');

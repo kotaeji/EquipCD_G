@@ -9,7 +9,9 @@
 | 요소 | 크기 | 색 |
 |---|---|---|
 | 타일 `.logo-tile` | 32×32px, 모서리 반지름 7px, 테두리 없음 | 채움 `var(--header-fg)` |
-| 안쪽 SVG | 22×22px, viewBox 24×24, 선 2.2 | 선과 채운 원 `var(--header-bg)` |
+| 안쪽 SVG | 22×22px, viewBox 24×24, 선 2.2 | 선은 CSS `stroke: var(--header-bg)`. 채운 원 `.dot` 은 CSS `fill: var(--header-bg)`. SVG 속성에는 `var()` 가 없다 |
+
+루카 검토에서 SVG 프레젠테이션 속성의 `var()` 는 Safari에서 무효가 될 수 있다고 해서, 선과 채운 원 색을 CSS 규칙으로 옮겼다. 모양과 크기는 바꾸지 않았다.
 
 타일과 제목 사이는 `.brand` 의 10px 이다. 헤더는 높이 64px 그대로이고, 타일과 제목은 세로 가운데다. 아이콘은 `aria-hidden="true"` 이고, `.brand` 의 `aria-label` 은 이름과 버전 그대로다. 마크는 `src/ui/BrandMark.tsx` 한 곳이다. 홈과 그 다음 화면도 같은 헤더를 쓴다.
 
@@ -41,10 +43,10 @@ Chrome 157.0.8103.50 으로 개발 서버를 열어 찍었다. devicePixelRatio 
 
 | 종류 | 결과 |
 |---|---|
-| 자동 테스트 | 로컬 `npm test` 26파일 428개 통과. 그 가운데 `tests/ui-turn015.test.tsx` 3개. 헤더 단언은 32px 타일·22px 아이콘·선 2.2·`var(--header-bg)`·`var(--header-fg)` 로 고쳤다. TURN-015 의 20px `currentColor` 단언은 이번 모양과 맞지 않아서다. favicon data URI 단언은 그대로다. jsdom 은 `background: var(--header-fg)` 를 풀지 못해 타일 배경이 투명으로 남는다. 테스트는 CSS 규칙의 변수와 `.app` 에 붙은 토큰 `#FFFFFF` · `#A20034` 를 본다. 이 숫자는 이 문서 작성 시점의 로컬 실행이다 |
+| 자동 테스트 | 로컬 `npm test` 26파일 428개 통과. 그 가운데 `tests/ui-turn015.test.tsx` 3개. 헤더 단언은 32px 타일·22px 아이콘·선 2.2 와 CSS 규칙 `stroke: var(--header-bg)` · `.dot { fill: var(--header-bg) }` · 타일 `background: var(--header-fg)` 다. SVG 속성에는 `var()` 가 없다. TURN-015 의 20px `currentColor` 단언은 이번 모양과 맞지 않아서 고쳤다. favicon data URI 단언은 그대로다. jsdom 은 CSS 변수를 풀지 못한다. 테스트는 규칙 문자열과 `.app` 토큰 `#FFFFFF` · `#A20034` 를 본다. 이 숫자는 이 문서 작성 시점의 로컬 실행이다 |
 | 형식 검사 | 로컬 `npm run typecheck` 통과 |
 | 빌드 | 로컬 `npm run build` 통과. 만들어진 HTML 은 커밋하지 않고 되돌렸다. `release/` diff 없음 |
-| Chrome | 157.0.8103.50, CSS 뷰포트 1280×800, devicePixelRatio 1. 위 측정. 라이트·다크·1단계에서 헤더 마크가 같다 |
+| Chrome | 157.0.8103.50, CSS 뷰포트 1280×800, devicePixelRatio 1. 위 측정은 첫 커밋 화면이다. 색을 CSS로 옮긴 뒤 같은 서버에서 다시 재었다. 타일 32×32 흰색, 아이콘 22×22, 선·점선·채운 원 `rgb(162, 0, 52)`, 빈 원 fill `none`, 헤더 64px. SVG `stroke`·`fill` 속성은 없다. 콘솔 오류 0. 스크린샷은 다시 찍지 않았다 |
 
 ## 확인 필요
 

@@ -130,7 +130,8 @@ body { font-size: var(--fs-md); line-height: 1.4; -webkit-font-smoothing: antial
 .header .brand { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
 /* TURN-016: white tile, crimson mark. Colors follow header tokens, not a hardcoded hex. */
 .header .brand .logo-tile { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none; border: none; border-radius: 7px; background: var(--header-fg); }
-.header .brand .logo-tile svg { display: block; width: 22px; height: 22px; flex: none; }
+.header .brand .logo-tile svg { display: block; width: 22px; height: 22px; flex: none; stroke: var(--header-bg); }
+.header .brand .logo-tile svg .dot { fill: var(--header-bg); }
 .header .title { font-size: 14px; font-weight: 650; letter-spacing: .1px; }
 .header .crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--text); }
 /* focus & interaction */
