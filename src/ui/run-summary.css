@@ -1,0 +1,25 @@
+/* TURN-018 Station run summary. Tokens only — no new color literals. */
+.run-summary { margin: 0 0 8px; min-width: 0; max-width: 100%; }
+.run-summary > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.run-summary-empty,
+.run-summary-head,
+.run-summary-note { margin: 6px 0; font-size: 12px; line-height: 1.45; }
+.run-summary-empty,
+.run-summary-note { color: var(--muted); }
+.run-summary-head { color: var(--text); overflow-wrap: anywhere; }
+.run-summary-abort { color: var(--danger); font-weight: 700; }
+.run-summary-scroll { max-width: 100%; overflow-x: auto; }
+table.grid.run-summary-table { width: 100%; font-size: 12px; }
+table.grid.run-summary-table th,
+table.grid.run-summary-table td { padding: 1px 6px; white-space: nowrap; }
+table.grid.run-summary-table tr.is-longest td { background: var(--selected); }
+.run-summary-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--warning);
+  white-space: nowrap;
+}
+.run-summary-error { color: var(--danger); font-weight: 700; }
