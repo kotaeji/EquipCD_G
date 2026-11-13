@@ -5,9 +5,9 @@ export const FILE_FORMAT_ID = 'equipment-concept-designer/project';
 export const FILE_FORMAT_VERSION = '0.2.0'; // file format version (separate from app / asset / model revision). 0.1.x files are migrated on read.
 export const APP_VERSION = '0.3.0-prototype';
 export const PRODUCT_NAME = 'Aurora Concept Designer';
-export const RUNTIME_RULES_VERSION = 'seq-runtime/0.1.0';
-/** Substation group runtime rules (v0.3 설계 제안): shared virtual clock, fixed lane order at equal instants, conservative group stop on error. */
-export const GROUP_RULES_VERSION = 'group-runtime/0.1.0';
+export const RUNTIME_RULES_VERSION = 'seq-runtime/0.2.0';
+/** Substation group runtime rules (v0.3 설계 제안): shared virtual clock, fixed lane order at equal instants, conservative group stop on error. Sensor signals follow the same unit rule as the station runtime. */
+export const GROUP_RULES_VERSION = 'group-runtime/0.2.0';
 
 export type Id = string;
 

@@ -13,7 +13,7 @@
 import type { Action, Condition, Project, SequenceStep, SubstationSequence } from '../model/types';
 import { GROUP_RULES_VERSION } from '../model/types';
 import { validateProject, type Diagnostic } from '../model/validate';
-import { evalCond, ms, type LogEntry, type MaterialInstance } from './engine';
+import { applySensorSignals, evalCond, ms, signalLabel, unmetText, type LogEntry, type MaterialInstance } from './engine';
 
 export type GroupStatus = 'idle' | 'running' | 'paused' | 'completed' | 'error';
 export type LaneStatus = 'pending' | 'active' | 'done' | 'error' | 'stopped';
@@ -110,7 +110,9 @@ function initialState(p: Project, unitId: string, runId: string): GroupState {
   const devicePositions: Record<string, string | null> = {};
   for (const d of p.devices) devicePositions[d.id] = null;
   const lanes: Lane[] = seqsOf(p, unitId).map((q) => ({ seqId: q.id, name: q.name, stepIndex: 0, status: 'pending', active: null, steps: q.steps.map((s) => ({ stepId: s.id, status: 'pending' })) }));
-  return { rulesVersion: GROUP_RULES_VERSION, runId, unitId, modelRevision: p.revision, status: 'idle', timeMs: 0, lanes, signals, devicePositions, material, occupancy, log: [], error: null, blockers: [] };
+  const state: GroupState = { rulesVersion: GROUP_RULES_VERSION, runId, unitId, modelRevision: p.revision, status: 'idle', timeMs: 0, lanes, signals, devicePositions, material, occupancy, log: [], error: null, blockers: [] };
+  applySensorSignals(p, state);
+  return state;
 }
 
 export function createGroupRuntime(project: Project, unitId: string, runId = 'grp-1'): GroupRuntime {
@@ -166,10 +168,11 @@ function failGroup(s: GroupState, l: Lane, code: string, stepId: string, message
 }
 
 function activate(p: Project, s: GroupState, l: Lane) {
+  applySensorSignals(p, s);
   const { step, a } = stepOf(p, l);
   for (const c of [...step.entry, ...a.pre]) {
-    const r = evalCond(c, s);
-    if (!r.ok) { failGroup(s, l, 'PRE_UNMET', step.id, `${step.name}: 전제 조건 미충족 ${r.why} — 대기하지 않고 오류 처리 (동기화/대기 규칙 미정)`); return; }
+    const r = evalCond(c, s, p);
+    if (!r.ok) { failGroup(s, l, 'PRE_UNMET', step.id, `${step.name}: 전제 조건 미충족 ${unmetText(r)} — 대기하지 않고 오류 처리 (동기화/대기 규칙 미정)`); return; }
   }
   if (a.completeSignalId) s.signals[a.completeSignalId] = false;
   if (a.commandSignalId) s.signals[a.commandSignalId] = true;
@@ -206,11 +209,12 @@ function complete(p: Project, s: GroupState, l: Lane) {
     if (readFail) { failGroup(s, l, 'READ_FAILED', step.id, `${step.name}: 읽기 결과=실패 (분기 미지원)`); return; }
   }
   const tentative = { signals: s.signals, material: m };
-  for (const c of a.post) { const r = evalCond(c, tentative); if (!r.ok) { failGroup(s, l, 'POST_UNMET', step.id, `${step.name}: 완료 후 조건 미충족 ${r.why} — 커밋 안 함`); return; } }
+  for (const c of a.post) { const r = evalCond(c, tentative, p); if (!r.ok) { failGroup(s, l, 'POST_UNMET', step.id, `${step.name}: 완료 후 조건 미충족 ${unmetText(r)} — 커밋 안 함`); return; } }
   s.material = m; s.occupancy = occ;
   if (a.commandSignalId) s.signals[a.commandSignalId] = false;
   for (const sg of p.signals) if (sg.deviceId === a.deviceId && sg.role === 'complete' && sg.id !== a.completeSignalId) s.signals[sg.id] = false;
   if (a.targetPositionId) s.devicePositions[a.deviceId] = a.targetPositionId;
+  applySensorSignals(p, s);
   const rec = l.steps[l.stepIndex]; rec.status = 'done'; rec.endMs = s.timeMs;
   L(s, 'info', 'STEP_DONE', `[${l.name}] ${step.name} 완료`, step.id);
   l.active = null; l.stepIndex += 1;
@@ -247,7 +251,7 @@ export function advanceGroup(rt: GroupRuntime, dtMs: number): GroupRuntime {
     if (!who || next > target) break;
     s.timeMs = next;
     if (isComplete) complete(p, s, who);
-    else { const { step, a } = stepOf(p, who); failGroup(s, who, 'TIMEOUT', step.id, `${step.name}: 타임아웃 — 완료 Signal ${a.completeSignalId} 미발생`); }
+    else { const { step, a } = stepOf(p, who); failGroup(s, who, 'TIMEOUT', step.id, `${step.name}: 타임아웃 — 완료 신호 ${signalLabel(p, a.completeSignalId)} 미발생`); }
   }
   if (s.status === 'running') s.timeMs = Math.max(s.timeMs, target);
   return { ...rt, state: s };

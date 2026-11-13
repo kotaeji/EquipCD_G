@@ -1,6 +1,6 @@
 // TURN-001: where to fix — or only inspect — a Substation group-run blocker (6 실행·저장 → "실행 전 검사 — 차단 N건").
 // Guidance is resolved per actual Diagnostic object (not only per code) so the UI never promises an editor that does
-// not exist. Navigation only: never changes the model, the group gate rules (group-runtime/0.1.0) or run blocking.
+// not exist. Navigation only: never changes the model, the group gate rules, or run blocking.
 import type { Diagnostic } from '../model/validate';
 import type { Condition, Project, SubstationSequence } from '../model/types';
 import { STEPS, type StepId } from './wizard';
