@@ -12,7 +12,7 @@
 
 - 끌어서 고르기는 화면만 바꾼다. 모델 명령은 없다. 빈 곳 끌기(화면 이동)와 노드 끌기(이동)는 그대로다. 안내 문구는 도면 도구 줄과 범례 `title` 에 「Shift + 끌기: 여러 개 고르기」.
 - 여러 개 삭제는 `commands.ts` 의 `deleteNodes` 한 곳이다. 고른 Unit 에 속한 Device 가 함께 골라져 있어도 한 번만 지운다. 확인 창의 수는 `impactOfNodes` 와 같다. 하나만 지울 때는 기존 `deleteNode` 와 같은 결과다.
-- 복제는 `duplicateDevices` 한 곳이다. 자리는 TURN-013 의 `nextDeviceSlot` 이고, Unit 은 필요하면 `fitUnit` 으로 커진다. 신호 · 포지션 · Action 은 새 ID 로 복사하고, 그 Device 의 신호 · 포지션을 가리키던 참조만 사본으로 바꾼다. 연결 · 시퀀스 단계 · `templateChild` 는 복사하지 않는다. 이름은 ` 사본`, 이미 있으면 ` 사본 2`. `lineage.duplicatedFrom` 에 원본 ID.
+- 복제는 `duplicateDevices` 한 곳이다. 자리는 TURN-013 의 `nextDeviceSlot` 이고, Unit 은 필요하면 `fitUnit` 으로 커진다. 신호 · 포지션 · Action 은 새 ID 로 복사한다. 그 Device 의 신호 · 포지션, 그리고 사본 Action 이 원본 Device 를 잡은 것(`effect.holder` · `materialHeldBy`)만 사본으로 바꾼다. 다른 Device 를 가리키면 그대로다. 연결 · 시퀀스 단계 · `templateChild` 는 복사하지 않는다. Device 이름은 ` 사본`, 이미 있으면 ` 사본 2`. 신호 · Action 이름이 원본 Device 이름으로 시작하면 그 앞을 사본 이름으로 바꾸고, 아니면 같은 꼬리(` 사본`, ` 사본 2`)를 붙인다. `lineage.duplicatedFrom` 에 원본 ID.
 - 실행 중 삭제 · 복제는 지금 차단 문구로 막힌다. Ctrl/Cmd + D 는 입력 칸이나 대화상자가 열려 있으면 복제하지 않고, 브라우저 즐겨찾기도 막는다.
 
 ## 화면 (1280×800, 5공정 예제, 도면 도식, 확대 50%)

@@ -94,7 +94,11 @@ describe('TURN-021 duplicateDevices', () => {
         { kind: 'signal', signalId: other.id, equals: true },
         { kind: 'materialHeldBy', deviceId: 'CYL-01' },
       ],
-      post: [{ kind: 'signal', signalId: ownOut.id, equals: true }],
+      post: [
+        { kind: 'signal', signalId: ownOut.id, equals: true },
+        { kind: 'materialHeldBy', deviceId: 'CYL-01' },
+        { kind: 'materialHeldBy', deviceId: 'PSH-01' },
+      ],
     }));
     const src = p.devices.find((d) => d.id === 'CYL-01')!;
     const steps = structuredClone(p.sequence.steps);
@@ -134,8 +138,12 @@ describe('TURN-021 duplicateDevices', () => {
     const preOther = copyAct.pre.find((c) => c.kind === 'signal' && c.signalId === other.id);
     expect(preOwn).toEqual({ kind: 'signal', signalId: copyAct.commandSignalId, equals: true });
     expect(preOther).toEqual({ kind: 'signal', signalId: other.id, equals: true });
-    expect(copyAct.pre).toContainEqual({ kind: 'materialHeldBy', deviceId: 'CYL-01' });
-    expect(copyAct.post).toEqual([{ kind: 'signal', signalId: copyAct.completeSignalId, equals: true }]);
+    expect(copyAct.pre).toContainEqual({ kind: 'materialHeldBy', deviceId: copy.id });
+    expect(copyAct.post).toEqual([
+      { kind: 'signal', signalId: copyAct.completeSignalId, equals: true },
+      { kind: 'materialHeldBy', deviceId: copy.id },
+      { kind: 'materialHeldBy', deviceId: 'PSH-01' },
+    ]);
     expect(dup.actions.find((a) => a.id === act.id)!.commandSignalId).toBe(ownIn.id);
     expect(dup.actions.find((a) => a.id === act.id)!.targetPositionId).toBe('pos-own');
 
@@ -199,6 +207,23 @@ describe('TURN-021 duplicateDevices', () => {
       expect(inside(grown, grown.units[0].id, boxes[i])).toBe(true);
       for (let j = i + 1; j < boxes.length; j++) expect(overlap(boxes[i], boxes[j])).toBe(false);
     }
+    const picked = okp(C.duplicateDevices(buildSampleProject(), ['PCK-04']));
+    const picker = picked.devices.find((d) => d.lineage?.duplicatedFrom === 'PCK-04')!;
+    expect(picker.name).toBe('PCK-04 사본');
+    const grab = picked.actions.find((a) => a.deviceId === picker.id && a.name === 'S4 피커 잡기 사본')!;
+    const drop = picked.actions.find((a) => a.deviceId === picker.id && a.name === 'S4 피커 놓기(S5로) 사본')!;
+    expect(grab.effect.holder).toBe(picker.id);
+    expect(drop.pre).toContainEqual({ kind: 'materialHeldBy', deviceId: picker.id });
+    expect(picked.actions.find((a) => a.deviceId === 'PCK-04' && a.name === 'S4 피커 잡기')!.effect.holder).toBe('PCK-04');
+    expect(picked.actions.find((a) => a.name === 'S4 갠트리 놓기위치 이동')!.pre).toContainEqual({ kind: 'materialHeldBy', deviceId: 'PCK-04' });
+    expect(picked.signals.find((s) => s.deviceId === picker.id && s.portKey === 'cmdPick')!.name).toBe('PCK-04 사본.잡기 명령');
+    const againPick = okp(C.duplicateDevices(picked, ['PCK-04']));
+    const picker2 = againPick.devices.find((d) => d.lineage?.duplicatedFrom === 'PCK-04' && d.id !== picker.id)!;
+    expect(picker2.name).toBe('PCK-04 사본 2');
+    expect(againPick.signals.find((s) => s.deviceId === picker2.id && s.portKey === 'cmdPick')!.name).toBe('PCK-04 사본 2.잡기 명령');
+    expect(againPick.actions.find((a) => a.deviceId === picker2.id && a.effect.holder === picker2.id)!.name).toBe('S4 피커 잡기 사본 2');
+    expect(againPick.actions.find((a) => a.deviceId === picker2.id && a.pre.some((c) => c.kind === 'materialHeldBy' && c.deviceId === picker2.id))!.name).toBe('S4 피커 놓기(S5로) 사본 2');
+
     expect(C.duplicateDevices(p, ['U-S1']).ok).toBe(false);
     const refused = C.duplicateDevices(p, []);
     expect(refused.ok).toBe(false);

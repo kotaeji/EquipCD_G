@@ -357,15 +357,26 @@ function remapId(id: string | null, map: Map<string, string>): string | null {
   return map.get(id) ?? id;
 }
 
-/** Only this Device's own signals are rewritten. A condition that points at another Device stays. */
-function remapCond(c: Condition, sigMap: Map<string, string>): Condition {
+/**
+ * Rewrite a copy's own references. Another Device's signal or holder stays.
+ * The tail is whatever `duplicateName` appended (` 사본`, ` 사본 2`, …).
+ */
+function copiedObjectName(original: string, sourceName: string, copyName: string): string {
+  const tail = copyName.slice(sourceName.length);
+  if (sourceName && original.startsWith(sourceName)) return copyName + original.slice(sourceName.length);
+  return original + tail;
+}
+
+function remapCond(c: Condition, sigMap: Map<string, string>, srcId: string, copyId: string): Condition {
   if (c.kind === 'signal' && sigMap.has(c.signalId)) return { ...c, signalId: sigMap.get(c.signalId)! };
+  if (c.kind === 'materialHeldBy' && c.deviceId === srcId) return { ...c, deviceId: copyId };
   return c;
 }
 
 /**
  * Copy each Device in `ids` (Units in the list are ignored) into the next free slot of its own Unit.
- * Signals, positions, and actions are copied with new ids. Connections, sequence steps, and templateChild are not.
+ * Signals, positions, and actions are copied with new ids. A copy's own signal, position, holder,
+ * and materialHeldBy references point at the copy. Connections, sequence steps, and templateChild are not.
  * `note` is the new Device ids, comma-separated, in selection order. One revision.
  */
 export function duplicateDevices(p0: Project, ids: string[], idOf: (s: string) => string = newId): CmdResult {
@@ -403,6 +414,7 @@ export function duplicateDevices(p0: Project, ids: string[], idOf: (s: string) =
       sigMap.set(s.id, id);
       const copy = structuredClone(s);
       copy.id = id;
+      copy.name = copiedObjectName(s.name, src.name, name);
       copy.deviceId = nid;
       p.signals.push(copy);
     }
@@ -418,13 +430,15 @@ export function duplicateDevices(p0: Project, ids: string[], idOf: (s: string) =
     for (const a of p.actions.filter((x) => x.deviceId === src.id)) {
       const copy = structuredClone(a);
       copy.id = idOf('act');
+      copy.name = copiedObjectName(a.name, src.name, name);
       copy.deviceId = nid;
       copy.unitId = src.unitId;
       copy.commandSignalId = remapId(copy.commandSignalId, sigMap);
       copy.completeSignalId = remapId(copy.completeSignalId, sigMap);
       copy.targetPositionId = remapId(copy.targetPositionId, posMap);
-      copy.pre = copy.pre.map((c) => remapCond(c, sigMap));
-      copy.post = copy.post.map((c) => remapCond(c, sigMap));
+      if (copy.effect.holder === src.id) copy.effect.holder = nid;
+      copy.pre = copy.pre.map((c) => remapCond(c, sigMap, src.id, nid));
+      copy.post = copy.post.map((c) => remapCond(c, sigMap, src.id, nid));
       p.actions.push(copy);
     }
     created.push(nid);
