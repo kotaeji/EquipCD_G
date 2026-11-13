@@ -1,0 +1,10 @@
+/* TURN-021: Shift-drag marquee. The box is in host pixels, above the diagram, and does not pan. */
+.rf-host { position: relative; }
+.rf-marquee {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}

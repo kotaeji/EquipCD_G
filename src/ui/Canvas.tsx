@@ -31,8 +31,9 @@ import { AI_BADGE, resolveGenerated } from '../assets/visuals';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { Symbol } from './Symbols';
-import { overlappingUnitIds, unitMinSize, type Box } from '../model/unitLayout';
+import { overlappingUnitIds, rectsOverlap, unitMinSize, type Box } from '../model/unitLayout';
 import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
+import './canvas-select.css';
 
 export type Mode = 'select' | 'flow' | 'signal';
 
@@ -268,8 +269,29 @@ function FlowCanvas(props: Props) {
   const [preview, setPreview] = useState<{ ids: string[]; dx: number; dy: number } | null>(null);
   const [resizePreview, setResizePreview] = useState<{ id: string; w: number; h: number } | null>(null);
   const [dragFrom, setDragFrom] = useState<string | null>(null);
+  const [shiftHeld, setShiftHeld] = useState(false);
+  const [band, setBand] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const bandListeners = useRef<(() => void) | null>(null);
+  const bandLive = useRef(false);
+  const skipPaneClear = useRef(false);
   const store = useStoreApi();
   const L = view.layers;
+
+  useEffect(() => () => { bandListeners.current?.(); bandLive.current = false; }, []);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.key === 'Shift') setShiftHeld(true); };
+    const up = (e: KeyboardEvent) => { if (e.key === 'Shift') setShiftHeld(false); };
+    const blur = () => setShiftHeld(false);
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
 
   useEffect(() => {
     if (props.locked && resizePreview) setResizePreview(null);
@@ -281,6 +303,11 @@ function FlowCanvas(props: Props) {
       abortRef.current = true;
       store.getState().cancelConnection();
       setDragFrom(null);
+      if (!bandLive.current) return;
+      bandLive.current = false;
+      bandListeners.current?.();
+      bandListeners.current = null;
+      setBand(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -546,9 +573,70 @@ function FlowCanvas(props: Props) {
     propsRef.current.onDropAsset(k, flowRef.current({ x: e.clientX, y: e.clientY }));
   };
 
+  const onBandDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const cur = propsRef.current;
+    if (cur.mode !== 'select' || !e.shiftKey) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('.react-flow__node, .react-flow__edge, .react-flow__handle, .react-flow__controls, .react-flow__minimap, .rf-legend, .rf-connect-note, .react-flow__attribution, .react-flow__panel')) return;
+    const host = hostRef.current;
+    if (!host) return;
+    // Capture phase: stop the event before React Flow's pan listener on the renderer sees it.
+    e.stopPropagation();
+    e.preventDefault();
+    try { host.setPointerCapture(e.pointerId); } catch { /* jsdom */ }
+    const origin = host.getBoundingClientRect();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const left0 = x0 - origin.left;
+    const top0 = y0 - origin.top;
+    bandLive.current = true;
+    setBand({ left: left0, top: top0, width: 0, height: 0 });
+    let detach = () => {};
+    const finish = (ev: PointerEvent | null, commit: boolean) => {
+      if (!bandLive.current) return;
+      bandLive.current = false;
+      detach();
+      bandListeners.current = null;
+      setBand(null);
+      if (ev) { try { host.releasePointerCapture(ev.pointerId); } catch { /* jsdom */ } }
+      if (!commit || !ev) return;
+      const dx = ev.clientX - x0;
+      const dy = ev.clientY - y0;
+      if (Math.abs(dx) + Math.abs(dy) < 3) return;
+      skipPaneClear.current = true;
+      const a = flowRef.current({ x: x0, y: y0 });
+      const b = flowRef.current({ x: ev.clientX, y: ev.clientY });
+      const box: Box = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
+      const proj = propsRef.current.project;
+      const hit: string[] = [];
+      for (const u of proj.units) if (rectsOverlap(box, u.layout)) hit.push(u.id);
+      for (const d of proj.devices) if (rectsOverlap(box, d.layout)) hit.push(d.id);
+      propsRef.current.onSelect([...new Set([...propsRef.current.selection, ...hit])], true);
+    };
+    const move = (ev: PointerEvent) => {
+      if (!bandLive.current) return;
+      const r = host.getBoundingClientRect();
+      const x = ev.clientX - r.left;
+      const y = ev.clientY - r.top;
+      setBand({ left: Math.min(left0, x), top: Math.min(top0, y), width: Math.abs(x - left0), height: Math.abs(y - top0) });
+    };
+    const up = (ev: PointerEvent) => finish(ev, true);
+    const cancel = () => finish(null, false);
+    detach = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+    };
+    bandListeners.current = detach;
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+  };
+
   const pal = THEMES[paletteTheme(view.theme)].vars;
   return (
-    <div ref={hostRef} className="rf-host" data-mode={mode} data-linking={link ? '1' : '0'} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div ref={hostRef} className="rf-host" data-mode={mode} data-linking={link ? '1' : '0'} onPointerDownCapture={onBandDown} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -558,6 +646,7 @@ function FlowCanvas(props: Props) {
         onNodeClick={() => undefined /* NodeWrapper turns pointer events on only when a click handler exists. Selection stays on pointerdown. */}
         onEdgeClick={(_, edge) => propsRef.current.onSelect([edge.id], false)}
         onPaneClick={(e) => {
+          if (skipPaneClear.current) { skipPaneClear.current = false; return; }
           const t = e.target as HTMLElement;
           if (t.closest('.react-flow__node, .react-flow__edge, .react-flow__handle, .react-flow__controls, .react-flow__minimap, .rf-legend, .rf-connect-note, .react-flow__attribution')) return;
           if (propsRef.current.mode === 'select') propsRef.current.onSelect([], false);
@@ -565,7 +654,7 @@ function FlowCanvas(props: Props) {
         defaultViewport={{ x: 0, y: 0, zoom: view.zoom }}
         minZoom={0.5}
         maxZoom={2}
-        panOnDrag
+        panOnDrag={!(mode === 'select' && shiftHeld)}
         zoomOnScroll
         zoomOnPinch
         zoomOnDoubleClick={false}
@@ -610,13 +699,14 @@ function FlowCanvas(props: Props) {
           ariaLabel="도면 미니맵"
         />
         {props.connectNote && <Panel position="top-left" className="notice rf-connect-note nopan" style={{ position: 'absolute', top: 48, pointerEvents: 'none' }}>{props.connectNote}</Panel>}
-        <Panel position="top-left" className="rf-legend nopan" title="배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작)">
+        <Panel position="top-left" className="rf-legend nopan" title="배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작) · Shift + 끌기: 여러 개 고르기">
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="var(--text)" strokeWidth="2" /><path d="M12 1 L20 4 L12 7 Z" fill="var(--text)" /></svg>자재 흐름(물류)</div>
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="5 4" /></svg>논리 신호 (out●→in○)</div>
           <div><svg width="12" height="8" aria-hidden="true"><path d="M6 0 L2 8 L10 8 Z" fill="none" stroke="var(--warning)" /></svg>Position</div>
           <div><svg width="12" height="8" aria-hidden="true"><rect x="1" y="0" width="10" height="8" fill="var(--warning)" fillOpacity={0.2} stroke="var(--warning)" /></svg>자재(런타임 개체)</div>
         </Panel>
       </ReactFlow>
+      {band && <div className="rf-marquee" data-testid="marquee" style={{ left: band.left, top: band.top, width: band.width, height: band.height }} />}
     </div>
   );
 }
