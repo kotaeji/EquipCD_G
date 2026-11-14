@@ -38,6 +38,14 @@ TURN-016 헤더 아이콘 타일은 검토 후보입니다. 사람 검수 전이
 
 TURN-017 센서 신호는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-017.md`](docs/turns/TURN-017.md). 자재가 있는 Unit의 센서 신호가 실행 중에 켜집니다. 파일 형식, `release/` 는 바꾸지 않았습니다.
 
+TURN-018 실행 결과 요약은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-018.md`](docs/turns/TURN-018.md). 6단계 Station 실행 화면 위에 총 시간, 끝난 단계 수, 가장 긴 단계, 단계별 시작 · 끝 · 걸린 시간이 나옵니다. 시간은 가정값 기준입니다.
+
+TURN-019 다크 테마 카드 도식은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-019.md`](docs/turns/TURN-019.md). 다크 테마에서 에셋 카드 도식의 선 색을 밝게 바꿨습니다. 라이트 테마와 도식 모양은 그대로입니다.
+
+TURN-020 공통 탐색 검색은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-020.md`](docs/turns/TURN-020.md). 공통 탐색에 「이름으로 찾기」 입력칸이 생겼고, 안내만 있는 화면 네 곳에 「준비 중」 표시가 붙었습니다.
+
+TURN-021 도면 편집 기본기는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-021.md`](docs/turns/TURN-021.md). 도면에서 Shift를 누르고 빈 곳을 끌어 여러 개를 고르고, 고른 것을 한 번에 지우고, Device를 복제합니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -86,7 +94,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 28파일 439개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호
+npm test              # vitest 34파일 464개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
