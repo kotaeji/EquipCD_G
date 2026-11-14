@@ -36,6 +36,8 @@ TURN-015 헤더 · 탭 아이콘은 검토 후보입니다. 사람 검수 전이
 
 TURN-016 헤더 아이콘 타일은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-016.md`](docs/turns/TURN-016.md). 헤더 제목 앞 마크는 32px 흰 타일 안의 22px 진홍 아이콘입니다. 탭 아이콘, 제목, 헤더 색, `release/` 는 바꾸지 않았습니다.
 
+TURN-017 센서 신호는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-017.md`](docs/turns/TURN-017.md). 자재가 있는 Unit의 센서 신호가 실행 중에 켜집니다. 파일 형식, `release/` 는 바꾸지 않았습니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -84,7 +86,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 26파일 428개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일
+npm test              # vitest 28파일 439개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
@@ -129,6 +131,7 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 ## 시제품 런타임 규칙 (가정 — 확정 요구 아님)
 - 가상 시간 정수 ms. 화면 속도(0.25~4x)는 재생 속도일 뿐 결과에 영향 없음. 같은 입력이면 dt 분할과 무관하게 같은 결과.
 - 순차 단계만 지원. 단계 시작 시 진입·pre 조건 검사 → 불충족이면 대기하지 않고 즉시 `PRE_UNMET` 오류(다른 진행 주체가 없으므로).
+- 센서 신호(`role === 'sensor'`)는 자재가 그 신호가 속한 Device의 Unit에 있으면 ON, 아니면 OFF. 실행 초기 상태와 자재 위치가 커밋된 직후에 다시 계산하고, 사전조건을 평가하기 전에 최신 값이어야 한다. 값이 바뀌면 로그 `SENSOR_ON` / `SENSOR_OFF`(Device 이름 · 신호 이름). 규칙 `seq-runtime/0.2.0`.
 - 시작 시 명령 Signal ON, 완료 Signal OFF. (시작+동작 시간)에 완료 Signal ON → post 조건 검사(임시 상태 기준) → 통과 시에만 자재 위치/상태/잡음 커밋.
 - 완료가 타임아웃 시각과 같으면 성공(경계 규칙 가정). 타임아웃 도달 시 `TIMEOUT` 오류, 이후 단계 통과 안 함.
 - 완료 시 같은 Device의 다른 완료 Signal은 OFF (상승/하강처럼 배타 상태로 가정).
@@ -137,10 +140,10 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 - 실행 준비 검사: 완료 Signal·동작 시간·타임아웃·수용 개수가 미정이거나 “미정 조건”이 있으면 실행 차단 (임의 true 금지). 자재 정의는 1개만.
 - 검증용 오류 주입: “완료 신호 미발생”, “바코드 읽기 결과 실패”(실행 상태 탭).
 
-## Substation 그룹 런타임 규칙 (v0.3 — 설계 제안, 사용자 확정 아님, `group-runtime/0.1.0`)
+## Substation 그룹 런타임 규칙 (v0.3 — 설계 제안, 사용자 확정 아님, `group-runtime/0.2.0`)
 - 선택한 Substation의 시퀀스들이 한 묶음으로 같은 가상 시계(정수 ms)를 씀. 같은 시각의 이벤트는 시퀀스 목록 순서대로 처리(동률 규칙 임시), dt 분할과 무관하게 같은 결과.
 - 실행 전 차단: 시퀀스 없음 / 단계 없음 / 다른 Substation Device / 완료 Signal·시간·타임아웃·수용 개수 미정 / 미정 조건 / **DEVICE_CONFLICT**(같은 Device를 두 시퀀스가 사용) / **SHARED_MATERIAL_CONFLICT**(자재를 다루는 시퀀스가 2개 이상).
-- 다른 시퀀스의 진행을 기다리는 조건은 지원하지 않음 — 조건 불충족이면 기존과 같이 즉시 PRE_UNMET.
+- 다른 시퀀스의 진행을 기다리는 조건은 지원하지 않음 — 조건 불충족이면 기존과 같이 즉시 PRE_UNMET. 센서 신호는 Station 실행과 같은 Unit 규칙을 쓴다.
 - 오류(PRE_UNMET/TIMEOUT/POST_UNMET/READ_FAILED/CAPACITY_FULL) 1건이면 묶음 전체 정지(나머지는 ‘그룹 정지’). 일시정지 = 전체 동결, 재개 = 남은 시간부터, 초기화 = 시작 스냅샷의 초기 조건. 그룹 실행 상태는 저장하지 않으며 다시 열어도 자동 재개하지 않음.
 - 그룹 실행 중에도 모델 편집·Undo 차단, Station 시퀀스 실행과 동시에 돌리지 않음.
 
@@ -154,6 +157,6 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 - 대형 캔버스 성능, 모바일은 검토하지 않았습니다. 키보드: 탐색기 트리·프로젝트 목록·카드는 Tab/Enter로 선택 가능(v0.3), Canvas의 키보드 배치·이동은 미지원. 접근성 인증 아님.
 - 다중 자재, 한 시퀀스 안의 분기/병렬(F5), 캐리어 적재 관계 편집, 배경 이미지, F1 문서/USD 추출, F7, F8 실제 Export/역매핑은 미구현입니다.
 - AML은 이 앱의 subset만 해석합니다(`AML-SUPPORT.md`). 일반 AutomationML 도구와의 상호 운용(AutomationML Editor 열기 등)은 검증하지 않았습니다.
-- 유닛 템플릿 규칙으로 생긴 사전조건(예: 광전 센서 감지=true)은 시제품 런타임에서 센서 신호를 만드는 주체가 없으므로, **템플릿 유닛의 Action을 시퀀스에 넣으면 PRE_UNMET으로 멈춥니다**(센서 신호 미구현 제약, `AMBIGUITIES.md` A33).
+- 센서 신호는 자재가 그 Unit에 있을 때 켜집니다. 자재가 다른 Unit·배출·없음이면 꺼지고, 그때 템플릿 Action의 사전조건은 `PRE_UNMET`입니다. 문구에는 신호 이름과 「센서는 자재가 이 Unit 에 있을 때 켜집니다」가 나옵니다. 센서마다 감지 대상을 고르거나, 리밋 스위치를 축 위치로 켜지는 않습니다(`AMBIGUITIES.md` A33).
 - 새로 놓은 Device의 기본 이름이 에셋 이름(예: “실린더”)이라 여러 개일 때 구별이 어려움(유닛 템플릿 자식은 `PSH-S6-PSH1`처럼 접두어 이름, ID는 항상 고유).
 - 웹/WPF 동등성(X01~X08)은 WPF가 없으므로 미검증입니다.

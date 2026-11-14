@@ -1,7 +1,8 @@
 // Deterministic logic runtime (C04). Pure functions; virtual time in integer milliseconds.
 // Evaluation order at one virtual instant (prototype rule, 설계 제안):
-//   1) read current signal/material state  2) activate next step (check entry+pre)  3) completion vs timeout
-//   4) apply transition (post check → effect commit)  5) record log.
+//   1) sensor signals follow the material's current Unit (applySensorSignals)
+//   2) activate next step (check entry+pre)  3) completion vs timeout
+//   4) apply transition (post check → effect commit → sensor signals again)  5) record log.
 // Tie rule (prototype assumption): completion at exactly the timeout instant counts as success.
 // This is NOT equipment control and NOT physics simulation.
 import type { Action, Condition, Project } from '../model/types';
@@ -59,11 +60,13 @@ function initialState(p: Project, runId: string): RuntimeState {
   }
   const devicePositions: Record<string, string | null> = {};
   for (const d of p.devices) devicePositions[d.id] = null;
-  return {
+  const state: RuntimeState = {
     rulesVersion: RUNTIME_RULES_VERSION, runId, modelRevision: p.revision, status: 'idle', timeMs: 0, stepIndex: 0, active: null,
     signals, devicePositions, material, occupancy,
     steps: p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' })), log: [], error: null, blockers: [],
   };
+  applySensorSignals(p, state);
+  return state;
 }
 
 /** Freeze a deep copy of the design model; runtime never writes into design data. */
@@ -109,13 +112,53 @@ export function reset(rt: Runtime): Runtime {
   return { snapshot: rt.snapshot, state: initialState(rt.snapshot, rt.state.runId) };
 }
 
-export function evalCond(c: Condition, s: Pick<RuntimeState, "signals" | "material">): { ok: boolean; why: string } {
+/** Shown when a sensor-role condition fails. Sensor values are the material's Unit, not a separate input. */
+export const SENSOR_HINT = '센서는 자재가 이 Unit 에 있을 때 켜집니다';
+
+/** Device name and signal name. Runtime messages use this instead of the signal id. */
+export function signalLabel(p: Project, signalId: string | null | undefined): string {
+  if (!signalId) return '(없음)';
+  const sig = p.signals.find((x) => x.id === signalId);
+  if (!sig) return '없는 신호';
+  const dev = p.devices.find((d) => d.id === sig.deviceId);
+  return `${dev?.name ?? '장치 없음'} · ${sig.name}`;
+}
+
+export function unmetText(r: { why: string; sensor: boolean }): string {
+  return r.sensor ? `${r.why} — ${SENSOR_HINT}` : r.why;
+}
+
+/**
+ * Sensor signal (`role === 'sensor'`) is true iff the material is currently in that signal's Device Unit.
+ * Other roles are left alone. A change is one log line (`SENSOR_ON` / `SENSOR_OFF`) with the signal name.
+ * Station and Substation group runtimes both call this.
+ */
+export function applySensorSignals(p: Project, s: { timeMs: number; signals: Record<string, boolean>; material: MaterialInstance | null; log: LogEntry[] }): void {
+  const loc = s.material && s.material.location !== 'EXIT' ? s.material.location : null;
+  for (const sig of p.signals) {
+    if (sig.role !== 'sensor') continue;
+    const dev = p.devices.find((d) => d.id === sig.deviceId);
+    const next = !!dev && dev.unitId === loc;
+    const prev = s.signals[sig.id] ?? false;
+    if (prev === next) continue;
+    s.signals[sig.id] = next;
+    s.log.push({
+      t: s.timeMs, level: 'info', code: next ? 'SENSOR_ON' : 'SENSOR_OFF',
+      message: `${signalLabel(p, sig.id)} ${next ? 'ON' : 'OFF'}`, refId: sig.id,
+    });
+  }
+}
+
+export function evalCond(c: Condition, s: Pick<RuntimeState, "signals" | "material">, p: Project): { ok: boolean; why: string; sensor: boolean } {
   switch (c.kind) {
-    case 'signal': return { ok: (s.signals[c.signalId] ?? false) === c.equals, why: `Signal ${c.signalId} == ${c.equals}` };
-    case 'materialAt': return { ok: s.material?.location === c.unitId, why: `자재 위치 == ${c.unitId}` };
-    case 'materialState': return { ok: s.material?.state === c.state, why: `자재 상태 == ${c.state}` };
-    case 'materialHeldBy': return { ok: (s.material?.holder ?? null) === c.deviceId, why: `자재 holder == ${c.deviceId ?? '없음'}` };
-    case 'undefined': return { ok: false, why: `미정 조건: ${c.note}` };
+    case 'signal': {
+      const sig = p.signals.find((x) => x.id === c.signalId);
+      return { ok: (s.signals[c.signalId] ?? false) === c.equals, why: `${signalLabel(p, c.signalId)} == ${c.equals}`, sensor: sig?.role === 'sensor' };
+    }
+    case 'materialAt': return { ok: s.material?.location === c.unitId, why: `자재 위치 == ${c.unitId}`, sensor: false };
+    case 'materialState': return { ok: s.material?.state === c.state, why: `자재 상태 == ${c.state}`, sensor: false };
+    case 'materialHeldBy': return { ok: (s.material?.holder ?? null) === c.deviceId, why: `자재 holder == ${c.deviceId ?? '없음'}`, sensor: false };
+    case 'undefined': return { ok: false, why: `미정 조건: ${c.note}`, sensor: false };
   }
 }
 
@@ -127,11 +170,12 @@ function fail(s: RuntimeState, code: string, stepId: string | null, message: str
 }
 
 function activate(p: Project, s: RuntimeState) {
+  applySensorSignals(p, s);
   const step = p.sequence.steps[s.stepIndex];
   const a = p.actions.find((x) => x.id === step.actionId) as Action;
   for (const c of [...step.entry, ...a.pre]) {
-    const r = evalCond(c, s);
-    if (!r.ok) { fail(s, 'PRE_UNMET', step.id, `[${step.name}] 전제 조건 미충족: ${r.why} — 다른 진행 주체가 없어 대기하지 않고 오류 처리`); return; }
+    const r = evalCond(c, s, p);
+    if (!r.ok) { fail(s, 'PRE_UNMET', step.id, `[${step.name}] 전제 조건 미충족: ${unmetText(r)} — 다른 진행 주체가 없어 대기하지 않고 오류 처리`); return; }
   }
   if (a.completeSignalId) s.signals[a.completeSignalId] = false;
   if (a.commandSignalId) s.signals[a.commandSignalId] = true;
@@ -142,7 +186,7 @@ function activate(p: Project, s: RuntimeState) {
     completeAtMs: neverTrue ? null : s.timeMs + ms(a.duration.value), timeoutAtMs: s.timeMs + ms(timeout),
   };
   const rec = s.steps[s.stepIndex]; rec.status = 'active'; rec.startMs = s.timeMs;
-  s.log.push({ t: s.timeMs, level: 'info', code: 'STEP_START', message: `[${step.name}] 시작 — 명령 ${a.commandSignalId ?? '(없음)'}=ON, 완료조건 ${a.completeSignalId}=true 대기 (가정 ${a.duration.value}s, 타임아웃 ${timeout}s)`, refId: step.id });
+  s.log.push({ t: s.timeMs, level: 'info', code: 'STEP_START', message: `[${step.name}] 시작 — 명령 ${signalLabel(p, a.commandSignalId)}=ON, 완료조건 ${signalLabel(p, a.completeSignalId)}=true 대기 (가정 ${a.duration.value}s, 타임아웃 ${timeout}s)`, refId: step.id });
 }
 
 function complete(p: Project, s: RuntimeState) {
@@ -182,14 +226,15 @@ function complete(p: Project, s: RuntimeState) {
   // post conditions evaluated on tentative state; failure → no silent commit
   const tentative: RuntimeState = { ...s, material: m, occupancy: occ };
   for (const c of a.post) {
-    const r = evalCond(c, tentative);
-    if (!r.ok) { fail(s, 'POST_UNMET', step.id, `[${step.name}] 완료 후 조건 미충족: ${r.why} — 상태 변경 커밋 안 함`); return; }
+    const r = evalCond(c, tentative, p);
+    if (!r.ok) { fail(s, 'POST_UNMET', step.id, `[${step.name}] 완료 후 조건 미충족: ${unmetText(r)} — 상태 변경 커밋 안 함`); return; }
   }
   s.material = m; s.occupancy = occ;
   if (a.commandSignalId) s.signals[a.commandSignalId] = false;
   // other completion signals of same device become false (mutually exclusive device states — prototype assumption)
   for (const sg of p.signals) if (sg.deviceId === a.deviceId && sg.role === 'complete' && sg.id !== a.completeSignalId) s.signals[sg.id] = false;
   if (a.targetPositionId) s.devicePositions[a.deviceId] = a.targetPositionId;
+  applySensorSignals(p, s);
   const rec = s.steps[s.stepIndex]; rec.status = 'done'; rec.endMs = s.timeMs;
   s.log.push({ t: s.timeMs, level: 'info', code: 'STEP_DONE', message: `[${step.name}] 완료 — 자재 ${m ? `${m.location}/${m.state}${m.holder ? `/잡음:${m.holder}` : ''}` : '없음'}`, refId: step.id });
   s.active = null;
@@ -222,7 +267,7 @@ export function advance(rt: Runtime, dtMs: number): Runtime {
     else {
       const step = p.sequence.steps[s.stepIndex];
       const a = p.actions.find((x) => x.id === step.actionId)!;
-      fail(s, 'TIMEOUT', step.id, `[${step.name}] 타임아웃 — 완료 Signal ${a.completeSignalId} 미발생. 이후 공정 통과 안 함`);
+      fail(s, 'TIMEOUT', step.id, `[${step.name}] 타임아웃 — 완료 신호 ${signalLabel(p, a.completeSignalId)} 미발생. 이후 공정 통과 안 함`);
     }
   }
   if (s.status === 'running') s.timeMs = Math.max(s.timeMs, target);
