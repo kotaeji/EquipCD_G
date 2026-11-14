@@ -92,12 +92,13 @@ describe('library card diagrams', () => {
       expect(el.querySelectorAll('.card .vis')).toHaveLength(0);
       const sizes = cards.map((card) => {
         const fig = card.querySelector('.slot-diagram') as HTMLElement;
-        const img = card.querySelector('img') as HTMLImageElement;
+        // Schematic diagrams are inline SVG so the dark theme can recolor them. Photos stay img.
+        const graphic = card.querySelector('.slot-diagram svg, .slot-diagram img') as Element;
         expect(fig).not.toBeNull();
         expect(fig.style.width).toBe(`${DIAGRAM_SLOT_W}px`);
         expect(fig.style.height).toBe(`${DIAGRAM_SLOT_H}px`);
-        expect(img.getAttribute('width')).toBe(String(DIAGRAM_SLOT_W));
-        expect(img.getAttribute('height')).toBe(String(DIAGRAM_SLOT_H));
+        expect(graphic.getAttribute('width')).toBe(String(DIAGRAM_SLOT_W));
+        expect(graphic.getAttribute('height')).toBe(String(DIAGRAM_SLOT_H));
         expect(card.querySelector('.cname')!.textContent!.length).toBeGreaterThan(0);
         expect(card.querySelector('.card-id')!.textContent!.length).toBeGreaterThan(0);
         expect(card.querySelector('.card-note')!.textContent!.length).toBeGreaterThan(0);

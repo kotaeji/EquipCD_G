@@ -18,33 +18,72 @@ import diagramLimit from './slots/limitSwitch.svg?url';
 import diagramUnitInput from './slots/unitInput.svg?url';
 import diagramUnitIdentify from './slots/unitIdentify.svg?url';
 import diagramUnitTransfer from './slots/unitTransfer.svg?url';
+import './slot-theme.css';
 import { Symbol } from './Symbols';
 import { Badge } from './widgets';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
 
+const SLOT_RAW = import.meta.glob('./slots/*.svg', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>;
+
+function slotRaw(file: string): string {
+  const hit = Object.entries(SLOT_RAW).find(([key]) => key.endsWith(`/${file}`));
+  if (!hit || typeof hit[1] !== 'string' || !hit[1].includes('<svg')) throw new Error(`slot svg missing: ${file}`);
+  return hit[1];
+}
+
 /**
  * Card diagrams, 100×48. Four kinds keep the handed slot files. Cylinder card 1:594 was returned as the same file as the
  * pusher slot 1:585 (assets-manifest callsites both reference a3687.svg). This app does not redraw a second cylinder.
  * The other ten are card-only SVGs: same size, stroke #245BCE, fill #E5EDFF, no backdrop. Files (not a second Symbol)
- * so every card uses one img path and the canvas Symbol stays unchanged.
+ * so the canvas Symbol stays unchanged. Schematic cards inline that SVG: an img cannot take the page stylesheet, and
+ * the dark palette lives in one place (slot-theme.css). Photo mode still uses an img.
  */
-export const DIAGRAM_SLOTS: Record<string, { src: string; slot: string; file: string }> = {
-  pusher: { src: diagramPusher, slot: '1:585', file: 'a3687.svg' },
-  cylinder: { src: diagramPusher, slot: '1:594', file: 'a3687.svg' },
-  barcodeReader: { src: diagramBarcode, slot: '1:774', file: '238b4.svg' },
-  conveyor: { src: diagramConveyor, slot: '1:778', file: '91c95.svg' },
-  stopper: { src: diagramStopper, slot: 'card:stopper', file: 'stopper.svg' },
-  gantry: { src: diagramGantry, slot: 'card:gantry', file: 'gantry.svg' },
-  picker: { src: diagramPicker, slot: 'card:picker', file: 'picker.svg' },
-  sensor: { src: diagramSensor, slot: 'card:sensor', file: 'sensor.svg' },
-  photoelectricSensor: { src: diagramPhotoelectric, slot: 'card:photoelectricSensor', file: 'photoelectricSensor.svg' },
-  proximitySensor: { src: diagramProximity, slot: 'card:proximitySensor', file: 'proximitySensor.svg' },
-  limitSwitch: { src: diagramLimit, slot: 'card:limitSwitch', file: 'limitSwitch.svg' },
-  unitInput: { src: diagramUnitInput, slot: 'card:unitInput', file: 'unitInput.svg' },
-  unitIdentify: { src: diagramUnitIdentify, slot: 'card:unitIdentify', file: 'unitIdentify.svg' },
-  unitTransfer: { src: diagramUnitTransfer, slot: 'card:unitTransfer', file: 'unitTransfer.svg' },
+export const DIAGRAM_SLOTS: Record<string, { src: string; raw: string; slot: string; file: string }> = {
+  pusher: { src: diagramPusher, raw: slotRaw('a3687.svg'), slot: '1:585', file: 'a3687.svg' },
+  cylinder: { src: diagramPusher, raw: slotRaw('a3687.svg'), slot: '1:594', file: 'a3687.svg' },
+  barcodeReader: { src: diagramBarcode, raw: slotRaw('238b4.svg'), slot: '1:774', file: '238b4.svg' },
+  conveyor: { src: diagramConveyor, raw: slotRaw('91c95.svg'), slot: '1:778', file: '91c95.svg' },
+  stopper: { src: diagramStopper, raw: slotRaw('stopper.svg'), slot: 'card:stopper', file: 'stopper.svg' },
+  gantry: { src: diagramGantry, raw: slotRaw('gantry.svg'), slot: 'card:gantry', file: 'gantry.svg' },
+  picker: { src: diagramPicker, raw: slotRaw('picker.svg'), slot: 'card:picker', file: 'picker.svg' },
+  sensor: { src: diagramSensor, raw: slotRaw('sensor.svg'), slot: 'card:sensor', file: 'sensor.svg' },
+  photoelectricSensor: { src: diagramPhotoelectric, raw: slotRaw('photoelectricSensor.svg'), slot: 'card:photoelectricSensor', file: 'photoelectricSensor.svg' },
+  proximitySensor: { src: diagramProximity, raw: slotRaw('proximitySensor.svg'), slot: 'card:proximitySensor', file: 'proximitySensor.svg' },
+  limitSwitch: { src: diagramLimit, raw: slotRaw('limitSwitch.svg'), slot: 'card:limitSwitch', file: 'limitSwitch.svg' },
+  unitInput: { src: diagramUnitInput, raw: slotRaw('unitInput.svg'), slot: 'card:unitInput', file: 'unitInput.svg' },
+  unitIdentify: { src: diagramUnitIdentify, raw: slotRaw('unitIdentify.svg'), slot: 'card:unitIdentify', file: 'unitIdentify.svg' },
+  unitTransfer: { src: diagramUnitTransfer, raw: slotRaw('unitTransfer.svg'), slot: 'card:unitTransfer', file: 'unitTransfer.svg' },
 };
+
+const LIGHT_STROKE = 'stroke="#245BCE"';
+const LIGHT_FILL = 'fill="#E5EDFF"';
+
+/** Inline a card SVG. Light colors stay on the attributes. Dark theme CSS targets .slot-stroke / .slot-fill. */
+export function slotSvgHtml(raw: string, idPrefix: string): string {
+  const prefix = idPrefix.replace(/[^A-Za-z0-9_-]/g, '-');
+  const tagged = raw
+    .replace(/\bid="([^"]*)"/g, (_, id: string) => `id="${prefix}-${id}"`)
+    .replace(/url\(#([^)]+)\)/g, (_, id: string) => `url(#${prefix}-${id})`)
+    .replace(/<([A-Za-z][\w:.-]*)([^>]*)>/g, (match, tag: string, attrs: string) => {
+      const stroke = attrs.includes(LIGHT_STROKE);
+      const fill = attrs.includes(LIGHT_FILL);
+      if (!stroke && !fill) return match;
+      const add = [fill ? 'slot-fill' : '', stroke ? 'slot-stroke' : ''].filter(Boolean).join(' ');
+      if (/\bclass="/.test(attrs)) return `<${tag}${attrs.replace(/\bclass="/, `class="${add} `)}>`;
+      const self = /\/\s*$/.test(attrs);
+      const body = self ? attrs.replace(/\/\s*$/, '') : attrs;
+      return `<${tag}${body} class="${add}"${self ? '/>' : '>'}`;
+    });
+  return tagged.replace(/<svg\b([^>]*)>/, (match, attrs: string) => (
+    /\baria-hidden\s*=/.test(attrs) ? match : `<svg${attrs} aria-hidden="true">`
+  ));
+}
+
+function SlotInk({ raw, idPrefix }: { raw: string; idPrefix: string }) {
+  const html = useMemo(() => slotSvgHtml(raw, idPrefix), [raw, idPrefix]);
+  return <span className="slot-ink" dangerouslySetInnerHTML={{ __html: html }} />;
+}
 export const DIAGRAM_SLOT_W = 100;
 export const DIAGRAM_SLOT_H = 48;
 
@@ -66,7 +105,7 @@ export function Visual({ def, mode }: { def: AssetDefinition; mode: 'schematic' 
   const slot = DIAGRAM_SLOTS[def.kind];
   const frame = { width: DIAGRAM_SLOT_W, height: DIAGRAM_SLOT_H };
   const diagram = slot
-    ? <img src={slot.src} alt="" width={DIAGRAM_SLOT_W} height={DIAGRAM_SLOT_H} />
+    ? <SlotInk raw={slot.raw} idPrefix={def.kind} />
     : <svg width={DIAGRAM_SLOT_W} height={DIAGRAM_SLOT_H} role="img" aria-label={`${def.name} 도식`}><Symbol kind={def.kind} w={DIAGRAM_SLOT_W} h={DIAGRAM_SLOT_H} /></svg>;
   if (mode === 'photo') {
     const g = resolveGenerated(def.kind);

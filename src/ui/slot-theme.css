@@ -1,0 +1,18 @@
+/* TURN-019. Dark card-diagram colors live only in this file.
+   Light theme keeps the SVG presentation attributes: stroke #245BCE, fill #E5EDFF.
+   CSS rules override those attributes when the app is dark (same approach as the header mark).
+   Do not set the colors with a filter, and do not put var() in the SVG attributes.
+   Measured (WCAG): stroke #8FB4FF is 7.21:1 on #19283a and 5.53:1 on #203d4c.
+   Fill #243448 is a dark blue a step above the card (1.18:1 on #19283a), and the stroke on that fill is 6.11:1. */
+.slot-diagram .slot-ink {
+  position: absolute;
+  inset: 0;
+}
+
+.app[data-appearance="dark"] .slot-diagram .slot-stroke {
+  stroke: #8FB4FF;
+}
+
+.app[data-appearance="dark"] .slot-diagram .slot-fill {
+  fill: #243448;
+}
