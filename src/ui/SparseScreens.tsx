@@ -1,5 +1,8 @@
 // Design-shaped centers. Values come from the live project. Unimplemented screens stay disabled and do not invent example rows.
+import { useState } from 'react';
 import { ASSET_LIBRARY, LOADED_LIBRARIES } from '../assets/library';
+import { NotReadyBanner } from './NotReadyBanner';
+import './sparse-extra.css';
 import { buildExportPreview } from '../model/exportPreview';
 import type { Gap } from '../model/gaps';
 import type { Project } from '../model/types';
@@ -37,7 +40,9 @@ export function AmlResultSheet({ onCandidates }: { onCandidates: () => void }) {
 }
 
 export function ExtractSheet() {
-  return <div className="sparse-split">
+  return <div className="sparse-stack">
+    <NotReadyBanner hint="입력 후보표의 직접 입력과 AML 라이브러리를 쓰세요" />
+    <div className="sparse-split">
     <section className="sheet">
       <h2>자료 접수 · 후속 설계</h2>
       <table className="grid plain"><thead><tr><th>형식</th><th>지원 상태</th></tr></thead><tbody>
@@ -54,11 +59,13 @@ export function ExtractSheet() {
       <button type="button" disabled>자료 제거 확인</button>
       <p className="muted">지금 넣을 수 있는 것은 입력 후보표의 직접 입력과 AML 라이브러리 파일입니다.</p>
     </aside>
+    </div>
   </div>;
 }
 
 export function BundleSheet({ wsName, projectCount, assetCount, assumptionCount }: { wsName: string; projectCount: number; assetCount: number; assumptionCount: number }) {
   return <div className="sparse-page">
+    <NotReadyBanner hint="프로젝트별 JSON 내보내기를 쓰세요" />
     <h1 className="stage-title">Workspace 파일 묶음</h1>
     <p className="muted">묶음 가져오기와 내보내기는 미구현입니다. 아래 수는 이 브라우저의 현재 Workspace이며, 묶음 파일 내용이 아닙니다.</p>
     <div className="sparse-split">
@@ -101,11 +108,34 @@ export function FilesSheet({ entries, onImport, onExport, onOpen }: { entries: {
   </div>;
 }
 
+type SearchNode = { id: string; label: string; depth: number };
+
+/** Name match is case-insensitive and ignores surrounding spaces. Ancestors stay as context; children of a hit do not. */
+function filterSearchTree(tree: SearchNode[], raw: string): { active: boolean; nodes: SearchNode[]; count: number } {
+  const query = raw.trim().toLowerCase();
+  if (!query) return { active: false, nodes: tree, count: 0 };
+  const keep = new Set<number>();
+  const stack: number[] = [];
+  let count = 0;
+  tree.forEach((n, i) => {
+    while (stack.length > 0 && tree[stack[stack.length - 1]].depth >= n.depth) stack.pop();
+    if (n.label.toLowerCase().includes(query)) {
+      count += 1;
+      keep.add(i);
+      for (const a of stack) keep.add(a);
+    }
+    stack.push(i);
+  });
+  return { active: true, nodes: tree.filter((_, i) => keep.has(i)), count };
+}
+
 export function SearchSheet({ tabs, tree, onTab, onPick, onFold, onCanvas }: {
   tabs: { key: string; name: string; active: boolean }[];
   tree: { id: string; label: string; depth: number }[];
   onTab: (key: string) => void; onPick: (id: string) => void; onFold: () => void; onCanvas: () => void;
 }) {
+  const [query, setQuery] = useState('');
+  const found = filterSearchTree(tree, query);
   return <div className="sparse-page">
     <h1 className="stage-title">공통 탐색</h1>
     <p className="muted">열린 탭과 현재 프로젝트의 트리입니다. 접기는 모델과 선택을 바꾸지 않습니다.</p>
@@ -113,7 +143,15 @@ export function SearchSheet({ tabs, tree, onTab, onPick, onFold, onCanvas }: {
       <section className="sheet">
         <h2>여러 프로젝트와 접기 트리</h2>
         <div className="tool-pills">{tabs.map((t) => <button key={t.key} type="button" className={t.active ? 'on' : ''} onClick={() => onTab(t.key)}>{t.name}</button>)}</div>
-        <div className="tree-list">{tree.map((n) => <button key={n.id} type="button" className="tree-link" style={{ paddingLeft: 12 + n.depth * 16 }} onClick={() => onPick(n.id)}>{n.label}</button>)}</div>
+        <label className="search-find">이름으로 찾기
+          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </label>
+        {found.active && <p className="search-count">{found.count}개 찾음</p>}
+        {found.active && found.count === 0 && <div className="search-empty">
+          <p>찾는 이름이 없습니다</p>
+          <button type="button" onClick={() => setQuery('')}>지우기</button>
+        </div>}
+        <div className="tree-list">{found.nodes.map((n) => <button key={n.id} type="button" className="tree-link" style={{ paddingLeft: 12 + n.depth * 16 }} onClick={() => onPick(n.id)}>{n.label}</button>)}</div>
         <div className="tool-pills"><button type="button" onClick={onFold}>트리 접힘 예시</button></div>
       </section>
       <aside className="sheet">
@@ -131,7 +169,9 @@ export function SearchSheet({ tabs, tree, onTab, onPick, onFold, onCanvas }: {
 }
 
 export function LabSheet({ revision }: { revision: number }) {
-  return <div className="sparse-split">
+  return <div className="sparse-stack">
+    <NotReadyBanner hint="Gap 목록의 가정 시간 합계를 쓰세요" />
+    <div className="sparse-split">
     <section className="sheet">
       <h2>F7 변형 범위와 안전 한도</h2>
       <label>원본 기준<input disabled value={`현재 모델 rev ${revision} · 변형하지 않음`} readOnly /></label>
@@ -147,11 +187,14 @@ export function LabSheet({ revision }: { revision: number }) {
       <button type="button" disabled>선택 후보 명시 적용</button>
       <button type="button" disabled>원본 유지 취소</button>
     </aside>
+    </div>
   </div>;
 }
 
 export function ExtendSheet() {
-  return <div className="sparse-split">
+  return <div className="sparse-stack">
+    <NotReadyBanner hint="Station 단계 시간은 4단계 Station 시퀀스에서 편집하세요" />
+    <div className="sparse-split">
     <section className="sheet">
       <h2>후속 단계 편집 · 미구현</h2>
       <label>Substation 단계<input disabled value="편집기 없음" readOnly /></label>
@@ -168,6 +211,7 @@ export function ExtendSheet() {
       <button type="button" className="danger" disabled>자재 삭제 확인</button>
       <button type="button" disabled>현행 자재 화면</button>
     </aside>
+    </div>
   </div>;
 }
 

@@ -1,0 +1,64 @@
+/* TURN-020. Loaded by NotReadyBanner and SparseScreens. Not styles.css. */
+
+.sparse-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.not-ready {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.not-ready p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.not-ready-lead { font-weight: 700; }
+
+.sheet label.search-find {
+  color: var(--text);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sheet label.search-find input[type="search"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.search-count,
+.search-empty p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
