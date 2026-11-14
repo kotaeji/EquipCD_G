@@ -12,6 +12,7 @@ import type { RuntimeState } from '../runtime/engine';
 import type { QuarantineEntry } from '../storage/localStore';
 import type { EditFn } from './Inspector';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
+import { RunSummary } from './RunSummary';
 import { Badge, QtyInput, TextInput } from './widgets';
 
 const fmt = (msv: number) => `${String(Math.floor(msv / 60000)).padStart(2, '0')}:${(Math.floor(msv / 1000) % 60).toString().padStart(2, '0')}.${(msv % 1000).toString().padStart(3, '0')}`;
@@ -110,7 +111,9 @@ export function RuntimePanel({ p, rt, locked, edit }: { p: Project; rt: RuntimeS
   const completeSigs = p.actions.filter((a) => a.completeSignalId).map((a) => ({ a, sid: a.completeSignalId! }));
   const onSignals = rt ? Object.entries(rt.signals).filter(([, v]) => v).map(([k]) => sigName(p, k)) : [];
   return (
-    <div className="cols">
+    <div>
+      <RunSummary p={p} rt={rt} />
+      <div className="cols">
       <div style={{ width: 280, overflow: 'auto', borderRight: '1px solid var(--border)', paddingRight: 8 }}>
         <div className="row"><label>실행 상태</label><Badge kind={rt?.status === 'error' ? 'err' : rt?.status === 'completed' ? 'ok' : rt?.status === 'running' ? 'acc' : 'warn'}>{rt?.status ?? 'idle'}</Badge></div>
         <div className="row"><label>가상 시간</label><span className="mono">{fmt(rt?.timeMs ?? 0)}</span></div>
@@ -133,6 +136,7 @@ export function RuntimePanel({ p, rt, locked, edit }: { p: Project; rt: RuntimeS
         <table className="grid"><thead><tr><th style={{ width: 90 }}>가상 시각</th><th style={{ width: 110 }}>코드</th><th>내용</th></tr></thead>
           <tbody>{(rt?.log ?? []).slice().reverse().map((l, i) => <tr key={i} className={l.level === 'error' ? 'err' : ''}><td className="mono">{fmt(l.t)}</td><td className="mono" style={{ fontSize: 11 }}>{l.code}</td><td style={{ fontSize: 12 }}>{l.message}</td></tr>)}
             {!rt?.log.length && <tr><td colSpan={3} className="muted">로그 없음 — 툴바의 ▶ 실행을 누르세요</td></tr>}</tbody></table>
+      </div>
       </div>
     </div>
   );
