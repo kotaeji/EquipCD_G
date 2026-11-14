@@ -3,7 +3,7 @@ import { findAsset, getAssetById } from '../assets/library';
 import { instantiateDevice, makeUnit, newId } from './factory';
 import type { Action, AssetKind, Condition, Connection, Device, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { q } from './types';
-import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, tightUnitLayout, unitMinSize } from './unitLayout';
+import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, tightUnitLayout, unitMinSize } from './unitLayout';
 
 export type CmdResult = { ok: true; project: Project; note?: string } | { ok: false; reason: string };
 
@@ -115,6 +115,9 @@ export function alignNodes(p0: Project, ids: string[], mode: 'left' | 'top'): Cm
   for (const id of grow) fitUnit(p, id);
   return ok(p);
 }
+
+/** Shown on the duplicate button when the selection has no Device. */
+export const DUPLICATE_NEED_DEVICE = 'Device 를 고르세요';
 
 /** User-facing refusal when a Unit arrange command has nothing to do. */
 export const ARRANGE_UNCHANGED = '바뀐 것 없음';
@@ -239,6 +242,85 @@ export function impactOf(p: Project, id: string): Impact {
   };
 }
 
+/** Units in `ids`, plus Devices in `ids` whose Unit is not also being deleted. Child Devices of a deleted Unit are removed with the Unit, once. */
+function resolveDelete(p: Project, ids: string[]): { unitIds: string[]; looseDeviceIds: string[]; deviceIds: string[] } {
+  const want = new Set(ids);
+  const unitIds = p.units.filter((u) => want.has(u.id)).map((u) => u.id);
+  const unitSet = new Set(unitIds);
+  const looseDeviceIds = p.devices.filter((d) => want.has(d.id) && !unitSet.has(d.unitId)).map((d) => d.id);
+  const looseSet = new Set(looseDeviceIds);
+  const deviceIds = p.devices.filter((d) => unitSet.has(d.unitId) || looseSet.has(d.id)).map((d) => d.id);
+  return { unitIds, looseDeviceIds, deviceIds };
+}
+
+export interface NodesImpact { units: number; devices: number; actions: number; steps: number; connections: number; subSequences: number }
+
+/** Combined impact of `deleteNodes`. A Device selected together with its Unit is counted once. */
+export function impactOfNodes(p: Project, ids: string[]): NodesImpact {
+  const t = resolveDelete(p, ids);
+  const unitSet = new Set(t.unitIds);
+  const deviceSet = new Set(t.deviceIds);
+  const actions = p.actions.filter((a) => deviceSet.has(a.deviceId) || unitSet.has(a.unitId));
+  const actionIds = new Set(actions.map((a) => a.id));
+  return {
+    units: t.unitIds.length,
+    devices: t.deviceIds.length,
+    actions: actions.length,
+    steps: p.sequence.steps.filter((s) => actionIds.has(s.actionId)).length,
+    connections: p.connections.filter((c) => unitSet.has(c.from.nodeId) || unitSet.has(c.to.nodeId) || deviceSet.has(c.from.nodeId) || deviceSet.has(c.to.nodeId)).length,
+    subSequences: (p.substationSequences ?? []).filter((q) => unitSet.has(q.unitId)).length,
+  };
+}
+
+/**
+ * Remove the resolved Units and Devices from a cloned project. One pass: a Device that belongs to a deleted Unit
+ * is not removed again. Conditions in surviving Actions become explicit 'undefined' (never silently true).
+ */
+function eraseNodes(p: Project, unitIds: string[], looseDeviceIds: string[]): void {
+  const unitSet = new Set(unitIds);
+  const looseSet = new Set(looseDeviceIds);
+  const deviceIds = p.devices.filter((d) => unitSet.has(d.unitId) || looseSet.has(d.id)).map((d) => d.id);
+  const deviceSet = new Set(deviceIds);
+  const sigIds = new Set(p.signals.filter((s) => deviceSet.has(s.deviceId)).map((s) => s.id));
+  const removedActions = new Set(p.actions.filter((a) => deviceSet.has(a.deviceId) || unitSet.has(a.unitId)).map((a) => a.id));
+  const nodeSet = new Set<string>([...unitIds, ...deviceIds]);
+  p.devices = p.devices.filter((d) => !deviceSet.has(d.id));
+  p.signals = p.signals.filter((s) => !sigIds.has(s.id));
+  p.positions = p.positions.filter((x) => !deviceSet.has(x.deviceId));
+  p.actions = p.actions.filter((a) => !removedActions.has(a.id));
+  p.sequence.steps = p.sequence.steps.filter((s) => !removedActions.has(s.actionId));
+  p.substationSequences = (p.substationSequences ?? []).filter((q) => !unitSet.has(q.unitId));
+  for (const q of p.substationSequences) q.steps = q.steps.filter((s) => !removedActions.has(s.actionId));
+  const fixCond = (c: Condition): Condition => {
+    if (c.kind === 'signal' && sigIds.has(c.signalId)) return { kind: 'undefined', note: `삭제된 Signal ${c.signalId} 참조 해제됨` };
+    if (c.kind === 'materialAt' && unitSet.has(c.unitId)) return { kind: 'undefined', note: `삭제된 Unit ${c.unitId} 참조 해제됨` };
+    if (c.kind === 'materialHeldBy' && c.deviceId && deviceSet.has(c.deviceId)) return { kind: 'undefined', note: `삭제된 Device ${c.deviceId} 참조 해제됨` };
+    return c;
+  };
+  for (const a of p.actions) {
+    a.pre = a.pre.map(fixCond); a.post = a.post.map(fixCond);
+    if (a.effect.moveTo && unitSet.has(a.effect.moveTo)) {
+      const gone = a.effect.moveTo;
+      delete a.effect.moveTo;
+      a.pre.push({ kind: 'undefined', note: `이동 대상 Unit ${gone} 삭제됨 — 대체 필요` });
+    }
+    if (a.effect.holder && deviceSet.has(a.effect.holder)) a.effect.holder = null;
+  }
+  for (const s of p.sequence.steps) s.entry = s.entry.map(fixCond);
+  for (const q of p.substationSequences) for (const s of q.steps) s.entry = s.entry.map(fixCond);
+  p.connections = p.connections.filter((c) => !nodeSet.has(c.from.nodeId) && !nodeSet.has(c.to.nodeId));
+  for (const k of p.constraints) k.relatedIds = k.relatedIds.filter((r) => !nodeSet.has(r));
+  if (unitIds.length) {
+    p.units = p.units.filter((u) => !unitSet.has(u.id));
+    p.equipment.unitIds = p.equipment.unitIds.filter((u) => !unitSet.has(u));
+    for (const m of p.materials) {
+      m.route = m.route.filter((r) => !unitSet.has(r));
+      if (m.initialLocation && unitSet.has(m.initialLocation)) m.initialLocation = null;
+    }
+  }
+  for (const u of p.units) u.deviceIds = u.deviceIds.filter((d) => !deviceSet.has(d));
+}
+
 /**
  * Delete a Unit or Device after the user explicitly confirmed the impact list (참조 해제 후 삭제).
  * Actions owned by deleted devices and steps calling them are removed; conditions in OTHER actions that referenced
@@ -249,42 +331,121 @@ export function deleteNode(p0: Project, id: string): CmdResult {
   const isDev = p0.devices.some((d) => d.id === id);
   if (!isUnit && !isDev) return no(`삭제 대상 ${id} 없음`);
   const p = clone(p0);
-  const deviceIds = isUnit ? p.devices.filter((d) => d.unitId === id).map((d) => d.id) : [id];
-  const sigIds = new Set(p.signals.filter((s) => deviceIds.includes(s.deviceId)).map((s) => s.id));
-  const removedActions = new Set(p.actions.filter((a) => deviceIds.includes(a.deviceId) || a.unitId === id).map((a) => a.id));
-  p.devices = p.devices.filter((d) => !deviceIds.includes(d.id));
-  p.signals = p.signals.filter((s) => !sigIds.has(s.id));
-  p.positions = p.positions.filter((x) => !deviceIds.includes(x.deviceId));
-  p.actions = p.actions.filter((a) => !removedActions.has(a.id));
-  p.sequence.steps = p.sequence.steps.filter((s) => !removedActions.has(s.actionId));
-  p.substationSequences = (p.substationSequences ?? []).filter((q) => !(isUnit && q.unitId === id));
-  for (const q of p.substationSequences) q.steps = q.steps.filter((s) => !removedActions.has(s.actionId));
-  const fixCond = (c: Condition): Condition => {
-    if (c.kind === 'signal' && sigIds.has(c.signalId)) return { kind: 'undefined', note: `삭제된 Signal ${c.signalId} 참조 해제됨` };
-    if (c.kind === 'materialAt' && c.unitId === id) return { kind: 'undefined', note: `삭제된 Unit ${id} 참조 해제됨` };
-    if (c.kind === 'materialHeldBy' && c.deviceId && deviceIds.includes(c.deviceId)) return { kind: 'undefined', note: `삭제된 Device ${c.deviceId} 참조 해제됨` };
-    return c;
-  };
-  for (const a of p.actions) {
-    a.pre = a.pre.map(fixCond); a.post = a.post.map(fixCond);
-    if (a.effect.moveTo === id) { delete a.effect.moveTo; a.pre.push({ kind: 'undefined', note: `이동 대상 Unit ${id} 삭제됨 — 대체 필요` }); }
-    if (a.effect.holder && deviceIds.includes(a.effect.holder)) a.effect.holder = null;
-  }
-  for (const s of p.sequence.steps) s.entry = s.entry.map(fixCond);
-  for (const q of p.substationSequences) for (const s of q.steps) s.entry = s.entry.map(fixCond);
-  p.connections = p.connections.filter((c) => ![id, ...deviceIds].includes(c.from.nodeId) && ![id, ...deviceIds].includes(c.to.nodeId));
-  for (const k of p.constraints) k.relatedIds = k.relatedIds.filter((r) => ![id, ...deviceIds].includes(r));
-  if (isUnit) {
-    p.units = p.units.filter((u) => u.id !== id);
-    p.equipment.unitIds = p.equipment.unitIds.filter((u) => u !== id);
-    for (const m of p.materials) {
-      m.route = m.route.filter((r) => r !== id);
-      if (m.initialLocation === id) m.initialLocation = null;
-    }
-  } else {
-    for (const u of p.units) u.deviceIds = u.deviceIds.filter((d) => d !== id);
-  }
+  eraseNodes(p, isUnit ? [id] : [], isUnit ? [] : [id]);
   return ok(p);
+}
+
+/** Delete every listed Unit and Device in one revision. A Device whose Unit is also listed is removed only with that Unit. */
+export function deleteNodes(p0: Project, ids: string[]): CmdResult {
+  const t = resolveDelete(p0, ids);
+  if (!t.unitIds.length && !t.looseDeviceIds.length) return no('삭제 대상 없음');
+  const p = clone(p0);
+  eraseNodes(p, t.unitIds, t.looseDeviceIds);
+  return ok(p);
+}
+
+function duplicateName(taken: Set<string>, name: string): string {
+  const first = `${name} 사본`;
+  if (!taken.has(first)) return first;
+  let n = 2;
+  while (taken.has(`${name} 사본 ${n}`)) n += 1;
+  return `${name} 사본 ${n}`;
+}
+
+function remapId(id: string | null, map: Map<string, string>): string | null {
+  if (!id) return id;
+  return map.get(id) ?? id;
+}
+
+/**
+ * Rewrite a copy's own references. Another Device's signal or holder stays.
+ * The tail is whatever `duplicateName` appended (` 사본`, ` 사본 2`, …).
+ */
+function copiedObjectName(original: string, sourceName: string, copyName: string): string {
+  const tail = copyName.slice(sourceName.length);
+  if (sourceName && original.startsWith(sourceName)) return copyName + original.slice(sourceName.length);
+  return original + tail;
+}
+
+function remapCond(c: Condition, sigMap: Map<string, string>, srcId: string, copyId: string): Condition {
+  if (c.kind === 'signal' && sigMap.has(c.signalId)) return { ...c, signalId: sigMap.get(c.signalId)! };
+  if (c.kind === 'materialHeldBy' && c.deviceId === srcId) return { ...c, deviceId: copyId };
+  return c;
+}
+
+/**
+ * Copy each Device in `ids` (Units in the list are ignored) into the next free slot of its own Unit.
+ * Signals, positions, and actions are copied with new ids. A copy's own signal, position, holder,
+ * and materialHeldBy references point at the copy. Connections, sequence steps, and templateChild are not.
+ * `note` is the new Device ids, comma-separated, in selection order. One revision.
+ */
+export function duplicateDevices(p0: Project, ids: string[], idOf: (s: string) => string = newId): CmdResult {
+  const seen = new Set<string>();
+  const sources: Device[] = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    const d = p0.devices.find((x) => x.id === id);
+    if (!d) continue;
+    seen.add(id);
+    sources.push(d);
+  }
+  if (!sources.length) return no(DUPLICATE_NEED_DEVICE);
+  const p = clone(p0);
+  const taken = new Set(p.devices.map((d) => d.name));
+  const created: string[] = [];
+  const units = new Set<string>();
+  for (const src0 of sources) {
+    const src = p.devices.find((d) => d.id === src0.id)!;
+    const slot = nextDeviceSlot(p, src.unitId, src.kind);
+    const nid = idOf('dev');
+    const name = duplicateName(taken, src.name);
+    taken.add(name);
+    const device: Device = structuredClone(src);
+    device.id = nid;
+    device.name = name;
+    device.layout = { x: slot.x, y: slot.y, w: src.layout.w, h: src.layout.h };
+    device.lineage = { duplicatedFrom: src.id };
+    delete device.templateChild;
+    p.devices.push(device);
+    p.units.find((u) => u.id === src.unitId)?.deviceIds.push(nid);
+    const sigMap = new Map<string, string>();
+    for (const s of p.signals.filter((x) => x.deviceId === src.id)) {
+      const id = idOf('sig');
+      sigMap.set(s.id, id);
+      const copy = structuredClone(s);
+      copy.id = id;
+      copy.name = copiedObjectName(s.name, src.name, name);
+      copy.deviceId = nid;
+      p.signals.push(copy);
+    }
+    const posMap = new Map<string, string>();
+    for (const s of p.positions.filter((x) => x.deviceId === src.id)) {
+      const id = idOf('pos');
+      posMap.set(s.id, id);
+      const copy = structuredClone(s);
+      copy.id = id;
+      copy.deviceId = nid;
+      p.positions.push(copy);
+    }
+    for (const a of p.actions.filter((x) => x.deviceId === src.id)) {
+      const copy = structuredClone(a);
+      copy.id = idOf('act');
+      copy.name = copiedObjectName(a.name, src.name, name);
+      copy.deviceId = nid;
+      copy.unitId = src.unitId;
+      copy.commandSignalId = remapId(copy.commandSignalId, sigMap);
+      copy.completeSignalId = remapId(copy.completeSignalId, sigMap);
+      copy.targetPositionId = remapId(copy.targetPositionId, posMap);
+      if (copy.effect.holder === src.id) copy.effect.holder = nid;
+      copy.pre = copy.pre.map((c) => remapCond(c, sigMap, src.id, nid));
+      copy.post = copy.post.map((c) => remapCond(c, sigMap, src.id, nid));
+      p.actions.push(copy);
+    }
+    created.push(nid);
+    units.add(src.unitId);
+  }
+  for (const id of units) fitUnit(p, id);
+  return ok(p, created.join(','));
 }
 
 /** Reassign a Device to another Unit (hierarchy move). Caller must show impactOf() first. */

@@ -243,6 +243,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     edit(C.fitUnitToContent(p, id), '크기 맞춤');
   };
   const selectedUnitCount = p.units.filter((u) => selection.includes(u.id)).length;
+  const selectedDeviceIds = selection.filter((id) => p.devices.some((d) => d.id === id));
+  const selectedNodeIds = selection.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
   const runArrange = (r: C.CmdResult, label: string) => {
     setArrangeOpen(false);
     if (edit(r, label) && r.ok && r.note) say(r.note);
@@ -340,6 +342,26 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       actions: [{ label: '참조 해제 후 삭제', danger: true, run: () => { if (edit(C.deleteNode(p, id), `${name} 삭제`)) setSelection([]); } }, { label: '취소', run: () => {} }],
     });
   };
+  const requestDeleteMany = (ids: string[]) => {
+    if (locked) { say('실행 중에는 삭제가 차단됩니다', true); return; }
+    const targets = ids.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
+    if (targets.length < 2) return;
+    const imp = C.impactOfNodes(p, targets);
+    setModal({
+      title: '여러 개 삭제 — 참조 영향 확인',
+      body: <div>
+        <p>삭제될 Unit {imp.units}개, Device {imp.devices}개.</p>
+        <p>Action {imp.actions}개, 시퀀스 단계 {imp.steps}개, 연결 {imp.connections}개, Substation 시퀀스 {imp.subSequences}개.</p>
+        <p>다른 Action에서 참조하던 조건은 “미정” 조건으로 바뀌어 실행이 차단되고 Gap에 표시됩니다 (임의 true 처리 안 함).</p>
+        <p className="muted">한 번에 지워지고, Undo 한 번에 돌아옵니다.</p></div>,
+      actions: [{ label: '참조 해제 후 삭제', danger: true, run: () => { if (edit(C.deleteNodes(p, targets), '여러 개 삭제')) setSelection([]); } }, { label: '취소', run: () => {} }],
+    });
+  };
+  const requestDuplicate = () => {
+    if (!selectedDeviceIds.length) { say(C.DUPLICATE_NEED_DEVICE, true); return; }
+    const r = C.duplicateDevices(p, selection);
+    if (edit(r, 'Device 복제') && r.ok) setSelection(r.note ? r.note.split(',') : []);
+  };
   const requestReparent = (deviceId: string, unitId: string) => {
     const d = p.devices.find((x) => x.id === deviceId); const u = p.units.find((x) => x.id === unitId);
     if (!d || !u || d.unitId === unitId) return;
@@ -351,14 +373,25 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   // ---------- keyboard ----------
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      const tag = (e.target as HTMLElement)?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+      // Bookmark (Ctrl/Cmd+D) is always swallowed. Duplicate itself still follows the dialog / input rule.
+      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (dialogOpen() || typing) return;
+        if (step === 'canvas' || step === 'attributes') requestDuplicate();
+        return;
+      }
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
       if (dialogOpen()) return;
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const mod = e.metaKey || e.ctrlKey;
+      if (typing) return;
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
       else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); doRedo(); }
-      else if ((e.key === 'Delete' || e.key === 'Backspace') && selection.length === 1 && (step === 'canvas' || step === 'attributes')) { e.preventDefault(); requestDelete(selection[0]); }
+      else if ((e.key === 'Delete' || e.key === 'Backspace') && (step === 'canvas' || step === 'attributes')) {
+        if (selectedNodeIds.length >= 2) { e.preventDefault(); requestDeleteMany(selectedNodeIds); }
+        else if (selection.length === 1) { e.preventDefault(); requestDelete(selection[0]); }
+      }
       else if (e.key === 'Escape') { setConnectFrom(null); setMode('select'); }
     };
     window.addEventListener('keydown', h);
@@ -803,7 +836,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               </> },
               { id: 'diagram', label: '도면 도식', panel: <>
                 <div className="diagram-tools">
-                  <p className="diagram-hint">신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기</p>
+                  <p className="diagram-hint" title="Shift + 끌기: 여러 개 고르기">신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기</p>
                   {visualToggle}
                   <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
                   <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
@@ -817,7 +850,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                     </div>}
                   </div>
                   <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}>크기 맞춤</button>
-                  <button className="danger" onClick={() => selectedId && requestDelete(selectedId)} disabled={!selectedId || locked}>삭제</button>
+                  <button type="button" onClick={requestDuplicate} disabled={selectedDeviceIds.length === 0 || locked} title={selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : '선택한 Device 복제 (Ctrl+D)'}>복제</button>
+                  <button className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}>삭제</button>
                 </div>
                 <div className="diagram-canvas">{canvasEl}</div>
               </> },
