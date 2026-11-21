@@ -1,6 +1,27 @@
 import { findAsset } from '../assets/library';
 import type { Condition, MaterialEffect, Project } from '../model/types';
 
+export type FlowBlockKind = 'branch' | 'parallel' | 'loop' | 'retry';
+
+const FLOW_BLOCK_WORD: Record<FlowBlockKind, string> = {
+  branch: '분기',
+  parallel: '병렬',
+  loop: '반복',
+  retry: '재시도',
+};
+
+/** Shared block heading for the flow table and the SFC. The kind word is not repeated when it is already the name. */
+export function flowBlockTitle(kind: FlowBlockKind, name: string): string {
+  const word = FLOW_BLOCK_WORD[kind];
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === word) return word;
+  return `${word} ${trimmed}`;
+}
+
+export function flowBlockWord(kind: FlowBlockKind): string {
+  return FLOW_BLOCK_WORD[kind];
+}
+
 export function sigName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; return p.signals.find((s) => s.id === id)?.name ?? `⚠없음:${id}`; }
 export function unitName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; if (id === 'EXIT') return '배출(장비 밖)'; return p.units.find((u) => u.id === id)?.name ?? `⚠없음:${id}`; }
 export function devName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; return p.devices.find((d) => d.id === id)?.name ?? `⚠없음:${id}`; }

@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import type { FlowNode, Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
-import { condLabel } from './labels';
+import { condLabel, flowBlockTitle } from './labels';
 
 const BOX_W = 180;
 const BOX_H = 28;
@@ -68,7 +68,7 @@ function layoutNode(p: Project, n: FlowNode, active: Set<string>, done: Set<stri
         const bodyY = splitY + 14;
         const joinY = y + h - 2;
         return <g>
-          <text x={x} y={y + 14} fontSize={FONT} fill="var(--text)">분기 {n.name}</text>
+          <text x={x} y={y + 14} fontSize={FONT} fill="var(--text)">{flowBlockTitle('branch', n.name)}</text>
           <text x={x} y={splitY - 2} fontSize={FONT} fill="var(--text)">{thenLabel}</text>
           <text x={x + thenB.w + gap} y={splitY - 2} fontSize={FONT} fill="var(--text)">{elseLabel}</text>
           <line x1={thenCx} y1={splitY} x2={elseCx} y2={splitY} stroke="var(--text)" />
@@ -103,7 +103,7 @@ function layoutNode(p: Project, n: FlowNode, active: Set<string>, done: Set<stri
     const gap = 24;
     const w = Math.max(BOX_W, laid.reduce((s, b) => s + b.w, 0) + gap * Math.max(0, laid.length - 1));
     const h = 36 + Math.max(...laid.map((b) => b.h), BOX_H) + 20;
-    const title = n.kind === 'parallel' ? `병렬 ${n.name}` : `Substation ${p.units.find((u) => u.id === n.unitId)?.name ?? ''}`;
+    const title = n.kind === 'parallel' ? flowBlockTitle('parallel', n.name) : `Substation ${p.units.find((u) => u.id === n.unitId)?.name ?? ''}`;
     return {
       w, h, body: (x, y) => {
         let xx = x;
@@ -122,7 +122,7 @@ function layoutNode(p: Project, n: FlowNode, active: Set<string>, done: Set<stri
   }
   const inner = layoutSeq(p, n.body, active, done);
   const tag = n.kind === 'loop' ? `×${n.count}` : `최대 ${n.maxRetries}회`;
-  const caption = n.kind === 'loop' ? `반복 ${n.name}` : `재시도 ${n.name}`;
+  const caption = n.kind === 'loop' ? flowBlockTitle('loop', n.name) : flowBlockTitle('retry', n.name);
   const extra = n.kind === 'loop' ? 44 : 84;
   const w = inner.w + extra;
   const h = 20 + inner.h + 8;

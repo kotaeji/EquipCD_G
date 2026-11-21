@@ -12,7 +12,6 @@ import { checkRunReadiness, validateProject, type Diagnostic } from '../model/va
 import type { RuntimeState } from '../runtime/engine';
 import type { QuarantineEntry } from '../storage/localStore';
 import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
-import { FlowEditor } from './FlowEditor';
 import type { EditFn } from './Inspector';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
 import { SfcView } from './SfcView';
@@ -92,8 +91,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
             })}
           </tbody>
         </table>
-        <div className="dropzone" style={{ marginTop: 4 }}>여기로 Action을 드래그하면 끝에 추가 · 행을 드래그해 단계 목록 순서를 바꿉니다. 실행 순서는 아래 흐름을 따릅니다.</div>
-        <FlowEditor p={p} rt={rt} locked={locked} edit={edit} />
+        <div className="dropzone" style={{ marginTop: 4 }}>여기로 Action을 드래그하면 끝에 추가 · 행을 드래그해 단계 목록 순서를 바꿉니다. 실행 순서는 위의 Station 흐름을 따릅니다.</div>
         {p.sequence.unresolved.length > 0 && <div className="notice warn">미해결/모호 목록(보존): {p.sequence.unresolved.join(' · ')}</div>}
       </div>
       <div style={{ width: 270, borderLeft: '1px solid var(--border)', paddingLeft: 8, overflow: 'auto' }}>

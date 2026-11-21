@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { applyEdit, initHistory, undo } from '../src/model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
 import * as C from '../src/model/commands';
-import { DEFAULT_MAX_RETRIES, FILE_FORMAT_VERSION } from '../src/model/types';
 import { checkRunReadiness, validateProject } from '../src/model/validate';
 import { advance, createRuntime, pause, resume, runToEnd, start } from '../src/runtime/engine';
 import { orderRunRecords, summarizeRun } from '../src/runtime/runSummary';
+import { findById } from '../src/model/flow';
 import { destLabel, resolveBlocker } from '../src/ui/blockerTarget';
-import { signalChoiceLabel } from '../src/ui/labels';
+import { flowBlockTitle, signalChoiceLabel } from '../src/ui/labels';
 import { parseProjectFile, serializeProject } from '../src/storage/fileFormat';
-import type { Project } from '../src/model/types';
+import { DEFAULT_MAX_RETRIES, FILE_FORMAT_VERSION, RUNTIME_RULES_VERSION, type FlowNode, type Project } from '../src/model/types';
 
 const readId = (p: Project) => p.actions.find((a) => a.kind === 'read')!.id;
 const resultName = (p: Project) => p.signals.find((s) => s.deviceId === 'BCR-02' && s.role === 'result')!.name;
@@ -255,6 +255,176 @@ describe('review fixes — order, parallel guidance, condition names', () => {
     const p = buildSampleProject();
     const sig = p.signals.find((s) => s.deviceId === 'STP-02' && s.portKey === 'upDone')!;
     expect(signalChoiceLabel(p, sig.id, true)).toBe('STP-02 · 상승 완료 = 참');
+  });
+});
+
+const asNode = (p: Project, id: string): FlowNode => {
+  const hit = findById(p.sequence.flow ?? [], id);
+  if (!hit) throw new Error(`missing ${id}`);
+  return hit.node;
+};
+
+describe('TURN-023 flow edit polish', () => {
+  it('AC2 titles repeat the kind word only when the name is different', () => {
+    expect(flowBlockTitle('branch', '분기')).toBe('분기');
+    expect(flowBlockTitle('branch', '  분기  ')).toBe('분기');
+    expect(flowBlockTitle('branch', '검사 결과')).toBe('분기 검사 결과');
+    expect(flowBlockTitle('parallel', '병렬')).toBe('병렬');
+    expect(flowBlockTitle('parallel', '이송과 정지')).toBe('병렬 이송과 정지');
+    expect(flowBlockTitle('loop', '반복')).toBe('반복');
+    expect(flowBlockTitle('loop', '가공 반복')).toBe('반복 가공 반복');
+    expect(flowBlockTitle('retry', '재시도')).toBe('재시도');
+    expect(flowBlockTitle('retry', '읽기 재시도')).toBe('재시도 읽기 재시도');
+  });
+
+  it('AC1 rename rejects an empty name, keeps the old name, and undo restores it', () => {
+    const p0 = buildFlowSampleProject();
+    const before = structuredClone(asNode(p0, 'FLW-BRANCH'));
+    expect(C.renameFlowBlock(p0, 'FLW-BRANCH', '   ').ok).toBe(false);
+    expect(asNode(p0, 'FLW-BRANCH')).toEqual(before);
+    const h0 = initHistory(p0);
+    const renamed = applyEdit(h0, C.renameFlowBlock(p0, 'FLW-BRANCH', ' 검사 결과 '), '블록 이름', false);
+    expect(renamed.error).toBeUndefined();
+    expect((asNode(renamed.history.present, 'FLW-BRANCH') as { name: string }).name).toBe('검사 결과');
+    const back = undo(renamed.history, false);
+    expect((asNode(back.history.present, 'FLW-BRANCH') as { name: string }).name).toBe('읽기 결과');
+    const locked = applyEdit(h0, C.renameFlowBlock(p0, 'FLW-BRANCH', '다른 이름'), '블록 이름', true);
+    expect(locked.error).toContain('실행 중');
+    expect(locked.history.present).toEqual(p0);
+  });
+
+  it('AC3 moves a block and a substation step without dropping what is inside', () => {
+    const p0 = buildFlowSampleProject();
+    const retry = structuredClone(asNode(p0, 'FLW-RETRY'));
+    const down = C.moveFlowNode(p0, 'FLW-RETRY', 1);
+    expect(down.ok).toBe(true);
+    if (!down.ok) return;
+    expect(asNode(down.project, 'FLW-RETRY')).toEqual(retry);
+    expect(down.project.sequence.flow!.map((n) => n.kind === 'step' ? n.stepId : n.id)[3]).toBe('FLW-RETRY');
+    const stuck = C.moveFlowNode(p0, p0.sequence.flow![0].kind === 'step' ? p0.sequence.flow![0].stepId : '', -1);
+    expect(stuck.ok).toBe(false);
+    if (stuck.ok) return;
+    expect(stuck.reason).toBe('이동 불가');
+    const out = C.moveFlowOut(p0, 'FLW-LOOP');
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.project.sequence.flow!.some((n) => n.kind !== 'step' && n.id === 'FLW-LOOP')).toBe(true);
+    expect(asNode(out.project, 'FLW-LOOP')).toEqual(asNode(p0, 'FLW-LOOP'));
+    const outside = C.moveFlowOut(p0, 'FLW-RETRY');
+    expect(outside.ok).toBe(false);
+    if (outside.ok) return;
+    expect(outside.reason).toBe('이미 맨 바깥입니다');
+
+    const added = C.addSubstationNode(p0, p0.units[0].id, () => 'FLW-SUB');
+    expect(added.ok).toBe(true);
+    if (!added.ok) return;
+    const last = added.project.sequence.flow!.length - 1;
+    expect(added.project.sequence.flow![last]).toMatchObject({ kind: 'substation', id: 'FLW-SUB' });
+    const up = C.moveFlowNode(added.project, 'FLW-SUB', -1);
+    expect(up.ok).toBe(true);
+    if (!up.ok) return;
+    expect(findById(up.project.sequence.flow!, 'FLW-SUB')!.index).toBe(last - 1);
+    expect(asNode(up.project, 'FLW-SUB')).toMatchObject({ kind: 'substation', unitId: p0.units[0].id });
+  });
+
+  it('AC4 inserts a block or substation into an arm and rejects nesting into itself or a parallel lane', () => {
+    const p0 = buildFlowSampleProject();
+    const into = C.moveFlowInto(p0, 'FLW-RETRY', 'FLW-BRANCH', 'else');
+    expect(into.ok).toBe(true);
+    if (!into.ok) return;
+    const branch = asNode(into.project, 'FLW-BRANCH');
+    expect(branch.kind).toBe('branch');
+    if (branch.kind !== 'branch') return;
+    expect(branch.else.map((n) => n.kind === 'step' ? n.stepId : n.id)).toContain('FLW-RETRY');
+    expect(asNode(into.project, 'FLW-RETRY')).toEqual(asNode(p0, 'FLW-RETRY'));
+
+    const self = C.moveFlowInto(p0, 'FLW-BRANCH', 'FLW-BRANCH', 'then');
+    expect(self.ok).toBe(false);
+    if (self.ok) return;
+    expect(self.reason).toBe('블록을 자기 자신 안에 넣을 수 없습니다');
+
+    const added = C.addSubstationNode(p0, p0.units[0].id, () => 'FLW-SUB');
+    expect(added.ok).toBe(true);
+    if (!added.ok) return;
+    const nested = C.moveFlowInto(added.project, 'FLW-SUB', 'FLW-PAR', 0);
+    expect(nested.ok).toBe(false);
+    if (nested.ok) return;
+    expect(nested.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    const parked = C.moveFlowInto(added.project, 'FLW-SUB', 'FLW-LOOP', 'body');
+    expect(parked.ok).toBe(true);
+
+    const base = buildSampleProject();
+    const ids = base.sequence.steps.slice(0, 4).map((s) => s.id);
+    const first = C.wrapFlow(base, ids.slice(0, 2), 'parallel', () => 'P1');
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const second = C.wrapFlow(first.project, ids.slice(2, 4), 'parallel', () => 'P2');
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    const clash = C.moveFlowInto(second.project, 'P2', 'P1', 0);
+    expect(clash.ok).toBe(false);
+    if (clash.ok) return;
+    expect(clash.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+  });
+
+  it('AC5 wraps a mixed consecutive run and keeps the parallel-lane rule', () => {
+    const p0 = buildFlowSampleProject();
+    const step = p0.sequence.flow![1];
+    const stepId = step.kind === 'step' ? step.stepId : '';
+    const retry = structuredClone(asNode(p0, 'FLW-RETRY'));
+    for (const kind of ['branch', 'loop', 'retry'] as const) {
+      const wrapped = C.wrapFlow(p0, [stepId, 'FLW-RETRY'], kind, () => `W-${kind}`);
+      expect(wrapped.ok, kind).toBe(true);
+      if (!wrapped.ok) return;
+      const block = asNode(wrapped.project, `W-${kind}`);
+      const body = block.kind === 'branch' ? block.then : block.kind === 'loop' || block.kind === 'retry' ? block.body : [];
+      expect(body.map((n) => n.kind === 'step' ? n.stepId : n.id)).toEqual([stepId, 'FLW-RETRY']);
+      expect(body[1]).toEqual(retry);
+    }
+    const parallel = C.wrapFlow(p0, ['FLW-RETRY', 'FLW-BRANCH'], 'parallel');
+    expect(parallel.ok).toBe(false);
+    if (parallel.ok) return;
+    expect(parallel.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    const gap = C.wrapFlow(p0, [p0.sequence.flow![0].kind === 'step' ? p0.sequence.flow![0].stepId : '', 'FLW-RETRY'], 'loop');
+    expect(gap.ok).toBe(false);
+    if (gap.ok) return;
+    expect(gap.reason).toBe('같은 갈래에서 연속된 단계만 묶을 수 있습니다');
+
+    const base = buildSampleProject();
+    const ids = base.sequence.steps.slice(0, 2).map((s) => s.id);
+    const lane = C.wrapFlow(base, ids, 'parallel', () => 'P1');
+    expect(lane.ok).toBe(true);
+    if (!lane.ok) return;
+    const nested = C.wrapFlow(lane.project, ids, 'parallel');
+    expect(nested.ok).toBe(false);
+    if (nested.ok) return;
+    expect(nested.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    expect(C.wrapFlow(lane.project, ids, 'loop').ok).toBe(true);
+
+    const sample = buildSampleProject();
+    const sub = C.addSubstationNode(sample, sample.units[0].id, () => 'FLW-SUB');
+    expect(sub.ok).toBe(true);
+    if (!sub.ok) return;
+    const prev = sub.project.sequence.flow![sub.project.sequence.flow!.length - 2];
+    const prevId = prev.kind === 'step' ? prev.stepId : prev.id;
+    const withSub = C.wrapFlow(sub.project, [prevId, 'FLW-SUB'], 'parallel');
+    expect(withSub.ok).toBe(false);
+    if (withSub.ok) return;
+    expect(withSub.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    const around = C.wrapFlow(sub.project, [prevId, 'FLW-SUB'], 'loop', () => 'WITH-SUB');
+    expect(around.ok).toBe(true);
+    if (!around.ok) return;
+    const loop = asNode(around.project, 'WITH-SUB');
+    expect(loop.kind).toBe('loop');
+    if (loop.kind === 'loop') expect(loop.body.some((n) => n.kind === 'substation' && n.id === 'FLW-SUB')).toBe(true);
+  });
+
+  it('AC7 samples keep their times and the file and runtime versions stay put', () => {
+    expect(FILE_FORMAT_VERSION).toBe('0.3.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.3.1');
+    expect(runToEnd(createRuntime(buildFlowSampleProject())).state.timeMs).toBe(13100);
+    expect(runToEnd(createRuntime(buildParallelSampleProject())).state.timeMs).toBe(2500);
+    expect(runToEnd(createRuntime(buildSampleProject())).state.timeMs).toBe(11100);
   });
 });
 
