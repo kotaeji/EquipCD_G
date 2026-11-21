@@ -113,17 +113,43 @@ export function scrubFlow(nodes: FlowNode[], removedSteps: Set<string>, removedU
   return rec(nodes);
 }
 
-/** Replace a consecutive sibling run of step nodes with one block. Returns null if they are not consecutive siblings. */
-export function wrapStepNodes(nodes: FlowNode[], stepIds: string[], block: FlowNode): FlowNode[] | null {
-  if (stepIds.length === 0) return null;
+export function nodeKey(n: FlowNode): string {
+  return n.kind === 'step' ? n.stepId : n.id;
+}
+
+/** First sibling run whose keys equal `ids` in order. */
+export function findConsecutive(nodes: FlowNode[], ids: string[]): { list: FlowNode[]; index: number } | null {
+  if (ids.length === 0) return null;
+  let hit: { list: FlowNode[]; index: number } | null = null;
+  walk(nodes, (_n, list, index) => {
+    if (hit || index + ids.length > list.length) return;
+    if (ids.every((id, k) => nodeKey(list[index + k]) === id)) hit = { list, index };
+  });
+  return hit;
+}
+
+function putInner(block: FlowNode, inner: FlowNode[]): FlowNode {
+  if (block.kind === 'branch') return { ...block, then: inner };
+  if (block.kind === 'parallel') return { ...block, lanes: [inner, ...block.lanes.slice(1)] };
+  if (block.kind === 'loop' || block.kind === 'retry') return { ...block, body: inner };
+  return block;
+}
+
+/**
+ * Replace a consecutive sibling run (steps, blocks, or substation steps) with one block.
+ * The matched nodes, including anything inside a block, become the block body.
+ * Returns null if they are not consecutive siblings.
+ */
+export function wrapStepNodes(nodes: FlowNode[], ids: string[], block: FlowNode): FlowNode[] | null {
+  if (ids.length === 0 || block.kind === 'step' || block.kind === 'substation') return null;
   let placed = false;
   const rec = (list: FlowNode[]): FlowNode[] => {
     if (placed) return list;
-    for (let i = 0; i + stepIds.length <= list.length; i++) {
-      const slice = list.slice(i, i + stepIds.length);
-      if (slice.every((n, k) => n.kind === 'step' && n.stepId === stepIds[k])) {
+    for (let i = 0; i + ids.length <= list.length; i++) {
+      const slice = list.slice(i, i + ids.length);
+      if (slice.every((n, k) => nodeKey(n) === ids[k])) {
         placed = true;
-        return [...list.slice(0, i), block, ...list.slice(i + stepIds.length)];
+        return [...list.slice(0, i), putInner(block, slice), ...list.slice(i + ids.length)];
       }
     }
     return list.map((n) => {

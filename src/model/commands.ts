@@ -3,7 +3,7 @@ import { findAsset, getAssetById } from '../assets/library';
 import { instantiateDevice, makeUnit, newId } from './factory';
 import type { Action, AssetKind, Condition, Connection, Device, FlowNode, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { DEFAULT_MAX_RETRIES, q } from './types';
-import { containsParallelOrSubstation, findById, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
+import { containsList, containsParallelOrSubstation, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
 import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, tightUnitLayout, unitMinSize } from './unitLayout';
 
 export type CmdResult = { ok: true; project: Project; note?: string } | { ok: false; reason: string };
@@ -750,20 +750,25 @@ const resultCond = (p: Project): Condition => {
 
 export type WrapKind = 'branch' | 'parallel' | 'loop' | 'retry';
 
-/** Wrap consecutive sibling steps. Creates `flow` from the flat list when it was absent. */
-export function wrapFlow(p0: Project, stepIds: string[], kind: WrapKind, idOf: (s: string) => string = newId): CmdResult {
-  if (stepIds.length < 1) return no('단계를 하나 이상 고르세요');
-  const known = new Set(p0.sequence.steps.map((s) => s.id));
-  if (stepIds.some((id) => !known.has(id))) return no('없는 단계');
+/** Wrap consecutive siblings (steps, blocks, or substation steps). Creates `flow` from the flat list when it was absent. */
+export function wrapFlow(p0: Project, ids: string[], kind: WrapKind, idOf: (s: string) => string = newId): CmdResult {
+  if (ids.length < 1) return no('단계를 하나 이상 고르세요');
   const p = clone(p0);
+  const flow = flowOf(p);
+  if (ids.some((id) => !findById(flow, id))) return no('없는 단계');
+  const spot = findConsecutive(flow, ids);
+  if (!spot) return no('같은 갈래에서 연속된 단계만 묶을 수 있습니다');
+  const inner = spot.list.slice(spot.index, spot.index + ids.length);
+  if (kind === 'parallel' && (listInsideParallel(flow, spot.list) || inner.some(containsParallelOrSubstation))) {
+    return no('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+  }
   const id = idOf('flow');
-  const steps: FlowNode[] = stepIds.map((stepId) => ({ kind: 'step', stepId }));
   let block: FlowNode;
-  if (kind === 'branch') block = { kind: 'branch', id, name: '분기', cond: resultCond(p), then: steps, else: [] };
-  else if (kind === 'parallel') block = { kind: 'parallel', id, name: '병렬', lanes: [steps, []] };
-  else if (kind === 'loop') block = { kind: 'loop', id, name: '반복', count: 2, body: steps };
-  else block = { kind: 'retry', id, name: '재시도', until: resultCond(p), maxRetries: DEFAULT_MAX_RETRIES, body: steps };
-  const next = wrapStepNodes(flowOf(p), stepIds, block);
+  if (kind === 'branch') block = { kind: 'branch', id, name: '분기', cond: resultCond(p), then: [], else: [] };
+  else if (kind === 'parallel') block = { kind: 'parallel', id, name: '병렬', lanes: [[], []] };
+  else if (kind === 'loop') block = { kind: 'loop', id, name: '반복', count: 2, body: [] };
+  else block = { kind: 'retry', id, name: '재시도', until: resultCond(p), maxRetries: DEFAULT_MAX_RETRIES, body: [] };
+  const next = wrapStepNodes(flow, ids, block);
   if (!next) return no('같은 갈래에서 연속된 단계만 묶을 수 있습니다');
   p.sequence.flow = next;
   return ok(p, id);
@@ -867,6 +872,7 @@ export function moveFlowInto(p0: Project, id: string, blockId: string, arm: 'the
   if (!target) return no('갈래 없음');
   const moving = findById(flow, id);
   if (!moving) return no('노드 없음');
+  if (moving.node.kind !== 'step' && containsList(moving.node, target)) return no('블록을 자기 자신 안에 넣을 수 없습니다');
   if (listInsideParallel(flow, target) && containsParallelOrSubstation(moving.node)) return no('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
   const next = moveNodeTo(flow, id, target, target.length);
   if (!next) return no('옮길 수 없습니다');
