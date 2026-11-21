@@ -5,6 +5,9 @@ import * as C from '../src/model/commands';
 import { DEFAULT_MAX_RETRIES, FILE_FORMAT_VERSION } from '../src/model/types';
 import { checkRunReadiness, validateProject } from '../src/model/validate';
 import { advance, createRuntime, pause, resume, runToEnd, start } from '../src/runtime/engine';
+import { orderRunRecords, summarizeRun } from '../src/runtime/runSummary';
+import { destLabel, resolveBlocker } from '../src/ui/blockerTarget';
+import { signalChoiceLabel } from '../src/ui/labels';
 import { parseProjectFile, serializeProject } from '../src/storage/fileFormat';
 import type { Project } from '../src/model/types';
 
@@ -210,6 +213,48 @@ describe('examples (AC8 AC10 AC11 AC12)', () => {
     const started = start(createRuntime(p));
     expect(started.state.status).toBe('idle');
     expect(started.state.blockers.map((b) => b.code)).toContain('DEVICE_CONFLICT');
+  });
+});
+
+describe('review fixes — order, parallel guidance, condition names', () => {
+  it('puts the second loop pass before later steps and keeps the skipped step in flow order', () => {
+    const p = buildFlowSampleProject();
+    const rt = runToEnd(createRuntime(p));
+    const sum = summarizeRun(p, rt.state);
+    const at = (pred: (s: (typeof sum.steps)[number]) => boolean) => sum.steps.findIndex(pred);
+    const cyl2 = at((s) => s.name.includes('가공') && s.pass === 2);
+    const conv = at((s) => s.name.includes('컨베이어'));
+    const ng = at((s) => s.name.includes('NG'));
+    expect(cyl2).toBeGreaterThan(at((s) => s.name.includes('가공') && s.pass === 1));
+    expect(cyl2).toBeLessThan(conv);
+    expect(ng).toBeGreaterThan(conv);
+    expect(sum.steps[ng].status).toBe('skipped');
+    expect(orderRunRecords(p, rt.state.steps).map((s) => `${s.stepId}:${s.pass ?? ''}:${s.status}`)).toEqual(
+      sum.steps.map((s) => `${s.stepId}:${s.pass ?? ''}:${s.status}`),
+    );
+  });
+
+  it('sends a Station parallel material conflict to the Station sequence and says 갈래', () => {
+    const base = buildSampleProject();
+    const ids = base.sequence.steps.slice(1, 3).map((s) => s.id);
+    const wrapped = C.wrapFlow(base, ids, 'parallel');
+    expect(wrapped.ok).toBe(true);
+    if (!wrapped.ok) return;
+    const moved = C.moveFlowInto(wrapped.project, ids[1], wrapped.note!, 1);
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    const ready = checkRunReadiness(moved.project);
+    const hit = ready.blockers.find((b) => b.code === 'SHARED_MATERIAL_CONFLICT');
+    expect(hit?.message).toContain('갈래가');
+    expect(hit?.message).not.toContain('시퀀스');
+    const guide = resolveBlocker(moved.project, hit!, ready.blockers);
+    expect(destLabel(guide.dest!)).toBe('4 자재·시퀀스 › Station 시퀀스');
+  });
+
+  it('prefixes a signal choice with the Device name', () => {
+    const p = buildSampleProject();
+    const sig = p.signals.find((s) => s.deviceId === 'STP-02' && s.portKey === 'upDone')!;
+    expect(signalChoiceLabel(p, sig.id, true)).toBe('STP-02 · 상승 완료 = 참');
   });
 });
 

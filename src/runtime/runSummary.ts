@@ -1,5 +1,6 @@
 // Station run summary (TURN-018). Reads a finished or in-progress RuntimeState.
 // Does not advance time and does not write the engine.
+import { collectStepIds } from '../model/flow';
 import type { Project } from '../model/types';
 import type { RuntimeState, StepRecord } from './engine';
 
@@ -69,6 +70,45 @@ function rowOf(rec: StepRecord | undefined, stepId: string, name: string): RunSt
   return { stepId, name, status, startMs, endMs, elapsedMs, ...(rec?.pass != null ? { pass: rec.pass } : {}), ...(rec?.lane ? { lane: rec.lane } : {}) };
 }
 
+function laneRank(lane?: string): number {
+  const m = /갈래\s*(\d+)/.exec(lane ?? '');
+  return m ? Number(m[1]) : 0;
+}
+
+export interface OrderableStep {
+  stepId: string;
+  status: string;
+  startMs?: number | null;
+  pass?: number;
+  lane?: string;
+}
+
+/**
+ * Executed rows follow start time (then lane number, then the original order).
+ * Skipped and not-yet-started rows stay at their place in `flow`.
+ * A flat sequence (no flow) keeps its existing order.
+ */
+export function orderRunRecords<T extends OrderableStep>(p: Project, rows: readonly T[]): T[] {
+  if (!p.sequence.flow) return [...rows];
+  const at = new Map<string, number>();
+  collectStepIds(p.sequence.flow).forEach((id, i) => { if (!at.has(id)) at.set(id, i); });
+  const indexOf = (r: T) => at.get(r.stepId) ?? 1_000_000;
+  const placed = rows.filter((r) => r.status === 'skipped' || r.status === 'pending' || r.startMs == null);
+  const executed = rows.filter((r) => r.status !== 'skipped' && r.status !== 'pending' && r.startMs != null);
+  const byPlace = [...placed].sort((a, b) => indexOf(a) - indexOf(b));
+  const byTime = executed.map((r, i) => ({ r, i })).sort((a, b) =>
+    (a.r.startMs ?? 0) - (b.r.startMs ?? 0) || laneRank(a.r.lane) - laneRank(b.r.lane) || a.i - b.i);
+  const out: T[] = [];
+  let pi = 0;
+  for (const { r } of byTime) {
+    const ix = indexOf(r);
+    while (pi < byPlace.length && indexOf(byPlace[pi]) < ix) out.push(byPlace[pi++]);
+    out.push(r);
+  }
+  while (pi < byPlace.length) out.push(byPlace[pi++]);
+  return out;
+}
+
 /** One row per step id, in sequence order. Used when the run is a flat list. */
 function linearRows(p: Project, state: RuntimeState | null): RunStepSummary[] {
   const records = new Map<string, StepRecord>();
@@ -84,9 +124,10 @@ function occurrenceMode(p: Project, state: RuntimeState | null): boolean {
 
 /** Summarize one Station sequence run. `state` null means the run has not started. */
 export function summarizeRun(p: Project, state: RuntimeState | null): RunSummary {
-  const steps: RunStepSummary[] = occurrenceMode(p, state) && state
+  const raw: RunStepSummary[] = occurrenceMode(p, state) && state
     ? state.steps.map((rec) => rowOf(rec, rec.stepId, stepName(p, rec.stepId)))
     : linearRows(p, state);
+  const steps = occurrenceMode(p, state) ? orderRunRecords(p, raw) : raw;
 
   const started = steps.filter((s) => s.startMs !== null);
   const finished = steps.filter((s) => s.endMs !== null);

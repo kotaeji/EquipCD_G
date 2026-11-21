@@ -17,6 +17,15 @@ export function connectStartLabel(p: Project, id: string): string {
   }
   return p.units.find((u) => u.id === id)?.name ?? id;
 }
+/** Condition picker text. Signal rows lead with the Device name so identical port names stay distinct. */
+export function signalChoiceLabel(p: Project, signalId: string, equals: boolean): string {
+  const s = p.signals.find((x) => x.id === signalId);
+  if (!s) return '(없음)';
+  const dev = devName(p, s.deviceId);
+  const bare = s.name.startsWith(`${dev}.`) ? s.name.slice(dev.length + 1) : s.name;
+  return `${dev} · ${bare} = ${equals ? '참' : '거짓'}`;
+}
+
 export function condLabel(p: Project, c: Condition): string {
   switch (c.kind) {
     case 'signal': return `${sigName(p, c.signalId)} = ${c.equals}`;

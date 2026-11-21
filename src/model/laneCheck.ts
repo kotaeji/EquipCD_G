@@ -21,6 +21,7 @@ export function checkLanes(p: Project, lanes: LaneRef[], unitId?: string): LaneC
   const devOwner = new Map<string, string>();
   const matOwners = new Set<string>();
   const unit = unitId ? p.units.find((u) => u.id === unitId) : undefined;
+  const word = unitId ? '시퀀스' : '갈래';
   for (const q of lanes) {
     if (q.steps.length === 0) b('NO_STEPS', q.id, `[${q.name}] 단계가 없음`);
     const devs = new Set<string>();
@@ -40,10 +41,10 @@ export function checkLanes(p: Project, lanes: LaneRef[], unitId?: string): LaneC
     }
     for (const d of devs) {
       const prev = devOwner.get(d);
-      if (prev) b('DEVICE_CONFLICT', d, `Device ${p.devices.find((x) => x.id === d)?.name ?? d}를 시퀀스 "${prev}"와 "${q.name}"가 함께 사용 — 동시 쓰기(명령/완료 Signal 충돌)를 이 시제품은 해석하지 않으므로 실행 전 차단`);
+      if (prev) b('DEVICE_CONFLICT', d, `Device ${p.devices.find((x) => x.id === d)?.name ?? d}를 ${word} "${prev}"와 "${q.name}"가 함께 사용 — 동시 쓰기(명령/완료 Signal 충돌)를 이 시제품은 해석하지 않으므로 실행 전 차단`);
       else devOwner.set(d, q.name);
     }
   }
-  if (matOwners.size > 1) b('SHARED_MATERIAL_CONFLICT', unitId ?? 'parallel', `자재를 다루는 시퀀스가 ${matOwners.size}개 (${lanes.filter((q) => matOwners.has(q.id)).map((q) => q.name).join(', ')}) — 자재 중복 소유/동시 이동은 지원하지 않아 실행 전 차단 (자재를 다루는 시퀀스는 1개만 허용)`);
+  if (matOwners.size > 1) b('SHARED_MATERIAL_CONFLICT', unitId ?? 'parallel', `자재를 다루는 ${word}가 ${matOwners.size}개 (${lanes.filter((q) => matOwners.has(q.id)).map((q) => q.name).join(', ')}) — 자재 중복 소유/동시 이동은 지원하지 않아 실행 전 차단 (자재를 다루는 ${word}는 1개만 허용)`);
   return { blockers, usesMaterial: matOwners.size > 0 };
 }

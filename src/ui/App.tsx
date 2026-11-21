@@ -9,6 +9,7 @@ import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject 
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
+import { orderRunRecords } from '../runtime/runSummary';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
@@ -1039,7 +1040,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <label>가상 시간<span className="field-ro">{fmtTime(rt?.timeMs ?? 0)}</span></label>
             </div>
             <table className="grid plain"><thead><tr><th>단계</th><th>갈래 · 회차</th><th>상태</th><th>자재</th></tr></thead>
-              <tbody>{(rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const }))).map((row, i) => {
+              <tbody>{orderRunRecords(p, rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const }))).map((row, i) => {
                 const step = p.sequence.steps.find((s) => s.id === row.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === row.stepId);
                 const where = [('lane' in row ? row.lane : undefined), ('pass' in row && row.pass ? `${row.pass}회` : '')].filter(Boolean).join(' ');
                 const label = row.status === 'skipped' ? '건너뜀' : row.status;

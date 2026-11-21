@@ -5,7 +5,7 @@ import type { Condition, FlowNode, Project } from '../model/types';
 import { DEFAULT_MAX_RETRIES } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import type { EditFn } from './Inspector';
-import { condLabel, devName, unitName } from './labels';
+import { condLabel, devName, signalChoiceLabel, unitName } from './labels';
 
 type Arm = 'then' | 'else' | 'body' | number;
 
@@ -73,10 +73,10 @@ function condFrom(value: string): Condition {
 
 function CondSelect({ p, cond, disabled, onChange }: { p: Project; cond: Condition; disabled: boolean; onChange: (c: Condition) => void }) {
   const states = p.materials[0]?.states ?? [];
-  return <select aria-label="조건" disabled={disabled} value={condValue(cond)} onChange={(e) => onChange(condFrom(e.target.value))} style={{ maxWidth: 220 }}>
+  return <select aria-label="조건" disabled={disabled} value={condValue(cond)} onChange={(e) => onChange(condFrom(e.target.value))} style={{ maxWidth: 280 }}>
     <option value="undef">조건 없음</option>
-    {p.signals.map((s) => <option key={`${s.id}:1`} value={`sig:${s.id}:1`}>{s.name} = 참</option>)}
-    {p.signals.map((s) => <option key={`${s.id}:0`} value={`sig:${s.id}:0`}>{s.name} = 거짓</option>)}
+    {p.signals.map((s) => <option key={`${s.id}:1`} value={`sig:${s.id}:1`}>{signalChoiceLabel(p, s.id, true)}</option>)}
+    {p.signals.map((s) => <option key={`${s.id}:0`} value={`sig:${s.id}:0`}>{signalChoiceLabel(p, s.id, false)}</option>)}
     {states.map((st) => <option key={st} value={`st:${st}`}>자재 상태 = {st}</option>)}
     {p.units.map((u) => <option key={u.id} value={`at:${u.id}`}>자재 위치 = {u.name}</option>)}
   </select>;
