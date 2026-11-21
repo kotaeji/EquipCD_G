@@ -118,14 +118,16 @@ describe('TURN-010 project tab', () => {
     expect(u.history().present.name).toContain('5공정 예제');
     await u.click((await u.openMenu()).querySelectorAll('button')[2]);
     expect(u.history().present.name).toContain('병렬');
+    await u.click((await u.openMenu()).querySelectorAll('button')[3]);
+    expect(u.history().present.name).toContain('흐름 예제');
 
     const file = u.el.querySelector('input[type=file]') as HTMLInputElement;
     let clicks = 0;
     file.click = () => { clicks += 1; };
-    await u.click((await u.openMenu()).querySelectorAll('button')[3]);
+    await u.click((await u.openMenu()).querySelectorAll('button')[4]);
     expect(clicks).toBe(1);
 
-    await u.click((await u.openMenu()).querySelectorAll('button')[4]);
+    await u.click((await u.openMenu()).querySelectorAll('button')[5]);
     expect(u.el.querySelector('h1')!.textContent).toBe('프로젝트 파일');
   });
 

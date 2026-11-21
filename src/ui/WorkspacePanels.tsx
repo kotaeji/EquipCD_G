@@ -152,7 +152,7 @@ export function ProjectList({ rows, kv, wsName, onActivate, onCreate, onImport, 
   kv: boolean;
   wsName: string;
   onActivate: (row: ProjectListRow) => void;
-  onCreate: (kind: 'blank' | 'sample' | 'parallel') => void;
+  onCreate: (kind: 'blank' | 'sample' | 'parallel' | 'flow') => void;
   onImport: () => void;
   onFiles: () => void;
   onSwitch: (tabKey: string) => void;
@@ -188,6 +188,7 @@ export function ProjectList({ rows, kv, wsName, onActivate, onCreate, onImport, 
       <button type="button" role="menuitem" title="빈 프로젝트로 시작" onClick={() => pick(() => onCreate('blank'))}>빈 프로젝트</button>
       <button type="button" role="menuitem" title="기본 5공정 Station 예제 사본" onClick={() => pick(() => onCreate('sample'))}>5공정 예제</button>
       <button type="button" role="menuitem" title="Substation 하나에 병렬 시퀀스 2개가 있는 예제" onClick={() => pick(() => onCreate('parallel'))}>병렬 예제</button>
+      <button type="button" role="menuitem" title="분기 · 병렬 · 반복 · 재시도가 있는 Station 시퀀스" onClick={() => pick(() => onCreate('flow'))}>흐름 예제</button>
       <button type="button" role="menuitem" onClick={() => pick(onImport)}>JSON 가져오기</button>
       <button type="button" role="menuitem" onClick={() => pick(onFiles)}>프로젝트 파일</button>
     </div>}

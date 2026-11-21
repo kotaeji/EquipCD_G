@@ -15,7 +15,7 @@
     }
   ],
   "format": "equipment-concept-designer/project",
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "project": {
     "actions": [
       {
@@ -208,7 +208,7 @@
     "assumptionsNote": [
       "모든 시간은 [예시] 가정값이며 실제 장비 사양이 아님",
       "S1의 두 시퀀스는 서로 다른 Device만 사용 (공유 Device 없음 → 동시 실행 허용)",
-      "자재는 정의하지 않음 — Station 시퀀스 실행은 이 예제에서 대상 아님"
+      "자재 1개는 S1에 있고 어느 Substation 시퀀스도 다루지 않음. Station ▶ 실행이 S1을 끝낸 뒤 S2를 잇는다"
     ],
     "candidates": [],
     "connections": [
@@ -362,13 +362,71 @@
     },
     "gapReview": {},
     "id": "prj-sample-parallel",
-    "materials": [],
+    "materials": [
+      {
+        "carrierOf": null,
+        "feedInterval": {
+          "assumption": true,
+          "source": {
+            "method": "sample-example"
+          },
+          "unit": "s",
+          "value": 10
+        },
+        "handling": "어느 시퀀스도 다루지 않음 (예시)",
+        "id": "MAT-P1",
+        "initialLocation": "U-PS1",
+        "initialState": "대기",
+        "kind": "individual",
+        "name": "M-P1 표시용",
+        "route": [
+          "U-PS1"
+        ],
+        "size": {
+          "h": {
+            "assumption": true,
+            "unit": "mm",
+            "value": 40
+          },
+          "l": {
+            "assumption": true,
+            "unit": "mm",
+            "value": 80
+          },
+          "w": {
+            "assumption": true,
+            "unit": "mm",
+            "value": 80
+          }
+        },
+        "states": [
+          "대기"
+        ],
+        "weight": {
+          "assumption": true,
+          "unit": "kg",
+          "value": 0.2
+        }
+      }
+    ],
     "name": "병렬 Substation 예제 (v0.3)",
     "positions": [],
     "revision": 1,
     "sequence": {
+      "flow": [
+        {
+          "id": "FLW-SUB-S1",
+          "kind": "substation",
+          "unitId": "U-PS1"
+        },
+        {
+          "id": "FLW-SUB-S2",
+          "kind": "substation",
+          "unitId": "U-PS2"
+        }
+      ],
       "id": "SEQ-station",
-      "name": "Station 시퀀스 (이 예제에서는 비어 있음)",
+      "name": "Station 시퀀스 (Substation 단계)",
       "steps": [],
       "unresolved": []
     },

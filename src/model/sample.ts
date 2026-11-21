@@ -1,5 +1,5 @@
 import { instantiateDevice, makeUnit, emptyProject, type DeviceBundle } from './factory';
-import type { Action, AssetKind, Condition, MaterialEffect, Project, SequenceStep, Unit } from './types';
+import type { Action, AssetKind, Condition, FlowNode, MaterialEffect, Project, SequenceStep, Unit } from './types';
 import { q } from './types';
 
 // 첫 5공정 초기 예제 (14절). 장치 구성은 [확정], 시간·크기·무게·타임아웃 값은 모두 [예시] 가정값이다.
@@ -144,9 +144,71 @@ export function buildParallelSampleProject(): Project {
     { id: 'SSEQ-S1-B', name: 'S1 시퀀스 B (클램프 B + 실린더)', unitId: u1.id, unresolved: [], steps: [st('SSTEP-B1', act('STP-B1', 0)), st('SSTEP-B2', act('CYL-B1')), st('SSTEP-B3', act('STP-B1', 1))] },
     { id: 'SSEQ-S2-A', name: 'S2 시퀀스 A (푸시)', unitId: u2.id, unresolved: [], steps: [st('SSTEP-C1', act('PSH-21'))] },
   ];
-  p.sequence = { id: 'SEQ-station', name: 'Station 시퀀스 (이 예제에서는 비어 있음)', steps: [], unresolved: [] };
+  p.sequence = {
+    id: 'SEQ-station', name: 'Station 시퀀스 (Substation 단계)', steps: [], unresolved: [],
+    flow: [
+      { kind: 'substation', id: 'FLW-SUB-S1', unitId: u1.id },
+      { kind: 'substation', id: 'FLW-SUB-S2', unitId: u2.id },
+    ],
+  };
+  p.materials = [{
+    id: 'MAT-P1', name: 'M-P1 표시용', kind: 'individual', carrierOf: null,
+    size: { w: q(80, 'mm'), l: q(80, 'mm'), h: q(40, 'mm') }, weight: q(0.2, 'kg'), handling: '어느 시퀀스도 다루지 않음 (예시)',
+    states: ['대기'], initialState: '대기', initialLocation: u1.id, route: [u1.id], feedInterval: q(10, 's', true, { method: 'sample-example' }),
+  }];
   p.connections = [{ id: 'FLOW-P1', kind: 'flow', from: { nodeId: u1.id }, to: { nodeId: u2.id } }];
-  p.assumptionsNote = ['모든 시간은 [예시] 가정값이며 실제 장비 사양이 아님', 'S1의 두 시퀀스는 서로 다른 Device만 사용 (공유 Device 없음 → 동시 실행 허용)', '자재는 정의하지 않음 — Station 시퀀스 실행은 이 예제에서 대상 아님'];
+  p.assumptionsNote = ['모든 시간은 [예시] 가정값이며 실제 장비 사양이 아님', 'S1의 두 시퀀스는 서로 다른 Device만 사용 (공유 Device 없음 → 동시 실행 허용)', '자재 1개는 S1에 있고 어느 Substation 시퀀스도 다루지 않음. Station ▶ 실행이 S1을 끝낸 뒤 S2를 잇는다'];
+  p.revision = 1;
+  return p;
+}
+
+/** 5공정 장치 구성 위의 분기 · 병렬 · 반복 · 재시도. 5공정 예제 자체는 flow 없이 그대로다. */
+export function buildFlowSampleProject(): Project {
+  const p = buildSampleProject();
+  p.id = 'prj-sample-flow';
+  p.name = '흐름 예제 (분기·병렬·반복·재시도)';
+  const unit = (code: string) => p.units.find((u) => u.code === code)!;
+  const cyl = p.actions.find((a) => a.deviceId === 'CYL-03')!;
+  cyl.pre = cyl.pre.filter((c) => c.kind !== 'materialState');
+  p.signals.push(
+    { id: 'BCR-02.ngCmd', name: 'NG 배출 명령', deviceId: 'BCR-02', portKey: null, direction: 'in', valueType: 'bool', role: 'command', address: null, addressStatus: 'unassigned' },
+    { id: 'BCR-02.ngDone', name: 'NG 배출 완료', deviceId: 'BCR-02', portKey: null, direction: 'out', valueType: 'bool', role: 'complete', address: null, addressStatus: 'unassigned' },
+  );
+  const ng: Action = {
+    id: 'ACT-NG-EXIT', name: 'S2 NG 배출', unitId: unit('S2').id, deviceId: 'BCR-02', kind: 'work', params: {},
+    duration: q(0.4, 's', true, { method: 'sample-example' }), timeout: q(2, 's', true, { method: 'sample-example' }),
+    commandSignalId: 'BCR-02.ngCmd', completeSignalId: 'BCR-02.ngDone', targetPositionId: null,
+    pre: [{ kind: 'materialAt', unitId: unit('S2').id }], post: [], effect: { moveTo: 'EXIT', setState: '식별실패' },
+    note: '흐름 예제 NG 갈래',
+  };
+  p.actions.push(ng);
+  const raise = p.actions.find((a) => a.name === 'S5 스토퍼 상승(정지)')!;
+  const byName = (name: string) => p.sequence.steps.find((s) => s.name === name)!;
+  const keep = ['S1 푸셔 투입', 'S2 스토퍼 상승(정지)', 'S2 바코드 읽기', 'S2 스토퍼 하강(S3로 이동)', 'S3 스토퍼 상승(정지)', 'S3 가공 실린더 전진(가상 작업)', 'S3 스토퍼 하강(S4로 이동)', 'S4 피커 잡기', 'S4 갠트리 놓기위치 이동', 'S4 피커 놓기(S5로)', 'S5 스토퍼 하강(해제)', 'S5 컨베이어 배출'].map(byName);
+  const up: SequenceStep = { id: 'STEP-S5-UP', name: raise.name, actionId: raise.id, timeoutOverride: null, entry: [], origin: 'sample' };
+  const ngStep: SequenceStep = { id: 'STEP-NG', name: ng.name, actionId: ng.id, timeoutOverride: null, entry: [], origin: 'sample' };
+  const step = (s: SequenceStep): FlowNode => ({ kind: 'step', stepId: s.id });
+  const resultId = p.signals.find((s) => s.deviceId === 'BCR-02' && s.role === 'result')!.id;
+  const until: Condition = { kind: 'signal', signalId: resultId, equals: true };
+  p.sequence = {
+    id: 'SEQ-flow', name: '흐름 예제', steps: [...keep, up, ngStep], unresolved: [],
+    flow: [
+      step(keep[0]), step(keep[1]),
+      { kind: 'retry', id: 'FLW-RETRY', name: '읽기 재시도', until, maxRetries: 2, body: [step(keep[2])] },
+      { kind: 'branch', id: 'FLW-BRANCH', name: '읽기 결과', cond: until, then: [
+        step(keep[3]), step(keep[4]),
+        { kind: 'loop', id: 'FLW-LOOP', name: '가공 반복', count: 2, body: [step(keep[5])] },
+        step(keep[6]),
+        { kind: 'parallel', id: 'FLW-PAR', name: '이송과 정지', lanes: [[step(keep[7]), step(keep[8]), step(keep[9])], [step(up)]] },
+        step(keep[10]), step(keep[11]),
+      ], else: [step(ngStep)] },
+    ],
+  };
+  p.assumptionsNote = [...SAMPLE_NOTE,
+    '바코드 읽기는 결과 신호가 참일 때까지 최대 2회 재시도한다. 끝까지 거짓이면 S2 NG 배출이 자재 상태를 식별실패로 두고 장비 밖으로 보낸다',
+    'S3 가공은 전진 Action만 2회다. 실린더 에셋에 후진 Action이 없다. 두 번째 회차를 위해 전진 사전조건에서 자재 상태 「식별됨」을 뺐다',
+    '병렬 갈래 B는 S5 스토퍼 상승만 하고 자재를 다루지 않는다',
+  ];
   p.revision = 1;
   return p;
 }

@@ -2,10 +2,12 @@
 // Design data only. Runtime state lives in src/runtime and is never written back here.
 
 export const FILE_FORMAT_ID = 'equipment-concept-designer/project';
-export const FILE_FORMAT_VERSION = '0.2.0'; // file format version (separate from app / asset / model revision). 0.1.x files are migrated on read.
+export const FILE_FORMAT_VERSION = '0.3.0'; // file format version (separate from app / asset / model revision). 0.1.x and 0.2.x files open as-is; `flow` is optional.
 export const APP_VERSION = '0.3.0-prototype';
 export const PRODUCT_NAME = 'Aurora Concept Designer';
-export const RUNTIME_RULES_VERSION = 'seq-runtime/0.2.0';
+export const RUNTIME_RULES_VERSION = 'seq-runtime/0.3.0';
+/** Extra tries after the first body run. 2 → at most 3 executions. */
+export const DEFAULT_MAX_RETRIES = 2;
 /** Substation group runtime rules (v0.3 설계 제안): shared virtual clock, fixed lane order at equal instants, conservative group stop on error. Sensor signals follow the same unit rule as the station runtime. */
 export const GROUP_RULES_VERSION = 'group-runtime/0.2.0';
 
@@ -214,11 +216,25 @@ export interface SequenceStep {
   origin: 'dnd' | 'structured-text' | 'sample';
 }
 
+/**
+ * Control structure over the flat `steps` list. A step id appears at most once.
+ * Absent `flow` means "run `steps` in order" (0.1.x / 0.2.x files and the 5-step example).
+ */
+export type FlowNode =
+  | { kind: 'step'; stepId: Id }
+  | { kind: 'branch'; id: Id; name: string; cond: Condition; then: FlowNode[]; else: FlowNode[] }
+  | { kind: 'parallel'; id: Id; name: string; lanes: FlowNode[][] }
+  | { kind: 'loop'; id: Id; name: string; count: number; body: FlowNode[] }
+  | { kind: 'retry'; id: Id; name: string; until: Condition; maxRetries: number; body: FlowNode[] }
+  | { kind: 'substation'; id: Id; unitId: Id };
+
 export interface SequenceDraft {
   id: Id;
   name: string;
   steps: SequenceStep[];
   unresolved: string[]; // 미정·모호함 목록 (보존)
+  /** When set, execution follows this tree. Steps not listed here are not run. */
+  flow?: FlowNode[];
 }
 
 /**
@@ -242,7 +258,15 @@ export interface Candidate {
 
 export interface SimSettings {
   /** Fault injection for verification scenarios */
-  faults: { neverTrueSignalIds: Id[]; readFailActionIds: Id[] };
+  faults: {
+    neverTrueSignalIds: Id[];
+    readFailActionIds: Id[];
+    /**
+     * For an action also listed in `readFailActionIds`: fail only the first N executions, then succeed.
+     * Omit the action (or the whole map) to keep failing every time.
+     */
+    readFailFirstN?: Record<Id, number>;
+  };
   speed: number; // wall-clock multiplier, does not affect logic results
 }
 

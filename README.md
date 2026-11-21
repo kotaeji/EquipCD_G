@@ -46,6 +46,8 @@ TURN-020 공통 탐색 검색은 검토 후보입니다. 사람 검수 전이며
 
 TURN-021 도면 편집 기본기는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-021.md`](docs/turns/TURN-021.md). 도면에서 Shift를 누르고 빈 곳을 끌어 여러 개를 고르고, 고른 것을 한 번에 지우고, Device를 복제합니다.
 
+TURN-022 Station 흐름은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-022.md`](docs/turns/TURN-022.md). Station 시퀀스에 분기 · 병렬 · 반복 · 재시도와 Substation 단계를 넣고, 「▶ 실행」 한 번으로 끝까지 돌립니다. 6단계의 그룹 실행 선택과 단추는 없습니다. 파일 형식은 `0.3.0`, 실행 규칙은 `seq-runtime/0.3.0` 입니다. `flow` 가 없는 5공정 예제는 그대로 `11.100 s` 입니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -64,18 +66,18 @@ npm run typecheck && npm test && npm run build   # build → release/equipment-c
 ## 한눈 요약
 - **v0.3에서 추가된 것** (요구: `docs/requirements-v0.3.md` N01~N08, UX: `docs/UX-SCENARIOS.md`, 화면안: `docs/WIREFRAMES.md`, 변경 기록: `docs/REQUIREMENT-CHANGELOG.md`)
   - **Station › Substation › Device (N01)**: 기존 Equipment/Unit ID·관계·파일 키는 그대로, 화면에서 Equipment=Station, Unit=Substation 동의어 표시.
-  - **Substation 복수 시퀀스 + 그룹 실행 (N02)**: Substation마다 시퀀스 여러 개 추가/이름 변경/삭제, 단계 추가·순서·삭제(4 자재·시퀀스 › Substation 시퀀스). 6 실행 › 「Substation 그룹」에서 공통 가상 시계로 ▶ 그룹 실행 / 일시정지(전체 동결) / 재개(남은 시간 유지) / 초기화. 같은 Device를 두 시퀀스가 쓰거나 자재를 다루는 시퀀스가 둘 이상이면 **실행 전 차단·진단**. 한 시퀀스 오류 시 묶음 전체 정지(보수적, 설계 제안). 기존 Station 단일 시퀀스·5공정 예제는 그대로 동작. 새 예제 「+ 병렬 예제」(`samples/sample-parallel-substation.ecd.json`).
+  - **Substation 복수 시퀀스 (N02)**: Substation마다 시퀀스 여러 개 추가/이름 변경/삭제, 단계 추가·순서·삭제(4 자재·시퀀스 › Substation 시퀀스). 6단계의 별도 그룹 실행 단추는 TURN-022에서 뺐다. Station 시퀀스에 Substation 단계를 넣으면 「▶ 실행」이 그 Unit의 시퀀스를 공통 가상 시계로 함께 돌리고, 끝나면 다음 단계로 간다. 같은 Device를 두 시퀀스가 쓰거나 자재를 다루는 시퀀스가 둘 이상이면 **실행 전 차단·진단**. 한 갈래 오류 시 전체 정지(보수적, 설계 제안). 기존 Station 단일 시퀀스·5공정 예제는 그대로 동작. 예제 「+ 병렬 예제」(`samples/sample-parallel-substation.ecd.json`) · 「+ 흐름 예제」(`samples/sample-flow.ecd.json`).
   - **왼쪽 Workspace/Project 탐색기 (N03)**: 6단계 모두에서 열린 프로젝트(미저장 표시)·새/예제/열기/가져오기·최근 저장·Station›Substation›Device 트리. 접기 가능. 실행 중 다른 프로젝트로 전환하면 그 실행은 일시정지(자동 재개 없음).
   - **AI 생성 실사풍 이미지 (N04)**: 「도식 / 실사풍(AI)」 토글. 14종 모두 도식과 같은 방향으로 생성한 AI 이미지(`assets/visuals/generated/`, 메타데이터 `generated-manifest.json`). 카드·캔버스·상세에 **AI 생성 · 실제 촬영 사진 아님** 표기, 상세에 생성 도구·날짜·지시문·구도 참고. 토글은 Device 박스 크기·위치·앵커·ID·선택·모델을 바꾸지 않음. v0.2 실사진은 출처 이력으로만 보존(상세의 접힌 영역, 기본 표시 안 함, 재다운로드 없음).
   - **룩앤필 정리 (N05)**: 중립 툴 크롬, 글자·간격 체계, 포커스 링, 빈 상태 안내, 1280×800/1920 레이아웃 조정, A/B/C 테마 유지. 기준: `.superdesign/design-system.md`(설계 제안). **상용 완성이나 접근성 인증을 주장하지 않습니다.**
-  - 파일 형식 0.2.0 (0.1.x 파일은 열 때 자동 변환 + `MIGRATED_FORMAT` 경고, 원본 파일 불변).
+  - 파일 형식 0.3.0 (0.2.x는 `flow` 없이 그대로 열고, 0.1.x는 열 때 자동 변환 + `MIGRATED_FORMAT` 경고, 원본 파일 불변).
 - **v0.2에서 추가된 것**
   - **에셋 정의를 AML(CAEX 3.0) 파일에서 읽음**: `assets/aml/ecd-sample-library.aml` → 라이브러리 → 인스턴스 배치. 실행 중 다른 AML 가져오기·라이브러리 AML 내보내기(round-trip). 앱 subset 의미 검사 + 공식 CAEX 3.0 XSD 검사(브라우저 밖, Python lxml). 범위·한계: `AML-SUPPORT.md`.
   - **에셋 14종**: 기존 8종 유지 + 센서 3종(광전·근접·리밋 스위치) + 복합 유닛 템플릿 3종(투입·식별·이송 — 자식 Device·내부 신호 연결·Action 사전조건 포함, 배치할 때마다 새 ID).
   - **도식/실사진 토글**: 14종 모두 Wikimedia Commons 실제 촬영 참고 사진(12장, 출처·저자·라이선스·대표 범위 표시, 정확 모델 일치 아님). 토글은 모델 불변.
   - **단계별 중앙 작업영역(C10 위저드 제안안)**: 1 입력·에셋 선택(라이브러리 카드) → 2 배치·연결(Canvas) → 3 속성·Action → 4 자재·시퀀스 → 5 점검 → 6 실행·저장. 현재 단계·목표·남은 항목·이전/다음, 데이터 기반 준비 판정, 확인 후 데이터가 바뀌면 ‘재확인 필요’.
 - **v0.1부터 있던 것**: Unit/Device 배치·이동·연결·속성 → 수동 순차 시퀀스 → 5공정·자재 1개 논리 시뮬레이션 → localStorage 저장·재열기, JSON 내보내기/가져오기, A/B/C 테마, F1 직접 입력 후보표, F6 기본 Gap.
-- **안 된 것(미구현)**: F7 Evolution Lab 전체, F8 실제 Core Export·역매핑(읽기 전용 미리보기만), F1 문서/USD 추출, 분기·병렬·다중 자재, AI, WPF, 일반 AutomationML 파일(InstanceHierarchy·외부 참조·상속 등) 해석, 브라우저 내 XSD 검사, 가져온 AML의 사진 파일 동봉, C11(노트 갱신 — 앱 기능 아님, 부모 담당), 물류 연결을 끌어서 잇기, Unit 안에 Device를 서브플로로 두기.
+- **안 된 것(미구현)**: F7 Evolution Lab 전체, F8 실제 Core Export·역매핑(읽기 전용 미리보기만), F1 문서/USD 추출, 다중 자재, 갈래 사이 동기점, 조건 무한 반복, 세 갈래 이상 분기, AI, WPF, 일반 AutomationML 파일(InstanceHierarchy·외부 참조·상속 등) 해석, 브라우저 내 XSD 검사, 가져온 AML의 사진 파일 동봉, C11(노트 갱신 — 앱 기능 아님, 부모 담당), 물류 연결을 끌어서 잇기, Unit 안에 Device를 서브플로로 두기. Station 시퀀스의 분기 · 병렬 · 고정 반복 · 재시도(최대 2회) · Substation 단계는 TURN-022에서 넣었다.
 - **요구 상태와 구현 상태는 다릅니다**: v0.2 요구문서의 [확정]/[설계 제안]/[미정]은 요구 승인 상태이고, 이 폴더의 구현·검증 결과는 `REQUIREMENTS-VERIFICATION.md`에 따로 적습니다. 6단계 구성·gate 규칙·14종 구성·카드 배치는 요구문서상 **[설계 제안]**이며 이번 구현은 그 제안을 시제품으로 만든 것일 뿐 확정이 아닙니다.
 - **검증 상태 (v0.3)**: 자동 테스트 **7개 파일 72개 통과** = 기존 57개(ui-smoke 1개는 v0.3 화면에 맞게 수정) + 신규 15개(group 12, visuals 3). **v0.3 실제 브라우저 GUI 검수**(부모 에이전트, 사람 검수 아님, `http://127.0.0.1:8767/…`, 스크린샷 1920×1200): AI 카드 14·배지·상세 메타데이터·토글 rev 불변, A/B/C·1~6 상시 탐색기, 병렬 예제 1.200/1.600 s, DEVICE_CONFLICT 차단·Undo, 그룹 실행/일시정지/재개/끝까지·GROUP_COMPLETE, 프로젝트 전환 자동 일시정지·복귀 재개, 기본 Station 11.100 s, JSON 0.2 내보내기/가져오기 통과 — `BROWSER-VERIFICATION.md` 7절. 현재 페이지 콘솔 오류 0건(세션 전체의 외부 collector.github.com 503 6건은 이전 열람 기원·원인 불명으로 앱 오류로 단정 안 함). 미검증: 1280×800(창 크기 변경 불가), body 전체 overflow 측정, v0.1 파일 가져오기 GUI. 1920에서 6단계 Canvas는 내부 가로 스크롤. 아래는 v0.2 기록 — 자동 테스트 **5개 파일 57개 통과**. 에이전트가 headless Chrome 156으로 release HTML(file://)을 자동 조작해 v0.2 핵심 경로 확인(`BROWSER-VERIFICATION.md` 「v0.2」 절, 스크린샷 `docs/screenshots/v0.2/`). **v0.2 실제 브라우저 GUI 검수**(부모 에이전트, Linux Chrome 1920×1072, `http://127.0.0.1:8766/equipment-concept-designer.html`): 라이브러리 카드·AML 상세·사진 토글, 1~6 중앙 화면, 식별 유닛 템플릿·Undo, NOT_READY 차단, 기본 실행 RUN_COMPLETE(11.100 s, 오류 0), AML 가져오기 2건 관찰 통과 — 자동 결과와 분리해 `BROWSER-VERIFICATION.md` 6절에 기록. 미검증: 1280×800·작은 화면, V01~V16 전체, Mac/Windows, file:// GUI 검수, 유닛 템플릿 포함 실행.
 
@@ -94,7 +96,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 34파일 464개: 모델/런타임/그룹 런타임/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제
+npm test              # vitest 35파일 480개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
@@ -125,7 +127,7 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 ```
 
 ## 화면 구성 (중앙 작업영역 = 현재 단계)
-- **v0.3**: 상단 헤더 = 흰 타일 위 진홍 아이콘·제품명·버전·저장·JSON 내보내기·Undo/Redo. 그 아래 줄은 현재 Workspace · Project · rev · 저장 상태입니다. 프로젝트 만들기·열기·전환과 장비 구조 트리는 **왼쪽 탐색기**의 Workspace · Project 탭입니다(모든 단계 공통). 아래 v0.2 설명 중 “상단 프로젝트 탭”, 2·3단계의 “트리”는 왼쪽 Project 탭으로 읽으세요. 4단계에 「Substation 시퀀스」 하위 탭, 6단계에 「Station 시퀀스 / Substation 그룹」 전환이 추가됨.
+- **v0.3**: 상단 헤더 = 흰 타일 위 진홍 아이콘·제품명·버전·저장·JSON 내보내기·Undo/Redo. 그 아래 줄은 현재 Workspace · Project · rev · 저장 상태입니다. 프로젝트 만들기·열기·전환과 장비 구조 트리는 **왼쪽 탐색기**의 Workspace · Project 탭입니다(모든 단계 공통). 아래 v0.2 설명 중 “상단 프로젝트 탭”, 2·3단계의 “트리”는 왼쪽 Project 탭으로 읽으세요. 4단계에 「Substation 시퀀스」 하위 탭이 있다. 6단계의 「Substation 그룹」 전환은 TURN-022에서 뺐다. Substation 시퀀스는 Station 시퀀스의 Substation 단계로 실행한다.
 - 상단: 흰 타일 위 진홍 아이콘, 제품명, 저장·내보내기·보기 설정, 현재 작업 정보 줄, 1~6 단계, 라이트/다크(저장값 A=라이트, B=다크. 예전 C는 보관이며 화면에서는 라이트로 보이고 사용자가 고르기 전까지 저장값을 지우지 않음). 헤더 마크는 `docs/turns/TURN-016.md`. 탭 아이콘은 `docs/turns/TURN-015.md`. 자세한 화면 표는 `docs/turns/TURN-003.md`. 탐색기 탭은 `docs/turns/TURN-008.md`
 - 단계 바: 1~6 단계 버튼(각 단계 판정 배지: 필수 충족 / 필수 누락 / 재확인 필요 / 확인됨 ✓), 현재 단계·작업영역·목표, 「남은 항목」(필수 데이터 누락·가정값 존재·미정·선택 사항 미확보·사람 확인 필요 구분, ‘편집으로 이동’), ◀ 이전 / 다음 ▶
 - 1 입력·에셋 선택: **에셋 라이브러리 카드**(검색·분류·도식/실사진·AML 번들/가져옴·XSD 상태 배지) + 카드 상세(AML 파일·SUC 경로·RoleClass·CAEX 버전·속성·포트·Action·템플릿 자식/링크/규칙·사진 출처/라이선스/대표 범위) + 「프로젝트에 추가」(상세 보기와 분리) + AML 가져오기/내보내기 + AML 로드 상태 / 하위 탭 입력 후보표(F1)
@@ -138,18 +140,21 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 
 ## 시제품 런타임 규칙 (가정 — 확정 요구 아님)
 - 가상 시간 정수 ms. 화면 속도(0.25~4x)는 재생 속도일 뿐 결과에 영향 없음. 같은 입력이면 dt 분할과 무관하게 같은 결과.
-- 순차 단계만 지원. 단계 시작 시 진입·pre 조건 검사 → 불충족이면 대기하지 않고 즉시 `PRE_UNMET` 오류(다른 진행 주체가 없으므로).
-- 센서 신호(`role === 'sensor'`)는 자재가 그 신호가 속한 Device의 Unit에 있으면 ON, 아니면 OFF. 실행 초기 상태와 자재 위치가 커밋된 직후에 다시 계산하고, 사전조건을 평가하기 전에 최신 값이어야 한다. 값이 바뀌면 로그 `SENSOR_ON` / `SENSOR_OFF`(Device 이름 · 신호 이름). 규칙 `seq-runtime/0.2.0`.
+- `sequence.flow` 가 없으면 순차 단계만 돈다(5공정 예제 · 0.2.x 파일). 있으면 그 트리를 따른다. 단계 시작 시 진입·pre 조건 검사 → 불충족이면 대기하지 않고 즉시 `PRE_UNMET` 오류.
+- 분기(`BRANCH_TAKEN`)는 도달한 순간의 신호 · 자재 상태로 한 번 판정하고, 안 간 쪽은 건너뜀이다. 병렬은 갈래가 겹쳐 돌고 모두 끝난 시각에 `PAR_JOIN` 이다. 갈래 사이 기다리기는 없다. 반복은 회차마다 `LOOP_ITER`. 재시도는 본문 뒤 조건이 거짓이고 횟수가 남으면 `RETRY`, 최대 2회를 써도 거짓이면 `RETRY_EXHAUSTED` 경고 후 다음으로 간다. 읽기 결과 신호를 조건으로 쓰는 분기 · 재시도가 있으면 결과 실패는 `READ_FAILED` 로 멈추지 않고 결과 신호를 거짓으로 둔다. 없으면 지금처럼 `READ_FAILED`. 한 갈래의 `PRE_UNMET` · `TIMEOUT` · `POST_UNMET` · `READ_FAILED` · `CAPACITY_FULL` 은 전체 정지다.
+- 병렬 갈래와 Substation 단계의 시퀀스끼리는, 같은 Device를 쓰거나 자재를 다루는 쪽이 둘이면 실행 전에 `DEVICE_CONFLICT` · `SHARED_MATERIAL_CONFLICT` 로 막는다. 병렬 안의 병렬과 Substation 단계는 두지 않는다.
+- 센서 신호(`role === 'sensor'`)는 자재가 그 신호가 속한 Device의 Unit에 있으면 ON, 아니면 OFF. 실행 초기 상태와 자재 위치가 커밋된 직후에 다시 계산하고, 사전조건을 평가하기 전에 최신 값이어야 한다. 값이 바뀌면 로그 `SENSOR_ON` / `SENSOR_OFF`(Device 이름 · 신호 이름). 규칙 `seq-runtime/0.3.0`.
 - 시작 시 명령 Signal ON, 완료 Signal OFF. (시작+동작 시간)에 완료 Signal ON → post 조건 검사(임시 상태 기준) → 통과 시에만 자재 위치/상태/잡음 커밋.
 - 완료가 타임아웃 시각과 같으면 성공(경계 규칙 가정). 타임아웃 도달 시 `TIMEOUT` 오류, 이후 단계 통과 안 함.
 - 완료 시 같은 Device의 다른 완료 Signal은 OFF (상승/하강처럼 배타 상태로 가정).
 - 일시정지 중 가상 시간 동결. 초기화 = 실행 시작 스냅샷의 초기 조건 복원 (Undo와 별개).
 - 실행 중·일시정지 중 모델 편집·Undo 차단. 선택·테마·레이어·줌은 허용. 모델 편집 시 이전 실행 결과는 지워짐.
 - 실행 준비 검사: 완료 Signal·동작 시간·타임아웃·수용 개수가 미정이거나 “미정 조건”이 있으면 실행 차단 (임의 true 금지). 자재 정의는 1개만.
-- 검증용 오류 주입: “완료 신호 미발생”, “바코드 읽기 결과 실패”(실행 상태 탭).
+- 검증용 오류 주입: “완료 신호 미발생”, “바코드 읽기 결과 실패”(실행 상태 탭). 결과 실패는 “처음 N회만”을 비우면 항상 실패하고, 숫자를 넣으면 그 횟수만 실패한 뒤 성공한다.
 
 ## Substation 그룹 런타임 규칙 (v0.3 — 설계 제안, 사용자 확정 아님, `group-runtime/0.2.0`)
-- 선택한 Substation의 시퀀스들이 한 묶음으로 같은 가상 시계(정수 ms)를 씀. 같은 시각의 이벤트는 시퀀스 목록 순서대로 처리(동률 규칙 임시), dt 분할과 무관하게 같은 결과.
+화면의 그룹 실행 단추는 없다. 아래 규칙은 Station 시퀀스의 Substation 단계와, 남겨 둔 그룹 런타임(`src/runtime/group.ts`, 편집 화면의 실행 전 검사와 기존 테스트)이 같이 쓴다.
+- 한 Substation의 시퀀스들이 한 묶음으로 같은 가상 시계(정수 ms)를 씀. 같은 시각의 이벤트는 시퀀스 목록 순서대로 처리(동률 규칙 임시), dt 분할과 무관하게 같은 결과.
 - 실행 전 차단: 시퀀스 없음 / 단계 없음 / 다른 Substation Device / 완료 Signal·시간·타임아웃·수용 개수 미정 / 미정 조건 / **DEVICE_CONFLICT**(같은 Device를 두 시퀀스가 사용) / **SHARED_MATERIAL_CONFLICT**(자재를 다루는 시퀀스가 2개 이상).
 - 다른 시퀀스의 진행을 기다리는 조건은 지원하지 않음 — 조건 불충족이면 기존과 같이 즉시 PRE_UNMET. 센서 신호는 Station 실행과 같은 Unit 규칙을 쓴다.
 - 오류(PRE_UNMET/TIMEOUT/POST_UNMET/READ_FAILED/CAPACITY_FULL) 1건이면 묶음 전체 정지(나머지는 ‘그룹 정지’). 일시정지 = 전체 동결, 재개 = 남은 시간부터, 초기화 = 시작 스냅샷의 초기 조건. 그룹 실행 상태는 저장하지 않으며 다시 열어도 자동 재개하지 않음.
@@ -158,12 +163,12 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 ## 알려진 한계
 - v0.3 화면은 부모 에이전트의 실제 브라우저 GUI 검수(1920×1200, 사람 검수 아님) 일부 항목만 통과 기록이 있습니다. 1280×800은 미검증입니다(창 크기 변경 불가). TURN-004는 헤더 색만 1280×800 라이트·다크 스크린샷으로 보았고, 사람 검수는 아직입니다.
 - AI 이미지의 방향·정렬은 생성 후 에이전트가 도식과 대조했을 뿐 사람 검수 전입니다. 세부 형상(포트 위치 등)은 도식과 다를 수 있으며, 포트 앵커는 항상 모델 좌표를 씁니다.
-- 개별 시퀀스만 일시정지, 여러 Substation 동시 실행, 시퀀스 사이 대기/동기화, 자원 예약은 미구현([미정], `AMBIGUITIES.md` A41~A48).
+- 갈래만 일시정지, 여러 Substation을 한 단계 밖에서 동시에 실행, 갈래 사이 대기/동기화, 자원 예약은 미구현([미정], `AMBIGUITIES.md` A41~A48). Substation 단계 하나 안에서는 그 Unit의 시퀀스가 함께 돈다.
 - 실제 브라우저 GUI 검수는 v0.1 빌드 일부, v0.2 빌드 일부 항목(Linux Chrome, 6절)만 수행됨. 그 외 v0.2 항목은 headless 자동 조작 결과만 (`BROWSER-VERIFICATION.md`).
 - 2단계 Canvas: 가로 스크롤 전에는 오른쪽 끝 유닛이 오른쪽 속성 패널 뒤에 가려짐(스크롤하면 보임, GUI 검수 관찰, 미수정).
 - **14종 에셋 모두가 실행 시나리오에서 동작한다는 보장은 없습니다.** 실행으로 확인된 것은 기본 5공정 모델뿐입니다. 자동 테스트는 순수 로직 + AML/XSD + jsdom 렌더 스모크 + 테마 대비 계산.
 - 대형 캔버스 성능, 모바일은 검토하지 않았습니다. 키보드: 탐색기 트리·프로젝트 목록·카드는 Tab/Enter로 선택 가능(v0.3), Canvas의 키보드 배치·이동은 미지원. 접근성 인증 아님.
-- 다중 자재, 한 시퀀스 안의 분기/병렬(F5), 캐리어 적재 관계 편집, 배경 이미지, F1 문서/USD 추출, F7, F8 실제 Export/역매핑은 미구현입니다.
+- 다중 자재, 캐리어 적재 관계 편집, 배경 이미지, F1 문서/USD 추출, F7, F8 실제 Export/역매핑은 미구현입니다. F8 미리보기와 AML 내보내기는 흐름 트리를 그리지 않습니다. 한 시퀀스 안의 분기 · 병렬 · 고정 반복 · 재시도는 TURN-022입니다.
 - AML은 이 앱의 subset만 해석합니다(`AML-SUPPORT.md`). 일반 AutomationML 도구와의 상호 운용(AutomationML Editor 열기 등)은 검증하지 않았습니다.
 - 센서 신호는 자재가 그 Unit에 있을 때 켜집니다. 자재가 다른 Unit·배출·없음이면 꺼지고, 그때 템플릿 Action의 사전조건은 `PRE_UNMET`입니다. 문구에는 신호 이름과 「센서는 자재가 이 Unit 에 있을 때 켜집니다」가 나옵니다. 센서마다 감지 대상을 고르거나, 리밋 스위치를 축 위치로 켜지는 않습니다(`AMBIGUITIES.md` A33).
 - 새로 놓은 Device의 기본 이름이 에셋 이름(예: “실린더”)이라 여러 개일 때 구별이 어려움(유닛 템플릿 자식은 `PSH-S6-PSH1`처럼 접두어 이름, ID는 항상 고유).

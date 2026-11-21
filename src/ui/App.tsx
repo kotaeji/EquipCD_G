@@ -5,11 +5,11 @@ import * as C from '../model/commands';
 import { emptyProject } from '../model/factory';
 import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { applyEdit, initHistory, redo, undo, type History } from '../model/history';
-import { buildParallelSampleProject, buildSampleProject } from '../model/sample';
+import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
-import { APP_VERSION, FILE_FORMAT_VERSION, GROUP_RULES_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
+import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
-import { advanceGroup, createGroupRuntime, pauseGroup, resetGroup, resumeGroup, runGroupToEnd, startGroup, type GroupRuntime, type GroupState } from '../runtime/group';
+import { orderRunRecords } from '../runtime/runSummary';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
@@ -17,11 +17,11 @@ import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
-import { connectStartLabel, devName, sigName, unitName } from './labels';
+import { connectStartLabel, devName, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
 import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RuntimePanel, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
-import { GroupRunPanel, SubSequencePanel, SubstationSelect } from './SubstationPanels';
+import { SubSequencePanel } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
 import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type UserView } from './viewSettings';
@@ -31,11 +31,12 @@ import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
 import { BrandMark } from './BrandMark';
+import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
 import { Tabs } from './Tabs';
 
-interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; group: GroupRuntime | null; gaps: Gap[]; analyzedRevision: number | null }
+interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; gaps: Gap[]; analyzedRevision: number | null }
 interface Modal { title: string; body: React.ReactNode; actions: { label: string; primary?: boolean; danger?: boolean; focus?: boolean; run: () => void }[] }
 interface NameDlg { title: string; initial: string; hint?: string; submitLabel: string; validate: (n: string) => string | null; onSubmit: (n: string) => void }
 
@@ -51,7 +52,7 @@ function makeTab(p: Project, saved: { rev: number; at: string } | null = null): 
   const gaps = analyzeGaps(p);
   const review = reconcileGapReview(p.gapReview ?? {}, gaps, p.revision, new Set(gaps.filter((g) => g.safety).map((g) => g.id)));
   const proj = { ...p, gapReview: review };
-  return { key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, group: null, gaps, analyzedRevision: p.revision };
+  return { key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, gaps, analyzedRevision: p.revision };
 }
 
 function download(name: string, text: string, mime = 'application/json') {
@@ -110,25 +111,23 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const tab = tabs.find((t) => t.key === activeKey) ?? tabs[0];
   const p = tab.history.present;
   const rt = tab.runtime?.state ?? null;
-  const gs: GroupState | null = tab.group?.state ?? null;
-  const groupLocked = gs?.status === 'running' || gs?.status === 'paused';
-  const locked = rt?.status === 'running' || rt?.status === 'paused' || groupLocked;
+  const locked = rt?.status === 'running' || rt?.status === 'paused';
   const [subUnitPref, setSubUnitPref] = useState('');
-  const [runMode, setRunMode] = useState<'station' | 'group'>('station');
+  const runMode = 'station' as const;
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [libDetail, setLibDetail] = useState(false);
   const [guide, setGuide] = useState<'files' | 'bundle' | 'search' | null>(null);
   const [gapFilter, setGapFilter] = useState<'all' | 'shortfall' | 'human' | 'hidden'>('all');
   const selUnit = (() => { const id = selection[0]; return p.units.find((u) => u.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; })();
-  const subUnitId = gs?.unitId ?? (p.units.some((u) => u.id === subUnitPref) ? subUnitPref : selUnit ?? p.units.find((u) => (p.substationSequences ?? []).some((q) => q.unitId === u.id))?.id ?? p.units[0]?.id ?? '');
+  const subUnitId = (p.units.some((u) => u.id === subUnitPref) ? subUnitPref : selUnit ?? p.units.find((u) => (p.substationSequences ?? []).some((q) => q.unitId === u.id))?.id ?? p.units[0]?.id ?? '');
 
   useEffect(() => { saveView(kv, view); }, [kv, view]);
   useEffect(() => { if (wsInit?.warnings.length) say(wsInit.warnings.join(' / '), true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onHistory?.(tab.history); }, [onHistory, tab.history]);
   // N03: a project that is not active never keeps running in the background → pause (state kept, no auto resume)
   useEffect(() => {
-    setTabs((ts) => ts.some((t) => t.key !== activeKey && (t.runtime?.state.status === 'running' || t.group?.state.status === 'running'))
-      ? ts.map((t) => (t.key === activeKey ? t : { ...t, runtime: t.runtime && t.runtime.state.status === 'running' ? pause(t.runtime) : t.runtime, group: t.group && t.group.state.status === 'running' ? pauseGroup(t.group) : t.group }))
+    setTabs((ts) => ts.some((t) => t.key !== activeKey && t.runtime?.state.status === 'running')
+      ? ts.map((t) => (t.key === activeKey ? t : { ...t, runtime: t.runtime && t.runtime.state.status === 'running' ? pause(t.runtime) : t.runtime }))
       : ts);
   }, [activeKey]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.err ? 6000 : 3000); return () => clearTimeout(t); }, [toast]);
@@ -149,7 +148,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const edit = (r: C.CmdResult, label: string): boolean => {
     const o = applyEdit(tab.history, r, label, locked);
     if (o.error) { say(o.error, true); return false; }
-    updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null, group: null }));
+    updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null }));
     return true;
   };
 
@@ -166,34 +165,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [running, speed, tab.key, updTab]);
-  const gRunning = gs?.status === 'running';
-  useEffect(() => {
-    if (!gRunning) return;
-    let last = performance.now(); let raf = 0;
-    const loop = (now: number) => {
-      const dt = Math.min(250, now - last) * speed; last = now;
-      updTab(tab.key, (t) => (t.group && t.group.state.status === 'running' ? { ...t, group: advanceGroup(t.group, dt) } : t));
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [gRunning, speed, tab.key, updTab]);
-  const gRun = () => {
-    if (rt?.status === 'running' || rt?.status === 'paused') { say('Station 시퀀스 실행 중에는 그룹 실행을 시작할 수 없습니다 (먼저 초기화)', true); return; }
-    let g = tab.group;
-    if (!g || g.state.unitId !== subUnitId || g.snapshot.revision !== p.revision || g.state.status !== 'idle') g = createGroupRuntime(p, subUnitId, `grp-${Date.now().toString(36)}`);
-    const s2 = startGroup(g);
-    if (s2.state.status !== 'running') say(`그룹 실행 전 검사 차단: ${checkMsg(s2.state)} — 오른쪽 「실행 전 검사」의 이동 버튼으로 수정 위치를 엽니다`, true);
-    updTab(tab.key, (t) => ({ ...t, group: s2 }));
-  };
-  const checkMsg = (st: GroupState) => st.log.map((e) => e.message).slice(-1)[0] ?? '';
-  const gPause = () => updTab(tab.key, (t) => (t.group ? { ...t, group: pauseGroup(t.group) } : t));
-  const gResume = () => updTab(tab.key, (t) => (t.group ? { ...t, group: resumeGroup(t.group) } : t));
-  const gReset = () => updTab(tab.key, (t) => (t.group ? { ...t, group: resetGroup(t.group) } : t));
-  const gToEnd = () => updTab(tab.key, (t) => (t.group && t.group.state.status === 'running' ? { ...t, group: runGroupToEnd(t.group) } : t));
 
   const doRun = () => {
-    if (groupLocked) { say('Substation 그룹 실행 중에는 Station 시퀀스를 시작할 수 없습니다 (먼저 그룹 초기화)', true); return; }
     let r = tab.runtime;
     if (!r || (r.state.status === 'idle' && r.snapshot.revision !== p.revision) || r.state.status === 'completed' || r.state.status === 'error') r = createRuntime(p, `run-${Date.now().toString(36)}`);
     const s = start(r);
@@ -206,8 +179,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const doStep = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'paused' ? { ...t, runtime: pause(advance(resume(t.runtime), 100)) } : t));
   const doToEnd = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? { ...t, runtime: runToEnd(t.runtime) } : t));
 
-  const doUndo = () => { const o = undo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null, group: null })); };
-  const doRedo = () => { const o = redo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null, group: null })); };
+  const doUndo = () => { const o = undo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
+  const doRedo = () => { const o = redo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
 
   const reanalyze = () => {
     const gaps = analyzeGaps(p);
@@ -454,10 +427,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!kv) { say(`${storage.reason}. JSON 가져오기를 사용하세요.`, true); return; }
     openExplorerTab('project');
   };
-  const newProject = (kind: 'blank' | 'sample' | 'parallel') => {
+  const newProject = (kind: 'blank' | 'sample' | 'parallel' | 'flow') => {
     const used = projectNames();
     const proj = kind === 'sample' ? { ...buildSampleProject(), id: `prj-${Date.now().toString(36)}`, name: W.uniqueName(`5공정 예제 사본 ${tabs.length + 1}`, used) }
       : kind === 'parallel' ? { ...buildParallelSampleProject(), id: `prj-par-${Date.now().toString(36)}`, name: W.uniqueName(`병렬 Substation 예제 ${tabs.length + 1}`, used) }
+      : kind === 'flow' ? { ...buildFlowSampleProject(), id: `prj-flow-${Date.now().toString(36)}`, name: W.uniqueName(`흐름 예제 ${tabs.length + 1}`, used) }
       : emptyProject(W.uniqueName(`새 프로젝트 ${tabs.length + 1}`, used));
     const t = makeTab(proj); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
     setView((v) => ({ ...v, home: false }));
@@ -534,7 +508,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const sub = subTab[step];
   const Sub = ({ items }: { items: [string, string][] }) => <div className="tabs subtabs">{items.map(([k, l]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => setSubTab((t) => ({ ...t, [step]: k }))}>{l}</button>)}</div>;
   const subCount = (uid: string) => (p.substationSequences ?? []).filter((q) => q.unitId === uid).length;
-  const pick = (id: string) => { setSelection([id]); const u = p.units.find((x) => x.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; if (u && !groupLocked) setSubUnitPref(u); };
+  const pick = (id: string) => { setSelection([id]); const u = p.units.find((x) => x.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; if (u) setSubUnitPref(u); };
   const collapsed = view.treeCollapsed[p.id] ?? [];
   const setCollapsed = (ids: string[]) => setView((v) => ({ ...v, treeCollapsed: { ...v.treeCollapsed, [p.id]: ids } }));
   const tree = <ProjectTree p={p} selection={selection} collapsed={collapsed} onCollapsedChange={setCollapsed} onPick={pick} subCount={subCount} />;
@@ -556,7 +530,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const requestSwitch = (id: string) => {
     if (id === reg.activeId) return;
     const target = reg.workspaces.find((w) => w.id === id); if (!target) return;
-    if (tabs.some((t) => t.runtime?.state.status === 'running' || t.runtime?.state.status === 'paused' || t.group?.state.status === 'running' || t.group?.state.status === 'paused')) {
+    if (tabs.some((t) => t.runtime?.state.status === 'running' || t.runtime?.state.status === 'paused')) {
       say('실행 중이거나 일시정지된 프로젝트가 있어 Workspace를 바꿀 수 없습니다 — 먼저 초기화하세요', true); return;
     }
     const edited = tabs.filter((t) => t.savedRevision !== t.history.present.revision && !(t.savedRevision === null && t.history.past.length === 0));
@@ -598,9 +572,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setNameDlg({ title: `프로젝트 이름 변경 — ${cur.name}`, initial: cur.name, submitLabel: '이름 변경', hint: '열린 프로젝트의 모델 변경입니다: rev +1, Undo/Redo 가능, 「저장」하면 저장 목록에 반영됩니다. ID는 바뀌지 않습니다.',
       validate: (n) => W.validateName(n, projectNames(cur.id)),
       onSubmit: (n) => {
-        const o = applyEdit(t.history, C.renameProject(t.history.present, n), '프로젝트 이름 변경', !!(t.runtime && t.runtime.state.status !== 'idle') || !!(t.group && t.group.state.status !== 'idle'));
+        const o = applyEdit(t.history, C.renameProject(t.history.present, n), '프로젝트 이름 변경', !!(t.runtime && t.runtime.state.status !== 'idle'));
         if (o.error) { say(o.error, true); return; }
-        updTab(key, (x) => ({ ...x, history: o.history, runtime: null, group: null })); setNameDlg(null); say(`프로젝트 이름을 「${n}」(으)로 바꿨습니다 — 저장하면 목록에 반영됩니다`);
+        updTab(key, (x) => ({ ...x, history: o.history, runtime: null })); setNameDlg(null); say(`프로젝트 이름을 「${n}」(으)로 바꿨습니다 — 저장하면 목록에 반영됩니다`);
       } }); };
   const renameSaved = (id: string) => { if (!kv) return; const e = W.listProjects(kv, reg, reg.activeId).find((x) => x.id === id); if (!e) return;
     if (openIds.has(id)) { say('열린 프로젝트는 프로젝트 상세에서 이름을 바꾸세요', true); return; }
@@ -617,7 +591,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   /** N03: switching projects while this project runs → pause its run first (state kept, no auto resume). */
   const switchTab = (key: string) => {
     if (key !== tab.key) {
-      if (rt?.status === 'running' || gs?.status === 'running') {
+      if (rt?.status === 'running') {
         say(`${p.name}: 실행을 일시정지하고 전환했습니다 (돌아와서 재개 가능, 자동 재개 없음)`);
       }
       setActiveKey(key); setSelection([]); setConnectFrom(null);
@@ -688,20 +662,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button onClick={doToEnd} disabled={!running} title="실행 중(▶ 실행 후)에만 활성 — 남은 단계를 즉시 계산">끝까지</button>
     <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{[0.25, 0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}x</option>)}</select>
     <span className="mono" style={{ minWidth: 80 }}>{fmtTime(rt?.timeMs ?? 0)}</span></>;
-  const groupControls = <>
-    <SubstationSelect p={p} value={subUnitId} onChange={(id) => setSubUnitPref(id)} />
-    <button className="primary" onClick={gRun} disabled={gs?.status === 'running' || gs?.status === 'paused' || !subUnitId}>▶ 그룹 실행</button>
-    <button onClick={gPause} disabled={gs?.status !== 'running'}>❚❚ 그룹 일시정지</button>
-    <button onClick={gResume} disabled={gs?.status !== 'paused'}>그룹 재개</button>
-    <button onClick={gReset} disabled={!tab.group || gs?.status === 'idle'}>⟲ 그룹 초기화</button>
-    <button onClick={gToEnd} disabled={gs?.status !== 'running'}>끝까지</button>
-    <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)" aria-label="재생 속도">{[0.25, 0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}x</option>)}</select>
-    <span className="mono" style={{ minWidth: 80 }}>{fmtTime(gs?.timeMs ?? 0)}</span></>;
-  const groupCanvasRt = gs ? ({ ...gs, stepIndex: 0, active: null, steps: [] } as unknown as typeof rt) : null;
-  const activeDeviceIds = gs ? gs.lanes.filter((l) => l.active).map((l) => { const q = (p.substationSequences ?? []).find((x) => x.id === l.seqId); const a = p.actions.find((x) => x.id === q?.steps[l.stepIndex]?.actionId); return a?.deviceId ?? ''; }) : [];
+  const activeDeviceIds = (rt?.flowRun?.fibers ?? []).flatMap((f) => {
+    if (!f.active) return [];
+    const step = p.sequence.steps.find((s) => s.id === f.active!.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === f.active!.stepId);
+    const a = step && p.actions.find((x) => x.id === step.actionId);
+    return a ? [a.deviceId] : [];
+  });
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
-  const runCanvasEl = <Canvas project={p} rt={runMode === 'group' ? groupCanvasRt : rt} activeDeviceIds={runMode === 'group' ? activeDeviceIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
+  const runCanvasEl = <Canvas project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
@@ -712,7 +681,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
-  const screen = screenOf({ home: !!view.home, step, sub, rightTab, runMode, groupBlocked: !!(gs && (gs.blockers.length > 0 || gs.status === 'error')), stationError: rt?.status === 'error' || (rt?.blockers.length ?? 0) > 0, libDetail, guide });
+  const screen = screenOf({ home: !!view.home, step, sub, rightTab, runMode, groupBlocked: false, stationError: rt?.status === 'error' || (rt?.blockers.length ?? 0) > 0, libDetail, guide });
   const onThemeKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); chooseTheme('dark'); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); chooseTheme('light'); }
@@ -776,9 +745,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           </section>
           <section className="home-card">
             <h2>예제로 익히기</h2>
-            <p>5공정 조립 라인 · 병렬 시퀀스<br />실제 장비가 아닌 논리 실행 예제입니다.</p>
+            <p>5공정 조립 라인 · 병렬 시퀀스 · 분기와 반복<br />실제 장비가 아닌 논리 실행 예제입니다.</p>
             <div className="row"><button className="btn-main primary" onClick={() => newProject('sample')}>예제 열기</button>
-              <button className="btn-main secondary" onClick={() => newProject('parallel')}>병렬 예제</button></div>
+              <button className="btn-main secondary" onClick={() => newProject('parallel')}>병렬 예제</button>
+              <button className="btn-main secondary" onClick={() => newProject('flow')}>흐름 예제</button></div>
           </section>
         </div>
         <h2>최근 프로젝트</h2>
@@ -989,19 +959,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <button type="button" onClick={() => setSubTab((t) => ({ ...t, sequence: 'subseq' }))}>Substation 시퀀스</button>
             </div>
             <h2>Station 시퀀스 Draft</h2>
-            <table className="grid plain">
-              <thead><tr><th>단계 / 대상</th><th>Action / 완료</th><th>시간 / 타임아웃</th><th>편집</th></tr></thead>
-              <tbody>{p.sequence.steps.map((s, i) => {
-                const a = p.actions.find((x) => x.id === s.actionId);
-                return <tr key={s.id}><td>{String(i + 1).padStart(2, '0')} · {a ? devName(p, a.deviceId) : s.name}</td><td>{a?.name ?? '없음'} / {a?.completeSignalId ? sigName(p, a.completeSignalId) : '미정'}</td><td>{a ? `${a.duration.value ?? '미정'}s / ${a.timeout.value ?? '미정'}s${a.duration.assumption ? ' · 가정' : ''}` : '없음'}</td><td>
-                  <button type="button" className="small" disabled={locked || i === 0} onClick={() => edit(C.moveStep(p, i, i - 1), '단계 위로')}>위로</button>
-                  <button type="button" className="small" disabled={locked || i === p.sequence.steps.length - 1} onClick={() => edit(C.moveStep(p, i, i + 1), '단계 아래로')}>아래로</button>
-                  <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeStep(p, s.id), '단계 삭제')}>삭제</button>
-                </td></tr>;
-              })}
-              {p.sequence.steps.length === 0 && <tr><td colSpan={4}>단계가 없습니다. Action 추가로 현재 장치의 첫 Action을 넣습니다.</td></tr>}</tbody>
-            </table>
-            <p className="warn-note">한 시퀀스 안의 분기, 병렬, 루프는 미구현입니다.</p>
+            <FlowEditor p={p} rt={rt} locked={locked} edit={edit} />
             <Fold className="fold-panel" summary="단계 편집, 구조화 문장, 순서 변경">
               <SequencePanel p={p} rt={rt} locked={locked} edit={edit} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />
             </Fold>
@@ -1031,9 +989,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           </div>}
           {sub === 'subseq' && <section className="sheet wide">
             <h2>Substation 시퀀스</h2>
-            <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} gs={gs} />
+            <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} gs={null} />
           </section>}
-          {sub === 'sfc' && <section className="sheet wide"><h2>SFC 미리보기</h2><p className="muted">읽기 전용 순차 표시입니다. 분기와 루프는 그리지 않습니다.</p><SfcPanel p={p} rt={rt} /></section>}
+          {sub === 'sfc' && <section className="sheet wide"><h2>SFC 미리보기</h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · Substation 단계를 읽기 전용으로 그립니다.</p><SfcPanel p={p} rt={rt} /></section>}
           {sub === 'extend' && <><ExtendSheet /><Fold className="fold-panel" summary="미구현 안내"><ExtendPanel /></Fold></>}
         </div>
       </div>}
@@ -1067,34 +1025,32 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!guide && !view.home && step === 'run' && <div className="workspace ws-run">
-        <h1 className="stage-title run-title">{screen === 'S62' ? '실행 차단과 수정' : runMode === 'group' ? 'Substation 그룹 실행' : 'Station 논리 실행'}</h1>
+        <h1 className="stage-title run-title">{screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'}</h1>
         <div className="toolbar tool-pills">
-          <div className="seg" role="tablist" aria-label="실행 대상">
-            <button role="tab" aria-selected={runMode === 'station'} className={runMode === 'station' ? 'on' : ''} onClick={() => setRunMode('station')}>Station 시퀀스</button>
-            <button role="tab" aria-selected={runMode === 'group'} className={runMode === 'group' ? 'on' : ''} onClick={() => setRunMode('group')}>Substation 그룹</button></div>
-          <div className="sep" />
-          {runMode === 'station' ? runControls : groupControls}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
+          {runControls}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
-          {runMode === 'station' ? <><span className="badge">{rt?.status === 'completed' ? '시뮬 완료' : `시뮬 ${rt?.status ?? 'idle'}`}</span>
-            <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></> : <span className="badge">그룹 {gs?.status ?? 'idle'}</span>}</div>
+          <span className="badge">{rt?.status === 'completed' ? '시뮬 완료' : `시뮬 ${rt?.status ?? 'idle'}`}</span>
+          <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
         <div className="center sparse-page">
-        {screen === 'S62' && <BlockerSheet p={p} title={runMode === 'group' ? '그룹 실행 차단' : 'Station 실행 차단'} timeLabel={fmtTime(runMode === 'group' ? (gs?.timeMs ?? 0) : (rt?.timeMs ?? 0))} blockers={runMode === 'group' ? (gs?.blockers ?? []) : (rt?.blockers ?? [])} onGuide={goBlocker} onRecheck={() => { if (runMode === 'group') gReset(); else doReset(); }} />}
+        {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
           <section className="sheet">
-            <h2>{runMode === 'group' ? '그룹 실행 상태' : 'Station 실행 상태'}</h2>
+            <h2>Station 실행 상태</h2>
             <div className="form-grid">
-              <label>실행 상태<span className="field-ro">{runMode === 'group' ? (gs?.status ?? 'idle') : (rt?.status ?? 'idle')}{locked ? ' · 편집 잠금' : ''}</span></label>
-              <label>가상 시간<span className="field-ro">{fmtTime(runMode === 'group' ? (gs?.timeMs ?? 0) : (rt?.timeMs ?? 0))}</span></label>
+              <label>실행 상태<span className="field-ro">{rt?.status ?? 'idle'}{locked ? ' · 편집 잠금' : ''}</span></label>
+              <label>가상 시간<span className="field-ro">{fmtTime(rt?.timeMs ?? 0)}</span></label>
             </div>
-            {runMode === 'station' && <table className="grid plain"><thead><tr><th>단계</th><th>상태</th><th>자재</th></tr></thead>
-              <tbody>{(rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' }))).map((row) => {
-                const step = p.sequence.steps.find((s) => s.id === row.stepId);
-                return <tr key={row.stepId}><td>{step?.name ?? row.stepId}</td><td>{row.status}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
-              })}</tbody></table>}
+            <table className="grid plain"><thead><tr><th>단계</th><th>갈래 · 회차</th><th>상태</th><th>자재</th></tr></thead>
+              <tbody>{orderRunRecords(p, rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const }))).map((row, i) => {
+                const step = p.sequence.steps.find((s) => s.id === row.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === row.stepId);
+                const where = [('lane' in row ? row.lane : undefined), ('pass' in row && row.pass ? `${row.pass}회` : '')].filter(Boolean).join(' ');
+                const label = row.status === 'skipped' ? '건너뜀' : row.status;
+                return <tr key={`${row.stepId}:${i}`}><td>{step?.name ?? row.stepId}</td><td>{where || '—'}</td><td>{label}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
+              })}</tbody></table>
             <p className="muted">이 값은 이번 실행의 가상 시각과 단계 상태입니다. 예시 시각을 고정해 두지 않습니다. 논리 실행이며 안전 판정이 아닙니다.</p>
           </section>
         <Fold className="fold-panel" summary="실행 도면, 로그, 차단 이동">
           <div className="diagram-canvas">{runCanvasEl}</div>
-          {runMode === 'station' ? <RuntimePanel p={p} rt={rt} locked={locked} edit={edit} /> : <GroupRunPanel p={p} gs={gs} unitId={subUnitId} onGoBlocker={goBlocker} />}
+          <RuntimePanel p={p} rt={rt} locked={locked} edit={edit} onGoBlocker={goBlocker} />
         </Fold>
         </div>
         <div className="right run-side">
@@ -1113,7 +1069,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       <div className="statusbar">
         <b>논리 시뮬레이션 · 실제 장비 제어/안전 검증 아님</b>
         <span>rev {p.revision}</span><span>Undo {tab.history.past.length}</span>
-        <span>실행 {rt?.status ?? 'idle'} · 그룹 {gs?.status ?? 'idle'}</span>
+        <span>실행 {rt?.status ?? 'idle'}</span>
         {locked && <span>실행 중 편집 잠금</span>}
         <span className="grow" />
         {!view.home && <>
@@ -1125,7 +1081,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <button className="btn-main secondary" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
           <button className="btn-main primary" onClick={() => setView((v) => ({ ...v, home: false }))}>시작하기</button>
         </>}
-        <span className="muted">형식 {FILE_FORMAT_VERSION} · 규칙 {RUNTIME_RULES_VERSION} / {GROUP_RULES_VERSION}</span>
+        <span className="muted">형식 {FILE_FORMAT_VERSION} · 규칙 {RUNTIME_RULES_VERSION}</span>
       </div>
 
       {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.msg}</div>}

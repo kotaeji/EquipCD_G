@@ -1,8 +1,9 @@
 // Pure model editing commands (F2/F3/F4/F5). Each returns a new Project or a rejection; never mutates input.
 import { findAsset, getAssetById } from '../assets/library';
 import { instantiateDevice, makeUnit, newId } from './factory';
-import type { Action, AssetKind, Condition, Connection, Device, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
-import { q } from './types';
+import type { Action, AssetKind, Condition, Connection, Device, FlowNode, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
+import { DEFAULT_MAX_RETRIES, q } from './types';
+import { containsParallelOrSubstation, findById, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
 import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, tightUnitLayout, unitMinSize } from './unitLayout';
 
 export type CmdResult = { ok: true; project: Project; note?: string } | { ok: false; reason: string };
@@ -288,6 +289,7 @@ function eraseNodes(p: Project, unitIds: string[], looseDeviceIds: string[]): vo
   p.signals = p.signals.filter((s) => !sigIds.has(s.id));
   p.positions = p.positions.filter((x) => !deviceSet.has(x.deviceId));
   p.actions = p.actions.filter((a) => !removedActions.has(a.id));
+  const removedStepIds = new Set(p.sequence.steps.filter((s) => removedActions.has(s.actionId)).map((s) => s.id));
   p.sequence.steps = p.sequence.steps.filter((s) => !removedActions.has(s.actionId));
   p.substationSequences = (p.substationSequences ?? []).filter((q) => !unitSet.has(q.unitId));
   for (const q of p.substationSequences) q.steps = q.steps.filter((s) => !removedActions.has(s.actionId));
@@ -308,6 +310,7 @@ function eraseNodes(p: Project, unitIds: string[], looseDeviceIds: string[]): vo
   }
   for (const s of p.sequence.steps) s.entry = s.entry.map(fixCond);
   for (const q of p.substationSequences) for (const s of q.steps) s.entry = s.entry.map(fixCond);
+  if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, removedStepIds, unitSet, fixCond);
   p.connections = p.connections.filter((c) => !nodeSet.has(c.from.nodeId) && !nodeSet.has(c.to.nodeId));
   for (const k of p.constraints) k.relatedIds = k.relatedIds.filter((r) => !nodeSet.has(r));
   if (unitIds.length) {
@@ -616,6 +619,7 @@ export function deleteSignal(p0: Project, id: string): CmdResult {
   if (users.length) return no(`사용 중인 Signal입니다: ${users.map((a) => a.name).join(', ')}`);
   const p = clone(p0); p.signals = p.signals.filter((s) => s.id !== id);
   p.connections = p.connections.filter((c) => c.from.signalId !== id && c.to.signalId !== id);
+  if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, new Set(), new Set(), (c) => c.kind === 'signal' && c.signalId === id ? { kind: 'undefined', note: `삭제된 Signal ${id} 참조 해제됨` } : c);
   return ok(p);
 }
 
@@ -639,6 +643,7 @@ export function addStep(p0: Project, actionId: string, index?: number, origin: S
   const step: SequenceStep = { id: idOf('step'), name: a.name, actionId, timeoutOverride: null, entry: [], origin, ...(sourceText ? { sourceText } : {}) };
   const i = index === undefined ? p.sequence.steps.length : Math.max(0, Math.min(index, p.sequence.steps.length));
   p.sequence.steps.splice(i, 0, step);
+  if (p.sequence.flow) p.sequence.flow.push({ kind: 'step', stepId: step.id });
   return ok(p, step.id);
 }
 
@@ -650,7 +655,10 @@ export function moveStep(p0: Project, from: number, to: number): CmdResult {
 
 export function removeStep(p0: Project, stepId: string): CmdResult {
   if (!p0.sequence.steps.some((s) => s.id === stepId)) return no('단계 없음');
-  const p = clone(p0); p.sequence.steps = p.sequence.steps.filter((s) => s.id !== stepId); return ok(p);
+  const p = clone(p0);
+  p.sequence.steps = p.sequence.steps.filter((s) => s.id !== stepId);
+  if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, new Set([stepId]), new Set(), (c) => c);
+  return ok(p);
 }
 
 export function updateStep(p0: Project, stepId: string, patch: Partial<Pick<SequenceStep, 'name' | 'entry'>>): CmdResult {
@@ -728,4 +736,155 @@ export function moveSubStep(p0: Project, seqId: string, from: number, to: number
   const q0 = (p0.substationSequences ?? []).find((x) => x.id === seqId); if (!q0) return no('시퀀스 없음');
   if (from < 0 || from >= q0.steps.length || to < 0 || to >= q0.steps.length || from === to) return no('이동 범위 오류');
   const p = clone(p0); const q = subs(p).find((x) => x.id === seqId)!; const [s] = q.steps.splice(from, 1); q.steps.splice(to, 0, s); return ok(p);
+}
+
+// ---- Station flow (TURN-022). One command = rev +1 = one undo. ---
+function flowOf(p: Project): FlowNode[] {
+  return (p.sequence.flow ??= linearFlow(p.sequence.steps));
+}
+
+const resultCond = (p: Project): Condition => {
+  const sig = p.signals.find((s) => s.role === 'result');
+  return sig ? { kind: 'signal', signalId: sig.id, equals: true } : { kind: 'undefined', note: '조건 없음' };
+};
+
+export type WrapKind = 'branch' | 'parallel' | 'loop' | 'retry';
+
+/** Wrap consecutive sibling steps. Creates `flow` from the flat list when it was absent. */
+export function wrapFlow(p0: Project, stepIds: string[], kind: WrapKind, idOf: (s: string) => string = newId): CmdResult {
+  if (stepIds.length < 1) return no('단계를 하나 이상 고르세요');
+  const known = new Set(p0.sequence.steps.map((s) => s.id));
+  if (stepIds.some((id) => !known.has(id))) return no('없는 단계');
+  const p = clone(p0);
+  const id = idOf('flow');
+  const steps: FlowNode[] = stepIds.map((stepId) => ({ kind: 'step', stepId }));
+  let block: FlowNode;
+  if (kind === 'branch') block = { kind: 'branch', id, name: '분기', cond: resultCond(p), then: steps, else: [] };
+  else if (kind === 'parallel') block = { kind: 'parallel', id, name: '병렬', lanes: [steps, []] };
+  else if (kind === 'loop') block = { kind: 'loop', id, name: '반복', count: 2, body: steps };
+  else block = { kind: 'retry', id, name: '재시도', until: resultCond(p), maxRetries: DEFAULT_MAX_RETRIES, body: steps };
+  const next = wrapStepNodes(flowOf(p), stepIds, block);
+  if (!next) return no('같은 갈래에서 연속된 단계만 묶을 수 있습니다');
+  p.sequence.flow = next;
+  return ok(p, id);
+}
+
+export function unwrapFlow(p0: Project, blockId: string): CmdResult {
+  if (!p0.sequence.flow) return no('흐름 없음');
+  const p = clone(p0);
+  const next = unwrapBlock(p.sequence.flow!, blockId);
+  if (!next) return no('블록 없음');
+  p.sequence.flow = next;
+  return ok(p);
+}
+
+export function addParallelLane(p0: Project, blockId: string): CmdResult {
+  const p = clone(p0);
+  const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
+  if (!hit || hit.node.kind !== 'parallel') return no('병렬 블록 없음');
+  if (hit.node.lanes.length >= 4) return no('갈래는 4개까지입니다');
+  hit.node.lanes.push([]);
+  return ok(p);
+}
+
+export function removeParallelLane(p0: Project, blockId: string, laneIndex: number): CmdResult {
+  const p = clone(p0);
+  const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
+  if (!hit || hit.node.kind !== 'parallel') return no('병렬 블록 없음');
+  if (hit.node.lanes.length <= 2) return no('갈래는 2개 이상이어야 합니다');
+  if (laneIndex < 0 || laneIndex >= hit.node.lanes.length) return no('갈래 없음');
+  const [lane] = hit.node.lanes.splice(laneIndex, 1);
+  hit.list.splice(hit.index + 1, 0, ...lane);
+  return ok(p);
+}
+
+export function setLoopCount(p0: Project, blockId: string, count: number): CmdResult {
+  if (!Number.isInteger(count) || count < 1 || count > 10) return no('횟수는 1~10');
+  const p = clone(p0);
+  const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
+  if (!hit || hit.node.kind !== 'loop') return no('반복 블록 없음');
+  hit.node.count = count;
+  return ok(p);
+}
+
+export function setRetryMax(p0: Project, blockId: string, maxRetries: number): CmdResult {
+  if (!Number.isInteger(maxRetries) || maxRetries < 0 || maxRetries > DEFAULT_MAX_RETRIES) return no(`재시도는 0~${DEFAULT_MAX_RETRIES}`);
+  const p = clone(p0);
+  const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
+  if (!hit || hit.node.kind !== 'retry') return no('재시도 블록 없음');
+  hit.node.maxRetries = maxRetries;
+  return ok(p);
+}
+
+export function setFlowCondition(p0: Project, blockId: string, cond: Condition): CmdResult {
+  const p = clone(p0);
+  const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
+  if (!hit) return no('블록 없음');
+  if (hit.node.kind === 'branch') hit.node.cond = cond;
+  else if (hit.node.kind === 'retry') hit.node.until = cond;
+  else return no('조건을 두는 블록이 아닙니다');
+  return ok(p);
+}
+
+export function renameFlowBlock(p0: Project, blockId: string, name: string): CmdResult {
+  if (!name.trim()) return no('이름 필요');
+  const p = clone(p0);
+  const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
+  if (!hit || hit.node.kind === 'step' || hit.node.kind === 'substation') return no('블록 없음');
+  hit.node.name = name.trim();
+  return ok(p);
+}
+
+export function addSubstationNode(p0: Project, unitId: string, idOf: (s: string) => string = newId): CmdResult {
+  if (!p0.units.some((u) => u.id === unitId)) return no('Substation 없음');
+  const p = clone(p0);
+  const id = idOf('flow');
+  flowOf(p).push({ kind: 'substation', id, unitId });
+  return ok(p, id);
+}
+
+export function moveFlowNode(p0: Project, id: string, delta: number): CmdResult {
+  if (!p0.sequence.flow) return no('흐름 없음');
+  const p = clone(p0);
+  const next = moveNodeBy(p.sequence.flow!, id, delta);
+  if (!next) return no('이동 불가');
+  p.sequence.flow = next;
+  return ok(p);
+}
+
+/** Move a node to the end of a block arm. `arm` is 'then' | 'else' | 'body' or a lane index. */
+export function moveFlowInto(p0: Project, id: string, blockId: string, arm: 'then' | 'else' | 'body' | number): CmdResult {
+  if (!p0.sequence.flow) return no('흐름 없음');
+  const p = clone(p0);
+  const flow = p.sequence.flow!;
+  const block = findById(flow, blockId);
+  if (!block) return no('블록 없음');
+  let target: FlowNode[] | null = null;
+  if (block.node.kind === 'branch' && arm === 'then') target = block.node.then;
+  else if (block.node.kind === 'branch' && arm === 'else') target = block.node.else;
+  else if ((block.node.kind === 'loop' || block.node.kind === 'retry') && (arm === 'body' || arm === 'then')) target = block.node.body;
+  else if (block.node.kind === 'parallel' && typeof arm === 'number') target = block.node.lanes[arm] ?? null;
+  if (!target) return no('갈래 없음');
+  const moving = findById(flow, id);
+  if (!moving) return no('노드 없음');
+  if (listInsideParallel(flow, target) && containsParallelOrSubstation(moving.node)) return no('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+  const next = moveNodeTo(flow, id, target, target.length);
+  if (!next) return no('옮길 수 없습니다');
+  p.sequence.flow = next;
+  return ok(p);
+}
+
+export function moveFlowOut(p0: Project, id: string): CmdResult {
+  if (!p0.sequence.flow) return no('흐름 없음');
+  const p = clone(p0);
+  const flow = p.sequence.flow!;
+  const hit = findById(flow, id);
+  if (!hit) return no('노드 없음');
+  if (hit.list === flow) return no('이미 맨 바깥입니다');
+  const owner = findOwner(flow, hit.list);
+  if (!owner) return no('바깥 위치를 찾지 못했습니다');
+  const next = moveNodeTo(flow, id, owner.list, owner.index + 1);
+  if (!next) return no('옮길 수 없습니다');
+  p.sequence.flow = next;
+  return ok(p);
 }

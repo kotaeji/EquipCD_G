@@ -1,6 +1,6 @@
 // Generates sample project files (requires assets/aml/ecd-sample-library.aml). Run: npm run gen:samples
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
+import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
 import { serializeProject } from '../src/storage/fileFormat';
 import { BUNDLED_AML_TEXT } from '../src/assets/library';
 
@@ -8,6 +8,7 @@ mkdirSync('samples', { recursive: true });
 const good = serializeProject(buildSampleProject());
 writeFileSync('samples/sample-5step.ecd.json', good);
 writeFileSync('samples/sample-parallel-substation.ecd.json', serializeProject(buildParallelSampleProject()));
+writeFileSync('samples/sample-flow.ecd.json', serializeProject(buildFlowSampleProject()));
 writeFileSync('samples/invalid-corrupt.ecd.json', good.slice(0, 400));
 const v = JSON.parse(good); v.formatVersion = '9.0.0';
 writeFileSync('samples/invalid-unsupported-version.ecd.json', JSON.stringify(v, null, 2));

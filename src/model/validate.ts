@@ -1,5 +1,7 @@
 import { getAssetById } from '../assets/library';
-import type { Condition, Project } from './types';
+import { flowIntegrity, flowShapeBlockers, laneSteps, walk } from './flow';
+import { checkLanes } from './laneCheck';
+import type { Condition, FlowNode, Project } from './types';
 
 export interface Diagnostic {
   id: string;
@@ -114,6 +116,7 @@ export function validateProject(p: Project): Diagnostic[] {
     }
   }
   for (const k of p.constraints) for (const r of k.relatedIds) if (!seen.has(r)) err('REF_MISSING', k.id, `제약 ${k.id}의 관련 객체 ${r} 없음`, 'warning');
+  if (p.sequence.flow) out.push(...flowIntegrity(p));
   return out;
 }
 
@@ -127,7 +130,10 @@ export function checkRunReadiness(p: Project): Readiness {
   const b = (code: string, objectId: string, message: string) => blockers.push({ id: `${code}:${objectId}:${blockers.length}`, severity: 'error', code, objectId, message });
   if (blockers.length) return { ok: false, blockers, warnings };
   const ix = indexProject(p);
-  if (p.sequence.steps.length === 0) b('NO_STEPS', p.sequence.id, '시퀀스 단계가 없음');
+  const flow = p.sequence.flow;
+  if (flow) {
+    if (flow.length === 0 && p.sequence.steps.length === 0) b('NO_STEPS', p.sequence.id, '시퀀스 단계가 없음');
+  } else if (p.sequence.steps.length === 0) b('NO_STEPS', p.sequence.id, '시퀀스 단계가 없음');
   if (p.materials.length !== 1) b('MATERIAL_COUNT', 'materials', `이번 시제품 실행은 자재 정의 1개만 지원 (현재 ${p.materials.length}개)`);
   const m = p.materials[0];
   if (m) {
@@ -147,6 +153,24 @@ export function checkRunReadiness(p: Project): Readiness {
       if (u.capacity.maxMaterials.value === null) b('CAPACITY_UNDEFINED', s.id, `단계 ${s.name}: 이동 대상 ${u.name} 수용 개수 미정`);
     }
     if (a.effect.setState && m && !m.states.includes(a.effect.setState)) b('STATE_UNKNOWN', s.id, `단계 ${s.name}: 상태 ${a.effect.setState}가 자재 상태집합에 없음`);
+  }
+  if (flow) {
+    for (const d of flowShapeBlockers(p)) blockers.push(d);
+    const parallels: FlowNode[] = [];
+    const subs: FlowNode[] = [];
+    walk(flow, (n) => { if (n.kind === 'parallel') parallels.push(n); if (n.kind === 'substation') subs.push(n); });
+    for (const n of parallels) {
+      if (n.kind !== 'parallel') continue;
+      const lanes = n.lanes.map((lane, i) => ({ id: `${n.id}:${i}`, name: `${n.name} 갈래 ${i + 1}`, steps: laneSteps(p, lane) }));
+      for (const d of checkLanes(p, lanes).blockers) blockers.push(d);
+    }
+    for (const n of subs) {
+      if (n.kind !== 'substation') continue;
+      const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === n.unitId);
+      const unit = p.units.find((u) => u.id === n.unitId);
+      if (seqs.length === 0) blockers.push({ id: `NO_SUB_SEQUENCES:${n.id}:${blockers.length}`, severity: 'error', code: 'NO_SUB_SEQUENCES', objectId: n.unitId, message: `${unit?.name ?? n.unitId}: Substation 시퀀스가 없음 — 4 자재·시퀀스 › Substation 시퀀스에서 추가하세요` });
+      for (const d of checkLanes(p, seqs.map((q) => ({ id: q.id, name: q.name, steps: q.steps })), n.unitId).blockers) blockers.push(d);
+    }
   }
   return { ok: blockers.length === 0, blockers, warnings };
 }

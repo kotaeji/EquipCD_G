@@ -59,7 +59,11 @@ describe('TURN-001 blocker guidance (real Diagnostics)', () => {
 
   it('coverage: code lists match the gate source exactly; no label says "3 시퀀스"', () => {
     const g = src('runtime/group.ts');
-    const groupCodes = [...g.slice(g.indexOf('export function checkGroupReadiness'), g.indexOf('function initialState')).matchAll(/\bb\('([A-Z_]+)'/g)].map((m) => m[1]);
+    const lane = src('model/laneCheck.ts');
+    const groupCodes = [
+      ...g.slice(g.indexOf('export function checkGroupReadiness'), g.indexOf('function initialState')).matchAll(/\bb\('([A-Z_]+)'/g),
+      ...lane.matchAll(/\bb\('([A-Z_]+)'/g),
+    ].map((m) => m[1]);
     expect(new Set(GROUP_CODES)).toEqual(new Set(groupCodes));
     const v = src('model/validate.ts');
     const vErr = new Set(v.split('\n').flatMap((l) => (l.includes("'warning'") ? [] : [...l.matchAll(/\b(?:err|push)\('([A-Z_]+)'/g)].map((m) => m[1]))));

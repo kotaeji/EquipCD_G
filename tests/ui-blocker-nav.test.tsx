@@ -27,10 +27,9 @@ async function mount() {
   const click = async (b: Element) => { await act(async () => { (b as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true })); }); };
   const status = () => el.querySelector('.statusbar')!.textContent!;
   const appEl = el.querySelector('.app') as HTMLElement;
-  const groupHeading = () => [...el.querySelectorAll('h4')].map((h) => h.textContent ?? '').find((t) => t.startsWith('그룹 실행 — ')) ?? '';
   const history = () => structuredClone(seen.h!);
-  const toRunGroup = async () => { await click(el.querySelector('.stepper [data-stepid="run"]')!); await click(btn('Substation 그룹')); };
-  return { el, txt, btn, click, status, appEl, groupHeading, history, toRunGroup };
+  const toRun = async () => { await click(el.querySelector('.stepper [data-stepid="run"]')!); };
+  return { el, txt, btn, click, status, appEl, history, toRun };
 }
 
 describe('TURN-001 group-run blocker guidance (jsdom)', () => {
@@ -45,9 +44,8 @@ describe('TURN-001 group-run blocker guidance (jsdom)', () => {
     const copy = guideCopy(f.code, g);
     const u = await mount();
     expect(u.history().present.id).toBe(p.id); // the seeded project is the one on screen
-    await u.toRunGroup();
-    expect(u.groupHeading()).toContain('S1 듀얼 클램프');
-    if (f.pressRun) { await u.click(u.btn('▶ 그룹 실행')); expect(u.status()).toContain('그룹 idle'); expect(u.txt()).toContain('그룹 실행 전 검사 차단'); }
+    await u.toRun();
+    if (f.pressRun) { await u.click(u.btn('▶ 실행')); expect(u.status()).toContain('실행 idle'); expect(u.txt()).toContain('실행 준비 실패'); }
     const item = [...u.el.querySelectorAll('.blocker-item')].find((li) => (li.textContent ?? '').includes(`[${f.code}]`) && li.getAttribute('data-guide-kind') === f.expect.kind)!;
     expect(item, 'blocker row with the expected guide kind').toBeDefined();
     expect(item.textContent).toContain(copy.lead.slice(0, 30));
@@ -71,7 +69,6 @@ describe('TURN-001 group-run blocker guidance (jsdom)', () => {
     expect(u.history()).toEqual(before); // whole history (past/present/future/labels) unchanged by navigation
     // H3: back on step 6 the group run target is still the original Substation and the blocker is still listed
     await u.click(u.el.querySelector('.stepper [data-stepid="run"]')!);
-    expect(u.groupHeading()).toContain('S1 듀얼 클램프');
     expect([...u.el.querySelectorAll('.blocker-item')].some((li) => (li.textContent ?? '').includes(`[${f.code}]`))).toBe(true);
     expect(u.history()).toEqual(before);
   });
@@ -88,13 +85,13 @@ describe('TURN-001 group-run blocker guidance (jsdom)', () => {
     const opt = [...sel.options].find((o) => o.text.includes('CYL-B1'))!;
     await act(async () => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(sel, opt.value); sel.dispatchEvent(new Event('change', { bubbles: true })); });
     await u.click(u.btn('단계 추가', cardA));
-    await u.toRunGroup();
+    await u.toRun();
     const before = u.history();
     expect(before.labels[before.labels.length - 1]).toBe('단계 추가');
     const go = u.el.querySelector('button[data-blocker-code="DEVICE_CONFLICT"]')!;
     expect(go.textContent).toBe('4 자재·시퀀스 › Substation 시퀀스 화면으로 이동');
-    await u.click(u.btn('▶ 그룹 실행'));
-    expect(u.status()).toContain('그룹 idle');
+    await u.click(u.btn('▶ 실행'));
+    expect(u.status()).toContain('실행 idle');
     await u.click(u.el.querySelector('button[data-blocker-code="DEVICE_CONFLICT"]')!);
     expect(u.appEl.dataset.step).toBe('sequence');
     expect(u.el.querySelector('.subtabs button.on')!.textContent).toMatch(/^Substation 시퀀스/);

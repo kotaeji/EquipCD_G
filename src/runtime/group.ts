@@ -10,8 +10,9 @@
 //    the same Device (→ concurrent writes to its command/complete signals) used by two lanes, and the shared material
 //    being moved/held/changed by more than one lane (duplicate ownership).
 // NOT equipment control, NOT physics.
-import type { Action, Condition, Project, SequenceStep, SubstationSequence } from '../model/types';
+import type { Action, Project, SequenceStep, SubstationSequence } from '../model/types';
 import { GROUP_RULES_VERSION } from '../model/types';
+import { checkLanes } from '../model/laneCheck';
 import { validateProject, type Diagnostic } from '../model/validate';
 import { applySensorSignals, evalCond, ms, signalLabel, unmetText, type LogEntry, type MaterialInstance } from './engine';
 
@@ -48,8 +49,6 @@ export interface GroupState {
 export interface GroupRuntime { snapshot: Project; state: GroupState }
 
 const seqsOf = (p: Project, unitId: string): SubstationSequence[] => (p.substationSequences ?? []).filter((q) => q.unitId === unitId);
-const touchesMaterial = (a: Action) => a.effect.moveTo !== undefined || a.effect.holder !== undefined || a.effect.setState !== undefined || a.kind === 'read';
-const matCond = (c: Condition) => c.kind === 'materialAt' || c.kind === 'materialState' || c.kind === 'materialHeldBy';
 
 export interface GroupReadiness { ok: boolean; blockers: Diagnostic[]; warnings: Diagnostic[]; usesMaterial: boolean }
 
@@ -64,32 +63,9 @@ export function checkGroupReadiness(p: Project, unitId: string): GroupReadiness 
   if (!unit) { b('NO_SUBSTATION', unitId, `Substation ${unitId} 없음`); return { ok: false, blockers, warnings, usesMaterial: false }; }
   const seqs = seqsOf(p, unitId);
   if (seqs.length === 0) b('NO_SUB_SEQUENCES', unitId, `${unit.name}: Substation 시퀀스가 없음 — 4 자재·시퀀스 › Substation 시퀀스에서 추가하세요`);
-  const devOwner = new Map<string, string>();   // deviceId → seq name
-  const matOwners = new Set<string>();
-  for (const q of seqs) {
-    if (q.steps.length === 0) b('NO_STEPS', q.id, `[${q.name}] 단계가 없음`);
-    const devs = new Set<string>();
-    for (const s of q.steps) {
-      const a = p.actions.find((x) => x.id === s.actionId)!;
-      const dev = p.devices.find((d) => d.id === a.deviceId)!;
-      if (dev.unitId !== unitId) b('DEVICE_OUTSIDE_SUBSTATION', s.id, `[${q.name}] ${s.name}: Device ${dev.name}는 ${unit.name} 소속이 아님 — Substation 밖 Device는 그룹 시퀀스에 넣을 수 없음`);
-      devs.add(dev.id);
-      if (!a.completeSignalId) b('NO_COMPLETE_SIGNAL', s.id, `[${q.name}] ${s.name}: 완료 Signal 미정 — 완료 판정 불가`);
-      if (a.duration.value === null) b('DURATION_UNDEFINED', s.id, `[${q.name}] ${s.name}: 동작 시간 미정`);
-      if ((s.timeoutOverride ?? a.timeout).value === null) b('TIMEOUT_UNDEFINED', s.id, `[${q.name}] ${s.name}: 타임아웃 미정`);
-      for (const c of [...a.pre, ...a.post, ...s.entry]) if (c.kind === 'undefined') b('CONDITION_UNDEFINED', s.id, `[${q.name}] ${s.name}: 미정 조건 "${c.note}" — 임의 true 처리 안 함`);
-      if (touchesMaterial(a) || [...a.pre, ...a.post, ...s.entry].some(matCond)) matOwners.add(q.id);
-      const mv = a.effect.moveTo;
-      if (mv && mv !== 'EXIT' && p.units.find((u) => u.id === mv)?.capacity.maxMaterials.value === null) b('CAPACITY_UNDEFINED', s.id, `[${q.name}] ${s.name}: 이동 대상 수용 개수 미정`);
-    }
-    for (const d of devs) {
-      const prev = devOwner.get(d);
-      if (prev) b('DEVICE_CONFLICT', d, `Device ${p.devices.find((x) => x.id === d)?.name ?? d}를 시퀀스 "${prev}"와 "${q.name}"가 함께 사용 — 동시 쓰기(명령/완료 Signal 충돌)를 이 시제품은 해석하지 않으므로 실행 전 차단`);
-      else devOwner.set(d, q.name);
-    }
-  }
-  if (matOwners.size > 1) b('SHARED_MATERIAL_CONFLICT', unitId, `자재를 다루는 시퀀스가 ${matOwners.size}개 (${seqs.filter((q) => matOwners.has(q.id)).map((q) => q.name).join(', ')}) — 자재 중복 소유/동시 이동은 지원하지 않아 실행 전 차단 (자재를 다루는 시퀀스는 1개만 허용)`);
-  const usesMaterial = matOwners.size > 0;
+  const lane = checkLanes(p, seqs.map((q) => ({ id: q.id, name: q.name, steps: q.steps })), unitId);
+  blockers.push(...lane.blockers);
+  const usesMaterial = lane.usesMaterial;
   if (usesMaterial) {
     if (p.materials.length !== 1) b('MATERIAL_COUNT', 'materials', `자재 정의 1개만 지원 (현재 ${p.materials.length}개)`);
     const m = p.materials[0];

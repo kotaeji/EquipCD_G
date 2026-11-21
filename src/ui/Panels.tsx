@@ -7,11 +7,14 @@ import { buildExportPreview } from '../model/exportPreview';
 import { GAP_KIND_LABEL, type Gap, type GapKind } from '../model/gaps';
 import { parseStructuredSequence, type ParsedLine } from '../model/structuredText';
 import type { AssetKind, Project } from '../model/types';
-import { checkRunReadiness, validateProject } from '../model/validate';
+import { checkRunReadiness, validateProject, type Diagnostic } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
 import type { QuarantineEntry } from '../storage/localStore';
+import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
+import { FlowEditor } from './FlowEditor';
 import type { EditFn } from './Inspector';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
+import { SfcView } from './SfcView';
 import { RunSummary } from './RunSummary';
 import { Badge, QtyInput, TextInput } from './widgets';
 
@@ -82,7 +85,8 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
             })}
           </tbody>
         </table>
-        <div className="dropzone" style={{ marginTop: 4 }}>여기로 Action을 드래그하면 끝에 추가 · 행을 드래그해 순서 변경 · 순차 실행만 지원(분기/병렬 미지원)</div>
+        <div className="dropzone" style={{ marginTop: 4 }}>여기로 Action을 드래그하면 끝에 추가 · 행을 드래그해 단계 목록 순서를 바꿉니다. 실행 순서는 아래 흐름을 따릅니다.</div>
+        <FlowEditor p={p} rt={rt} locked={locked} edit={edit} />
         {p.sequence.unresolved.length > 0 && <div className="notice warn">미해결/모호 목록(보존): {p.sequence.unresolved.join(' · ')}</div>}
       </div>
       <div style={{ width: 270, borderLeft: '1px solid var(--border)', paddingLeft: 8, overflow: 'auto' }}>
@@ -103,10 +107,9 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
 }
 
 // ---------------- Runtime status / log ----------------
-export function RuntimePanel({ p, rt, locked, edit }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn }) {
+export function RuntimePanel({ p, rt, locked, edit, onGoBlocker }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
   const readiness = checkRunReadiness(p);
   const faults = p.simSettings.faults;
-  const bcrAct = p.actions.find((a) => a.kind === 'read');
   const toggleNever = (sid: string, on: boolean) => edit(C.setFaults(p, { ...faults, neverTrueSignalIds: on ? [...new Set([...faults.neverTrueSignalIds, sid])] : faults.neverTrueSignalIds.filter((x) => x !== sid) }), '오류 주입 변경');
   const completeSigs = p.actions.filter((a) => a.completeSignalId).map((a) => ({ a, sid: a.completeSignalId! }));
   const onSignals = rt ? Object.entries(rt.signals).filter(([, v]) => v).map(([k]) => sigName(p, k)) : [];
@@ -117,7 +120,12 @@ export function RuntimePanel({ p, rt, locked, edit }: { p: Project; rt: RuntimeS
       <div style={{ width: 280, overflow: 'auto', borderRight: '1px solid var(--border)', paddingRight: 8 }}>
         <div className="row"><label>실행 상태</label><Badge kind={rt?.status === 'error' ? 'err' : rt?.status === 'completed' ? 'ok' : rt?.status === 'running' ? 'acc' : 'warn'}>{rt?.status ?? 'idle'}</Badge></div>
         <div className="row"><label>가상 시간</label><span className="mono">{fmt(rt?.timeMs ?? 0)}</span></div>
-        <div className="row"><label>현재 단계</label>{rt?.active ? p.sequence.steps[rt.active.stepIndex]?.name : '-'}</div>
+        <div className="row"><label>현재 단계</label>{(() => {
+          const ids = rt?.flowRun?.fibers.flatMap((f) => f.active ? [f.active.stepId] : []) ?? [];
+          const names = (ids.length ? ids : rt?.active?.stepId ? [rt.active.stepId] : []).map((id) => p.sequence.steps.find((s) => s.id === id)?.name ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === id)?.name ?? (rt?.active && !rt.active.stepId ? p.sequence.steps[rt.active.stepIndex]?.name : id));
+          if (!names.length && rt?.active) return p.sequence.steps[rt.active.stepIndex]?.name ?? '-';
+          return names.filter(Boolean).join(', ') || '-';
+        })()}</div>
         <div className="row"><label>자재</label><span style={{ fontSize: 12 }}>{rt?.material ? `${rt.material.instanceId} @ ${unitName(p, rt.material.location)} · ${rt.material.state}${rt.material.holder ? ` · 잡음 ${rt.material.holder}` : ''}` : '-'}</span></div>
         <div className="row"><label>자재 수</label>{rt?.material ? 1 : 0}개 (보존)</div>
         <div className="row"><label>오류</label>{rt?.error ? <span style={{ color: 'var(--danger)', fontSize: 12 }}>{rt.error.code} @ {rt.error.stepId}</span> : '0'}</div>
@@ -125,7 +133,32 @@ export function RuntimePanel({ p, rt, locked, edit }: { p: Project; rt: RuntimeS
         <div className="row"><label>준비 검사</label>{readiness.ok ? <Badge kind="ok">실행 가능</Badge> : <Badge kind="err">차단 {readiness.blockers.length}</Badge>}</div>
         {!readiness.ok && readiness.blockers.slice(0, 6).map((b) => <div key={b.id} style={{ fontSize: 11, color: 'var(--danger)' }}>• {b.message}</div>)}
         <h4 style={{ margin: '10px 0 4px', fontSize: 12 }}>검증용 오류 주입 (시뮬 설정)</h4>
-        {bcrAct && <label className="row" style={{ fontSize: 12 }}><input type="checkbox" disabled={locked} checked={faults.readFailActionIds.includes(bcrAct.id)} onChange={(e) => edit(C.setFaults(p, { ...faults, readFailActionIds: e.target.checked ? [bcrAct.id] : [] }), '읽기 실패 주입')} />{bcrAct.name}: 결과 실패</label>}
+        {p.actions.filter((a) => a.kind === 'read').map((act) => {
+          const on = faults.readFailActionIds.includes(act.id);
+          const n = faults.readFailFirstN?.[act.id];
+          return <div key={act.id}>
+            <label className="row" style={{ fontSize: 12 }}><input type="checkbox" disabled={locked} checked={on} onChange={(e) => {
+              const ids = e.target.checked ? [...new Set([...faults.readFailActionIds, act.id])] : faults.readFailActionIds.filter((id) => id !== act.id);
+              const map = { ...(faults.readFailFirstN ?? {}) };
+              if (!e.target.checked) delete map[act.id];
+              edit(C.setFaults(p, { ...faults, readFailActionIds: ids, readFailFirstN: Object.keys(map).length ? map : undefined }), '읽기 실패 주입');
+            }} />{act.name}: 결과 실패</label>
+            <label className="row" style={{ fontSize: 12 }}>처음 N회만<input aria-label={`${act.name} 실패 횟수`} type="number" min={1} disabled={locked || !on} placeholder="비우면 항상" value={n ?? ''} style={{ width: 72 }}
+              onChange={(e) => {
+                const map = { ...(faults.readFailFirstN ?? {}) };
+                const raw = e.target.value.trim();
+                if (!raw) delete map[act.id];
+                else map[act.id] = Math.max(1, Math.round(Number(raw)));
+                edit(C.setFaults(p, { ...faults, readFailActionIds: on ? faults.readFailActionIds : [...new Set([...faults.readFailActionIds, act.id])], readFailFirstN: Object.keys(map).length ? map : undefined }), '읽기 실패 횟수');
+              }} /></label>
+          </div>;
+        })}
+        {!readiness.ok && <div className="section"><h4>실행 전 검사 — 차단 {readiness.blockers.length}건</h4>
+          <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
+            <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
+            <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
+              {onGoBlocker && c.button && <button type="button" className="small" data-blocker-code={b.code} data-guide-kind={g.kind} aria-label={c.aria} onClick={() => onGoBlocker(b, g)}>{c.button}</button>}
+            </div></li>; })}</ul></div>}
         <select disabled={locked} value="" onChange={(e) => e.target.value && toggleNever(e.target.value, true)} style={{ width: '100%' }}>
           <option value="">+ 완료 신호 미발생 주입 (타임아웃 검증)</option>
           {completeSigs.map(({ a, sid }) => <option key={sid} value={sid}>{a.name} — {sigName(p, sid)}</option>)}
@@ -279,23 +312,10 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
 
 // ---------------- SFC preview ----------------
 export function SfcPanel({ p, rt }: { p: Project; rt: RuntimeState | null }) {
-  const steps = p.sequence.steps; const H = 46;
   return (
     <div>
-      <div className="notice">SequenceDraft의 순차 SFC 미리보기 (단계 = 사각형, 전이 = 가로선: 완료 조건). SFC 세부 표현·분기/병렬 의미·SequenceDesigner 매핑은 미정 — 표시 전용.</div>
-      <svg width={760} height={steps.length * H + 60}>
-        <rect x={20} y={6} width={160} height={24} fill="none" stroke="var(--text)" strokeWidth={2} /><rect x={23} y={9} width={154} height={18} fill="none" stroke="var(--text)" /><text x={100} y={22} fontSize={11} textAnchor="middle" fill="var(--text)">초기 단계</text>
-        {steps.map((s, i) => { const a = p.actions.find((x) => x.id === s.actionId); const y = 30 + i * H; const st = rt?.steps.find((r) => r.stepId === s.id)?.status;
-          return <g key={s.id}>
-            <line x1={100} y1={y} x2={100} y2={y + 18} stroke="var(--text)" />
-            <line x1={88} y1={y + 9} x2={112} y2={y + 9} stroke="var(--text)" strokeWidth={2} />
-            <text x={120} y={y + 13} fontSize={10} fill="var(--muted)">{i === 0 ? '실행 시작' : `${sigName(p, p.actions.find((x) => x.id === steps[i - 1].actionId)?.completeSignalId)} = true`}{a && a.pre.length ? ` ∧ ${a.pre.map((c) => condLabel(p, c)).join(' ∧ ')}` : ''}</text>
-            <rect x={20} y={y + 18} width={160} height={24} fill={st === 'active' ? 'var(--selected)' : st === 'done' ? 'var(--grid)' : 'var(--panel)'} stroke={st === 'error' ? 'var(--danger)' : 'var(--text)'} />
-            <text x={26} y={y + 34} fontSize={11} fill="var(--text)">{String(i + 1).padStart(2, '0')} {s.name.slice(0, 20)}</text>
-          </g>; })}
-        <line x1={100} y1={30 + steps.length * H} x2={100} y2={44 + steps.length * H} stroke="var(--text)" />
-        <text x={110} y={48 + steps.length * H} fontSize={10} fill="var(--muted)">종료 (마지막 완료 조건)</text>
-      </svg>
+      <div className="notice">Station 흐름의 SFC 미리보기입니다. 분기는 갈래 조건 글자, 병렬은 이중 가로선, 반복은 되돌림과 횟수, 재시도는 되돌림과 최대 횟수, Substation 단계는 시퀀스 이름이 든 병렬로 보입니다.</div>
+      <SfcView p={p} rt={rt} />
     </div>
   );
 }
@@ -337,9 +357,9 @@ export function ExtractPanel() {
 export function ExtendPanel() {
   return <div className="notice" data-screen-note="S44">
     <b>누락 편집 확장 — 미구현</b>
-    <p>단일 시퀀스 안의 분기, 루프, 병렬, 자재 여러 개, Substation 단계 진입 조건, Substation 단계 시간 덮어쓰기는 편집할 수 없습니다. 화면만 두고 저장되거나 실행되는 값으로 만들지 않습니다.</p>
-    <p>Station 시퀀스 단계의 시간 제한은 4단계 Station 시퀀스에서 편집합니다. 그룹 실행은 한 Substation의 시퀀스만 공통 시계로 진행합니다.</p>
-    <button type="button" disabled title="미구현: 분기·루프·단일 시퀀스 병렬 편집기가 없습니다">분기 단계 추가</button>
+    <p>분기 · 병렬 · 반복 · 재시도 · Substation 단계는 4단계 Station 시퀀스에서 묶습니다. 이 화면은 자재 여러 개, 캐리어, 갈래 사이 동기점, 조건으로 도는 무한 반복, 세 갈래 이상 분기를 만들지 않습니다.</p>
+    <p>Station 시퀀스 단계의 시간 제한은 4단계 Station 시퀀스에서 편집합니다. Substation 시퀀스 안은 순서대로만 돕니다.</p>
+    <button type="button" disabled title="이 화면에서는 만들지 않습니다. 4단계 Station 시퀀스에서 묶으세요">분기 단계 추가</button>
   </div>;
 }
 
