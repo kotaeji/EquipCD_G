@@ -50,6 +50,8 @@ TURN-022 Station 흐름은 검토 후보입니다. 사람 검수 전이며 정�
 
 TURN-023 흐름 편집 다듬기는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-023.md`](docs/turns/TURN-023.md). Station 흐름에서 분기 · 병렬 · 반복 · 재시도의 이름을 바꾸고, 블록과 Substation 단계를 옮기고 묶습니다. 이름이 종류 낱말과 같으면 제목에 한 번만 나옵니다. Station 시퀀스 화면의 흐름 표는 한 번만 그립니다. 파일 형식은 `0.3.0`, 실행 규칙은 `seq-runtime/0.3.0` 입니다.
 
+TURN-024 흐름 실행 기록은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-024.md`](docs/turns/TURN-024.md). 한 갈래가 오류로 멈추면 진행 중이던 다른 갈래는 「정지」로 닫힙니다. 반복 안에서 나중에 실행된 단계는 건너뜀으로 세지 않습니다. 「처음 N회만」은 그 결과를 쓰는 분기 · 재시도가 없으면 안내를 보여 줍니다. 파일 형식은 `0.3.0` 그대로이고, 실행 규칙은 `seq-runtime/0.3.1` 입니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -98,7 +100,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 36파일 490개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번
+npm test              # vitest 37파일 502개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내)
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
@@ -145,7 +147,7 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 - `sequence.flow` 가 없으면 순차 단계만 돈다(5공정 예제 · 0.2.x 파일). 있으면 그 트리를 따른다. 단계 시작 시 진입·pre 조건 검사 → 불충족이면 대기하지 않고 즉시 `PRE_UNMET` 오류.
 - 분기(`BRANCH_TAKEN`)는 도달한 순간의 신호 · 자재 상태로 한 번 판정하고, 안 간 쪽은 건너뜀이다. 병렬은 갈래가 겹쳐 돌고 모두 끝난 시각에 `PAR_JOIN` 이다. 갈래 사이 기다리기는 없다. 반복은 회차마다 `LOOP_ITER`. 재시도는 본문 뒤 조건이 거짓이고 횟수가 남으면 `RETRY`, 최대 2회를 써도 거짓이면 `RETRY_EXHAUSTED` 경고 후 다음으로 간다. 읽기 결과 신호를 조건으로 쓰는 분기 · 재시도가 있으면 결과 실패는 `READ_FAILED` 로 멈추지 않고 결과 신호를 거짓으로 둔다. 없으면 지금처럼 `READ_FAILED`. 한 갈래의 `PRE_UNMET` · `TIMEOUT` · `POST_UNMET` · `READ_FAILED` · `CAPACITY_FULL` 은 전체 정지다.
 - 병렬 갈래와 Substation 단계의 시퀀스끼리는, 같은 Device를 쓰거나 자재를 다루는 쪽이 둘이면 실행 전에 `DEVICE_CONFLICT` · `SHARED_MATERIAL_CONFLICT` 로 막는다. 병렬 안의 병렬과 Substation 단계는 두지 않는다.
-- 센서 신호(`role === 'sensor'`)는 자재가 그 신호가 속한 Device의 Unit에 있으면 ON, 아니면 OFF. 실행 초기 상태와 자재 위치가 커밋된 직후에 다시 계산하고, 사전조건을 평가하기 전에 최신 값이어야 한다. 값이 바뀌면 로그 `SENSOR_ON` / `SENSOR_OFF`(Device 이름 · 신호 이름). 규칙 `seq-runtime/0.3.0`.
+- 센서 신호(`role === 'sensor'`)는 자재가 그 신호가 속한 Device의 Unit에 있으면 ON, 아니면 OFF. 실행 초기 상태와 자재 위치가 커밋된 직후에 다시 계산하고, 사전조건을 평가하기 전에 최신 값이어야 한다. 값이 바뀌면 로그 `SENSOR_ON` / `SENSOR_OFF`(Device 이름 · 신호 이름). 규칙 `seq-runtime/0.3.1`.
 - 시작 시 명령 Signal ON, 완료 Signal OFF. (시작+동작 시간)에 완료 Signal ON → post 조건 검사(임시 상태 기준) → 통과 시에만 자재 위치/상태/잡음 커밋.
 - 완료가 타임아웃 시각과 같으면 성공(경계 규칙 가정). 타임아웃 도달 시 `TIMEOUT` 오류, 이후 단계 통과 안 함.
 - 완료 시 같은 Device의 다른 완료 Signal은 OFF (상승/하강처럼 배타 상태로 가정).

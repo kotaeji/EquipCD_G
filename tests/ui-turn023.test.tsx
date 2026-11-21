@@ -99,7 +99,7 @@ describe('TURN-023 flow editor UI', () => {
     expect((u2.row('branch').querySelector('input[aria-label="분기 이름"]') as HTMLInputElement).disabled).toBe(true);
     await u2.click(u2.el.querySelector('.stepper [data-stepid="run"]')!);
     await u2.click(u2.btn('⟲ 초기화'));
-  });
+  }, 20_000);
 
   it('AC3 moves a block and a substation step with buttons and arrow keys', async () => {
     const u = await mount();

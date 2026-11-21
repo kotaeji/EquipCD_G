@@ -9,7 +9,7 @@ import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject 
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
-import { orderRunRecords } from '../runtime/runSummary';
+import { orderRunRecords, stepStatusLabel } from '../runtime/runSummary';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
@@ -1043,7 +1043,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <tbody>{orderRunRecords(p, rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const }))).map((row, i) => {
                 const step = p.sequence.steps.find((s) => s.id === row.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === row.stepId);
                 const where = [('lane' in row ? row.lane : undefined), ('pass' in row && row.pass ? `${row.pass}회` : '')].filter(Boolean).join(' ');
-                const label = row.status === 'skipped' ? '건너뜀' : row.status;
+                const label = stepStatusLabel(row.status);
                 return <tr key={`${row.stepId}:${i}`}><td>{step?.name ?? row.stepId}</td><td>{where || '—'}</td><td>{label}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
               })}</tbody></table>
             <p className="muted">이 값은 이번 실행의 가상 시각과 단계 상태입니다. 예시 시각을 고정해 두지 않습니다. 논리 실행이며 안전 판정이 아닙니다.</p>

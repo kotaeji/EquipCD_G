@@ -24,7 +24,7 @@ export interface LogEntry { t: number; level: 'info' | 'warn' | 'error'; code: s
 
 export interface StepRecord {
   stepId: string;
-  status: 'pending' | 'active' | 'done' | 'error' | 'skipped';
+  status: 'pending' | 'active' | 'done' | 'error' | 'skipped' | 'stopped';
   startMs?: number;
   endMs?: number;
   /** 1-based time this step has started (loop / retry). */
@@ -358,6 +358,12 @@ function failFlow(s: RuntimeState, code: string, stepId: string | null, message:
     const rec = [...s.steps].reverse().find((r) => r.stepId === stepId && (r.status === 'active' || r.status === 'pending'));
     if (rec) { rec.status = 'error'; rec.endMs = s.timeMs; if (rec.startMs === undefined) rec.startMs = s.timeMs; }
   }
+  // Other lanes were in progress when this error stopped the run. Close them as 정지, not 실행 중.
+  for (const rec of s.steps) {
+    if (rec.status === 'active') { rec.status = 'stopped'; rec.endMs = s.timeMs; }
+  }
+  for (const fiber of s.flowRun?.fibers ?? []) fiber.active = null;
+  s.active = null;
   logAt(s, 'error', code, message, stepId ?? undefined);
 }
 
@@ -375,9 +381,21 @@ function resultOf(p: Project, action: Action) {
   return p.signals.find((sig) => sig.deviceId === action.deviceId && sig.role === 'result');
 }
 
+function ranRecord(rec: StepRecord): boolean {
+  return rec.status === 'active' || rec.status === 'done' || rec.status === 'error' || rec.status === 'stopped';
+}
+
 function beginRecord(s: RuntimeState, stepId: string, lane?: string): number {
   const started = s.steps.filter((r) => r.stepId === stepId && r.pass != null).length;
   const pass = started + 1;
+  // A later pass executes a step this loop skipped earlier. Replace that skip; do not keep both.
+  const skipped = s.steps.findIndex((r) => r.stepId === stepId && r.status === 'skipped');
+  if (skipped >= 0) {
+    const rec = s.steps[skipped];
+    rec.status = 'active'; rec.startMs = s.timeMs; rec.pass = pass; delete rec.endMs;
+    if (lane) rec.lane = lane;
+    return skipped;
+  }
   const pending = s.steps.findIndex((r) => r.stepId === stepId && r.status === 'pending' && r.pass == null);
   if (pending >= 0 && pass === 1) {
     const rec = s.steps[pending];
@@ -392,9 +410,13 @@ function beginRecord(s: RuntimeState, stepId: string, lane?: string): number {
 function skipTree(s: RuntimeState, nodes: FlowNode[]) {
   walk(nodes, (n) => {
     if (n.kind !== 'step') return;
+    const rows = s.steps.filter((r) => r.stepId === n.stepId);
+    // Once a step has run, a later iteration must not add a skip beside that record.
+    if (rows.some(ranRecord)) return;
+    if (rows.some((r) => r.status === 'skipped')) return;
     const i = s.steps.findIndex((r) => r.stepId === n.stepId && r.status === 'pending');
     if (i >= 0) s.steps[i].status = 'skipped';
-    else if (!s.steps.some((r) => r.stepId === n.stepId && r.status === 'skipped')) s.steps.push({ stepId: n.stepId, status: 'skipped' });
+    else s.steps.push({ stepId: n.stepId, status: 'skipped' });
   });
 }
 

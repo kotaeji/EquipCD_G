@@ -7,6 +7,7 @@ import { buildExportPreview } from '../model/exportPreview';
 import { GAP_KIND_LABEL, type Gap, type GapKind } from '../model/gaps';
 import { parseStructuredSequence, type ParsedLine } from '../model/structuredText';
 import type { AssetKind, Project } from '../model/types';
+import { flowUsesSignal, hasFlow } from '../model/flow';
 import { checkRunReadiness, validateProject, type Diagnostic } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
 import type { QuarantineEntry } from '../storage/localStore';
@@ -18,6 +19,12 @@ import { RunSummary } from './RunSummary';
 import { Badge, QtyInput, TextInput } from './widgets';
 
 const fmt = (msv: number) => `${String(Math.floor(msv / 60000)).padStart(2, '0')}:${(Math.floor(msv / 1000) % 60).toString().padStart(2, '0')}.${(msv % 1000).toString().padStart(3, '0')}`;
+
+/** True when a branch or retry condition reads this read-action's result signal. */
+function readResultUsed(p: Project, deviceId: string): boolean {
+  const sig = p.signals.find((s) => s.deviceId === deviceId && s.role === 'result');
+  return !!sig && hasFlow(p) && flowUsesSignal(p.sequence.flow ?? [], sig.id);
+}
 export { fmt as fmtTime };
 
 // ---------------- F5 Sequence ----------------
@@ -149,6 +156,7 @@ export function RuntimePanel({ p, rt, locked, edit, onGoBlocker }: { p: Project;
                 else map[act.id] = Math.max(1, Math.round(Number(raw)));
                 edit(C.setFaults(p, { ...faults, readFailActionIds: on ? faults.readFailActionIds : [...new Set([...faults.readFailActionIds, act.id])], readFailFirstN: Object.keys(map).length ? map : undefined }), '읽기 실패 횟수');
               }} /></label>
+            {n != null && !readResultUsed(p, act.deviceId) && <p className="muted" data-read-fail-hint={act.id} style={{ fontSize: 11, margin: '0 0 6px' }}>결과를 쓰는 분기 · 재시도가 없어 첫 실패에서 멈춥니다</p>}
           </div>;
         })}
         {!readiness.ok && <div className="section"><h4>실행 전 검사 — 차단 {readiness.blockers.length}건</h4>

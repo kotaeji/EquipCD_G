@@ -4,7 +4,7 @@ import { collectStepIds } from '../model/flow';
 import type { Project } from '../model/types';
 import type { RuntimeState, StepRecord } from './engine';
 
-export type RunStepPhase = 'pending' | 'active' | 'done' | 'error' | 'skipped';
+export type RunStepPhase = 'pending' | 'active' | 'done' | 'error' | 'skipped' | 'stopped';
 
 export interface RunStepSummary {
   stepId: string;
@@ -39,8 +39,10 @@ export interface RunSummary {
   totalCount: number;
   /** Steps that reached 완료. Skipped steps are not included. */
   executedCount: number;
-  /** Steps the branch did not take. */
+  /** Steps the branch did not take. A step that ran on any pass is not counted. */
   skippedCount: number;
+  /** Steps that had started when another lane's error stopped the run. */
+  stoppedCount: number;
   /**
    * The step with the greatest elapsed time.
    * A tie keeps the earlier step in sequence order.
@@ -49,7 +51,16 @@ export interface RunSummary {
   longest: LongestStep | null;
 }
 
-const PHASES: readonly RunStepPhase[] = ['pending', 'active', 'done', 'error', 'skipped'];
+const PHASES: readonly RunStepPhase[] = ['pending', 'active', 'done', 'error', 'skipped', 'stopped'];
+
+const STEP_STATUS_LABEL: Record<string, string> = {
+  pending: '대기', active: '진행 중', done: '완료', error: '오류', skipped: '건너뜀', stopped: '정지',
+};
+
+/** Status word for the run table. The word is the distinction, not the color. */
+export function stepStatusLabel(status: string): string {
+  return STEP_STATUS_LABEL[status] ?? status;
+}
 
 function phaseOf(status: StepRecord['status'] | undefined): RunStepPhase {
   return status && (PHASES as readonly string[]).includes(status) ? status : 'pending';
@@ -64,7 +75,7 @@ function stepName(p: Project, stepId: string): string {
 function rowOf(rec: StepRecord | undefined, stepId: string, name: string): RunStepSummary {
   const status = phaseOf(rec?.status);
   const startMs = rec?.startMs ?? null;
-  const ended = status === 'done' || status === 'error';
+  const ended = status === 'done' || status === 'error' || status === 'stopped';
   const endMs = ended && rec?.endMs !== undefined ? rec.endMs : null;
   const elapsedMs = startMs !== null && endMs !== null ? endMs - startMs : null;
   return { stepId, name, status, startMs, endMs, elapsedMs, ...(rec?.pass != null ? { pass: rec.pass } : {}), ...(rec?.lane ? { lane: rec.lane } : {}) };
@@ -151,6 +162,7 @@ export function summarizeRun(p: Project, state: RuntimeState | null): RunSummary
     totalCount: steps.length,
     executedCount: steps.filter((s) => s.status === 'done').length,
     skippedCount: steps.filter((s) => s.status === 'skipped').length,
+    stoppedCount: steps.filter((s) => s.status === 'stopped').length,
     longest,
   };
 }

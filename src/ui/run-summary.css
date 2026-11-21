@@ -23,3 +23,4 @@ table.grid.run-summary-table tr.is-longest td { background: var(--selected); }
   white-space: nowrap;
 }
 .run-summary-error { color: var(--danger); font-weight: 700; }
+.run-summary-stopped { font-weight: 700; }

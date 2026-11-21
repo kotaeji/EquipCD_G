@@ -13,6 +13,7 @@ const STATUS_LABEL: Record<RunStepPhase, string> = {
   done: '완료',
   error: '오류',
   skipped: '건너뜀',
+  stopped: '정지',
 };
 
 const dash = (ms: number | null) => (ms === null ? '-' : fmt(ms));
@@ -31,7 +32,7 @@ export function RunSummary({ p, rt }: { p: Project; rt: RuntimeState | null }) {
             {summary.aborted && <span className="run-summary-abort">오류로 중단 </span>}
             총 {dash(summary.totalMs)} · {summary.finishedCount} / {summary.totalCount} 단계
             {summary.longest && <> · 가장 긴 단계 {summary.longest.name} {fmt(summary.longest.elapsedMs)}</>}
-            {(summary.skippedCount > 0 || summary.steps.some((s) => (s.pass ?? 1) > 1 || s.lane)) && <> · 실행 {summary.executedCount} · 건너뜀 {summary.skippedCount}</>}
+            {(summary.skippedCount > 0 || summary.stoppedCount > 0 || summary.steps.some((s) => (s.pass ?? 1) > 1 || s.lane)) && <> · 실행 {summary.executedCount} · 건너뜀 {summary.skippedCount}{summary.stoppedCount > 0 ? ` · 정지 ${summary.stoppedCount}` : ''}</>}
           </p>
           <div className="run-summary-scroll">
             <table className="grid run-summary-table">
@@ -47,7 +48,7 @@ export function RunSummary({ p, rt }: { p: Project; rt: RuntimeState | null }) {
                     <tr key={`${step.stepId}:${i}`} className={longest ? 'is-longest' : undefined} data-step-id={step.stepId}>
                       <td>{step.name}{longest && <span className="run-summary-tag">가장 김</span>}</td>
                       <td>{where || '—'}</td>
-                      <td className={step.status === 'error' ? 'run-summary-error' : undefined}>{STATUS_LABEL[step.status]}</td>
+                      <td className={step.status === 'error' ? 'run-summary-error' : step.status === 'stopped' ? 'run-summary-stopped' : undefined}>{STATUS_LABEL[step.status]}</td>
                       <td className="mono">{dash(step.startMs)}</td>
                       <td className="mono">{dash(step.endMs)}</td>
                       <td className="mono">{dash(step.elapsedMs)}</td>
