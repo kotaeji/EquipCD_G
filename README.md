@@ -52,6 +52,8 @@ TURN-023 흐름 편집 다듬기는 검토 후보입니다. 사람 검수 전이
 
 TURN-024 흐름 실행 기록은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-024.md`](docs/turns/TURN-024.md). 한 갈래가 오류로 멈추면 진행 중이던 다른 갈래는 「정지」로 닫힙니다. 반복 안에서 나중에 실행된 단계는 건너뜀으로 세지 않습니다. 「처음 N회만」은 그 결과를 쓰는 분기 · 재시도가 없으면 안내를 보여 줍니다. 파일 형식은 `0.3.0` 그대로이고, 실행 규칙은 `seq-runtime/0.3.1` 입니다.
 
+TURN-025 화면 테스트 시계는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-025.md`](docs/turns/TURN-025.md). 「▶ 실행」 뒤의 잠금과 실행 중 표시를 보는 화면 테스트가 벽시계로 실행을 끝내지 않습니다. 앱 코드와 `release/` 는 바꾸지 않았습니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -100,7 +102,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 37파일 502개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내)
+npm test              # vitest 37파일 502개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내) + TURN-025 화면 실행 테스트의 시계 고정
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신

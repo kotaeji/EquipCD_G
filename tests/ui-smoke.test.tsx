@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
 import { App } from '../src/ui/App';
+import { holdRuntimeClock } from './holdRuntimeClock';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -89,9 +90,17 @@ describe('UI smoke (jsdom)', () => {
     await click(el.querySelector('.stepper [data-stepid="run"]')!);
     expect(txt()).not.toContain('Substation 그룹');
     const r1 = rev();
-    await click(btn('▶ 실행'));
-    expect(txt()).toContain('running');
-    expect(btn('+ 시퀀스 추가')).toBeUndefined();
+    // The parallel sample ends at 2.500s of performance.now(). Hold the clock
+    // so the status is still "running" when this assertion reads it.
+    const clock = holdRuntimeClock();
+    try {
+      await click(btn('▶ 실행'));
+      expect(clock.queued()).toBeGreaterThan(0);
+      expect(txt()).toContain('running');
+      expect(btn('+ 시퀀스 추가')).toBeUndefined();
+    } finally {
+      clock.restore();
+    }
     await click(btn('끝까지'));
     expect(txt()).toContain('completed');
     expect(txt()).toContain('RUN_COMPLETE');
