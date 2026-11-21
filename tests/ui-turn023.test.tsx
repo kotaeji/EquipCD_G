@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { findById } from '../src/model/flow';
 import type { History } from '../src/model/history';
 import { App } from '../src/ui/App';
+import { holdRuntimeClock } from './holdRuntimeClock';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -89,17 +90,31 @@ describe('TURN-023 flow editor UI', () => {
     expect(captions).not.toContain('분기 분기');
 
     await u2.click(u2.el.querySelector('.stepper [data-stepid="run"]')!);
-    await u2.click(u2.btn('▶ 실행'));
-    await u2.click(u2.el.querySelector('.stepper [data-stepid="sequence"]')!);
-    await u2.click(u2.btn('Station 시퀀스 Draft (F5)', u2.el.querySelector('.subtabs')!));
-    expect((u2.row('branch').querySelector('input[aria-label="분기 이름"]') as HTMLInputElement).disabled).toBe(true);
-    await u2.click(u2.el.querySelector('.stepper [data-stepid="run"]')!);
-    await u2.click(u2.btn('❚❚ 일시정지'));
-    await u2.click(u2.el.querySelector('.stepper [data-stepid="sequence"]')!);
-    expect((u2.row('branch').querySelector('input[aria-label="분기 이름"]') as HTMLInputElement).disabled).toBe(true);
-    await u2.click(u2.el.querySelector('.stepper [data-stepid="run"]')!);
-    await u2.click(u2.btn('⟲ 초기화'));
-  }, 20_000);
+    // The flow example ends at 13.100s of performance.now(). Hold that clock and
+    // skip 15s so the name stays locked however long this test takes.
+    // TURN025_WALL_MS=15000 waits that long for real before the skip.
+    const clock = holdRuntimeClock();
+    try {
+      await u2.click(u2.btn('▶ 실행'));
+      expect(clock.queued()).toBeGreaterThan(0);
+      const wallMs = Number(process.env.TURN025_WALL_MS ?? '0');
+      if (Number.isFinite(wallMs) && wallMs > 0) await clock.wall(wallMs);
+      await clock.elapse(15_000);
+      expect(clock.queued()).toBeGreaterThan(0);
+      expect(u2.el.textContent).toContain('running');
+      await u2.click(u2.el.querySelector('.stepper [data-stepid="sequence"]')!);
+      await u2.click(u2.btn('Station 시퀀스 Draft (F5)', u2.el.querySelector('.subtabs')!));
+      expect((u2.row('branch').querySelector('input[aria-label="분기 이름"]') as HTMLInputElement).disabled).toBe(true);
+      await u2.click(u2.el.querySelector('.stepper [data-stepid="run"]')!);
+      await u2.click(u2.btn('❚❚ 일시정지'));
+      await u2.click(u2.el.querySelector('.stepper [data-stepid="sequence"]')!);
+      expect((u2.row('branch').querySelector('input[aria-label="분기 이름"]') as HTMLInputElement).disabled).toBe(true);
+      await u2.click(u2.el.querySelector('.stepper [data-stepid="run"]')!);
+      await u2.click(u2.btn('⟲ 초기화'));
+    } finally {
+      clock.restore();
+    }
+  });
 
   it('AC3 moves a block and a substation step with buttons and arrow keys', async () => {
     const u = await mount();
