@@ -97,13 +97,13 @@ describe('TURN-002 tree fold/unfold (AC4)', () => {
     expect(u.item(S1)!.getAttribute('aria-selected')).toBe('true'); expect(u.item(S1)!.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('fold does not change the group-run target; step navigation does not auto-unfold', async () => {
+  it('fold does not change the run screen; step navigation does not auto-unfold', async () => {
     seedTwo(); const u = await mount();
-    await u.click(u.el.querySelector('.stepper [data-stepid="run"]')!); await u.click(u.btn('Substation 그룹'));
-    const heading = () => [...u.el.querySelectorAll('h4')].map((h) => h.textContent ?? '').find((t) => t.startsWith('그룹 실행 — '));
-    const h0 = heading(); expect(h0).toContain('S1 듀얼 클램프');
+    await u.click(u.el.querySelector('.stepper [data-stepid="run"]')!);
+    const bar = () => u.el.querySelector('.statusbar')!.textContent ?? '';
+    const h0 = bar(); expect(h0).toContain('실행 idle');
     await u.click(u.btn('트리 모두 접기'));
-    expect(heading()).toBe(h0);
+    expect(bar()).toBe(h0);
     await u.click(u.el.querySelector('.stepper [data-stepid="attributes"]')!);
     expect(u.item('U-PS1')).toBeNull(); // Station folded too → Substation rows hidden, not auto-unfolded
     await u.key(u.all('[role=treeitem]')[0], 'ArrowRight');

@@ -32,8 +32,8 @@ export type ParseResult =
 
 const d = (code: string, objectId: string, message: string, severity: Diagnostic['severity'] = 'error'): Diagnostic => ({ id: `${code}:${objectId}`, severity, code, objectId, message });
 
-/** Readable format versions: current 0.2.x and legacy 0.1.x (migrated on read, original text untouched). */
-export const READABLE_VERSIONS = ['0.1', '0.2'];
+/** Readable format versions: current 0.3.x, 0.2.x (flow optional), and legacy 0.1.x (migrated on read). */
+export const READABLE_VERSIONS = ['0.1', '0.2', '0.3'];
 export function isSupportedVersion(v: unknown): boolean {
   if (typeof v !== 'string') return false;
   const [maj, min] = v.split('.');

@@ -287,17 +287,23 @@ describe('sensor signals — examples and file format (AC7 AC8)', () => {
     expect(group.state.log.filter((l) => l.code.startsWith('SENSOR'))).toEqual([]);
   });
 
-  it('AC8 rules are 0.2.0 and the project file format stays 0.2.0', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.2.0');
+  it('AC8 station rules are 0.3.0; group rules stay 0.2.0; 0.2 files still open', () => {
+    // TURN-022 writes format 0.3.0 and seq-runtime/0.3.0. Group runtime version is unchanged.
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.3.0');
     expect(GROUP_RULES_VERSION).toBe('group-runtime/0.2.0');
-    expect(FILE_FORMAT_VERSION).toBe('0.2.0');
+    expect(FILE_FORMAT_VERSION).toBe('0.3.0');
     const sample = buildSampleProject();
     const text = serializeProject(sample);
-    expect(text).toContain('"formatVersion": "0.2.0"');
+    expect(text).toContain('"formatVersion": "0.3.0"');
     expect(text).not.toContain('seq-runtime');
     expect(text).not.toContain('group-runtime');
     const parsed = parseProjectFile(text);
     expect(parsed.ok).toBe(true);
-    expect(runToEnd(createRuntime(sample)).state.rulesVersion).toBe('seq-runtime/0.2.0');
+    expect(runToEnd(createRuntime(sample)).state.rulesVersion).toBe('seq-runtime/0.3.0');
+    const legacy = JSON.parse(text) as { formatVersion: string; project: { sequence: { flow?: unknown } } };
+    legacy.formatVersion = '0.2.0';
+    delete legacy.project.sequence.flow;
+    const opened = parseProjectFile(JSON.stringify(legacy));
+    expect(opened.ok).toBe(true);
   });
 });

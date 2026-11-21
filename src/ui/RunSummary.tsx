@@ -12,6 +12,7 @@ const STATUS_LABEL: Record<RunStepPhase, string> = {
   active: '진행 중',
   done: '완료',
   error: '오류',
+  skipped: '건너뜀',
 };
 
 const dash = (ms: number | null) => (ms === null ? '-' : fmt(ms));
@@ -30,18 +31,22 @@ export function RunSummary({ p, rt }: { p: Project; rt: RuntimeState | null }) {
             {summary.aborted && <span className="run-summary-abort">오류로 중단 </span>}
             총 {dash(summary.totalMs)} · {summary.finishedCount} / {summary.totalCount} 단계
             {summary.longest && <> · 가장 긴 단계 {summary.longest.name} {fmt(summary.longest.elapsedMs)}</>}
+            {(summary.skippedCount > 0 || summary.steps.some((s) => (s.pass ?? 1) > 1 || s.lane)) && <> · 실행 {summary.executedCount} · 건너뜀 {summary.skippedCount}</>}
           </p>
           <div className="run-summary-scroll">
             <table className="grid run-summary-table">
               <thead>
-                <tr><th>단계 이름</th><th>상태</th><th>시작</th><th>끝</th><th>걸린 시간</th></tr>
+                <tr><th>단계 이름</th><th>갈래 · 회차</th><th>상태</th><th>시작</th><th>끝</th><th>걸린 시간</th></tr>
               </thead>
               <tbody>
-                {summary.steps.map((step) => {
-                  const longest = summary.longest?.stepId === step.stepId;
+                {summary.steps.map((step, i) => {
+                  const longest = summary.longest?.stepId === step.stepId && summary.longest.elapsedMs === step.elapsedMs
+                    && summary.steps.findIndex((s) => s.stepId === step.stepId && s.elapsedMs === step.elapsedMs) === i;
+                  const where = [step.lane, step.pass != null ? `${step.pass}회` : ''].filter(Boolean).join(' · ');
                   return (
-                    <tr key={step.stepId} className={longest ? 'is-longest' : undefined} data-step-id={step.stepId}>
+                    <tr key={`${step.stepId}:${i}`} className={longest ? 'is-longest' : undefined} data-step-id={step.stepId}>
                       <td>{step.name}{longest && <span className="run-summary-tag">가장 김</span>}</td>
+                      <td>{where || '—'}</td>
                       <td className={step.status === 'error' ? 'run-summary-error' : undefined}>{STATUS_LABEL[step.status]}</td>
                       <td className="mono">{dash(step.startMs)}</td>
                       <td className="mono">{dash(step.endMs)}</td>

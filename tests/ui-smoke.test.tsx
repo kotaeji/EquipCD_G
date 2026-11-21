@@ -87,20 +87,17 @@ describe('UI smoke (jsdom)', () => {
     expect(el.querySelectorAll('.seqcard').length).toBe(2);
     expect(txt()).toContain('그룹 실행 전 검사: 통과');
     await click(el.querySelector('.stepper [data-stepid="run"]')!);
-    await click(btn('Substation 그룹'));
+    expect(txt()).not.toContain('Substation 그룹');
     const r1 = rev();
-    await click(btn('▶ 그룹 실행'));
-    expect(txt()).toContain('그룹 running');
-    expect(btn('+ 시퀀스 추가')).toBeUndefined(); // editor not on this step
-    await click(btn('❚❚ 그룹 일시정지'));
-    expect(txt()).toContain('그룹 paused');
-    await click(btn('그룹 재개'));
+    await click(btn('▶ 실행'));
+    expect(txt()).toContain('running');
+    expect(btn('+ 시퀀스 추가')).toBeUndefined();
     await click(btn('끝까지'));
-    expect(txt()).toContain('그룹 completed');
-    expect(txt()).toContain('GROUP_COMPLETE');
-    expect(rev()).toBe(r1); // running never edits the model
-    await click(btn('⟲ 그룹 초기화'));
-    expect(txt()).toContain('그룹 idle');
+    expect(txt()).toContain('completed');
+    expect(txt()).toContain('RUN_COMPLETE');
+    expect(rev()).toBe(r1);
+    await click(btn('⟲ 초기화'));
+    expect(txt()).toContain('idle');
     await act(async () => { root.unmount(); });
   });
 });

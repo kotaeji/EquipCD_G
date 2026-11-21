@@ -38,7 +38,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs }: { p
     <div className="row wrap" style={{ gap: 8 }}>
       <b>{SUBSTATION}</b><SubstationSelect p={p} value={unitId} onChange={setUnitId} />
       <button className="primary" disabled={locked} onClick={() => edit(C.addSubSequence(p, unitId), 'Substation 시퀀스 추가')}>+ 시퀀스 추가</button>
-      <span className="muted small-text">이 Substation 안의 시퀀스들은 6 실행 단계에서 함께 Play / Pause / Resume / Reset 됩니다 (그룹 실행, 설계 제안). Station 시퀀스(기존 단일 시퀀스)와 별개입니다.</span>
+      <span className="muted small-text">이 Substation의 시퀀스는 Station 시퀀스에 Substation 단계를 넣으면 그 단계에서 함께 돕니다. 시퀀스 안은 순서대로입니다.</span>
     </div>
     {locked && <div className="notice warn">실행 중 — 조회만 가능, 시퀀스 편집 차단</div>}
     {ready && <div className={`notice ${ready.ok ? '' : 'err'}`} role="status">

@@ -3,7 +3,7 @@
 import type { Project } from '../model/types';
 import type { RuntimeState, StepRecord } from './engine';
 
-export type RunStepPhase = 'pending' | 'active' | 'done' | 'error';
+export type RunStepPhase = 'pending' | 'active' | 'done' | 'error' | 'skipped';
 
 export interface RunStepSummary {
   stepId: string;
@@ -15,6 +15,10 @@ export interface RunStepSummary {
   endMs: number | null;
   /** endMs − startMs. Null when either bound is missing. */
   elapsedMs: number | null;
+  /** 1-based pass when the same step runs more than once. */
+  pass?: number;
+  /** Parallel lane or Substation sequence name. */
+  lane?: string;
 }
 
 export interface LongestStep {
@@ -27,11 +31,15 @@ export interface RunSummary {
   /** True when the run stopped on an engine error (timeout, unmet condition, read fail). */
   aborted: boolean;
   steps: RunStepSummary[];
-  /** Last finished step's end − first started step's start. Null until a step has ended. */
+  /** Latest finished end − earliest start. Null until a step has ended. For a flat sequence this is the last step's end. */
   totalMs: number | null;
   /** Steps that reached 완료 or 오류. */
   finishedCount: number;
   totalCount: number;
+  /** Steps that reached 완료. Skipped steps are not included. */
+  executedCount: number;
+  /** Steps the branch did not take. */
+  skippedCount: number;
   /**
    * The step with the greatest elapsed time.
    * A tie keeps the earlier step in sequence order.
@@ -40,31 +48,50 @@ export interface RunSummary {
   longest: LongestStep | null;
 }
 
-const PHASES: readonly RunStepPhase[] = ['pending', 'active', 'done', 'error'];
+const PHASES: readonly RunStepPhase[] = ['pending', 'active', 'done', 'error', 'skipped'];
 
 function phaseOf(status: StepRecord['status'] | undefined): RunStepPhase {
   return status && (PHASES as readonly string[]).includes(status) ? status : 'pending';
 }
 
-/** Summarize one Station sequence run. `state` null means the run has not started. */
-export function summarizeRun(p: Project, state: RuntimeState | null): RunSummary {
+function stepName(p: Project, stepId: string): string {
+  return p.sequence.steps.find((s) => s.id === stepId)?.name
+    ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === stepId)?.name
+    ?? stepId;
+}
+
+function rowOf(rec: StepRecord | undefined, stepId: string, name: string): RunStepSummary {
+  const status = phaseOf(rec?.status);
+  const startMs = rec?.startMs ?? null;
+  const ended = status === 'done' || status === 'error';
+  const endMs = ended && rec?.endMs !== undefined ? rec.endMs : null;
+  const elapsedMs = startMs !== null && endMs !== null ? endMs - startMs : null;
+  return { stepId, name, status, startMs, endMs, elapsedMs, ...(rec?.pass != null ? { pass: rec.pass } : {}), ...(rec?.lane ? { lane: rec.lane } : {}) };
+}
+
+/** One row per step id, in sequence order. Used when the run is a flat list. */
+function linearRows(p: Project, state: RuntimeState | null): RunStepSummary[] {
   const records = new Map<string, StepRecord>();
   if (state) for (const rec of state.steps) records.set(rec.stepId, rec);
+  return p.sequence.steps.map((step) => rowOf(records.get(step.id), step.id, step.name));
+}
 
-  const steps: RunStepSummary[] = p.sequence.steps.map((step) => {
-    const rec = records.get(step.id);
-    const status = phaseOf(rec?.status);
-    const startMs = rec?.startMs ?? null;
-    const ended = status === 'done' || status === 'error';
-    const endMs = ended && rec?.endMs !== undefined ? rec.endMs : null;
-    const elapsedMs = startMs !== null && endMs !== null ? endMs - startMs : null;
-    return { stepId: step.id, name: step.name, status, startMs, endMs, elapsedMs };
-  });
+function occurrenceMode(p: Project, state: RuntimeState | null): boolean {
+  if (!state) return false;
+  if (p.sequence.flow) return true;
+  return state.steps.some((r) => r.status === 'skipped' || (r.pass ?? 1) > 1 || !!r.lane);
+}
+
+/** Summarize one Station sequence run. `state` null means the run has not started. */
+export function summarizeRun(p: Project, state: RuntimeState | null): RunSummary {
+  const steps: RunStepSummary[] = occurrenceMode(p, state) && state
+    ? state.steps.map((rec) => rowOf(rec, rec.stepId, stepName(p, rec.stepId)))
+    : linearRows(p, state);
 
   const started = steps.filter((s) => s.startMs !== null);
   const finished = steps.filter((s) => s.endMs !== null);
   const firstStart = started.length > 0 ? Math.min(...started.map((s) => s.startMs as number)) : null;
-  const lastEnd = finished.length > 0 ? finished[finished.length - 1].endMs : null;
+  const lastEnd = finished.length > 0 ? Math.max(...finished.map((s) => s.endMs as number)) : null;
   const totalMs = firstStart !== null && lastEnd !== null ? lastEnd - firstStart : null;
 
   let longest: LongestStep | null = null;
@@ -81,6 +108,8 @@ export function summarizeRun(p: Project, state: RuntimeState | null): RunSummary
     totalMs,
     finishedCount: steps.filter((s) => s.status === 'done' || s.status === 'error').length,
     totalCount: steps.length,
+    executedCount: steps.filter((s) => s.status === 'done').length,
+    skippedCount: steps.filter((s) => s.status === 'skipped').length,
     longest,
   };
 }
