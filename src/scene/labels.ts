@@ -1,5 +1,5 @@
 // Screen-space name tags. Sizes are in pixels, so they stay readable as the camera moves.
-// When a device name overlaps a unit name, the device name is the one that goes.
+// Overlap keeps unit names, then markers, then the material, then device names.
 
 export type LabelKind = 'unit' | 'device' | 'marker' | 'material';
 
@@ -19,12 +19,12 @@ function hits(a: ScreenLabel, b: ScreenLabel): boolean {
 
 const RANK: Record<LabelKind, number> = { unit: 0, marker: 1, material: 2, device: 3 };
 
-/** Drop device names that cover a label we keep. Unit names, markers, and the material stay. */
+/** Keep unit names and markers. A material or device name that covers one of those is dropped. */
 export function cullOverlappingLabels(labels: readonly ScreenLabel[]): ScreenLabel[] {
   const ordered = [...labels].sort((a, b) => RANK[a.kind] - RANK[b.kind] || a.id.localeCompare(b.id));
   const kept: ScreenLabel[] = [];
   for (const label of ordered) {
-    if (label.kind === 'device' && kept.some((other) => hits(label, other))) continue;
+    if ((label.kind === 'device' || label.kind === 'material') && kept.some((other) => hits(label, other))) continue;
     kept.push(label);
   }
   return kept;

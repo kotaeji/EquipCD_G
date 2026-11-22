@@ -22,7 +22,8 @@ function DurationField({ action, disabled, onCommit }: { action: Action; disable
   const rangeValue = shown === '' || !Number.isFinite(Number(shown)) ? 0 : Number(shown);
   return (
     <div className="run3d-dur">
-      <span className="run3d-dur-name">{action.name}</span>
+      <span className="run3d-dur-name" title={action.name}>{action.name}</span>
+      <div className="run3d-dur-controls">
       <input type="range" aria-label={`${action.name} 동작 시간`} min={0} max={max} step={0.1} disabled={disabled}
         value={Math.min(max, Math.max(0, rangeValue))}
         onChange={(e) => setDraft(e.target.value)}
@@ -35,6 +36,7 @@ function DurationField({ action, disabled, onCommit }: { action: Action; disable
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       <span className="muted">s</span>
       {action.duration.assumption && <span className="badge">가정</span>}
+      </div>
     </div>
   );
 }

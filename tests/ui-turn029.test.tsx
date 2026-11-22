@@ -72,6 +72,13 @@ describe('TURN-029 3D run view', () => {
     expect(u.el.querySelector('.run-info')!.getAttribute('aria-label')).toBe('정보 표시');
     expect(u.el.querySelector('.run-stage')!.getAttribute('aria-label')).toBe('3D 시뮬레이션');
     expect(u.el.querySelector('.run-conditions')!.getAttribute('aria-label')).toBe('가동 조건');
+    const actionName = [...u.el.querySelectorAll('.run3d-dur-name')].find((node) => node.textContent === 'S1 푸셔 투입') as HTMLElement;
+    expect(actionName).toBeTruthy();
+    expect(actionName.title).toBe('S1 푸셔 투입');
+    expect(actionName.compareDocumentPosition(u.el.querySelector('[aria-label="S1 푸셔 투입 동작 시간"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const durCss = readFileSync('src/ui/run3d.css', 'utf8');
+    expect(durCss).toMatch(/\.run3d-dur\s*\{[^}]*flex-direction:\s*column/);
+    expect(durCss).toMatch(/\.run3d-dur-name\s*\{[^}]*width:\s*100%/);
     expect(JSON.parse(localStorage.getItem('ecd.v1.userView')!).runView).toBe('3d');
     await act(async () => { root!.unmount(); });
     root = null;

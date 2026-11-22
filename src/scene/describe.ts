@@ -74,6 +74,21 @@ export interface SceneBounds {
   maxZ: number;
 }
 
+/** Unit corners on the floor and the top face of every device. These are what 「전체 보기」 must keep on screen. */
+export function framePoints(scene: SceneDescription): { x: number; y: number; z: number }[] {
+  const pts: { x: number; y: number; z: number }[] = [];
+  for (const zone of scene.zones) {
+    for (const x of [zone.x, zone.x + zone.w]) for (const z of [zone.z, zone.z + zone.d]) pts.push({ x, y: 0, z });
+  }
+  for (const solid of scene.solids) {
+    const top = solid.parts.reduce((h, part) => Math.max(h, part.y + part.h / 2), 0);
+    for (const x of [solid.draw.x, solid.draw.x + solid.draw.w]) {
+      for (const z of [solid.draw.z, solid.draw.z + solid.draw.d]) pts.push({ x, y: top, z });
+    }
+  }
+  return pts;
+}
+
 export interface SceneDescription {
   zones: SceneZone[];
   solids: SceneSolid[];

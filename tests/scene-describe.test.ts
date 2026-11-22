@@ -5,7 +5,8 @@ import { initHistory, applyEdit } from '../src/model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
 import { advance, createRuntime, runToEnd, start } from '../src/runtime/engine';
 import { readFileSync } from 'node:fs';
-import { projectedFill, fitCamera, orbitCamera, panCamera, zoomCamera, gestureMode, applyCameraKey, centerFraction } from '../src/scene/camera';
+import { projectToScreen, fitToPoints, orbitCamera, panCamera, zoomCamera, gestureMode, applyCameraKey, centerFraction, FRAME_MARGIN, type Viewport } from '../src/scene/camera';
+import { framePoints } from '../src/scene/describe';
 import { cullOverlappingLabels } from '../src/scene/labels';
 import { activeDeviceIds, describeScene, faultDeviceIds } from '../src/scene/describe';
 import { describeRunInfo, formatMs } from '../src/scene/runInfo';
@@ -130,15 +131,35 @@ describe('TURN-029 scene description', () => {
   });
 });
 
+function expectFramed(project: ReturnType<typeof buildSampleProject>, view: Viewport) {
+  const pts = framePoints(describeScene(project, null));
+  const cam = fitToPoints(pts, view.width / view.height, view);
+  const screens = pts.map((p) => projectToScreen(cam, p, view));
+  for (const s of screens) {
+    expect(s.ok).toBe(true);
+    expect(s.x).toBeGreaterThanOrEqual(FRAME_MARGIN - 0.6);
+    expect(s.y).toBeGreaterThanOrEqual(FRAME_MARGIN - 0.6);
+    expect(s.x).toBeLessThanOrEqual(view.width - FRAME_MARGIN + 0.6);
+    expect(s.y).toBeLessThanOrEqual(view.height - FRAME_MARGIN + 0.6);
+  }
+  const xs = screens.map((s) => s.x);
+  const ys = screens.map((s) => s.y);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  expect(Math.abs(cx - view.width / 2)).toBeLessThan(8);
+  expect(Math.abs(cy - view.height / 2)).toBeLessThan(8);
+}
+
 describe('TURN-029 camera', () => {
   const bounds = describeScene(buildSampleProject(), null).bounds;
-  const cam = fitCamera(bounds, 1.6);
+  const view: Viewport = { width: 640, height: 400 };
+  const cam = fitToPoints(framePoints(describeScene(buildSampleProject(), null)), view.width / view.height, view);
 
-  it('AC9 fit fills most of the view, and keys, drag, and zoom move the camera', () => {
-    const fill = projectedFill(cam, bounds);
-    expect(Math.max(fill.width, fill.height)).toBeGreaterThanOrEqual(0.8);
-    expect(fill.width).toBeLessThanOrEqual(0.95);
-    expect(fill.height).toBeLessThanOrEqual(0.95);
+  it('AC9 fit keeps every corner inside the frame and centers it', () => {
+    const views: Viewport[] = [{ width: 636, height: 407 }, { width: 1100, height: 600 }];
+    for (const project of [buildSampleProject(), buildFlowSampleProject(), buildParallelSampleProject()]) {
+      for (const size of views) expectFramed(project, size);
+    }
     expect(centerFraction(1280 - 224)).toBeGreaterThanOrEqual(0.5);
     const css = readFileSync('src/ui/run3d.css', 'utf8');
     expect(css).toContain('grid-template-columns: 200px minmax(0, 1fr) 220px');
@@ -154,9 +175,8 @@ describe('TURN-029 camera', () => {
     expect(applyCameraKey(cam, 'ArrowUp', bounds)!.pitch).not.toBe(cam.pitch);
     expect(applyCameraKey(cam, '+', bounds)!.distance).toBeLessThan(cam.distance);
     expect(applyCameraKey(cam, 'k', bounds)).toBeNull();
-    const home = applyCameraKey(turned, 'Home', bounds)!;
-    const homeFill = projectedFill(home, bounds);
-    expect(Math.max(homeFill.width, homeFill.height)).toBeGreaterThanOrEqual(0.8);
+    const home = applyCameraKey(turned, 'Home', bounds, view)!;
+    expectFramed(buildSampleProject(), view);
     expect(home.yaw).toBeCloseTo(0.7);
   });
 });
@@ -168,9 +188,10 @@ describe('TURN-029 screen labels', () => {
       { id: 'd', kind: 'device', x: 10, y: 2, w: 60, h: 16, text: 'PSH-01' },
       { id: 'far', kind: 'device', x: 200, y: 0, w: 60, h: 16, text: 'CNV-05' },
       { id: 'mark', kind: 'marker', x: 10, y: 40, w: 70, h: 18, text: '▼ 동작 중' },
+      { id: 'mat', kind: 'material', x: 4, y: 0, w: 90, h: 16, text: 'M-001 공작물 · 대기' },
     ]);
-    expect(kept.map((label) => label.id).sort()).toEqual(['d', 'far', 'mark', 'u'].filter((id) => id !== 'd').sort());
     expect(kept.some((label) => label.id === 'u')).toBe(true);
+    expect(kept.some((label) => label.id === 'mat')).toBe(false);
     expect(kept.some((label) => label.id === 'far')).toBe(true);
     expect(kept.some((label) => label.id === 'mark')).toBe(true);
     expect(kept.some((label) => label.id === 'd')).toBe(false);

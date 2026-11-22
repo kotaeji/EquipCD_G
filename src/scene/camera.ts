@@ -64,6 +64,72 @@ function viewBasis(cam: CameraState) {
   return { eye, f: { x: fx, y: fy, z: fz }, r: { x: rx, y: ry, z: rz }, u: { x: ux, y: uy, z: uz } };
 }
 
+export interface Viewport { width: number; height: number }
+
+/** Pixels kept clear around a fitted scene. */
+export const FRAME_MARGIN = 16;
+
+export interface ScreenPoint { x: number; y: number; ok: boolean }
+
+/** Project one world point into the viewport. y grows downward. */
+export function projectToScreen(cam: CameraState, p: { x: number; y: number; z: number }, view: Viewport): ScreenPoint {
+  const basis = viewBasis(cam);
+  const vx = p.x - basis.eye.x;
+  const vy = p.y - basis.eye.y;
+  const vz = p.z - basis.eye.z;
+  const depth = vx * basis.f.x + vy * basis.f.y + vz * basis.f.z;
+  if (depth <= 1) return { x: -1e6, y: -1e6, ok: false };
+  const fovY = (cam.fov * Math.PI) / 180;
+  const tanY = Math.tan(fovY / 2);
+  const tanX = tanY * Math.max(0.2, cam.aspect);
+  const ndcX = (vx * basis.r.x + vy * basis.r.y + vz * basis.r.z) / depth / tanX;
+  const ndcY = (vx * basis.u.x + vy * basis.u.y + vz * basis.u.z) / depth / tanY;
+  return { x: (ndcX * 0.5 + 0.5) * view.width, y: (-ndcY * 0.5 + 0.5) * view.height, ok: true };
+}
+
+function ndcBox(cam: CameraState, points: { x: number; y: number; z: number }[]) {
+  const basis = viewBasis(cam);
+  const fovY = (cam.fov * Math.PI) / 180;
+  const tanY = Math.tan(fovY / 2);
+  const tanX = tanY * Math.max(0.2, cam.aspect);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  let depthSum = 0;
+  for (const p of points) {
+    const vx = p.x - basis.eye.x;
+    const vy = p.y - basis.eye.y;
+    const vz = p.z - basis.eye.z;
+    const depth = vx * basis.f.x + vy * basis.f.y + vz * basis.f.z;
+    if (depth <= 1) return null;
+    const ndcX = (vx * basis.r.x + vy * basis.r.y + vz * basis.r.z) / depth / tanX;
+    const ndcY = (vx * basis.u.x + vy * basis.u.y + vz * basis.u.z) / depth / tanY;
+    minX = Math.min(minX, ndcX);
+    maxX = Math.max(maxX, ndcX);
+    minY = Math.min(minY, ndcY);
+    maxY = Math.max(maxY, ndcY);
+    depthSum += depth;
+  }
+  return { minX, maxX, minY, maxY, depth: depthSum / points.length, tanX, tanY, basis };
+}
+
+/** Slide the look-at point so the projected box moves toward the screen center. One small step. */
+function nudgeCenter(cam: CameraState, points: { x: number; y: number; z: number }[]): CameraState | null {
+  const box = ndcBox(cam, points);
+  if (!box) return null;
+  const cx = Math.max(-1.5, Math.min(1.5, (box.minX + box.maxX) / 2));
+  const cy = Math.max(-1.5, Math.min(1.5, (box.minY + box.maxY) / 2));
+  const shiftX = cx * box.tanX * box.depth;
+  const shiftY = cy * box.tanY * box.depth;
+  return {
+    ...cam,
+    targetX: cam.targetX + shiftX * box.basis.r.x + shiftY * box.basis.u.x,
+    targetY: cam.targetY + shiftX * box.basis.r.y + shiftY * box.basis.u.y,
+    targetZ: cam.targetZ + shiftX * box.basis.r.z + shiftY * box.basis.u.z,
+  };
+}
+
 /** Projected width and height of the bounds, as fractions of the viewport. */
 export function projectedFill(cam: CameraState, bounds: SceneBounds): ProjectionFill {
   const basis = viewBasis(cam);
@@ -90,30 +156,58 @@ export function projectedFill(cam: CameraState, bounds: SceneBounds): Projection
   return { width: (maxX - minX) / 2, height: (maxY - minY) / 2 };
 }
 
+function pointCenter(points: { x: number; y: number; z: number }[]) {
+  const n = Math.max(1, points.length);
+  return points.reduce((s, p) => ({ x: s.x + p.x / n, y: s.y + p.y / n, z: s.z + p.z / n }), { x: 0, y: 0, z: 0 });
+}
+
 /**
- * Frame the bounds so the larger screen axis covers about 88% of the view
- * and both axes stay inside the frame.
+ * Frame these world points inside the viewport by `FRAME_MARGIN` pixels,
+ * with the projected box centered on the panel.
  */
-export function fitCamera(bounds: SceneBounds, aspect = 1.4): CameraState {
+export function fitToPoints(points: { x: number; y: number; z: number }[], aspect = 1.4, viewport?: Viewport): CameraState {
   const aspectSafe = aspect > 0.2 ? aspect : 1.4;
-  const aim = {
-    targetX: (bounds.minX + bounds.maxX) / 2,
-    targetY: (bounds.minY + bounds.maxY) / 2,
-    targetZ: (bounds.minZ + bounds.maxZ) / 2,
-    yaw: 0.7,
-    pitch: 0.62,
-    aspect: aspectSafe,
-    fov: CAMERA_FOV,
+  const view = viewport && viewport.width > 40 && viewport.height > 40
+    ? viewport
+    : { width: Math.max(80, Math.round(400 * aspectSafe)), height: 400 };
+  const safe = points.length ? points : [{ x: 0, y: 0, z: 0 }, { x: 200, y: 40, z: 200 }];
+  const margin = FRAME_MARGIN;
+  const mid = pointCenter(safe);
+  const span = safe.reduce((m, p) => Math.max(m, Math.hypot(p.x - mid.x, p.y - mid.y, p.z - mid.z)), 1);
+  let cam: CameraState = {
+    targetX: mid.x, targetY: mid.y, targetZ: mid.z,
+    yaw: 0.7, pitch: 0.62,
+    distance: Math.max(80, span / Math.sin((CAMERA_FOV * Math.PI) / 360)),
+    aspect: aspectSafe, fov: CAMERA_FOV,
   };
-  let lo = 30;
-  let hi = 8000;
-  for (let i = 0; i < 28; i++) {
-    const mid = (lo + hi) / 2;
-    const fill = projectedFill({ ...aim, distance: mid }, bounds);
-    if (Math.max(fill.width, fill.height) > 0.88) lo = mid;
-    else hi = mid;
+  const limitX = 1 - (margin * 2) / view.width;
+  const limitY = 1 - (margin * 2) / view.height;
+  for (let i = 0; i < 14; i++) {
+    for (let n = 0; n < 6; n++) {
+      const next = nudgeCenter(cam, safe);
+      if (!next) { cam = { ...cam, distance: cam.distance * 1.25, targetX: mid.x, targetY: mid.y, targetZ: mid.z }; break; }
+      cam = next;
+    }
+    const box = ndcBox(cam, safe);
+    if (!box) { cam = { ...cam, distance: cam.distance * 1.3, targetX: mid.x, targetY: mid.y, targetZ: mid.z }; continue; }
+    const scale = Math.max((box.maxX - box.minX) / (2 * limitX), (box.maxY - box.minY) / (2 * limitY));
+    if (Math.abs(scale - 1) < 0.015) break;
+    cam = { ...cam, distance: Math.min(80000, Math.max(30, cam.distance * scale)) };
   }
-  return { ...aim, distance: hi };
+  for (let i = 0; i < 10; i++) {
+    const next = nudgeCenter(cam, safe);
+    if (next) cam = next;
+    const box = ndcBox(cam, safe);
+    const outside = !box || box.minX < -limitX || box.maxX > limitX || box.minY < -limitY || box.maxY > limitY;
+    if (!outside) break;
+    cam = { ...cam, distance: cam.distance * 1.06 };
+  }
+  return cam;
+}
+
+/** Frame the bounds box. Prefer `fitToPoints` with the scene's zone corners and device tops. */
+export function fitCamera(bounds: SceneBounds, aspect = 1.4, viewport?: Viewport): CameraState {
+  return fitToPoints(cornersOf(bounds), aspect, viewport);
 }
 
 /** Bounding sphere of `bounds` is inside the camera frustum. */
@@ -164,13 +258,13 @@ export function gestureMode(button: number, shift: boolean): 'orbit' | 'pan' {
  * Arrow keys orbit, +/− zoom, Home frames the scene.
  * Returns null when the key is not a camera key.
  */
-export function applyCameraKey(cam: CameraState, key: string, bounds: SceneBounds): CameraState | null {
+export function applyCameraKey(cam: CameraState, key: string, bounds: SceneBounds, viewport?: Viewport): CameraState | null {
   if (key === 'ArrowLeft') return orbitCamera(cam, -48, 0);
   if (key === 'ArrowRight') return orbitCamera(cam, 48, 0);
   if (key === 'ArrowUp') return orbitCamera(cam, 0, -36);
   if (key === 'ArrowDown') return orbitCamera(cam, 0, 36);
   if (key === '+' || key === '=' || key === 'Add') return zoomCamera(cam, -140);
   if (key === '-' || key === '_' || key === 'Subtract') return zoomCamera(cam, 140);
-  if (key === 'Home') return { ...fitCamera(bounds, cam.aspect), aspect: cam.aspect };
+  if (key === 'Home') return fitCamera(bounds, cam.aspect, viewport);
   return null;
 }

@@ -46,9 +46,10 @@
 .run3d-field select { height: 32px; }
 .run3d-unit { margin: 6px 0; border-top: 1px solid var(--border); }
 .run3d-unit > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
-.run3d-dur { display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px auto auto; gap: 4px; align-items: center; margin: 4px 0; font-size: 11px; }
-.run3d-dur-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.run3d-dur input[type="range"] { width: 72px; }
+.run3d-dur { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin: 6px 0; font-size: 11px; }
+.run3d-dur-name { display: block; width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; max-height: 2.7em; overflow: hidden; }
+.run3d-dur-controls { display: flex; align-items: center; gap: 4px; }
+.run3d-dur input[type="range"] { width: 72px; flex: 1 1 auto; min-width: 48px; }
 .run3d-dur input.num { width: 64px; height: 28px; }
 .run-conditions > button { margin-top: 8px; }
 

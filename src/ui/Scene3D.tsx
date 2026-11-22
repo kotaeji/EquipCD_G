@@ -4,8 +4,8 @@ import {
   Group, Mesh, MeshStandardMaterial, PerspectiveCamera, Raycaster, Scene, SRGBColorSpace,
   Vector2, Vector3, WebGLRenderer, type Material, type Object3D,
 } from 'three';
-import { applyCameraKey, fitCamera, gestureMode, orbitCamera, panCamera, zoomCamera, type CameraState } from '../scene/camera';
-import type { SceneDescription } from '../scene/describe';
+import { applyCameraKey, fitToPoints, gestureMode, orbitCamera, panCamera, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
+import { framePoints, type SceneDescription } from '../scene/describe';
 import { cullOverlappingLabels, type ScreenLabel } from '../scene/labels';
 import type { LocalPart } from '../scene/shapes';
 import { canUseWebGL } from './webgl';
@@ -186,7 +186,15 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   const boxes: ScreenLabel[] = [];
   if (showNames) {
     for (const zone of scene.zones) {
-      const at = project(zone.x + zone.w / 2, 8, zone.z + 6);
+      const cam = camera.position;
+      let far = { x: zone.x, z: zone.z, d: -1 };
+      for (const x of [zone.x, zone.x + zone.w]) {
+        for (const z of [zone.z, zone.z + zone.d]) {
+          const d = (x - cam.x) ** 2 + (z - cam.z) ** 2;
+          if (d > far.d) far = { x, z, d };
+        }
+      }
+      const at = project(far.x, 14, far.z);
       if (!at) continue;
       const size = rough(zone.name, 14);
       boxes.push({ id: `u:${zone.id}`, kind: 'unit', x: at.x - size.w / 2, y: at.y - size.h, w: size.w, h: size.h, text: zone.name });
@@ -212,10 +220,10 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   }
   for (const mat of scene.materials) {
     const text = `${mat.name} · ${mat.state || '상태 없음'}`;
-    const at = project(mat.x, 40, mat.z);
+    const at = project(mat.x, 20, mat.z);
     if (!at) continue;
     const size = rough(text, 12);
-    boxes.push({ id: `mat:${mat.id}`, kind: 'material', x: at.x - size.w / 2, y: at.y - size.h, w: size.w, h: size.h, text });
+    boxes.push({ id: `mat:${mat.id}`, kind: 'material', x: at.x - size.w / 2, y: at.y + 6, w: size.w, h: size.h, text });
   }
   const kept = cullOverlappingLabels(boxes);
   layer.replaceChildren(...kept.map((label) => {
@@ -229,7 +237,7 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   }));
 }
 
-function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSelect, onAspect }: {
+function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSelect, onView }: {
   scene: SceneDescription;
   palette: ScenePalette;
   cam: CameraState;
@@ -237,12 +245,12 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSe
   emphasize: boolean;
   onCamera: (fn: (cam: CameraState) => CameraState) => void;
   onSelect: (id: string | null) => void;
-  onAspect: (aspect: number) => void;
+  onView: (width: number, height: number) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
-  const aspectSink = useRef(onAspect);
-  aspectSink.current = onAspect;
+  const viewSink = useRef(onView);
+  viewSink.current = onView;
   const viewProps = useRef({ scene, showNames, emphasize });
   viewProps.current = { scene, showNames, emphasize };
   const paintLabels = () => {
@@ -293,7 +301,7 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSe
       camera.updateProjectionMatrix();
       render();
       paintSink.current();
-      aspectSink.current(w / h);
+      viewSink.current(w, h);
     };
     const ro = new ResizeObserver(resize);
     ro.observe(host);
@@ -389,7 +397,9 @@ export function Scene3D({ scene, showNames, emphasize, selectedId, onSelect, onD
   const [gl] = useState(canUseWebGL);
   const [palette, setPalette] = useState(readPalette);
   const boundsKey = useMemo(() => scene.zones.map((z) => z.id).join('|') + '/' + scene.solids.map((s) => `${s.id}:${s.x}:${s.z}`).join('|'), [scene]);
-  const [cam, setCam] = useState<CameraState>(() => fitCamera(scene.bounds));
+  const framed = (aspect: number, view?: Viewport) => fitToPoints(framePoints(scene), aspect, view);
+  const [cam, setCam] = useState<CameraState>(() => framed(1.4));
+  const viewSize = useRef({ width: 640, height: 400 });
   const moved = useRef(false);
   const seen = useRef(boundsKey);
   useEffect(() => {
@@ -404,25 +414,32 @@ export function Scene3D({ scene, showNames, emphasize, selectedId, onSelect, onD
   useEffect(() => {
     if (seen.current === boundsKey) return;
     seen.current = boundsKey;
-    setCam((c) => fitCamera(scene.bounds, c.aspect));
+    setCam((c) => framed(c.aspect, viewSize.current));
   }, [boundsKey, scene.bounds]);
 
-  const onAspect = (aspect: number) => {
+  const onView = (width: number, height: number) => {
+    viewSize.current = { width, height };
+    const aspect = width / Math.max(1, height);
     setCam((c) => {
-      if (Math.abs(c.aspect - aspect) < 0.01 && moved.current) return c;
-      if (moved.current) return { ...c, aspect };
-      const next = fitCamera(scene.bounds, aspect);
-      if (Math.abs(next.distance - c.distance) < 0.5 && Math.abs(next.aspect - c.aspect) < 0.01) return c;
+      if (moved.current) return Math.abs(c.aspect - aspect) < 0.01 ? c : { ...c, aspect };
+      const next = framed(aspect, { width, height });
+      if (Math.abs(next.distance - c.distance) < 0.5 && Math.abs(next.targetX - c.targetX) < 0.5 && Math.abs(next.aspect - c.aspect) < 0.01) return c;
       return next;
     });
   };
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-    const next = applyCameraKey(cam, e.key, scene.bounds);
+    if (e.key === 'Home') {
+      e.preventDefault();
+      moved.current = false;
+      setCam(framed(cam.aspect, viewSize.current));
+      return;
+    }
+    const next = applyCameraKey(cam, e.key, scene.bounds, viewSize.current);
     if (!next) return;
     e.preventDefault();
-    if (e.key !== 'Home') moved.current = true;
+    moved.current = true;
     setCam(next);
   };
 
@@ -430,12 +447,12 @@ export function Scene3D({ scene, showNames, emphasize, selectedId, onSelect, onD
     <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-selected-device={selectedId ?? ''}
       data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}>
       <div className="scene3d-bar">
-        <button type="button" aria-label="전체 보기" onClick={() => { moved.current = false; setCam((c) => fitCamera(scene.bounds, c.aspect)); }}>전체 보기</button>
+        <button type="button" aria-label="전체 보기" onClick={() => { moved.current = false; setCam(framed(viewSize.current.width / Math.max(1, viewSize.current.height), viewSize.current)); }}>전체 보기</button>
         <p className="scene3d-help">끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기</p>
       </div>
       {gl
         ? <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize}
-          onCamera={(fn) => { moved.current = true; setCam(fn); }} onSelect={onSelect} onAspect={onAspect} />
+          onCamera={(fn) => { moved.current = true; setCam(fn); }} onSelect={onSelect} onView={onView} />
         : <div className="scene3d-fallback" role="status">
           <p>이 브라우저에서는 3D 를 그릴 수 없습니다</p>
           <button type="button" onClick={onDiagram}>도면으로 보기</button>
