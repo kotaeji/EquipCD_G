@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
-  AmbientLight, BoxGeometry, Color, ConeGeometry, CylinderGeometry, DirectionalLight,
-  Group, Mesh, MeshStandardMaterial, PerspectiveCamera, Raycaster, Scene, SRGBColorSpace,
-  Vector2, Vector3, WebGLRenderer, type Material, type Object3D,
+  ACESFilmicToneMapping, AmbientLight, BoxGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight,
+  Group, Mesh, MeshStandardMaterial, PCFSoftShadowMap, PerspectiveCamera, PlaneGeometry, Raycaster,
+  NoToneMapping, RepeatWrapping, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer, type Material, type Object3D,
 } from 'three';
 import { applyCameraKey, fitToPoints, gestureMode, orbitCamera, panCamera, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
 import { framePoints, type SceneDescription } from '../scene/describe';
-import { cullOverlappingLabels, type ScreenLabel } from '../scene/labels';
+import { emWidth, floorNameAxes, floorNameYaw, type FloorName } from '../scene/floorLabel';
+import { anchorLabels, cullOverlappingLabels, visibleFloorNames, type ScreenLabel } from '../scene/labels';
 import type { LocalPart } from '../scene/shapes';
+import { floorNameColors, materialFor, photoPartsFor, photoZoneColors, renderStyle, type StyledPart, type VisualStyleId } from '../scene/style';
 import { canUseWebGL } from './webgl';
 import { THEMES } from './viewSettings';
+
+export const PHOTO_NOTE = '3D 실사풍은 재질 · 조명 표현입니다. 실제 설비 형상이 아닙니다.';
 
 export interface ScenePalette {
   background: string;
@@ -45,6 +49,17 @@ function readPalette(): ScenePalette {
     label: pick('--text', fallback.text),
     edge: pick('--text', fallback.text),
   };
+}
+
+function isDark(hex: string): boolean {
+  const h = hex.trim().replace('#', '');
+  if (h.length < 6) return false;
+  const n = Number.parseInt(h.slice(0, 6), 16);
+  if (Number.isNaN(n)) return false;
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.45;
 }
 
 function disposeTree(root: Object3D) {
@@ -86,6 +101,37 @@ function partMesh(part: LocalPart, color: string): Mesh {
   return mesh;
 }
 
+function styledMesh(part: StyledPart): Mesh {
+  const spec = materialFor(part);
+  const geo = part.primitive === 'cylinder'
+    ? new CylinderGeometry(Math.max(part.w, part.d) / 2, Math.max(part.w, part.d) / 2, part.h, 20)
+    : new BoxGeometry(part.w, part.h, part.d);
+  const mesh = new Mesh(geo, new MeshStandardMaterial({ color: spec.color, metalness: spec.metalness, roughness: spec.roughness }));
+  mesh.position.set(part.x, part.y, part.z);
+  if (part.primitive === 'cylinder' && part.axis === 'x') mesh.rotation.z = Math.PI / 2;
+  if (part.primitive === 'cylinder' && part.axis === 'z') mesh.rotation.x = Math.PI / 2;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function markerRing(w: number, d: number, color: string): Group {
+  const g = new Group();
+  const t = 5;
+  const y = 1.4;
+  const mat = () => new MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7, roughness: 0.4, metalness: 0.08 });
+  const add = (px: number, pz: number, bw: number, bd: number) => {
+    const mesh = new Mesh(new BoxGeometry(bw, 2.2, bd), mat());
+    mesh.position.set(px, y, pz);
+    g.add(mesh);
+  };
+  add(w / 2, t / 2, w + 10, t);
+  add(w / 2, d - t / 2, w + 10, t);
+  add(t / 2, d / 2, t, d);
+  add(w - t / 2, d / 2, t, d);
+  return g;
+}
+
 function zoneBorder(x: number, z: number, w: number, d: number, color: string): Group {
   const g = new Group();
   const t = 4;
@@ -124,36 +170,152 @@ function arrowBetween(ax: number, az: number, bx: number, bz: number, color: str
   return g;
 }
 
-function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette, emphasize: boolean) {
+function seeded(n: number): number {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function factoryFloorMap(dark: boolean, anisotropy: number): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const tex = new CanvasTexture(canvas);
+  tex.colorSpace = SRGBColorSpace;
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  tex.anisotropy = anisotropy;
+  if (!ctx) return tex;
+  ctx.fillStyle = dark ? '#1a2433' : '#d7d2c8';
+  ctx.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 1400; i++) {
+    const a = seeded(i) * (dark ? 0.05 : 0.07);
+    ctx.fillStyle = dark ? `rgba(255,255,255,${a})` : `rgba(30,30,30,${a})`;
+    ctx.fillRect(seeded(i + 3) * 512, seeded(i + 9) * 512, 2, 2);
+  }
+  ctx.strokeStyle = dark ? 'rgba(190,205,220,0.16)' : 'rgba(60,60,60,0.22)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i <= 512; i += 64) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
+  }
+  ctx.strokeStyle = dark ? 'rgba(226,161,0,0.4)' : 'rgba(190,130,20,0.5)';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(26, 26, 460, 460);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function nameTexture(text: string, ink: string, anisotropy: number): { texture: CanvasTexture; aspect: number } {
+  const height = 512;
+  const fontPx = Math.floor(height * 0.9);
+  const font = `700 ${fontPx}px "Noto Sans KR", sans-serif`;
+  const probe = document.createElement('canvas').getContext('2d');
+  if (probe) probe.font = font;
+  const textW = probe ? Math.max(fontPx, probe.measureText(text).width) : fontPx * emWidth(text);
+  const width = Math.max(64, Math.ceil(textW + fontPx * 0.16));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = anisotropy;
+  if (ctx) {
+    ctx.clearRect(0, 0, width, height);
+    ctx.font = font;
+    ctx.fillStyle = ink;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, width / 2, height * 0.52);
+    texture.needsUpdate = true;
+  }
+  return { texture, aspect: width / height };
+}
+
+function floorNameMesh(name: FloorName, yaw: number, dark: boolean, anisotropy: number): Group {
+  const colors = floorNameColors(dark);
+  const g = new Group();
+  g.position.set(name.x, 0, name.z);
+  g.rotation.y = yaw;
+  g.userData.floorName = name.id;
+  const band = new Mesh(
+    new BoxGeometry(name.length, 1.4, name.depth),
+    new MeshStandardMaterial({ color: colors.band, roughness: 0.94, metalness: 0 }),
+  );
+  band.position.y = 1.2;
+  band.receiveShadow = true;
+  g.add(band);
+  const plate = nameTexture(name.text, colors.ink, anisotropy);
+  const planeW = Math.min(name.length * 0.92, name.textHeight * plate.aspect);
+  const planeH = planeW / plate.aspect;
+  const plane = new Mesh(
+    new PlaneGeometry(planeW, planeH),
+    new MeshStandardMaterial({ map: plate.texture, transparent: true, roughness: 1, metalness: 0, depthWrite: false }),
+  );
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.y = 2.05;
+  g.add(plane);
+  return g;
+}
+
+function applyFloorYaw(root: Group, cameraYaw: number) {
+  const yaw = floorNameYaw(cameraYaw);
+  root.traverse((obj) => {
+    if (obj.userData.floorName) obj.rotation.y = yaw;
+  });
+}
+
+function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette, emphasize: boolean, visual: VisualStyleId, showNames: boolean, cameraYaw: number, anisotropy: number) {
   disposeTree(root);
   root.clear();
+  const photo = visual === 'photo';
+  const dark = isDark(palette.background);
   const pad = 80;
   const b = scene.bounds;
-  const floor = new Mesh(
-    new BoxGeometry(Math.max(40, b.maxX - b.minX + pad * 2), 1, Math.max(40, b.maxZ - b.minZ + pad * 2)),
-    new MeshStandardMaterial({ color: palette.floor, roughness: 1 }),
-  );
+  const floorW = Math.max(40, b.maxX - b.minX + pad * 2);
+  const floorD = Math.max(40, b.maxZ - b.minZ + pad * 2);
+  const floorMat = new MeshStandardMaterial({ color: photo ? (dark ? '#1a2433' : '#d7d2c8') : palette.floor, roughness: 1, metalness: 0 });
+  if (photo) {
+    const map = factoryFloorMap(dark, anisotropy);
+    map.repeat.set(Math.max(1, floorW / 220), Math.max(1, floorD / 220));
+    floorMat.map = map;
+  }
+  const floor = new Mesh(new BoxGeometry(floorW, 1, floorD), floorMat);
   floor.position.set((b.minX + b.maxX) / 2, -0.5, (b.minZ + b.maxZ) / 2);
+  floor.receiveShadow = photo;
   root.add(floor);
 
+  const zoneLook = photo ? photoZoneColors(dark) : null;
   for (const zone of scene.zones) {
     const fill = new Mesh(
       new BoxGeometry(Math.max(1, zone.w - 8), 1, Math.max(1, zone.d - 8)),
-      new MeshStandardMaterial({ color: palette.zone, roughness: 1 }),
+      new MeshStandardMaterial({ color: zoneLook?.fill ?? palette.zone, roughness: 1 }),
     );
     fill.position.set(zone.x + zone.w / 2, 0.4, zone.z + zone.d / 2);
+    fill.receiveShadow = photo;
     root.add(fill);
-    root.add(zoneBorder(zone.x, zone.z, zone.w, zone.d, palette.edge));
+    root.add(zoneBorder(zone.x, zone.z, zone.w, zone.d, zoneLook?.edge ?? palette.edge));
   }
+
+  const yaw = floorNameYaw(cameraYaw);
+  for (const name of visibleFloorNames(scene.floorNames, showNames)) root.add(floorNameMesh(name, yaw, dark, anisotropy));
 
   for (const solid of scene.solids) {
     const group = new Group();
     group.position.set(solid.draw.x, 0, solid.draw.z);
     group.userData.deviceId = solid.id;
-    const color = solid.highlight === 'fault' && emphasize ? palette.fault
-      : solid.highlight === 'active' && emphasize ? palette.active
-        : palette.solid;
-    for (const part of solid.parts) group.add(partMesh(part, color));
+    if (photo) {
+      for (const part of photoPartsFor(solid.shape, solid.draw.w, solid.draw.d)) group.add(styledMesh(part));
+      if (emphasize && solid.highlight !== 'none') {
+        group.add(markerRing(solid.draw.w, solid.draw.d, solid.highlight === 'fault' ? palette.fault : palette.active));
+      }
+    } else {
+      const color = solid.highlight === 'fault' && emphasize ? palette.fault
+        : solid.highlight === 'active' && emphasize ? palette.active
+          : palette.solid;
+      for (const part of solid.parts) group.add(partMesh(part, color));
+    }
     root.add(group);
   }
 
@@ -164,17 +326,31 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
   }
 
   for (const mat of scene.materials) {
-    const box = new Mesh(new BoxGeometry(42, 30, 42), new MeshStandardMaterial({ color: palette.material, roughness: 0.45 }));
+    const box = new Mesh(new BoxGeometry(42, 30, 42), new MeshStandardMaterial({ color: palette.material, roughness: 0.45, emissive: palette.material, emissiveIntensity: photo ? 0.18 : 0 }));
     box.position.set(mat.x, 18, mat.z);
+    box.castShadow = photo;
     root.add(box);
   }
 }
 
-function topOf(parts: LocalPart[]): number {
-  return parts.reduce((h, part) => Math.max(h, part.y + part.h / 2), 12);
+function floorNameScreenBox(name: FloorName, cameraYaw: number, project: (x: number, y: number, z: number) => { x: number; y: number } | null): ScreenLabel | null {
+  const axes = floorNameAxes(floorNameYaw(cameraYaw));
+  const hx = name.length / 2;
+  const hz = name.depth / 2;
+  const pts = [-1, 1].flatMap((sx) => [-1, 1].map((sz) => project(
+    name.x + axes.right.x * hx * sx + axes.up.x * hz * sz,
+    2,
+    name.z + axes.right.z * hx * sx + axes.up.z * hz * sz,
+  )));
+  if (pts.some((p) => !p)) return null;
+  const xs = pts.map((p) => p!.x);
+  const ys = pts.map((p) => p!.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { id: `u:${name.id}`, kind: 'unit', text: name.text, x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
 }
 
-function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneDescription, showNames: boolean, emphasize: boolean) {
+function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneDescription, showNames: boolean, emphasize: boolean, cameraYaw: number) {
   const w = layer.clientWidth || 1;
   const h = layer.clientHeight || 1;
   const project = (x: number, y: number, z: number) => {
@@ -185,47 +361,19 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   const rough = (text: string, px: number) => ({ w: Math.max(28, text.length * px * 0.62 + 10), h: px + 8 });
   const boxes: ScreenLabel[] = [];
   if (showNames) {
-    for (const zone of scene.zones) {
-      const cam = camera.position;
-      let far = { x: zone.x, z: zone.z, d: -1 };
-      for (const x of [zone.x, zone.x + zone.w]) {
-        for (const z of [zone.z, zone.z + zone.d]) {
-          const d = (x - cam.x) ** 2 + (z - cam.z) ** 2;
-          if (d > far.d) far = { x, z, d };
-        }
-      }
-      const at = project(far.x, 14, far.z);
-      if (!at) continue;
-      const size = rough(zone.name, 14);
-      boxes.push({ id: `u:${zone.id}`, kind: 'unit', x: at.x - size.w / 2, y: at.y - size.h, w: size.w, h: size.h, text: zone.name });
-    }
-    for (const solid of scene.solids) {
-      const top = topOf(solid.parts);
-      const at = project(solid.draw.x + solid.draw.w / 2, top + 6, solid.draw.z + solid.draw.d / 2);
-      if (!at) continue;
-      const size = rough(solid.name, 12);
-      boxes.push({ id: `d:${solid.id}`, kind: 'device', x: at.x - size.w / 2, y: at.y - size.h - 18, w: size.w, h: size.h, text: solid.name });
+    for (const name of scene.floorNames) {
+      const box = floorNameScreenBox(name, cameraYaw, project);
+      if (box) boxes.push(box);
     }
   }
-  if (emphasize) {
-    for (const solid of scene.solids) {
-      if (solid.highlight === 'none') continue;
-      const text = solid.highlight === 'fault' ? '오류' : '▼ 동작 중';
-      const top = topOf(solid.parts);
-      const at = project(solid.draw.x + solid.draw.w / 2, top + 18, solid.draw.z + solid.draw.d / 2);
-      if (!at) continue;
-      const size = rough(text, 13);
-      boxes.push({ id: `m:${solid.id}`, kind: 'marker', x: at.x - size.w / 2, y: at.y - size.h - 36, w: size.w, h: size.h, text });
-    }
-  }
-  for (const mat of scene.materials) {
-    const text = `${mat.name} · ${mat.state || '상태 없음'}`;
-    const at = project(mat.x, 20, mat.z);
+  for (const label of anchorLabels(scene, showNames, emphasize)) {
+    const at = project(label.x, label.y, label.z);
     if (!at) continue;
-    const size = rough(text, 12);
-    boxes.push({ id: `mat:${mat.id}`, kind: 'material', x: at.x - size.w / 2, y: at.y + 6, w: size.w, h: size.h, text });
+    const size = rough(label.text, label.px);
+    const y = label.kind === 'material' ? at.y + 6 : at.y - size.h - (label.kind === 'marker' ? 36 : 18);
+    boxes.push({ id: label.id, kind: label.kind, x: at.x - size.w / 2, y, w: size.w, h: size.h, text: label.text });
   }
-  const kept = cullOverlappingLabels(boxes);
+  const kept = cullOverlappingLabels(boxes).filter((label) => label.kind !== 'unit');
   layer.replaceChildren(...kept.map((label) => {
     const el = document.createElement('div');
     const marker = label.kind === 'marker' ? (label.text === '오류' ? ' fault' : ' active') : '';
@@ -237,12 +385,13 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   }));
 }
 
-function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSelect, onView }: {
+function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, onCamera, onSelect, onView }: {
   scene: SceneDescription;
   palette: ScenePalette;
   cam: CameraState;
   showNames: boolean;
   emphasize: boolean;
+  visualMode: VisualStyleId;
   onCamera: (fn: (cam: CameraState) => CameraState) => void;
   onSelect: (id: string | null) => void;
   onView: (width: number, height: number) => void;
@@ -251,26 +400,43 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSe
   const labelRef = useRef<HTMLDivElement>(null);
   const viewSink = useRef(onView);
   viewSink.current = onView;
-  const viewProps = useRef({ scene, showNames, emphasize });
-  viewProps.current = { scene, showNames, emphasize };
+  const viewProps = useRef({ scene, showNames, emphasize, yaw: cam.yaw });
+  viewProps.current = { scene, showNames, emphasize, yaw: cam.yaw };
   const paintLabels = () => {
     const view = api.current;
     if (!view || !labelRef.current) return;
     const current = viewProps.current;
-    syncLabels(labelRef.current, view.camera, current.scene, current.showNames, current.emphasize);
+    syncLabels(labelRef.current, view.camera, current.scene, current.showNames, current.emphasize, current.yaw);
   };
   const paintSink = useRef(paintLabels);
   paintSink.current = paintLabels;
+  const yawRef = useRef(cam.yaw);
+  yawRef.current = cam.yaw;
+  const camRef = useRef(cam);
+  camRef.current = cam;
+  const buildRef = useRef(() => {});
   const api = useRef<{
     renderer: WebGLRenderer;
     camera: PerspectiveCamera;
     scene: Scene;
     root: Group;
+    ambient: AmbientLight;
+    key: DirectionalLight;
+    fill: DirectionalLight;
     render: () => void;
   } | null>(null);
   const drag = useRef<{ x: number; y: number; button: number; shift: boolean; moved: boolean } | null>(null);
-  const props = useRef({ scene, palette, showNames, emphasize, onSelect });
-  props.current = { scene, palette, showNames, emphasize, onSelect };
+  const props = useRef({ scene, palette, showNames, emphasize, visualMode, onSelect });
+  props.current = { scene, palette, showNames, emphasize, visualMode, onSelect };
+  const [fontsReady, setFontsReady] = useState(false);
+
+  useEffect(() => {
+    const fonts = document.fonts;
+    if (!fonts) { setFontsReady(true); return; }
+    let live = true;
+    fonts.ready.then(() => { if (live) setFontsReady(true); });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -283,6 +449,7 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSe
     }
     renderer.outputColorSpace = SRGBColorSpace;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.type = PCFSoftShadowMap;
     renderer.domElement.setAttribute('aria-label', '3D 장면');
     host.appendChild(renderer.domElement);
     const threeScene = new Scene();
@@ -290,8 +457,12 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSe
     const ambient = new AmbientLight(0xffffff, 0.78);
     const sun = new DirectionalLight(0xffffff, 0.95);
     sun.position.set(240, 520, 180);
+    sun.castShadow = false;
+    sun.shadow.mapSize.set(2048, 2048);
+    const fill = new DirectionalLight(0xe7eef8, 0);
+    fill.position.set(-220, 280, -140);
     const root = new Group();
-    threeScene.add(ambient, sun, root);
+    threeScene.add(ambient, sun, fill, sun.target, fill.target, root);
     const render = () => renderer.render(threeScene, camera);
     const resize = () => {
       const w = Math.max(1, host.clientWidth);
@@ -310,8 +481,9 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSe
       onCamera((c) => zoomCamera(c, e.deltaY));
     };
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
-    api.current = { renderer, camera, scene: threeScene, root, render };
+    api.current = { renderer, camera, scene: threeScene, root, ambient, key: sun, fill, render };
     resize();
+    buildRef.current();
     return () => {
       ro.disconnect();
       renderer.domElement.removeEventListener('wheel', onWheel);
@@ -322,17 +494,67 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSe
     };
   }, [onCamera]);
 
-  useEffect(() => {
+  buildRef.current = () => {
     const view = api.current;
     if (!view) return;
+    const { scene, palette, showNames, emphasize, visualMode } = props.current;
+    const look = renderStyle(visualMode);
+    view.renderer.shadowMap.enabled = look.shadows;
+    view.renderer.toneMapping = visualMode === 'photo' ? ACESFilmicToneMapping : NoToneMapping;
+    view.renderer.toneMappingExposure = visualMode === 'photo' ? 1.08 : 1;
+    view.ambient.intensity = look.ambient;
+    view.key.intensity = look.key;
+    view.fill.intensity = look.fill;
+    view.key.castShadow = look.shadows;
+    const b = scene.bounds;
+    const cx = (b.minX + b.maxX) / 2;
+    const cz = (b.minZ + b.maxZ) / 2;
+    if (visualMode === 'photo') {
+      view.key.position.set(cx + 160, 700, cz + 260);
+      view.fill.position.set(cx - 300, 360, cz - 140);
+      view.key.target.position.set(cx, 0, cz);
+      view.fill.target.position.set(cx, 0, cz);
+    } else {
+      view.key.position.set(240, 520, 180);
+      view.fill.position.set(-220, 280, -140);
+      view.key.target.position.set(0, 0, 0);
+      view.fill.target.position.set(0, 0, 0);
+    }
+    view.key.target.updateMatrixWorld();
+    view.fill.target.updateMatrixWorld();
+    const span = Math.max(480, (b.maxX - b.minX), (b.maxZ - b.minZ));
+    const shadowCam = view.key.shadow.camera;
+    shadowCam.left = -span;
+    shadowCam.right = span;
+    shadowCam.top = span;
+    shadowCam.bottom = -span;
+    shadowCam.near = 20;
+    shadowCam.far = 2200;
+    shadowCam.updateProjectionMatrix();
     view.scene.background = new Color(palette.background);
-    buildScene(view.root, scene, palette, emphasize);
-    applyCamera(view.camera, cam);
+    const anisotropy = Math.min(8, view.renderer.capabilities.getMaxAnisotropy());
+    buildScene(view.root, scene, palette, emphasize, visualMode, showNames, yawRef.current, anisotropy);
+    applyCamera(view.camera, camRef.current);
     view.camera.aspect = Math.max(0.2, view.renderer.domElement.clientWidth / Math.max(1, view.renderer.domElement.clientHeight));
     view.camera.updateProjectionMatrix();
     view.render();
-    if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize);
-  }, [scene, palette, showNames, emphasize, cam]);
+    if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize, yawRef.current);
+  };
+
+  useEffect(() => {
+    buildRef.current();
+  }, [scene, palette, showNames, emphasize, visualMode, fontsReady]);
+
+  useEffect(() => {
+    const view = api.current;
+    if (!view) return;
+    applyCamera(view.camera, cam);
+    view.camera.aspect = Math.max(0.2, view.renderer.domElement.clientWidth / Math.max(1, view.renderer.domElement.clientHeight));
+    view.camera.updateProjectionMatrix();
+    applyFloorYaw(view.root, cam.yaw);
+    view.render();
+    if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize, cam.yaw);
+  }, [cam, scene, showNames, emphasize]);
 
   const pick = (ev: PointerEvent): string | null => {
     const view = api.current;
@@ -386,10 +608,11 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSe
 }
 
 /** Center column. Without WebGL it explains that and offers the diagram. */
-export function Scene3D({ scene, showNames, emphasize, selectedId, onSelect, onDiagram }: {
+export function Scene3D({ scene, showNames, emphasize, visualMode, selectedId, onSelect, onDiagram }: {
   scene: SceneDescription;
   showNames: boolean;
   emphasize: boolean;
+  visualMode: VisualStyleId;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onDiagram: () => void;
@@ -417,6 +640,10 @@ export function Scene3D({ scene, showNames, emphasize, selectedId, onSelect, onD
     setCam((c) => framed(c.aspect, viewSize.current));
   }, [boundsKey, scene.bounds]);
 
+  const onCamera = useCallback((fn: (cam: CameraState) => CameraState) => {
+    moved.current = true;
+    setCam(fn);
+  }, []);
   const onView = (width: number, height: number) => {
     viewSize.current = { width, height };
     const aspect = width / Math.max(1, height);
@@ -445,14 +672,16 @@ export function Scene3D({ scene, showNames, emphasize, selectedId, onSelect, onD
 
   return (
     <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-selected-device={selectedId ?? ''}
+      data-visual-style={visualMode} data-show-names={showNames ? 'on' : 'off'} data-floor-names={showNames ? scene.floorNames.length : 0}
       data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}>
       <div className="scene3d-bar">
         <button type="button" aria-label="전체 보기" onClick={() => { moved.current = false; setCam(framed(viewSize.current.width / Math.max(1, viewSize.current.height), viewSize.current)); }}>전체 보기</button>
         <p className="scene3d-help">끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기</p>
       </div>
+      {visualMode === 'photo' && <p className="scene3d-photo-note">{PHOTO_NOTE}</p>}
       {gl
-        ? <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize}
-          onCamera={(fn) => { moved.current = true; setCam(fn); }} onSelect={onSelect} onView={onView} />
+        ? <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize} visualMode={visualMode}
+          onCamera={onCamera} onSelect={onSelect} onView={onView} />
         : <div className="scene3d-fallback" role="status">
           <p>이 브라우저에서는 3D 를 그릴 수 없습니다</p>
           <button type="button" onClick={onDiagram}>도면으로 보기</button>

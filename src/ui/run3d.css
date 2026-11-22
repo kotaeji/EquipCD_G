@@ -66,6 +66,7 @@
 .scene3d-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .scene3d-bar button { flex: 0 0 auto; white-space: nowrap; }
 .scene3d-help { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.scene3d-photo-note { margin: 0; padding: 6px 10px; font-size: 12px; line-height: 1.4; color: var(--text); background: color-mix(in srgb, var(--warning) 16%, var(--panel)); border-bottom: 1px solid var(--border); }
 .scene3d-host { flex: 1; min-height: 0; position: relative; }
 .scene3d-host canvas { display: block; width: 100%; height: 100%; }
 .scene3d-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }

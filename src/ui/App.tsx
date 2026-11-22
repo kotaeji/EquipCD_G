@@ -1141,7 +1141,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
         {view.runView === '3d' && scene3d ? <>
           <RunInfoPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldInfo} onToggleFold={() => setFoldInfo((v) => !v)} onOpenGaps={() => goStep('check', 'gap')} />
-          <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
+          <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
             onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
           <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
             emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout} />

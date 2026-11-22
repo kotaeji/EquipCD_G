@@ -4,6 +4,7 @@
 
 import type { Project, Unit } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
+import { floorNameForZone, type FloorName } from './floorLabel';
 import { partsFor, shapeForKind, type LocalPart, type ShapeId } from './shapes';
 
 export type HighlightReason = 'active' | 'fault';
@@ -80,6 +81,11 @@ export function framePoints(scene: SceneDescription): { x: number; y: number; z:
   for (const zone of scene.zones) {
     for (const x of [zone.x, zone.x + zone.w]) for (const z of [zone.z, zone.z + zone.d]) pts.push({ x, y: 0, z });
   }
+  for (const name of scene.floorNames) {
+    const hx = name.length / 2;
+    const hz = name.depth / 2;
+    for (const x of [name.x - hx, name.x + hx]) for (const z of [name.z - hz, name.z + hz]) pts.push({ x, y: 0, z });
+  }
   for (const solid of scene.solids) {
     const top = solid.parts.reduce((h, part) => Math.max(h, part.y + part.h / 2), 0);
     for (const x of [solid.draw.x, solid.draw.x + solid.draw.w]) {
@@ -95,6 +101,8 @@ export interface SceneDescription {
   flows: SceneFlow[];
   materials: SceneMaterial[];
   highlights: SceneHighlight[];
+  /** Unit names lying on the floor, outside the back edge. Direction is the rest yaw; the camera may flip it. */
+  floorNames: FloorName[];
   bounds: SceneBounds;
 }
 
@@ -212,6 +220,7 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
   const zones: SceneZone[] = p.units.map((u) => ({
     id: u.id, name: u.name, x: u.layout.x, z: u.layout.y, w: u.layout.w, d: u.layout.h,
   }));
+  const floorNames = zones.map((zone) => floorNameForZone(zone));
 
   const taken = new Map<string, SceneDraw[]>();
   const solids: SceneSolid[] = p.devices.map((d) => {
@@ -285,12 +294,16 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
   for (const z of zones) {
     mark(z.x, 0, z.z); mark(z.x + z.w, 0, z.z + z.d);
   }
+  for (const name of floorNames) {
+    mark(name.x - name.length / 2, 0, name.z - name.depth / 2);
+    mark(name.x + name.length / 2, 0, name.z + name.depth / 2);
+  }
   for (const s of solids) {
     mark(s.draw.x, 0, s.draw.z);
     mark(s.draw.x + s.draw.w, 0, s.draw.z + s.draw.d);
     for (const part of s.parts) mark(s.draw.x + part.x, part.y + part.h / 2, s.draw.z + part.z);
   }
   for (const m of materials) mark(m.x, 36, m.z);
-  if (!any) return { zones, solids, flows, materials, highlights, bounds: emptyBounds() };
-  return { zones, solids, flows, materials, highlights, bounds };
+  if (!any) return { zones, solids, flows, materials, highlights, floorNames, bounds: emptyBounds() };
+  return { zones, solids, flows, materials, highlights, floorNames, bounds };
 }
