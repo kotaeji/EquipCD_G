@@ -54,6 +54,12 @@ TURN-024 흐름 실행 기록은 검토 후보입니다. 사람 검수 전이며
 
 TURN-025 화면 테스트 시계는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-025.md`](docs/turns/TURN-025.md). 「▶ 실행」 뒤의 잠금과 실행 중 표시를 보는 화면 테스트가 벽시계로 실행을 끝내지 않습니다. 앱 코드와 `release/` 는 바꾸지 않았습니다.
 
+TURN-026 화면 다듬기는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-026.md`](docs/turns/TURN-026.md). 라이트 테마가 흰색 · 회색 · 검정 계열입니다(헤더의 붉은색과 성공 · 경고 · 위험 색은 그대로). 에셋 라이브러리 카드는 폭에 맞춰 열 수가 바뀌고, 팔레트는 다음 줄로 이어집니다. 헤더의 실행 취소 · 다시 실행은 44px 단추 안의 SVG 아이콘입니다.
+
+TURN-027 전체 선택은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-027.md`](docs/turns/TURN-027.md). 2단계에서 Ctrl + A(Mac 은 Cmd + A)가 선택이 없으면 모든 Unit 을, Unit 하나가 골라져 있으면 그 Unit 의 Device 전부를 고릅니다. Ctrl + 클릭은 선택과 해제를 번갈아 합니다.
+
+TURN-028 Device 자동 정렬은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-028.md`](docs/turns/TURN-028.md). Unit 하나를 고르고 「자동 정렬」을 누르면 그 안의 Device 가 신호가 왼쪽에서 오른쪽으로 보이게, 겹치지 않게 다시 놓입니다. 실행 취소 한 번에 돌아갑니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -102,7 +108,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 37파일 502개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내) + TURN-025 화면 실행 테스트의 시계 고정
+npm test              # vitest 41파일 527개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내) + TURN-025 화면 실행 테스트의 시계 고정
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
