@@ -43,6 +43,8 @@ export interface UserView {
   layoutTab: LayoutTab;
   /** TURN-029: diagram or 3D on the run step. This browser only — never written into a project file. */
   runView: 'diagram' | '3d';
+  /** TURN-030: which run-step tab is showing. This browser only — never written into a project file. */
+  runTab: RunTab;
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -51,6 +53,8 @@ export type PanelKey = 'explorer' | 'library' | 'canvas' | 'run';
 export type ExplorerTab = 'workspace' | 'project';
 /** TURN-009 layout tabs. The card board is the default; signal mode switches to the diagram. */
 export type LayoutTab = 'board' | 'diagram';
+/** TURN-030 run-step tabs. The status table is the default. */
+export type RunTab = 'status' | 'diagram' | 'inspect';
 export interface PanelWidths { explorer: number; library: number; canvas: number; run: number }
 export const PANEL_LIMITS: Record<PanelKey, { min: number; max: number; def: number }> = {
   explorer: { min: 180, max: 420, def: 224 },
@@ -93,7 +97,7 @@ function cleanPanels(v: unknown): PanelWidths {
 }
 
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
-  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram' };
+  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram', runTab: 'status' };
 
 function cleanCollapsed(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -118,6 +122,7 @@ export function loadView(kv: KV | null): UserView {
       explorerTab: o.explorerTab === 'workspace' ? 'workspace' : 'project',
       layoutTab: o.layoutTab === 'diagram' ? 'diagram' : 'board',
       runView: o.runView === '3d' ? '3d' : 'diagram',
+      runTab: o.runTab === 'diagram' || o.runTab === 'inspect' ? o.runTab : 'status',
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
       home: o.home === false ? false : true };
   } catch { return DEFAULT_VIEW; }

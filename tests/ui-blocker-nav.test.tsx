@@ -45,7 +45,7 @@ describe('TURN-001 group-run blocker guidance (jsdom)', () => {
     const u = await mount();
     expect(u.history().present.id).toBe(p.id); // the seeded project is the one on screen
     await u.toRun();
-    if (f.pressRun) { await u.click(u.btn('▶ 실행')); expect(u.status()).toContain('실행 idle'); expect(u.txt()).toContain('실행 준비 실패'); }
+    if (f.pressRun) { await u.click(u.btn('▶ 실행')); expect(u.status()).toContain('실행 대기'); expect(u.txt()).toContain('실행 준비 실패'); }
     const item = [...u.el.querySelectorAll('.blocker-item')].find((li) => (li.textContent ?? '').includes(`[${f.code}]`) && li.getAttribute('data-guide-kind') === f.expect.kind)!;
     expect(item, 'blocker row with the expected guide kind').toBeDefined();
     expect(item.textContent).toContain(copy.lead.slice(0, 30));
@@ -91,7 +91,7 @@ describe('TURN-001 group-run blocker guidance (jsdom)', () => {
     const go = u.el.querySelector('button[data-blocker-code="DEVICE_CONFLICT"]')!;
     expect(go.textContent).toBe('4 자재·시퀀스 › Substation 시퀀스 화면으로 이동');
     await u.click(u.btn('▶ 실행'));
-    expect(u.status()).toContain('실행 idle');
+    expect(u.status()).toContain('실행 대기');
     await u.click(u.el.querySelector('button[data-blocker-code="DEVICE_CONFLICT"]')!);
     expect(u.appEl.dataset.step).toBe('sequence');
     expect(u.el.querySelector('.subtabs button.on')!.textContent).toMatch(/^Substation 시퀀스/);
