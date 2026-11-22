@@ -112,11 +112,50 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
 }
 
 // ---------------- Runtime status / log ----------------
-export function RuntimePanel({ p, rt, locked, edit, onGoBlocker }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
-  const readiness = checkRunReadiness(p);
+/** Read-fail injection. Shared by the 2D runtime panel and the 3D conditions column. */
+export function ReadFailFaults({ p, locked, edit }: { p: Project; locked: boolean; edit: EditFn }) {
+  const faults = p.simSettings.faults;
+  return <>
+    {p.actions.filter((a) => a.kind === 'read').map((act) => {
+      const on = faults.readFailActionIds.includes(act.id);
+      const n = faults.readFailFirstN?.[act.id];
+      return <div key={act.id}>
+        <label className="row" style={{ fontSize: 12 }}><input type="checkbox" disabled={locked} checked={on} onChange={(e) => {
+          const ids = e.target.checked ? [...new Set([...faults.readFailActionIds, act.id])] : faults.readFailActionIds.filter((id) => id !== act.id);
+          const map = { ...(faults.readFailFirstN ?? {}) };
+          if (!e.target.checked) delete map[act.id];
+          edit(C.setFaults(p, { ...faults, readFailActionIds: ids, readFailFirstN: Object.keys(map).length ? map : undefined }), '읽기 실패 주입');
+        }} />{act.name}: 결과 실패</label>
+        <label className="row" style={{ fontSize: 12 }}>처음 N회만<input aria-label={`${act.name} 실패 횟수`} type="number" min={1} disabled={locked || !on} placeholder="비우면 항상" value={n ?? ''} style={{ width: 72 }}
+          onChange={(e) => {
+            const map = { ...(faults.readFailFirstN ?? {}) };
+            const raw = e.target.value.trim();
+            if (!raw) delete map[act.id];
+            else map[act.id] = Math.max(1, Math.round(Number(raw)));
+            edit(C.setFaults(p, { ...faults, readFailActionIds: on ? faults.readFailActionIds : [...new Set([...faults.readFailActionIds, act.id])], readFailFirstN: Object.keys(map).length ? map : undefined }), '읽기 실패 횟수');
+          }} /></label>
+        {n != null && !readResultUsed(p, act.deviceId) && <p className="muted" data-read-fail-hint={act.id} style={{ fontSize: 11, margin: '0 0 6px' }}>결과를 쓰는 분기 · 재시도가 없어 첫 실패에서 멈춥니다</p>}
+      </div>;
+    })}
+  </>;
+}
+
+/** Complete-signal injection. Shared by the 2D runtime panel and the 3D conditions column. */
+export function NeverTrueFaults({ p, locked, edit }: { p: Project; locked: boolean; edit: EditFn }) {
   const faults = p.simSettings.faults;
   const toggleNever = (sid: string, on: boolean) => edit(C.setFaults(p, { ...faults, neverTrueSignalIds: on ? [...new Set([...faults.neverTrueSignalIds, sid])] : faults.neverTrueSignalIds.filter((x) => x !== sid) }), '오류 주입 변경');
   const completeSigs = p.actions.filter((a) => a.completeSignalId).map((a) => ({ a, sid: a.completeSignalId! }));
+  return <>
+    <select disabled={locked} value="" onChange={(e) => e.target.value && toggleNever(e.target.value, true)} style={{ width: '100%' }}>
+      <option value="">+ 완료 신호 미발생 주입 (타임아웃 검증)</option>
+      {completeSigs.map(({ a, sid }) => <option key={sid} value={sid}>{a.name} — {sigName(p, sid)}</option>)}
+    </select>
+    {faults.neverTrueSignalIds.map((sid) => <div key={sid} className="row" style={{ fontSize: 11 }}><Badge kind="warn">미발생</Badge>{sigName(p, sid)}<button className="small" disabled={locked} onClick={() => toggleNever(sid, false)}>해제</button></div>)}
+  </>;
+}
+
+export function RuntimePanel({ p, rt, locked, edit, onGoBlocker }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
+  const readiness = checkRunReadiness(p);
   const onSignals = rt ? Object.entries(rt.signals).filter(([, v]) => v).map(([k]) => sigName(p, k)) : [];
   return (
     <div>
@@ -138,38 +177,14 @@ export function RuntimePanel({ p, rt, locked, edit, onGoBlocker }: { p: Project;
         <div className="row"><label>준비 검사</label>{readiness.ok ? <Badge kind="ok">실행 가능</Badge> : <Badge kind="err">차단 {readiness.blockers.length}</Badge>}</div>
         {!readiness.ok && readiness.blockers.slice(0, 6).map((b) => <div key={b.id} style={{ fontSize: 11, color: 'var(--danger)' }}>• {b.message}</div>)}
         <h4 style={{ margin: '10px 0 4px', fontSize: 12 }}>검증용 오류 주입 (시뮬 설정)</h4>
-        {p.actions.filter((a) => a.kind === 'read').map((act) => {
-          const on = faults.readFailActionIds.includes(act.id);
-          const n = faults.readFailFirstN?.[act.id];
-          return <div key={act.id}>
-            <label className="row" style={{ fontSize: 12 }}><input type="checkbox" disabled={locked} checked={on} onChange={(e) => {
-              const ids = e.target.checked ? [...new Set([...faults.readFailActionIds, act.id])] : faults.readFailActionIds.filter((id) => id !== act.id);
-              const map = { ...(faults.readFailFirstN ?? {}) };
-              if (!e.target.checked) delete map[act.id];
-              edit(C.setFaults(p, { ...faults, readFailActionIds: ids, readFailFirstN: Object.keys(map).length ? map : undefined }), '읽기 실패 주입');
-            }} />{act.name}: 결과 실패</label>
-            <label className="row" style={{ fontSize: 12 }}>처음 N회만<input aria-label={`${act.name} 실패 횟수`} type="number" min={1} disabled={locked || !on} placeholder="비우면 항상" value={n ?? ''} style={{ width: 72 }}
-              onChange={(e) => {
-                const map = { ...(faults.readFailFirstN ?? {}) };
-                const raw = e.target.value.trim();
-                if (!raw) delete map[act.id];
-                else map[act.id] = Math.max(1, Math.round(Number(raw)));
-                edit(C.setFaults(p, { ...faults, readFailActionIds: on ? faults.readFailActionIds : [...new Set([...faults.readFailActionIds, act.id])], readFailFirstN: Object.keys(map).length ? map : undefined }), '읽기 실패 횟수');
-              }} /></label>
-            {n != null && !readResultUsed(p, act.deviceId) && <p className="muted" data-read-fail-hint={act.id} style={{ fontSize: 11, margin: '0 0 6px' }}>결과를 쓰는 분기 · 재시도가 없어 첫 실패에서 멈춥니다</p>}
-          </div>;
-        })}
+        <ReadFailFaults p={p} locked={locked} edit={edit} />
         {!readiness.ok && <div className="section"><h4>실행 전 검사 — 차단 {readiness.blockers.length}건</h4>
           <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
             <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
             <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
               {onGoBlocker && c.button && <button type="button" className="small" data-blocker-code={b.code} data-guide-kind={g.kind} aria-label={c.aria} onClick={() => onGoBlocker(b, g)}>{c.button}</button>}
             </div></li>; })}</ul></div>}
-        <select disabled={locked} value="" onChange={(e) => e.target.value && toggleNever(e.target.value, true)} style={{ width: '100%' }}>
-          <option value="">+ 완료 신호 미발생 주입 (타임아웃 검증)</option>
-          {completeSigs.map(({ a, sid }) => <option key={sid} value={sid}>{a.name} — {sigName(p, sid)}</option>)}
-        </select>
-        {faults.neverTrueSignalIds.map((sid) => <div key={sid} className="row" style={{ fontSize: 11 }}><Badge kind="warn">미발생</Badge>{sigName(p, sid)}<button className="small" disabled={locked} onClick={() => toggleNever(sid, false)}>해제</button></div>)}
+        <NeverTrueFaults p={p} locked={locked} edit={edit} />
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
         <table className="grid"><thead><tr><th style={{ width: 90 }}>가상 시각</th><th style={{ width: 110 }}>코드</th><th>내용</th></tr></thead>

@@ -10,6 +10,8 @@ import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
 import { orderRunRecords, stepStatusLabel } from '../runtime/runSummary';
+import { describeScene } from '../scene/describe';
+import { DURATION_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
@@ -35,6 +37,9 @@ import { BrandMark } from './BrandMark';
 import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
+import { RunConditions } from './RunConditions';
+import { RunInfoPanel } from './RunInfoPanel';
+import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';
 
 interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; gaps: Gap[]; analyzedRevision: number | null }
@@ -124,6 +129,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [arrangeOpen, setArrangeOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [showNames, setShowNames] = useState(true);
+  const [emphasizeMotion, setEmphasizeMotion] = useState(true);
+  const durationBaseline = useRef<{ sessionKey: string; depth: number; snap: DurationSnap[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const tab = tabs.find((t) => t.key === activeKey) ?? tabs[0];
@@ -197,6 +205,30 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const doStep = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'paused' ? { ...t, runtime: pause(advance(resume(t.runtime), 100)) } : t));
   const doToEnd = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? { ...t, runtime: runToEnd(t.runtime) } : t));
 
+  const onDuration = (actionId: string, value: number) => {
+    const action = p.actions.find((a) => a.id === actionId);
+    if (!action || action.duration.value === value) return;
+    const last = tab.history.labels[tab.history.labels.length - 1];
+    const prev = tab.history.past[tab.history.past.length - 1];
+    // Typing or dragging keeps one undo: replace the latest duration edit of this action.
+    if (last === DURATION_EDIT_LABEL && prev) {
+      const before = prev.actions.find((a) => a.id === actionId);
+      const sameOthers = prev.actions.every((a) => a.id === actionId || a.duration.value === p.actions.find((x) => x.id === a.id)?.duration.value)
+        && prev.actions.length === p.actions.length;
+      if (before && before.duration.value !== action.duration.value && sameOthers) {
+        const replaced = C.setQuantity(prev, { kind: 'action', id: actionId, field: 'duration' }, value, action.duration.assumption);
+        if (replaced.ok) { updTab(tab.key, (t) => ({ ...t, history: { ...t.history, present: replaced.project }, runtime: null })); return; }
+      }
+    }
+    edit(C.setQuantity(p, { kind: 'action', id: actionId, field: 'duration' }, value, action.duration.assumption), DURATION_EDIT_LABEL);
+  };
+  const revertDurations = () => {
+    const base = durationBaseline.current;
+    if (!base || locked) return;
+    const next = revertDurationEdits(tab.history, base.depth, base.snap);
+    if (next === tab.history) return;
+    updTab(tab.key, (t) => ({ ...t, history: next, runtime: null }));
+  };
   const doUndo = () => { const o = undo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
   const doRedo = () => { const o = redo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
 
@@ -696,8 +728,28 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button onClick={doStep} disabled={rt?.status !== 'paused'} title="일시정지 중 가상 0.1초 진행">+0.1s</button>
     <button onClick={doReset} disabled={!tab.runtime || rt?.status === 'idle'}>⟲ 초기화</button>
     <button onClick={doToEnd} disabled={!running} title="실행 중(▶ 실행 후)에만 활성 — 남은 단계를 즉시 계산">끝까지</button>
-    <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{[0.25, 0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}x</option>)}</select>
+    <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{[0.25, 0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}x</option>)}</select>
     <span className="mono" style={{ minWidth: 80 }}>{fmtTime(rt?.timeMs ?? 0)}</span></>;
+  const setRunView = (runView: 'diagram' | '3d') => setView((v) => (v.runView === runView ? v : { ...v, runView }));
+  const runSession = `${tab.key}:${view.runView}:${step}`;
+  if (step === 'run' && view.runView === '3d') {
+    if (!durationBaseline.current || durationBaseline.current.sessionKey !== runSession) {
+      durationBaseline.current = {
+        sessionKey: runSession,
+        depth: tab.history.past.length,
+        snap: p.actions.map((a) => ({ id: a.id, value: a.duration.value, assumption: a.duration.assumption })),
+      };
+    }
+  } else if (durationBaseline.current) durationBaseline.current = null;
+  const canRevertDurations = !!durationBaseline.current && p.actions.some((a) => {
+    const snap = durationBaseline.current?.snap.find((s) => s.id === a.id);
+    return !!snap && snap.value !== a.duration.value;
+  });
+  const runViewToggle = <div role="radiogroup" aria-label="실행 보기">
+    <button type="button" role="radio" aria-checked={view.runView === 'diagram'} className={view.runView === 'diagram' ? 'on' : ''} onClick={() => setRunView('diagram')}>도면</button>
+    <button type="button" role="radio" aria-checked={view.runView === '3d'} className={view.runView === '3d' ? 'on' : ''} onClick={() => setRunView('3d')}>3D</button>
+  </div>;
+  const scene3d = view.runView === '3d' ? describeScene(p, rt) : null;
   const activeDeviceIds = (rt?.flowRun?.fibers ?? []).flatMap((f) => {
     if (!f.active) return [];
     const step = p.sequence.steps.find((s) => s.id === f.active!.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === f.active!.stepId);
@@ -1061,13 +1113,20 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
       </div>}
 
-      {!guide && !view.home && step === 'run' && <div className="workspace ws-run">
+      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${view.runView === '3d' ? 'is-3d' : ''}`} data-run-view={view.runView}>
         <h1 className="stage-title run-title">{screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'}</h1>
         <div className="toolbar tool-pills">
-          {runControls}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
+          {runControls}<div className="sep" />{runViewToggle}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">{rt?.status === 'completed' ? '시뮬 완료' : `시뮬 ${rt?.status ?? 'idle'}`}</span>
           <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
+        {view.runView === '3d' && scene3d ? <>
+          <RunInfoPanel p={p} rt={rt} selectedId={selection[0] ?? null} />
+          <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
+            onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
+          <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames}
+            emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} />
+        </> : <>
         <div className="center sparse-page">
         {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
           <section className="sheet">
@@ -1078,10 +1137,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
             <table className="grid plain"><thead><tr><th>단계</th><th>갈래 · 회차</th><th>상태</th><th>자재</th></tr></thead>
               <tbody>{orderRunRecords(p, rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const }))).map((row, i) => {
-                const step = p.sequence.steps.find((s) => s.id === row.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === row.stepId);
+                const rowStep = p.sequence.steps.find((s) => s.id === row.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === row.stepId);
                 const where = [('lane' in row ? row.lane : undefined), ('pass' in row && row.pass ? `${row.pass}회` : '')].filter(Boolean).join(' ');
                 const label = stepStatusLabel(row.status);
-                return <tr key={`${row.stepId}:${i}`}><td>{step?.name ?? row.stepId}</td><td>{where || '—'}</td><td>{label}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
+                return <tr key={`${row.stepId}:${i}`}><td>{rowStep?.name ?? row.stepId}</td><td>{where || '—'}</td><td>{label}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
               })}</tbody></table>
             <p className="muted">이 값은 이번 실행의 가상 시각과 단계 상태입니다. 예시 시각을 고정해 두지 않습니다. 논리 실행이며 안전 판정이 아닙니다.</p>
           </section>
@@ -1101,6 +1160,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </aside>
           </div>
         </div>
+        </>}
       </div>}
 
       <div className="statusbar">
