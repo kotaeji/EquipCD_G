@@ -10,12 +10,13 @@ import type { AssetKind, Project } from '../model/types';
 import { flowUsesSignal, hasFlow } from '../model/flow';
 import { checkRunReadiness, validateProject, type Diagnostic } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
+import { aggregateStepStatus, type AggregateStepStatus } from '../runtime/runSummary';
 import type { QuarantineEntry } from '../storage/localStore';
 import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
-import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
-import { SfcView } from './SfcView';
+import { condLabel, devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
 import { RunSummary } from './RunSummary';
+import { SfcView } from './SfcView';
 import { Badge, QtyInput, TextInput } from './widgets';
 
 const fmt = (msv: number) => `${String(Math.floor(msv / 60000)).padStart(2, '0')}:${(Math.floor(msv / 1000) % 60).toString().padStart(2, '0')}.${(msv % 1000).toString().padStart(3, '0')}`;
@@ -26,6 +27,14 @@ function readResultUsed(p: Project, deviceId: string): boolean {
   return !!sig && hasFlow(p) && flowUsesSignal(p.sequence.flow ?? [], sig.id);
 }
 export { fmt as fmtTime };
+
+function sequenceStatus(view: AggregateStepStatus) {
+  if (view.phase === 'done') return <Badge kind="ok">{view.label}</Badge>;
+  if (view.phase === 'active') return <Badge kind="acc">{view.label}</Badge>;
+  if (view.phase === 'error') return <Badge kind="err">{view.label}</Badge>;
+  if (view.phase === 'stopped') return <Badge kind="warn">{view.label}</Badge>;
+  return <span className="muted">{view.label}</span>;
+}
 
 // ---------------- F5 Sequence ----------------
 export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onSelect: (id: string) => void }) {
@@ -68,8 +77,8 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
           <tbody>
             {p.sequence.steps.map((s, i) => {
               const a = p.actions.find((x) => x.id === s.actionId);
-              const rec = rt?.steps.find((r) => r.stepId === s.id);
-              const st = rec?.status ?? 'pending';
+              const view = aggregateStepStatus(rt?.steps.filter((r) => r.stepId === s.id) ?? []);
+              const st = view.phase;
               return (
                 <tr key={s.id} className={st === 'active' ? 'active' : st === 'error' ? 'err' : ''} draggable={!locked}
                   onDragStart={(e) => { setDragIdx(i); e.dataTransfer.setData('text/plain', s.id); }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => dropAt(e, i)}>
@@ -80,7 +89,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
                   <td>{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as), '단계 타임아웃')} />}</td>
                   <td style={{ fontSize: 11 }}>{a ? effectLabel(p, a.effect) : ''}</td>
                   <td style={{ fontSize: 10 }} className="muted">{s.origin}{s.sourceText ? `: "${s.sourceText}"` : ''}</td>
-                  <td>{st === 'done' ? <Badge kind="ok">완료</Badge> : st === 'active' ? <Badge kind="acc">실행 중</Badge> : st === 'error' ? <Badge kind="err">오류</Badge> : <span className="muted">대기</span>}</td>
+                  <td>{sequenceStatus(view)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="small" disabled={locked || i === 0} onClick={() => edit(C.moveStep(p, i, i - 1), '단계 위로')}>↑</button>
                     <button className="small" disabled={locked || i === p.sequence.steps.length - 1} onClick={() => edit(C.moveStep(p, i, i + 1), '단계 아래로')}>↓</button>
@@ -154,15 +163,13 @@ export function NeverTrueFaults({ p, locked, edit }: { p: Project; locked: boole
   </>;
 }
 
-export function RuntimePanel({ p, rt, locked, edit, onGoBlocker }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
-  const readiness = checkRunReadiness(p);
+/** Live facts and the full log. The 실행 상태 tab places this under the summary. */
+export function RunStatusExtras({ p, rt }: { p: Project; rt: RuntimeState | null }) {
   const onSignals = rt ? Object.entries(rt.signals).filter(([, v]) => v).map(([k]) => sigName(p, k)) : [];
   return (
-    <div>
-      <RunSummary p={p} rt={rt} />
-      <div className="cols">
+    <div className="cols run-status-extra">
       <div style={{ width: 280, overflow: 'auto', borderRight: '1px solid var(--border)', paddingRight: 8 }}>
-        <div className="row"><label>실행 상태</label><Badge kind={rt?.status === 'error' ? 'err' : rt?.status === 'completed' ? 'ok' : rt?.status === 'running' ? 'acc' : 'warn'}>{rt?.status ?? 'idle'}</Badge></div>
+        <div className="row"><label>실행 상태</label><Badge kind={rt?.status === 'error' ? 'err' : rt?.status === 'completed' ? 'ok' : rt?.status === 'running' ? 'acc' : 'warn'}>{runStatusLabel(rt?.status)}</Badge></div>
         <div className="row"><label>가상 시간</label><span className="mono">{fmt(rt?.timeMs ?? 0)}</span></div>
         <div className="row"><label>현재 단계</label>{(() => {
           const ids = rt?.flowRun?.fibers.flatMap((f) => f.active ? [f.active.stepId] : []) ?? [];
@@ -174,24 +181,43 @@ export function RuntimePanel({ p, rt, locked, edit, onGoBlocker }: { p: Project;
         <div className="row"><label>자재 수</label>{rt?.material ? 1 : 0}개 (보존)</div>
         <div className="row"><label>오류</label>{rt?.error ? <span style={{ color: 'var(--danger)', fontSize: 12 }}>{rt.error.code} @ {rt.error.stepId}</span> : '0'}</div>
         <div className="row"><label>ON 신호</label><span style={{ fontSize: 11 }}>{onSignals.join(', ') || '-'}</span></div>
-        <div className="row"><label>준비 검사</label>{readiness.ok ? <Badge kind="ok">실행 가능</Badge> : <Badge kind="err">차단 {readiness.blockers.length}</Badge>}</div>
-        {!readiness.ok && readiness.blockers.slice(0, 6).map((b) => <div key={b.id} style={{ fontSize: 11, color: 'var(--danger)' }}>• {b.message}</div>)}
-        <h4 style={{ margin: '10px 0 4px', fontSize: 12 }}>검증용 오류 주입 (시뮬 설정)</h4>
-        <ReadFailFaults p={p} locked={locked} edit={edit} />
-        {!readiness.ok && <div className="section"><h4>실행 전 검사 — 차단 {readiness.blockers.length}건</h4>
-          <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
-            <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
-            <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
-              {onGoBlocker && c.button && <button type="button" className="small" data-blocker-code={b.code} data-guide-kind={g.kind} aria-label={c.aria} onClick={() => onGoBlocker(b, g)}>{c.button}</button>}
-            </div></li>; })}</ul></div>}
-        <NeverTrueFaults p={p} locked={locked} edit={edit} />
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
         <table className="grid"><thead><tr><th style={{ width: 90 }}>가상 시각</th><th style={{ width: 110 }}>코드</th><th>내용</th></tr></thead>
           <tbody>{(rt?.log ?? []).slice().reverse().map((l, i) => <tr key={i} className={l.level === 'error' ? 'err' : ''}><td className="mono">{fmt(l.t)}</td><td className="mono" style={{ fontSize: 11 }}>{l.code}</td><td style={{ fontSize: 12 }}>{l.message}</td></tr>)}
             {!rt?.log.length && <tr><td colSpan={3} className="muted">로그 없음 — 툴바의 ▶ 실행을 누르세요</td></tr>}</tbody></table>
       </div>
-      </div>
+    </div>
+  );
+}
+
+/** Readiness, blocker moves, and fault injection. The 검사 · 오류 주입 tab. */
+export function RunInspectPanel({ p, locked, edit, onGoBlocker }: { p: Project; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
+  const readiness = checkRunReadiness(p);
+  return (
+    <div className="run-inspect">
+      <div className="row"><label>준비 검사</label>{readiness.ok ? <Badge kind="ok">실행 가능</Badge> : <Badge kind="err">차단 {readiness.blockers.length}</Badge>}</div>
+      {!readiness.ok && readiness.blockers.slice(0, 6).map((b) => <div key={b.id} style={{ fontSize: 11, color: 'var(--danger)' }}>• {b.message}</div>)}
+      <h4 style={{ margin: '10px 0 4px', fontSize: 12 }}>검증용 오류 주입 (시뮬 설정)</h4>
+      <ReadFailFaults p={p} locked={locked} edit={edit} />
+      {!readiness.ok && <div className="section"><h4>실행 전 검사 — 차단 {readiness.blockers.length}건</h4>
+        <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
+          <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
+          <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
+            {onGoBlocker && c.button && <button type="button" className="small" data-blocker-code={b.code} data-guide-kind={g.kind} aria-label={c.aria} onClick={() => onGoBlocker(b, g)}>{c.button}</button>}
+          </div></li>; })}</ul></div>}
+      <NeverTrueFaults p={p} locked={locked} edit={edit} />
+    </div>
+  );
+}
+
+/** Previous single panel. Kept so a direct render still shows the hint, summary, and log together. */
+export function RuntimePanel({ p, rt, locked, edit, onGoBlocker }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
+  return (
+    <div>
+      <RunSummary p={p} rt={rt} />
+      <RunStatusExtras p={p} rt={rt} />
+      <RunInspectPanel p={p} locked={locked} edit={edit} onGoBlocker={onGoBlocker} />
     </div>
   );
 }

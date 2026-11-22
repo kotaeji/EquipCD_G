@@ -395,11 +395,15 @@ describe('TURN-023 flow edit polish', () => {
     const lane = C.wrapFlow(base, ids, 'parallel', () => 'P1');
     expect(lane.ok).toBe(true);
     if (!lane.ok) return;
-    const nested = C.wrapFlow(lane.project, ids, 'parallel');
+    // TURN-034 puts the two steps in separate lanes. Move them together so this still checks the lane rule.
+    const same = C.moveFlowInto(lane.project, ids[1], 'P1', 0);
+    expect(same.ok).toBe(true);
+    if (!same.ok) return;
+    const nested = C.wrapFlow(same.project, ids, 'parallel');
     expect(nested.ok).toBe(false);
     if (nested.ok) return;
     expect(nested.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
-    expect(C.wrapFlow(lane.project, ids, 'loop').ok).toBe(true);
+    expect(C.wrapFlow(same.project, ids, 'loop').ok).toBe(true);
 
     const sample = buildSampleProject();
     const sub = C.addSubstationNode(sample, sample.units[0].id, () => 'FLW-SUB');

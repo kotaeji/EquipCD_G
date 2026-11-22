@@ -5,8 +5,30 @@ import type { EditFn } from './Inspector';
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
-function DurationField({ action, disabled, onCommit }: { action: Action; disabled: boolean; onCommit: (value: number) => void }) {
-  const value = action.duration.value;
+export const TIMEOUT_WARN = '타임아웃이 동작 시간보다 짧습니다 — 실행하면 TIMEOUT';
+export const TIMEOUT_EQUAL = '타임아웃이 동작 시간과 같습니다 — 여유가 없습니다';
+
+/** Matches the engine tie rule: equal millisecond instants succeed, a shorter timeout is TIMEOUT. */
+function timeoutNote(action: Action): string | null {
+  const timeout = action.timeout.value;
+  const duration = action.duration.value;
+  if (timeout === null || duration === null) return null;
+  const timeoutMs = Math.round(timeout * 1000);
+  const durationMs = Math.round(duration * 1000);
+  if (timeoutMs < durationMs) return TIMEOUT_WARN;
+  if (timeoutMs === durationMs) return TIMEOUT_EQUAL;
+  return null;
+}
+
+function QuantityRow({ action, field, label, disabled, onCommit }: {
+  action: Action;
+  field: 'duration' | 'timeout';
+  label: string;
+  disabled: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const quantity = action[field];
+  const value = quantity.value;
   const [draft, setDraft] = useState<string | null>(null);
   useEffect(() => { setDraft(null); }, [value]);
   const shown = draft ?? (value === null ? '' : String(value));
@@ -20,29 +42,45 @@ function DurationField({ action, disabled, onCommit }: { action: Action; disable
   };
   const max = Math.max(10, Math.ceil((value ?? 1) + 1));
   const rangeValue = shown === '' || !Number.isFinite(Number(shown)) ? 0 : Number(shown);
+  const aria = field === 'duration' ? '동작 시간' : '타임아웃';
   return (
-    <div className="run3d-dur">
-      <span className="run3d-dur-name" title={action.name}>{action.name}</span>
-      <div className="run3d-dur-controls">
-      <input type="range" aria-label={`${action.name} 동작 시간`} min={0} max={max} step={0.1} disabled={disabled}
+    <div className="run3d-qty" data-field={field}>
+      <span className="run3d-qty-label">{label}</span>
+      <input type="range" aria-label={`${action.name} ${aria}`} min={0} max={max} step={0.1} disabled={disabled}
         value={Math.min(max, Math.max(0, rangeValue))}
         onChange={(e) => setDraft(e.target.value)}
         onPointerUp={(e) => commit((e.target as HTMLInputElement).value)}
         onBlur={(e) => commit(e.target.value)} />
-      <input type="number" className="num" aria-label={`${action.name} 동작 시간 숫자`} min={0} step={0.1} disabled={disabled}
+      <input type="number" className="num" aria-label={`${action.name} ${aria} 숫자`} min={0} step={0.1} disabled={disabled}
         value={shown}
         onChange={(e) => { setDraft(e.target.value); commit(e.target.value); }}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       <span className="muted">s</span>
-      {action.duration.assumption && <span className="badge">가정</span>}
-      </div>
+      {quantity.assumption && <span className="badge">가정</span>}
     </div>
   );
 }
 
-/** Right column of the 3D run view. Duration edits go through setQuantity. */
-export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, canRevert, onRevert, onDuration, folded, onToggleFold }: {
+function ActionTimes({ action, disabled, onDuration, onTimeout }: {
+  action: Action;
+  disabled: boolean;
+  onDuration: (value: number) => void;
+  onTimeout: (value: number) => void;
+}) {
+  const note = timeoutNote(action);
+  return (
+    <div className="run3d-dur">
+      <span className="run3d-dur-name" title={action.name}>{action.name}</span>
+      <QuantityRow action={action} field="duration" label="동작 시간" disabled={disabled} onCommit={onDuration} />
+      <QuantityRow action={action} field="timeout" label="타임아웃" disabled={disabled} onCommit={onTimeout} />
+      {note && <p className="run3d-timeout-warn" data-timeout-warn={action.id}>{note}</p>}
+    </div>
+  );
+}
+
+/** Right column of the 3D run view. Duration and timeout edits go through setQuantity. */
+export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold }: {
   p: Project;
   locked: boolean;
   edit: EditFn;
@@ -55,6 +93,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
   canRevert: boolean;
   onRevert: () => void;
   onDuration: (actionId: string, value: number) => void;
+  onTimeout: (actionId: string, value: number) => void;
   folded: boolean;
   onToggleFold: () => void;
 }) {
@@ -72,15 +111,19 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
       </label>
       <label className="run3d-check"><input type="checkbox" aria-label="이름 표시" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} />이름 표시</label>
       <label className="run3d-check"><input type="checkbox" aria-label="동작 강조" checked={emphasize} onChange={(e) => setEmphasize(e.target.checked)} />동작 강조</label>
-      <h3>동작 시간</h3>
-      {locked && <p className="run3d-lock" data-duration-locked="true">실행 중 · 일시정지 중에는 동작 시간을 바꿀 수 없습니다. 초기화한 뒤 편집하세요.</p>}
+      <h3>동작 시간 · 타임아웃</h3>
+      {locked && <p className="run3d-lock" data-duration-locked="true" data-timeout-locked="true">실행 중 · 일시정지 중에는 동작 시간과 타임아웃을 바꿀 수 없습니다. 초기화한 뒤 편집하세요.</p>}
       {p.units.map((unit) => {
         const actions = p.actions.filter((a) => a.unitId === unit.id);
         if (!actions.length) return null;
         return (
           <details key={unit.id} className="run3d-unit" open>
             <summary>{unit.name}</summary>
-            {actions.map((action) => <DurationField key={action.id} action={action} disabled={locked} onCommit={(value) => onDuration(action.id, value)} />)}
+            {actions.map((action) => (
+              <ActionTimes key={action.id} action={action} disabled={locked}
+                onDuration={(value) => onDuration(action.id, value)}
+                onTimeout={(value) => onTimeout(action.id, value)} />
+            ))}
           </details>
         );
       })}

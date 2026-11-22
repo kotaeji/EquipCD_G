@@ -101,7 +101,7 @@ describe('TURN-002 tree fold/unfold (AC4)', () => {
     seedTwo(); const u = await mount();
     await u.click(u.el.querySelector('.stepper [data-stepid="run"]')!);
     const bar = () => u.el.querySelector('.statusbar')!.textContent ?? '';
-    const h0 = bar(); expect(h0).toContain('실행 idle');
+    const h0 = bar(); expect(h0).toContain('실행 대기');
     await u.click(u.btn('트리 모두 접기'));
     expect(bar()).toBe(h0);
     await u.click(u.el.querySelector('.stepper [data-stepid="attributes"]')!);

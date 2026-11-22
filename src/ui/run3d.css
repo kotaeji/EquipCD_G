@@ -17,6 +17,7 @@
 
 .run3d-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .run-info h2, .run-conditions h2 { margin: 0 0 8px; font-size: 16px; }
+.run-info h3 { margin: 8px 0 2px; }
 .run-info.is-folded, .run-conditions.is-folded { padding: 8px 4px; }
 .run-info.is-folded h2, .run-conditions.is-folded h2 { display: none; }
 .run-info h3, .run-conditions h3 { margin: 12px 0 4px; font-size: 13px; }
@@ -46,12 +47,21 @@
 .run3d-field select { height: 32px; }
 .run3d-unit { margin: 6px 0; border-top: 1px solid var(--border); }
 .run3d-unit > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
-.run3d-dur { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin: 6px 0; font-size: 11px; }
+.run3d-dur { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin: 6px 0; font-size: 11px; min-width: 0; }
 .run3d-dur-name { display: block; width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; max-height: 2.7em; overflow: hidden; }
-.run3d-dur-controls { display: flex; align-items: center; gap: 4px; }
-.run3d-dur input[type="range"] { width: 72px; flex: 1 1 auto; min-width: 48px; }
-.run3d-dur input.num { width: 64px; height: 28px; }
-.run-conditions > button { margin-top: 8px; }
+.run3d-qty { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.run3d-qty-label { flex: 1 0 100%; color: var(--muted); overflow-wrap: anywhere; }
+.run3d-dur input[type="range"] { width: 72px; flex: 1 1 48px; min-width: 48px; }
+.run3d-dur input.num { width: 64px; max-width: 100%; height: 28px; }
+.run3d-timeout-warn { margin: 2px 0 6px; color: var(--danger); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.run-conditions > button { margin-top: 8px; white-space: normal; height: auto; min-height: 44px; overflow-wrap: anywhere; }
+.run3d-metric { margin: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.run3d-gap-kinds { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.run3d-gap-kinds li { padding: 0; overflow-wrap: anywhere; }
+.run-info button.run3d-gap-open { width: 100%; height: auto; min-height: 28px; white-space: normal; overflow-wrap: anywhere; margin-top: 4px; }
+.run3d-bars.units li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "track time"; }
+.run3d-bars.units li.is-bottleneck .run3d-bar-name { font-weight: 700; }
+.run3d-bars.units li.is-bottleneck .run3d-bar-fill { background: var(--warning); }
 
 .scene3d-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .scene3d-bar button { flex: 0 0 auto; white-space: nowrap; }
