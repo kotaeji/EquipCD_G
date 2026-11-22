@@ -281,6 +281,7 @@ describe('TURN-035 unified run layout', () => {
     await act(async () => { local.unmount(); });
   });
 
+  // Up to ~240 full-app clicks. The default 5s is tight on a busy runner (CI on TURN-036 timed out at 5081ms; the same test passed on another PR at the same time).
   it('AC8 a later running row is scrolled into view unless the list was just scrolled', async () => {
     const calls: HTMLElement[] = [];
     const origScroll = HTMLElement.prototype.scrollIntoView;
@@ -329,7 +330,7 @@ describe('TURN-035 unified run layout', () => {
       HTMLElement.prototype.scrollIntoView = origScroll;
       HTMLElement.prototype.getBoundingClientRect = origRect;
     }
-  });
+  }, 20_000);
 
   it('AC9 AC10 collapsing the explorer sets a 40px rail and keeps that choice', async () => {
     expect(styles).not.toContain('.app, .app.ex-collapsed { --exw: 224px; }');
