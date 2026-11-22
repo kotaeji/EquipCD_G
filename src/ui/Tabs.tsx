@@ -8,8 +8,9 @@ export interface TabSpec<T extends string> {
 }
 
 /**
- * Underline tabs: tablist, tab, tabpanel, and ←/→ to move the selection.
- * Only the selected panel is shown (`hidden` on the others).
+ * Underline tabs: tablist, tab, tabpanel.
+ * ←/→ move and wrap. Home and End jump to the first and last tab.
+ * Only the selected panel is shown (`hidden` on the others). The hidden panels stay mounted.
  */
 export function Tabs<T extends string>({ label, tabs, value, onChange, idBase = 'tabs' }: {
   label: string;
@@ -20,13 +21,16 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idBase = 
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
     const i = tabs.findIndex((t) => t.id === value);
-    if (i < 0) return;
+    if (i < 0 || tabs.length === 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const dir = e.key === 'ArrowRight' ? 1 : -1;
-    const next = tabs[(i + dir + tabs.length) % tabs.length];
+    const nextI = e.key === 'Home' ? 0
+      : e.key === 'End' ? tabs.length - 1
+        : e.key === 'ArrowRight' ? (i + 1) % tabs.length
+          : (i - 1 + tabs.length) % tabs.length;
+    const next = tabs[nextI];
     onChange(next.id);
     listRef.current?.querySelector<HTMLButtonElement>(`[data-tab-id="${next.id}"]`)?.focus();
   };

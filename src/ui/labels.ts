@@ -22,6 +22,26 @@ export function flowBlockWord(kind: FlowBlockKind): string {
   return FLOW_BLOCK_WORD[kind];
 }
 
+const RUN_STATUS_KO: Record<string, string> = {
+  idle: '대기',
+  running: '실행 중',
+  paused: '일시정지',
+  completed: '완료',
+  error: '오류',
+};
+
+/** Station run status on step 6. Step-row words stay in `stepStatusLabel`. */
+export function runStatusLabel(status: string | null | undefined): string {
+  if (!status) return RUN_STATUS_KO.idle;
+  return RUN_STATUS_KO[status] ?? status;
+}
+
+/** Status-bar phrase. 「실행 중」 already starts with 실행, so it is not prefixed again. */
+export function runStatusBar(status: string | null | undefined): string {
+  const word = runStatusLabel(status);
+  return word === '실행 중' ? word : `실행 ${word}`;
+}
+
 export function sigName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; return p.signals.find((s) => s.id === id)?.name ?? `⚠없음:${id}`; }
 export function unitName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; if (id === 'EXIT') return '배출(장비 밖)'; return p.units.find((u) => u.id === id)?.name ?? `⚠없음:${id}`; }
 export function devName(p: Project, id: string | null | undefined) { if (!id) return '(없음)'; return p.devices.find((d) => d.id === id)?.name ?? `⚠없음:${id}`; }

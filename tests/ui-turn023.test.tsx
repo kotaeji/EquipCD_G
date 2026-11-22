@@ -101,7 +101,7 @@ describe('TURN-023 flow editor UI', () => {
       if (Number.isFinite(wallMs) && wallMs > 0) await clock.wall(wallMs);
       await clock.elapse(15_000);
       expect(clock.queued()).toBeGreaterThan(0);
-      expect(u2.el.textContent).toContain('running');
+      expect(u2.el.textContent).toContain('시뮬 실행 중');
       await u2.click(u2.el.querySelector('.stepper [data-stepid="sequence"]')!);
       await u2.click(u2.btn('Station 시퀀스 Draft (F5)', u2.el.querySelector('.subtabs')!));
       expect((u2.row('branch').querySelector('input[aria-label="분기 이름"]') as HTMLInputElement).disabled).toBe(true);

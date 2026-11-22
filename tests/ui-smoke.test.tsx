@@ -96,17 +96,17 @@ describe('UI smoke (jsdom)', () => {
     try {
       await click(btn('▶ 실행'));
       expect(clock.queued()).toBeGreaterThan(0);
-      expect(txt()).toContain('running');
+      expect(txt()).toContain('시뮬 실행 중');
       expect(btn('+ 시퀀스 추가')).toBeUndefined();
     } finally {
       clock.restore();
     }
     await click(btn('끝까지'));
-    expect(txt()).toContain('completed');
+    expect(txt()).toContain('시뮬 완료');
     expect(txt()).toContain('RUN_COMPLETE');
     expect(rev()).toBe(r1);
     await click(btn('⟲ 초기화'));
-    expect(txt()).toContain('idle');
+    expect(txt()).toContain('시뮬 대기');
     await act(async () => { root.unmount(); });
   });
 });

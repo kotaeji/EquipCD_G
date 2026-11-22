@@ -829,3 +829,21 @@ button.on,
 }
 .tree div.sel { box-shadow: inset 3px 0 0 var(--accent); }
 .card.sel { border-width: 2px; box-shadow: 0 0 0 2px var(--accent); }
+
+/* TURN-030: run-step tabs. The diagram fills the tab; the page itself does not scroll. */
+.app .ws-run > .center.run-main {
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  gap: 8px; padding: 8px 12px 8px; background: var(--bg);
+}
+.app .ws-run > .center.run-main > .sheet { flex: 0 1 auto; min-height: 0; max-height: 38%; overflow: auto; }
+.run-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.run-tabs > .ui-tabs-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.run-tabs .ui-tabs-panel:not([hidden]) {
+  flex: 1 1 auto; min-height: 0; overflow: auto;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.run-tabs #run-panel-diagram:not([hidden]) { overflow: hidden; padding: 8px; }
+.run-tabs #run-panel-diagram:not([hidden]) .diagram-canvas {
+  flex: 1 1 auto; height: auto; min-height: 360px;
+}
+.run-inspect { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

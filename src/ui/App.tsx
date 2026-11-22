@@ -20,14 +20,14 @@ import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
-import { connectStartLabel, devName, unitName } from './labels';
+import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
-import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RuntimePanel, SequencePanel, SfcPanel } from './Panels';
+import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RunInspectPanel, RunStatusExtras, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { SubSequencePanel } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
-import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type UserView } from './viewSettings';
+import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type RunTab, type UserView } from './viewSettings';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
 import * as W from '../storage/workspaces';
@@ -40,6 +40,7 @@ import { PanelSplit } from './PanelSplit';
 import { RunConditions } from './RunConditions';
 import { RunInfoPanel } from './RunInfoPanel';
 import { Scene3D } from './Scene3D';
+import { RunSummary } from './RunSummary';
 import { Tabs } from './Tabs';
 
 interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; gaps: Gap[]; analyzedRevision: number | null }
@@ -492,6 +493,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const openLayoutTab = (id: LayoutTab) => {
     setView((v) => (v.layoutTab === id ? v : { ...v, layoutTab: id }));
+  };
+  const openRunTab = (id: RunTab) => {
+    setView((v) => (v.runTab === id ? v : { ...v, runTab: id }));
   };
   const showOpen = () => {
     if (!kv) { say(`${storage.reason}. JSON 가져오기를 사용하세요.`, true); return; }
@@ -1120,7 +1124,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <div className="toolbar tool-pills">
           {runControls}<div className="sep" />{runViewToggle}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
-          <span className="badge">{rt?.status === 'completed' ? '시뮬 완료' : `시뮬 ${rt?.status ?? 'idle'}`}</span>
+          <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
           <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
         {view.runView === '3d' && scene3d ? <>
           <RunInfoPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldInfo} onToggleFold={() => setFoldInfo((v) => !v)} />
@@ -1129,27 +1133,33 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
             emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} />
         </> : <>
-        <div className="center sparse-page">
+        <div className="center run-main">
         {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
-          <section className="sheet">
-            <h2>Station 실행 상태</h2>
-            <div className="form-grid">
-              <label>실행 상태<span className="field-ro">{rt?.status ?? 'idle'}{locked ? ' · 편집 잠금' : ''}</span></label>
-              <label>가상 시간<span className="field-ro">{fmtTime(rt?.timeMs ?? 0)}</span></label>
-            </div>
-            <table className="grid plain"><thead><tr><th>단계</th><th>갈래 · 회차</th><th>상태</th><th>자재</th></tr></thead>
-              <tbody>{orderRunRecords(p, rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const }))).map((row, i) => {
-                const rowStep = p.sequence.steps.find((s) => s.id === row.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === row.stepId);
-                const where = [('lane' in row ? row.lane : undefined), ('pass' in row && row.pass ? `${row.pass}회` : '')].filter(Boolean).join(' ');
-                const label = stepStatusLabel(row.status);
-                return <tr key={`${row.stepId}:${i}`}><td>{rowStep?.name ?? row.stepId}</td><td>{where || '—'}</td><td>{label}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
-              })}</tbody></table>
-            <p className="muted">이 값은 이번 실행의 가상 시각과 단계 상태입니다. 예시 시각을 고정해 두지 않습니다. 논리 실행이며 안전 판정이 아닙니다.</p>
-          </section>
-        <Fold className="fold-panel" summary="실행 도면, 로그, 차단 이동">
-          <div className="diagram-canvas">{runCanvasEl}</div>
-          <RuntimePanel p={p} rt={rt} locked={locked} edit={edit} onGoBlocker={goBlocker} />
-        </Fold>
+          <div className="run-tabs">
+            <Tabs label="실행" idBase="run" value={view.runTab} onChange={openRunTab} tabs={[
+              { id: 'status', label: '실행 상태', panel: <>
+                <section className="sheet">
+                  <h2>Station 실행 상태</h2>
+                  <div className="form-grid">
+                    <label>실행 상태<span className="field-ro">{runStatusLabel(rt?.status)}{locked ? ' · 편집 잠금' : ''}</span></label>
+                    <label>가상 시간<span className="field-ro">{fmtTime(rt?.timeMs ?? 0)}</span></label>
+                  </div>
+                  <table className="grid plain"><thead><tr><th>단계</th><th>갈래 · 회차</th><th>상태</th><th>자재</th></tr></thead>
+                    <tbody>{orderRunRecords(p, rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const }))).map((row, i) => {
+                      const rowStep = p.sequence.steps.find((s) => s.id === row.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === row.stepId);
+                      const where = [('lane' in row ? row.lane : undefined), ('pass' in row && row.pass ? `${row.pass}회` : '')].filter(Boolean).join(' ');
+                      const label = stepStatusLabel(row.status);
+                      return <tr key={`${row.stepId}:${i}`}><td>{rowStep?.name ?? row.stepId}</td><td>{where || '—'}</td><td>{label}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
+                    })}</tbody></table>
+                  <p className="muted">이 값은 이번 실행의 가상 시각과 단계 상태입니다. 예시 시각을 고정해 두지 않습니다. 논리 실행이며 안전 판정이 아닙니다.</p>
+                </section>
+                <RunSummary p={p} rt={rt} />
+                <RunStatusExtras p={p} rt={rt} />
+              </> },
+              { id: 'diagram', label: '실행 도면', panel: <div className="diagram-canvas">{runCanvasEl}</div> },
+              { id: 'inspect', label: '검사 · 오류 주입', panel: <RunInspectPanel p={p} locked={locked} edit={edit} onGoBlocker={goBlocker} /> },
+            ]} />
+          </div>
         </div>
         <div className="right run-side">
           <PanelSplit kind="run" value={view.panels.run} onChange={(n) => setPanel('run', n)} label="실행 패널 너비" />
@@ -1168,7 +1178,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       <div className="statusbar">
         <b>논리 시뮬레이션 · 실제 장비 제어/안전 검증 아님</b>
         <span>rev {p.revision}</span><span>Undo {tab.history.past.length}</span>
-        <span>실행 {rt?.status ?? 'idle'}</span>
+        <span>{runStatusBar(rt?.status)}</span>
         {locked && <span>실행 중 편집 잠금</span>}
         <span className="grow" />
         {!view.home && <>

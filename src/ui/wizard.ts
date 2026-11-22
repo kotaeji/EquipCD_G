@@ -6,6 +6,7 @@ import type { Gap } from '../model/gaps';
 import type { Project } from '../model/types';
 import { checkRunReadiness } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
+import { runStatusLabel } from './labels';
 
 export type StepId = 'library' | 'canvas' | 'attributes' | 'sequence' | 'check' | 'run';
 export const STEPS: { id: StepId; no: number; label: string; workspace: string; goal: string }[] = [
@@ -88,7 +89,7 @@ export function evaluateSteps(p: Project, ctx: EvalContext): Record<StepId, Step
   // 6 run / save
   const s6: StepItem[] = [];
   if (!rd.ok) s6.push({ level: 'missing', text: `실행 전 검사 미통과 (${rd.blockers.length}건) — 5 점검 단계 참고`, targetStep: 'check' });
-  if (!ctx.rt || ctx.rt.status !== 'completed') s6.push({ level: 'undetermined', text: ctx.rt ? `시뮬 상태 ${ctx.rt.status} (완료 아님)` : '아직 실행하지 않음' });
+  if (!ctx.rt || ctx.rt.status !== 'completed') s6.push({ level: 'undetermined', text: ctx.rt ? `시뮬 상태 ${runStatusLabel(ctx.rt.status)} (완료 아님)` : '아직 실행하지 않음' });
   if (!ctx.saved) s6.push({ level: 'undetermined', text: '저장되지 않은 변경 있음' });
   mk('run', s6, { r: p.revision, st: ctx.rt?.status ?? null, saved: ctx.saved });
   return out;
