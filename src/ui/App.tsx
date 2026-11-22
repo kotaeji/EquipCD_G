@@ -9,7 +9,7 @@ import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject 
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
-import { describeScene } from '../scene/describe';
+import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
@@ -131,6 +131,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [speed, setSpeed] = useState(1);
   const [showNames, setShowNames] = useState(true);
   const [emphasizeMotion, setEmphasizeMotion] = useState(true);
+  const [equipmentMotion, setEquipmentMotion] = useState(() => equipmentMotionDefault(prefersReducedMotion()));
   const [foldSteps, setFoldSteps] = useState(false);
   const [foldCond, setFoldCond] = useState(false);
   const durationBaseline = useRef<{ sessionKey: string; depth: number; snap: DurationSnap[] } | null>(null);
@@ -767,7 +768,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button type="button" role="radio" aria-checked={view.runView === 'diagram'} className={view.runView === 'diagram' ? 'on' : ''} onClick={() => setRunView('diagram')}>도면</button>
     <button type="button" role="radio" aria-checked={view.runView === '3d'} className={view.runView === '3d' ? 'on' : ''} onClick={() => setRunView('3d')}>3D</button>
   </div>;
-  const scene3d = view.runView === '3d' ? describeScene(p, rt) : null;
+  const scene3d = view.runView === '3d' ? presentScene(p, rt, equipmentMotion) : null;
   const activeDeviceIds = (rt?.flowRun?.fibers ?? []).flatMap((f) => {
     if (!f.active) return [];
     const step = p.sequence.steps.find((s) => s.id === f.active!.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === f.active!.stepId);
@@ -1144,14 +1145,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
           <div className="run-canvas">
             {view.runView === '3d' && scene3d
-              ? <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
+              ? <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} equipmentMotion={equipmentMotion} running={rt?.status === 'running'} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
                 onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
               : <div className="diagram-canvas">{runCanvasEl}</div>}
           </div>
           <RunDetails p={p} rt={rt} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} />
         </div>
         <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
-          emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
+          emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
           sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} />
       </div>}
 

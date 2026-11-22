@@ -359,12 +359,18 @@ describe('TURN-035 unified run layout', () => {
     const u = await mount();
     const names = u.el.querySelector('[aria-label="이름 표시"]') as HTMLInputElement;
     const motion = u.el.querySelector('[aria-label="동작 강조"]') as HTMLInputElement;
+    const equipment = u.el.querySelector('[aria-label="설비 동작"]') as HTMLInputElement;
     expect(names.disabled).toBe(true);
     expect(names.checked).toBe(false);
     expect(names.title).toBe(VIEW_3D_ONLY);
     expect(motion.disabled).toBe(true);
+    expect(equipment.disabled).toBe(true);
+    expect(equipment.checked).toBe(false);
+    expect(equipment.title).toBe(VIEW_3D_ONLY);
     await u.click(u.btn('3D'));
     expect((u.el.querySelector('[aria-label="이름 표시"]') as HTMLInputElement).disabled).toBe(false);
     expect((u.el.querySelector('[aria-label="이름 표시"]') as HTMLInputElement).checked).toBe(true);
+    expect((u.el.querySelector('[aria-label="설비 동작"]') as HTMLInputElement).disabled).toBe(false);
+    expect((u.el.querySelector('[aria-label="설비 동작"]') as HTMLInputElement).checked).toBe(true);
   });
 });

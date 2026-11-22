@@ -70,8 +70,39 @@ const box = (name: string, role: PartRole, x: number, y: number, z: number, w: n
 const cyl = (name: string, role: PartRole, x: number, y: number, z: number, w: number, h: number, d: number, axis: 'x' | 'y' | 'z', color?: string): StyledPart =>
   ({ name, role, primitive: 'cylinder', x, y, z, w, h, d, axis, color });
 
+const PHOTO_MOTION: Partial<Record<ShapeId, Record<string, string>>> = {
+  conveyor: { belt: 'belt', roller: 'roller' },
+  gantry: { head: 'head' },
+  picker: { finger: 'grip', gripper: 'grip' },
+  cylinder: { rod: 'rod' },
+  pusher: { rod: 'blade', blade: 'blade' },
+  stopper: { pin: 'pin', cap: 'pin' },
+  sensor: { lens: 'lamp' },
+  photoelectric: { lens: 'lamp' },
+  proximity: { face: 'lamp' },
+  limit: { body: 'lamp' },
+  barcode: { lens: 'lamp' },
+  unitInput: { deck: 'belt', roller: 'roller' },
+  unitIdentify: { lamp: 'lamp' },
+  unitTransfer: { belt: 'belt', roller: 'roller' },
+  box: { box: 'lamp' },
+};
+
+function tagPhotoMotion(shape: ShapeId, parts: StyledPart[]): StyledPart[] {
+  const map = PHOTO_MOTION[shape];
+  if (!map) return parts;
+  return parts.map((part) => {
+    const motion = map[part.name];
+    return motion ? { ...part, motion } : part;
+  });
+}
+
 /** Photo parts for one footprint. An unknown shape is a single frame box. */
 export function photoPartsFor(shape: ShapeId, w: number, d: number): StyledPart[] {
+  return tagPhotoMotion(shape, photoPartsRaw(shape, w, d));
+}
+
+function photoPartsRaw(shape: ShapeId, w: number, d: number): StyledPart[] {
   const ww = Math.max(8, w);
   const dd = Math.max(8, d);
   const rise = Math.max(64, Math.min(ww, dd) * 1.15);
