@@ -40,7 +40,7 @@ function DurationField({ action, disabled, onCommit }: { action: Action; disable
 }
 
 /** Right column of the 3D run view. Duration edits go through setQuantity. */
-export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, canRevert, onRevert, onDuration }: {
+export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, canRevert, onRevert, onDuration, folded, onToggleFold }: {
   p: Project;
   locked: boolean;
   edit: EditFn;
@@ -53,10 +53,16 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
   canRevert: boolean;
   onRevert: () => void;
   onDuration: (actionId: string, value: number) => void;
+  folded: boolean;
+  onToggleFold: () => void;
 }) {
   return (
-    <aside className="run-conditions" aria-label="가동 조건">
-      <h2>가동 조건</h2>
+    <aside className={`run-conditions ${folded ? 'is-folded' : ''}`} aria-label="가동 조건">
+      <div className="run3d-head">
+        <h2>가동 조건</h2>
+        <button type="button" className="small" aria-label={folded ? '가동 조건 펼치기' : '가동 조건 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
+      </div>
+      {!folded && <>
       <label className="run3d-field">배속
         <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
           {SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}
@@ -81,6 +87,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
       <ReadFailFaults p={p} locked={locked} edit={edit} />
       <NeverTrueFaults p={p} locked={locked} edit={edit} />
       <p className="run3d-note">시간 · 속도는 가정값입니다. 실제 택트가 아닙니다.</p>
+      </>}
     </aside>
   );
 }

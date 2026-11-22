@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
-  AmbientLight, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, ConeGeometry,
-  CylinderGeometry, DirectionalLight, EdgesGeometry, Group, LineBasicMaterial, LineSegments,
-  Mesh, MeshBasicMaterial, MeshStandardMaterial, PerspectiveCamera, Raycaster, Scene, Sprite,
-  SpriteMaterial, SRGBColorSpace, TorusGeometry, Vector2, WebGLRenderer, type Material, type Object3D,
+  AmbientLight, BoxGeometry, Color, ConeGeometry, CylinderGeometry, DirectionalLight,
+  Group, Mesh, MeshStandardMaterial, PerspectiveCamera, Raycaster, Scene, SRGBColorSpace,
+  Vector2, Vector3, WebGLRenderer, type Material, type Object3D,
 } from 'three';
 import { applyCameraKey, fitCamera, gestureMode, orbitCamera, panCamera, zoomCamera, type CameraState } from '../scene/camera';
 import type { SceneDescription } from '../scene/describe';
+import { cullOverlappingLabels, type ScreenLabel } from '../scene/labels';
 import type { LocalPart } from '../scene/shapes';
 import { canUseWebGL } from './webgl';
 import { THEMES } from './viewSettings';
@@ -36,8 +36,8 @@ function readPalette(): ScenePalette {
     floor: pick('--bg', fallback.bg),
     zone: pick('--selected', fallback.selected),
     zoneLine: pick('--border', fallback.border),
-    solid: pick('--muted', fallback.muted),
-    active: pick('--accent', fallback.accent),
+    solid: pick('--success', fallback.success),
+    active: pick('--warning', fallback.warning),
     fault: pick('--danger', fallback.danger),
     beacon: pick('--warning', fallback.warning),
     material: pick('--warning', fallback.warning),
@@ -86,40 +86,45 @@ function partMesh(part: LocalPart, color: string): Mesh {
   return mesh;
 }
 
-function makeLabel(text: string, color: string): Sprite {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 96;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '600 36px sans-serif';
-    ctx.fillStyle = color;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, 256, 48);
-  }
-  const tex = new CanvasTexture(canvas);
-  const sprite = new Sprite(new SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-  sprite.scale.set(90, 18, 1);
-  sprite.userData.label = true;
-  return sprite;
+function zoneBorder(x: number, z: number, w: number, d: number, color: string): Group {
+  const g = new Group();
+  const t = 4;
+  const h = 3;
+  const y = h / 2;
+  const mat = () => new MeshStandardMaterial({ color, roughness: 0.8 });
+  const add = (px: number, pz: number, bw: number, bd: number) => {
+    const mesh = new Mesh(new BoxGeometry(bw, h, bd), mat());
+    mesh.position.set(px, y, pz);
+    g.add(mesh);
+  };
+  add(x + w / 2, z + t / 2, w, t);
+  add(x + w / 2, z + d - t / 2, w, t);
+  add(x + t / 2, z + d / 2, t, d);
+  add(x + w - t / 2, z + d / 2, t, d);
+  return g;
 }
 
-function lineLoop(x: number, z: number, w: number, d: number, color: string): LineSegments {
-  const y = 0.6;
-  const positions = new Float32Array([
-    x, y, z, x + w, y, z,
-    x + w, y, z, x + w, y, z + d,
-    x + w, y, z + d, x, y, z + d,
-    x, y, z + d, x, y, z,
-  ]);
-  const geo = new BufferGeometry();
-  geo.setAttribute('position', new BufferAttribute(positions, 3));
-  return new LineSegments(geo, new LineBasicMaterial({ color }));
+function arrowBetween(ax: number, az: number, bx: number, bz: number, color: string): Group {
+  const g = new Group();
+  const dir = new Vector3(bx - ax, 0, bz - az);
+  const len = dir.length();
+  if (len < 8) return g;
+  dir.normalize();
+  const head = 22;
+  const shaft = Math.max(8, len - head);
+  const mid = new Vector3(ax, 3, az).addScaledVector(dir, shaft / 2);
+  const beam = new Mesh(new BoxGeometry(6, 3, shaft), new MeshStandardMaterial({ color, roughness: 0.5 }));
+  beam.position.copy(mid);
+  beam.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), dir);
+  g.add(beam);
+  const cone = new Mesh(new ConeGeometry(10, head, 14), new MeshStandardMaterial({ color, roughness: 0.4 }));
+  cone.position.set(bx - dir.x * head / 2, 3, bz - dir.z * head / 2);
+  cone.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), dir);
+  g.add(cone);
+  return g;
 }
 
-function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette, showNames: boolean, emphasize: boolean, selectedId: string | null) {
+function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette, emphasize: boolean) {
   disposeTree(root);
   root.clear();
   const pad = 80;
@@ -133,89 +138,121 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
 
   for (const zone of scene.zones) {
     const fill = new Mesh(
-      new BoxGeometry(zone.w, 0.4, zone.d),
-      new MeshStandardMaterial({ color: palette.zone, transparent: true, opacity: 0.55, roughness: 1 }),
+      new BoxGeometry(Math.max(1, zone.w - 8), 1, Math.max(1, zone.d - 8)),
+      new MeshStandardMaterial({ color: palette.zone, roughness: 1 }),
     );
-    fill.position.set(zone.x + zone.w / 2, 0.2, zone.z + zone.d / 2);
+    fill.position.set(zone.x + zone.w / 2, 0.4, zone.z + zone.d / 2);
     root.add(fill);
-    root.add(lineLoop(zone.x, zone.z, zone.w, zone.d, palette.zoneLine));
-    if (showNames) {
-      const label = makeLabel(zone.name, palette.label);
-      label.position.set(zone.x + zone.w / 2, 6, zone.z + 10);
-      root.add(label);
-    }
+    root.add(zoneBorder(zone.x, zone.z, zone.w, zone.d, palette.edge));
   }
 
   for (const solid of scene.solids) {
     const group = new Group();
-    group.position.set(solid.x, 0, solid.z);
+    group.position.set(solid.draw.x, 0, solid.draw.z);
     group.userData.deviceId = solid.id;
-    const emphasized = emphasize && solid.highlight !== 'none';
     const color = solid.highlight === 'fault' && emphasize ? palette.fault
       : solid.highlight === 'active' && emphasize ? palette.active
         : palette.solid;
-    let top = 8;
-    for (const part of solid.parts) {
-      const mesh = partMesh(part, color);
-      group.add(mesh);
-      top = Math.max(top, part.y + part.h / 2);
-      if (emphasized || solid.id === selectedId) {
-        const edges = new LineSegments(new EdgesGeometry(mesh.geometry), new LineBasicMaterial({ color: palette.edge }));
-        edges.position.copy(mesh.position);
-        edges.rotation.copy(mesh.rotation);
-        group.add(edges);
-      }
-    }
-    if (emphasized && solid.highlight === 'active') {
-      const ring = new Mesh(new TorusGeometry(Math.max(solid.w, solid.d) * 0.42, 1.4, 8, 24), new MeshBasicMaterial({ color: palette.edge }));
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(solid.w / 2, 1.2, solid.d / 2);
-      group.add(ring);
-    }
-    if (emphasized && solid.highlight === 'fault') {
-      const beacon = new Mesh(new BoxGeometry(6, 18, 6), new MeshStandardMaterial({ color: palette.beacon }));
-      beacon.position.set(solid.w / 2, top + 12, solid.d / 2);
-      group.add(beacon);
-    }
-    if (showNames) {
-      const label = makeLabel(solid.name, palette.label);
-      label.position.set(solid.w / 2, top + (emphasized && solid.highlight === 'fault' ? 28 : 14), solid.d / 2);
-      group.add(label);
-    }
+    for (const part of solid.parts) group.add(partMesh(part, color));
     root.add(group);
   }
 
   for (const flow of scene.flows) {
     const [a, c] = flow.points;
     if (!a || !c) continue;
-    const geo = new BufferGeometry();
-    geo.setAttribute('position', new BufferAttribute(new Float32Array([a.x, 1.2, a.z, c.x, 1.2, c.z]), 3));
-    root.add(new LineSegments(geo, new LineBasicMaterial({ color: palette.flow })));
-    const head = new Mesh(new ConeGeometry(5, 14, 8), new MeshStandardMaterial({ color: palette.flow }));
-    head.position.set(c.x, 1.2, c.z);
-    head.lookAt(c.x * 2 - a.x, 1.2, c.z * 2 - a.z);
-    head.rotateX(Math.PI / 2);
-    root.add(head);
+    root.add(arrowBetween(a.x, a.z, c.x, c.z, palette.flow));
   }
 
   for (const mat of scene.materials) {
-    const box = new Mesh(new BoxGeometry(16, 12, 16), new MeshStandardMaterial({ color: palette.material }));
-    box.position.set(mat.x, 8, mat.z);
+    const box = new Mesh(new BoxGeometry(42, 30, 42), new MeshStandardMaterial({ color: palette.material, roughness: 0.45 }));
+    box.position.set(mat.x, 18, mat.z);
     root.add(box);
   }
 }
 
-function SceneCanvas({ scene, palette, cam, showNames, emphasize, selectedId, onCamera, onSelect }: {
+function topOf(parts: LocalPart[]): number {
+  return parts.reduce((h, part) => Math.max(h, part.y + part.h / 2), 12);
+}
+
+function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneDescription, showNames: boolean, emphasize: boolean) {
+  const w = layer.clientWidth || 1;
+  const h = layer.clientHeight || 1;
+  const project = (x: number, y: number, z: number) => {
+    const v = new Vector3(x, y, z).project(camera);
+    if (v.z < -1 || v.z > 1) return null;
+    return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h };
+  };
+  const rough = (text: string, px: number) => ({ w: Math.max(28, text.length * px * 0.62 + 10), h: px + 8 });
+  const boxes: ScreenLabel[] = [];
+  if (showNames) {
+    for (const zone of scene.zones) {
+      const at = project(zone.x + zone.w / 2, 8, zone.z + 6);
+      if (!at) continue;
+      const size = rough(zone.name, 14);
+      boxes.push({ id: `u:${zone.id}`, kind: 'unit', x: at.x - size.w / 2, y: at.y - size.h, w: size.w, h: size.h, text: zone.name });
+    }
+    for (const solid of scene.solids) {
+      const top = topOf(solid.parts);
+      const at = project(solid.draw.x + solid.draw.w / 2, top + 6, solid.draw.z + solid.draw.d / 2);
+      if (!at) continue;
+      const size = rough(solid.name, 12);
+      boxes.push({ id: `d:${solid.id}`, kind: 'device', x: at.x - size.w / 2, y: at.y - size.h - 18, w: size.w, h: size.h, text: solid.name });
+    }
+  }
+  if (emphasize) {
+    for (const solid of scene.solids) {
+      if (solid.highlight === 'none') continue;
+      const text = solid.highlight === 'fault' ? '오류' : '▼ 동작 중';
+      const top = topOf(solid.parts);
+      const at = project(solid.draw.x + solid.draw.w / 2, top + 18, solid.draw.z + solid.draw.d / 2);
+      if (!at) continue;
+      const size = rough(text, 13);
+      boxes.push({ id: `m:${solid.id}`, kind: 'marker', x: at.x - size.w / 2, y: at.y - size.h - 36, w: size.w, h: size.h, text });
+    }
+  }
+  for (const mat of scene.materials) {
+    const text = `${mat.name} · ${mat.state || '상태 없음'}`;
+    const at = project(mat.x, 40, mat.z);
+    if (!at) continue;
+    const size = rough(text, 12);
+    boxes.push({ id: `mat:${mat.id}`, kind: 'material', x: at.x - size.w / 2, y: at.y - size.h, w: size.w, h: size.h, text });
+  }
+  const kept = cullOverlappingLabels(boxes);
+  layer.replaceChildren(...kept.map((label) => {
+    const el = document.createElement('div');
+    const marker = label.kind === 'marker' ? (label.text === '오류' ? ' fault' : ' active') : '';
+    el.className = `scene3d-label ${label.kind}${marker}`;
+    el.textContent = label.text;
+    el.style.left = `${label.x + label.w / 2}px`;
+    el.style.top = `${label.y + label.h}px`;
+    return el;
+  }));
+}
+
+function SceneCanvas({ scene, palette, cam, showNames, emphasize, onCamera, onSelect, onAspect }: {
   scene: SceneDescription;
   palette: ScenePalette;
   cam: CameraState;
   showNames: boolean;
   emphasize: boolean;
-  selectedId: string | null;
   onCamera: (fn: (cam: CameraState) => CameraState) => void;
   onSelect: (id: string | null) => void;
+  onAspect: (aspect: number) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
+  const aspectSink = useRef(onAspect);
+  aspectSink.current = onAspect;
+  const viewProps = useRef({ scene, showNames, emphasize });
+  viewProps.current = { scene, showNames, emphasize };
+  const paintLabels = () => {
+    const view = api.current;
+    if (!view || !labelRef.current) return;
+    const current = viewProps.current;
+    syncLabels(labelRef.current, view.camera, current.scene, current.showNames, current.emphasize);
+  };
+  const paintSink = useRef(paintLabels);
+  paintSink.current = paintLabels;
   const api = useRef<{
     renderer: WebGLRenderer;
     camera: PerspectiveCamera;
@@ -224,8 +261,8 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, selectedId, on
     render: () => void;
   } | null>(null);
   const drag = useRef<{ x: number; y: number; button: number; shift: boolean; moved: boolean } | null>(null);
-  const props = useRef({ scene, palette, showNames, emphasize, selectedId, onSelect });
-  props.current = { scene, palette, showNames, emphasize, selectedId, onSelect };
+  const props = useRef({ scene, palette, showNames, emphasize, onSelect });
+  props.current = { scene, palette, showNames, emphasize, onSelect };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -255,6 +292,8 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, selectedId, on
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       render();
+      paintSink.current();
+      aspectSink.current(w / h);
     };
     const ro = new ResizeObserver(resize);
     ro.observe(host);
@@ -279,10 +318,13 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, selectedId, on
     const view = api.current;
     if (!view) return;
     view.scene.background = new Color(palette.background);
-    buildScene(view.root, scene, palette, showNames, emphasize, selectedId);
+    buildScene(view.root, scene, palette, emphasize);
     applyCamera(view.camera, cam);
+    view.camera.aspect = Math.max(0.2, view.renderer.domElement.clientWidth / Math.max(1, view.renderer.domElement.clientHeight));
+    view.camera.updateProjectionMatrix();
     view.render();
-  }, [scene, palette, showNames, emphasize, selectedId, cam]);
+    if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize);
+  }, [scene, palette, showNames, emphasize, cam]);
 
   const pick = (ev: PointerEvent): string | null => {
     const view = api.current;
@@ -329,7 +371,9 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, selectedId, on
         drag.current = null;
         if (d && !d.moved && d.button === 0) props.current.onSelect(pick(e.nativeEvent));
       }}
-      onContextMenu={(e) => e.preventDefault()} />
+      onContextMenu={(e) => e.preventDefault()}>
+      <div className="scene3d-labels" ref={labelRef} />
+    </div>
   );
 }
 
@@ -346,6 +390,7 @@ export function Scene3D({ scene, showNames, emphasize, selectedId, onSelect, onD
   const [palette, setPalette] = useState(readPalette);
   const boundsKey = useMemo(() => scene.zones.map((z) => z.id).join('|') + '/' + scene.solids.map((s) => `${s.id}:${s.x}:${s.z}`).join('|'), [scene]);
   const [cam, setCam] = useState<CameraState>(() => fitCamera(scene.bounds));
+  const moved = useRef(false);
   const seen = useRef(boundsKey);
   useEffect(() => {
     const app = document.querySelector('.app');
@@ -362,25 +407,35 @@ export function Scene3D({ scene, showNames, emphasize, selectedId, onSelect, onD
     setCam((c) => fitCamera(scene.bounds, c.aspect));
   }, [boundsKey, scene.bounds]);
 
+  const onAspect = (aspect: number) => {
+    setCam((c) => {
+      if (Math.abs(c.aspect - aspect) < 0.01 && moved.current) return c;
+      if (moved.current) return { ...c, aspect };
+      const next = fitCamera(scene.bounds, aspect);
+      if (Math.abs(next.distance - c.distance) < 0.5 && Math.abs(next.aspect - c.aspect) < 0.01) return c;
+      return next;
+    });
+  };
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     const next = applyCameraKey(cam, e.key, scene.bounds);
     if (!next) return;
     e.preventDefault();
+    if (e.key !== 'Home') moved.current = true;
     setCam(next);
   };
 
   return (
-    <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey}
+    <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-selected-device={selectedId ?? ''}
       data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}>
       <div className="scene3d-bar">
-        <button type="button" aria-label="전체 보기" onClick={() => setCam((c) => fitCamera(scene.bounds, c.aspect))}>전체 보기</button>
+        <button type="button" aria-label="전체 보기" onClick={() => { moved.current = false; setCam((c) => fitCamera(scene.bounds, c.aspect)); }}>전체 보기</button>
         <p className="scene3d-help">끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기</p>
       </div>
       {gl
-        ? <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize} selectedId={selectedId}
-          onCamera={setCam} onSelect={onSelect} />
+        ? <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize}
+          onCamera={(fn) => { moved.current = true; setCam(fn); }} onSelect={onSelect} onAspect={onAspect} />
         : <div className="scene3d-fallback" role="status">
           <p>이 브라우저에서는 3D 를 그릴 수 없습니다</p>
           <button type="button" onClick={onDiagram}>도면으로 보기</button>

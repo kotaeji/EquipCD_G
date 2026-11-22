@@ -98,7 +98,8 @@ describe('TURN-029 3D run view', () => {
     expect(sample.el.querySelector('[data-run-view]')!.getAttribute('data-run-view')).toBe('diagram');
     await sample.click(sample.btn('3D'));
     expect(sample.el.querySelector('[data-run-time]')!.textContent).toBe('00:11.100');
-    expect(sample.el.querySelector('[data-run-status]')!.textContent).toBe('completed');
+    expect(sample.el.querySelector('[data-run-status]')!.getAttribute('data-run-status')).toBe('completed');
+    expect(sample.el.querySelector('[data-run-status]')!.textContent).toBe('완료');
 
     const flow = await open3d('flow');
     await runToEnd(flow);
@@ -115,7 +116,7 @@ describe('TURN-029 3D run view', () => {
     expect(u.el.querySelector('.run-info')!.textContent).toContain('가정');
     await runToEnd(u);
     const info = u.el.querySelector('.run-info')!;
-    expect(info.querySelector('[data-run-status]')!.textContent).toBe('completed');
+    expect(info.querySelector('[data-run-status]')!.textContent).toBe('완료');
     expect(info.querySelector('[data-run-time]')!.textContent).toBe('00:13.100');
     expect(info.querySelector('[data-longest]')!.textContent).toContain('가장 긴 단계');
     expect(info.querySelector('[data-longest]')!.textContent).toContain('00:02.000');

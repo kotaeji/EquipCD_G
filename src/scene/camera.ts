@@ -25,21 +25,95 @@ export function cameraPosition(cam: CameraState): { x: number; y: number; z: num
   };
 }
 
-/** Distance and aim that put the whole bounds inside the frustum. */
+/** How much of the viewport the bounds cover. 1 means edge to edge. */
+export interface ProjectionFill { width: number; height: number }
+
+/** Side columns of the 3D run layout, in px. The center takes the rest and is at least half the work area. */
+export const RUN3D_INFO_W = 200;
+export const RUN3D_COND_W = 220;
+
+export function centerFraction(workWidth: number): number {
+  return (workWidth - RUN3D_INFO_W - RUN3D_COND_W) / workWidth;
+}
+
+function cornersOf(bounds: SceneBounds): { x: number; y: number; z: number }[] {
+  const out: { x: number; y: number; z: number }[] = [];
+  for (const y of [bounds.minY, bounds.maxY]) {
+    for (const x of [bounds.minX, bounds.maxX]) {
+      for (const z of [bounds.minZ, bounds.maxZ]) out.push({ x, y, z });
+    }
+  }
+  return out;
+}
+
+function viewBasis(cam: CameraState) {
+  const eye = cameraPosition(cam);
+  let fx = cam.targetX - eye.x;
+  let fy = cam.targetY - eye.y;
+  let fz = cam.targetZ - eye.z;
+  const fl = Math.hypot(fx, fy, fz) || 1;
+  fx /= fl; fy /= fl; fz /= fl;
+  let rx = -fz;
+  let ry = 0;
+  let rz = fx;
+  const rl = Math.hypot(rx, ry, rz) || 1;
+  rx /= rl; ry /= rl; rz /= rl;
+  const ux = ry * fz - rz * fy;
+  const uy = rz * fx - rx * fz;
+  const uz = rx * fy - ry * fx;
+  return { eye, f: { x: fx, y: fy, z: fz }, r: { x: rx, y: ry, z: rz }, u: { x: ux, y: uy, z: uz } };
+}
+
+/** Projected width and height of the bounds, as fractions of the viewport. */
+export function projectedFill(cam: CameraState, bounds: SceneBounds): ProjectionFill {
+  const basis = viewBasis(cam);
+  const fovY = (cam.fov * Math.PI) / 180;
+  const tanY = Math.tan(fovY / 2);
+  const tanX = tanY * Math.max(0.2, cam.aspect);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of cornersOf(bounds)) {
+    const vx = p.x - basis.eye.x;
+    const vy = p.y - basis.eye.y;
+    const vz = p.z - basis.eye.z;
+    const depth = vx * basis.f.x + vy * basis.f.y + vz * basis.f.z;
+    if (depth <= 1) return { width: 2, height: 2 };
+    const ndcX = (vx * basis.r.x + vy * basis.r.y + vz * basis.r.z) / depth / tanX;
+    const ndcY = (vx * basis.u.x + vy * basis.u.y + vz * basis.u.z) / depth / tanY;
+    minX = Math.min(minX, ndcX);
+    maxX = Math.max(maxX, ndcX);
+    minY = Math.min(minY, ndcY);
+    maxY = Math.max(maxY, ndcY);
+  }
+  return { width: (maxX - minX) / 2, height: (maxY - minY) / 2 };
+}
+
+/**
+ * Frame the bounds so the larger screen axis covers about 88% of the view
+ * and both axes stay inside the frame.
+ */
 export function fitCamera(bounds: SceneBounds, aspect = 1.4): CameraState {
-  const cx = (bounds.minX + bounds.maxX) / 2;
-  const cy = (bounds.minY + bounds.maxY) / 2;
-  const cz = (bounds.minZ + bounds.maxZ) / 2;
-  const hx = Math.max(1, (bounds.maxX - bounds.minX) / 2);
-  const hy = Math.max(1, (bounds.maxY - bounds.minY) / 2);
-  const hz = Math.max(1, (bounds.maxZ - bounds.minZ) / 2);
-  const radius = Math.hypot(hx, hy, hz);
   const aspectSafe = aspect > 0.2 ? aspect : 1.4;
-  const fovY = CAMERA_FOV * Math.PI / 180;
-  const fovX = 2 * Math.atan(Math.tan(fovY / 2) * aspectSafe);
-  const half = Math.min(fovY, fovX) / 2;
-  const distance = Math.min(8000, Math.max(30, (radius / Math.sin(half)) * 1.2));
-  return { targetX: cx, targetY: cy, targetZ: cz, yaw: 0.7, pitch: 0.62, distance, aspect: aspectSafe, fov: CAMERA_FOV };
+  const aim = {
+    targetX: (bounds.minX + bounds.maxX) / 2,
+    targetY: (bounds.minY + bounds.maxY) / 2,
+    targetZ: (bounds.minZ + bounds.maxZ) / 2,
+    yaw: 0.7,
+    pitch: 0.62,
+    aspect: aspectSafe,
+    fov: CAMERA_FOV,
+  };
+  let lo = 30;
+  let hi = 8000;
+  for (let i = 0; i < 28; i++) {
+    const mid = (lo + hi) / 2;
+    const fill = projectedFill({ ...aim, distance: mid }, bounds);
+    if (Math.max(fill.width, fill.height) > 0.88) lo = mid;
+    else hi = mid;
+  }
+  return { ...aim, distance: hi };
 }
 
 /** Bounding sphere of `bounds` is inside the camera frustum. */

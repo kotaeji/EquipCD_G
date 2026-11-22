@@ -17,17 +17,27 @@ export interface SceneZone {
   d: number;
 }
 
+export interface SceneDraw {
+  /** Visual box. The center matches the diagram footprint unless the unit edge forces a nudge. */
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+}
+
 export interface SceneSolid {
   id: string;
   name: string;
   kind: string;
   shape: ShapeId;
   unitId: string;
-  /** Footprint minimum corner. x = layout.x, z = layout.y. */
+  /** Diagram footprint. x = layout.x, z = layout.y. */
   x: number;
   z: number;
   w: number;
   d: number;
+  /** Larger body used for the mesh, still inside the unit and clear of its siblings. */
+  draw: SceneDraw;
   parts: LocalPart[];
   highlight: HighlightReason | 'none';
 }
@@ -119,6 +129,45 @@ export function faultDeviceIds(p: Project, rt: RuntimeState | null): string[] {
   return [...new Set(ids)];
 }
 
+const DRAW_PAD = 8;
+const DRAW_MIN_W = 72;
+const DRAW_MIN_D = 52;
+
+function rectsHit(a: SceneDraw, b: SceneDraw, gap = 4): boolean {
+  return a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.z < b.z + b.d + gap && a.z + a.d + gap > b.z;
+}
+
+/** Grow a diagram footprint around its center, staying inside the unit and clear of boxes already placed. */
+export function drawFootprint(layout: { x: number; y: number; w: number; h: number }, unit: { x: number; y: number; w: number; h: number }, taken: SceneDraw[]): SceneDraw {
+  const cx = layout.x + layout.w / 2;
+  const cz = layout.y + layout.h / 2;
+  const roomW = Math.max(layout.w, unit.w - DRAW_PAD * 2);
+  const roomD = Math.max(layout.h, unit.h - DRAW_PAD * 2);
+  const wantW = Math.min(roomW, Math.max(layout.w, DRAW_MIN_W));
+  const wantD = Math.min(roomD, Math.max(layout.h, DRAW_MIN_D));
+  const place = (w: number, d: number): SceneDraw | null => {
+    if (w > unit.w || d > unit.h) return null;
+    let x = cx - w / 2;
+    let z = cz - d / 2;
+    const minX = unit.x;
+    const maxX = unit.x + unit.w - w;
+    const minZ = unit.y;
+    const maxZ = unit.y + unit.h - d;
+    if (maxX < minX || maxZ < minZ) return null;
+    x = Math.min(Math.max(x, minX), maxX);
+    z = Math.min(Math.max(z, minZ), maxZ);
+    const box = { x, z, w, d };
+    if (taken.some((t) => rectsHit(t, box))) return null;
+    return box;
+  };
+  for (let step = 10; step >= 0; step -= 1) {
+    const t = step / 10;
+    const box = place(layout.w + (wantW - layout.w) * t, layout.h + (wantD - layout.h) * t);
+    if (box) return box;
+  }
+  return { x: layout.x, z: layout.y, w: layout.w, d: layout.h };
+}
+
 function unitCenter(u: Unit): { x: number; z: number } {
   return { x: u.layout.x + u.layout.w / 2, z: u.layout.y + u.layout.h / 2 };
 }
@@ -149,19 +198,30 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
     id: u.id, name: u.name, x: u.layout.x, z: u.layout.y, w: u.layout.w, d: u.layout.h,
   }));
 
-  const solids: SceneSolid[] = p.devices.map((d) => ({
-    id: d.id,
-    name: d.name,
-    kind: d.kind,
-    shape: shapeForKind(d.kind),
-    unitId: d.unitId,
-    x: d.layout.x,
-    z: d.layout.y,
-    w: d.layout.w,
-    d: d.layout.h,
-    parts: partsFor(shapeForKind(d.kind), d.layout.w, d.layout.h),
-    highlight: reasonOf(d.id),
-  }));
+  const taken = new Map<string, SceneDraw[]>();
+  const solids: SceneSolid[] = p.devices.map((d) => {
+    const unit = p.units.find((u) => u.id === d.unitId);
+    const zone = unit ? { x: unit.layout.x, y: unit.layout.y, w: unit.layout.w, h: unit.layout.h } : { x: d.layout.x, y: d.layout.y, w: d.layout.w, h: d.layout.h };
+    const siblings = taken.get(d.unitId) ?? [];
+    const draw = drawFootprint(d.layout, zone, siblings);
+    siblings.push(draw);
+    taken.set(d.unitId, siblings);
+    const shape = shapeForKind(d.kind);
+    return {
+      id: d.id,
+      name: d.name,
+      kind: d.kind,
+      shape,
+      unitId: d.unitId,
+      x: d.layout.x,
+      z: d.layout.y,
+      w: d.layout.w,
+      d: d.layout.h,
+      draw,
+      parts: partsFor(shape, draw.w, draw.d),
+      highlight: reasonOf(d.id),
+    };
+  });
 
   const flows: SceneFlow[] = [];
   for (const c of p.connections) {
@@ -211,11 +271,11 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
     mark(z.x, 0, z.z); mark(z.x + z.w, 0, z.z + z.d);
   }
   for (const s of solids) {
-    mark(s.x, 0, s.z);
-    mark(s.x + s.w, 0, s.z + s.d);
-    for (const part of s.parts) mark(s.x + part.x, part.y + part.h / 2, s.z + part.z);
+    mark(s.draw.x, 0, s.draw.z);
+    mark(s.draw.x + s.draw.w, 0, s.draw.z + s.draw.d);
+    for (const part of s.parts) mark(s.draw.x + part.x, part.y + part.h / 2, s.draw.z + part.z);
   }
-  for (const m of materials) mark(m.x, 16, m.z);
+  for (const m of materials) mark(m.x, 36, m.z);
   if (!any) return { zones, solids, flows, materials, highlights, bounds: emptyBounds() };
   return { zones, solids, flows, materials, highlights, bounds };
 }

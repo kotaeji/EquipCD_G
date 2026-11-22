@@ -5,6 +5,10 @@ import { describeScene, faultDeviceIds, activeDeviceIds } from '../scene/describ
 import { describeRunInfo } from '../scene/runInfo';
 import { stepStatusLabel } from '../runtime/runSummary';
 
+const RUN_STATUS_KO: Record<string, string> = {
+  idle: '대기', running: '실행 중', paused: '일시정지', completed: '완료', error: '오류',
+};
+
 function deviceState(p: Project, rt: RuntimeState | null, deviceId: string): string {
   if (faultDeviceIds(p, rt).includes(deviceId)) return '오류';
   if (activeDeviceIds(p, rt).includes(deviceId)) return '동작 중';
@@ -19,19 +23,23 @@ function deviceState(p: Project, rt: RuntimeState | null, deviceId: string): str
 }
 
 /** Left column of the 3D run view. */
-export function RunInfoPanel({ p, rt, selectedId }: { p: Project; rt: RuntimeState | null; selectedId: string | null }) {
+export function RunInfoPanel({ p, rt, selectedId, folded, onToggleFold }: { p: Project; rt: RuntimeState | null; selectedId: string | null; folded: boolean; onToggleFold: () => void }) {
   const info = describeRunInfo(p, rt);
   const scene = describeScene(p, rt);
   const maxMs = Math.max(1, ...info.bars.map((bar) => bar.widthMs));
   const device = selectedId ? p.devices.find((d) => d.id === selectedId) : undefined;
   const unit = device ? p.units.find((u) => u.id === device.unitId) : undefined;
   return (
-    <aside className="run-info" aria-label="정보 표시">
-      <h2>정보 표시</h2>
+    <aside className={`run-info ${folded ? 'is-folded' : ''}`} aria-label="정보 표시">
+      <div className="run3d-head">
+        <h2>정보 표시</h2>
+        <button type="button" className="small" aria-label={folded ? '정보 펼치기' : '정보 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
+      </div>
+      {!folded && <>
       <p className="run3d-name" data-project-name="">{info.projectName}</p>
       <p className="run3d-counts">Unit {info.unitCount} · Device {info.deviceCount} · 단계 {info.stepCount}</p>
       <dl className="run3d-facts">
-        <div><dt>실행 상태</dt><dd data-run-status="">{info.status}</dd></div>
+        <div><dt>실행 상태</dt><dd data-run-status={info.status}>{RUN_STATUS_KO[info.status] ?? info.status}</dd></div>
         <div><dt>가상 시간</dt><dd className="mono" data-run-time="">{info.timeText}</dd></div>
       </dl>
       <section aria-label="실행 중 단계">
@@ -53,7 +61,7 @@ export function RunInfoPanel({ p, rt, selectedId }: { p: Project; rt: RuntimeSta
         <ul className="run3d-bars">
           {info.bars.map((bar) => (
             <li key={bar.key} className={bar.longest ? 'is-longest' : ''} data-step-id={bar.stepId} data-elapsed={bar.timeText}>
-              <span className="run3d-bar-name">{bar.name}{bar.lane ? ` · ${bar.lane}` : ''}{bar.pass ? ` · ${bar.pass}회` : ''}</span>
+              <span className="run3d-bar-name" title={bar.name}>{bar.name}{bar.lane ? ` · ${bar.lane}` : ''}{bar.pass ? ` · ${bar.pass}회` : ''}</span>
               <span className="run3d-bar-status">{bar.statusLabel}</span>
               <span className="run3d-bar-track" aria-hidden="true"><span className="run3d-bar-fill" style={{ width: `${Math.min(100, (bar.widthMs / maxMs) * 100)}%` }} /></span>
               <span className="mono run3d-bar-time">{bar.timeText}</span>
@@ -75,6 +83,7 @@ export function RunInfoPanel({ p, rt, selectedId }: { p: Project; rt: RuntimeSta
       </section>
       <p className="run3d-note">{info.assumed ? '실행 전 막대는 Action의 가정 동작 시간입니다. ' : ''}시간 · 속도는 가정값입니다. 실제 택트가 아닙니다.</p>
       <p className="muted run3d-note">장면의 구역 {scene.zones.length} · 장치 {scene.solids.length}</p>
+      </>}
     </aside>
   );
 }

@@ -4,7 +4,9 @@ import * as C from '../src/model/commands';
 import { initHistory, applyEdit } from '../src/model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
 import { advance, createRuntime, runToEnd, start } from '../src/runtime/engine';
-import { sceneFits, fitCamera, orbitCamera, panCamera, zoomCamera, gestureMode, applyCameraKey } from '../src/scene/camera';
+import { readFileSync } from 'node:fs';
+import { projectedFill, fitCamera, orbitCamera, panCamera, zoomCamera, gestureMode, applyCameraKey, centerFraction } from '../src/scene/camera';
+import { cullOverlappingLabels } from '../src/scene/labels';
 import { activeDeviceIds, describeScene, faultDeviceIds } from '../src/scene/describe';
 import { describeRunInfo, formatMs } from '../src/scene/runInfo';
 import { revertDurationEdits } from '../src/scene/revertDurations';
@@ -36,7 +38,22 @@ describe('TURN-029 scene description', () => {
         expect(solid.z).toBeGreaterThanOrEqual(zone.z);
         expect(solid.x + solid.w).toBeLessThanOrEqual(zone.x + zone.w + 0.001);
         expect(solid.z + solid.d).toBeLessThanOrEqual(zone.z + zone.d + 0.001);
+        expect(solid.draw.x).toBeGreaterThanOrEqual(zone.x - 0.01);
+        expect(solid.draw.z).toBeGreaterThanOrEqual(zone.z - 0.01);
+        expect(solid.draw.x + solid.draw.w).toBeLessThanOrEqual(zone.x + zone.w + 0.01);
+        expect(solid.draw.z + solid.draw.d).toBeLessThanOrEqual(zone.z + zone.d + 0.01);
+        expect(solid.draw.w).toBeGreaterThanOrEqual(solid.w - 0.01);
+        expect(solid.draw.d).toBeGreaterThanOrEqual(solid.d - 0.01);
         expect(solid.parts.length).toBeGreaterThan(0);
+      }
+      const draws = scene.solids.map((s) => s.draw);
+      for (let i = 0; i < draws.length; i++) {
+        for (let j = i + 1; j < draws.length; j++) {
+          const a = draws[i];
+          const b = draws[j];
+          const overlap = a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.d && a.z + a.d > b.z;
+          expect(overlap).toBe(false);
+        }
       }
       for (const flow of scene.flows) {
         const from = project.units.find((u) => u.id === flow.fromId)!;
@@ -117,8 +134,14 @@ describe('TURN-029 camera', () => {
   const bounds = describeScene(buildSampleProject(), null).bounds;
   const cam = fitCamera(bounds, 1.6);
 
-  it('AC9 fit keeps the scene in frame, and keys, drag, and zoom move the camera', () => {
-    expect(sceneFits(cam, bounds)).toBe(true);
+  it('AC9 fit fills most of the view, and keys, drag, and zoom move the camera', () => {
+    const fill = projectedFill(cam, bounds);
+    expect(Math.max(fill.width, fill.height)).toBeGreaterThanOrEqual(0.8);
+    expect(fill.width).toBeLessThanOrEqual(0.95);
+    expect(fill.height).toBeLessThanOrEqual(0.95);
+    expect(centerFraction(1280 - 224)).toBeGreaterThanOrEqual(0.5);
+    const css = readFileSync('src/ui/run3d.css', 'utf8');
+    expect(css).toContain('grid-template-columns: 200px minmax(0, 1fr) 220px');
     expect(orbitCamera(cam, 40, 0).yaw).not.toBe(cam.yaw);
     expect(panCamera(cam, 24, 0).targetX).not.toBe(cam.targetX);
     expect(zoomCamera(cam, 180).distance).toBeGreaterThan(cam.distance);
@@ -132,8 +155,25 @@ describe('TURN-029 camera', () => {
     expect(applyCameraKey(cam, '+', bounds)!.distance).toBeLessThan(cam.distance);
     expect(applyCameraKey(cam, 'k', bounds)).toBeNull();
     const home = applyCameraKey(turned, 'Home', bounds)!;
-    expect(sceneFits(home, bounds)).toBe(true);
+    const homeFill = projectedFill(home, bounds);
+    expect(Math.max(homeFill.width, homeFill.height)).toBeGreaterThanOrEqual(0.8);
     expect(home.yaw).toBeCloseTo(0.7);
+  });
+});
+
+describe('TURN-029 screen labels', () => {
+  it('hides a device name that covers a unit name and keeps a device that does not', () => {
+    const kept = cullOverlappingLabels([
+      { id: 'u', kind: 'unit', x: 0, y: 0, w: 80, h: 18, text: 'S1 투입' },
+      { id: 'd', kind: 'device', x: 10, y: 2, w: 60, h: 16, text: 'PSH-01' },
+      { id: 'far', kind: 'device', x: 200, y: 0, w: 60, h: 16, text: 'CNV-05' },
+      { id: 'mark', kind: 'marker', x: 10, y: 40, w: 70, h: 18, text: '▼ 동작 중' },
+    ]);
+    expect(kept.map((label) => label.id).sort()).toEqual(['d', 'far', 'mark', 'u'].filter((id) => id !== 'd').sort());
+    expect(kept.some((label) => label.id === 'u')).toBe(true);
+    expect(kept.some((label) => label.id === 'far')).toBe(true);
+    expect(kept.some((label) => label.id === 'mark')).toBe(true);
+    expect(kept.some((label) => label.id === 'd')).toBe(false);
   });
 });
 

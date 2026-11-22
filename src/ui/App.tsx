@@ -131,6 +131,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [speed, setSpeed] = useState(1);
   const [showNames, setShowNames] = useState(true);
   const [emphasizeMotion, setEmphasizeMotion] = useState(true);
+  const [foldInfo, setFoldInfo] = useState(false);
+  const [foldCond, setFoldCond] = useState(false);
   const durationBaseline = useRef<{ sessionKey: string; depth: number; snap: DurationSnap[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -1113,7 +1115,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
       </div>}
 
-      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${view.runView === '3d' ? 'is-3d' : ''}`} data-run-view={view.runView}>
+      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${view.runView === '3d' ? 'is-3d' : ''} ${foldInfo ? 'fold-info' : ''} ${foldCond ? 'fold-cond' : ''}`} data-run-view={view.runView}>
         <h1 className="stage-title run-title">{screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'}</h1>
         <div className="toolbar tool-pills">
           {runControls}<div className="sep" />{runViewToggle}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
@@ -1121,10 +1123,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <span className="badge">{rt?.status === 'completed' ? '시뮬 완료' : `시뮬 ${rt?.status ?? 'idle'}`}</span>
           <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
         {view.runView === '3d' && scene3d ? <>
-          <RunInfoPanel p={p} rt={rt} selectedId={selection[0] ?? null} />
+          <RunInfoPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldInfo} onToggleFold={() => setFoldInfo((v) => !v)} />
           <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
             onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
-          <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames}
+          <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
             emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} />
         </> : <>
         <div className="center sparse-page">

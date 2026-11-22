@@ -59,13 +59,13 @@ const cyl = (x: number, y: number, z: number, w: number, h: number, d: number, a
 export function partsFor(shape: ShapeId, w: number, d: number): LocalPart[] {
   const ww = Math.max(8, w);
   const dd = Math.max(8, d);
-  const rise = Math.max(22, Math.min(ww, dd));
+  const rise = Math.max(64, Math.min(ww, dd) * 1.15);
   switch (shape) {
     case 'conveyor':
       return [
-        box(ww / 2, 5, dd / 2, ww * 0.9, 8, dd * 0.42),
-        box(ww / 2, 11, dd * 0.16, ww * 0.9, 5, dd * 0.1),
-        box(ww / 2, 11, dd * 0.84, ww * 0.9, 5, dd * 0.1),
+        box(ww / 2, 10, dd / 2, ww * 0.92, 16, dd * 0.5),
+        box(ww / 2, 20, dd * 0.16, ww * 0.92, 8, dd * 0.12),
+        box(ww / 2, 20, dd * 0.84, ww * 0.92, 8, dd * 0.12),
       ];
     case 'gantry':
       return [
