@@ -5,7 +5,8 @@ import {
   NoToneMapping, RepeatWrapping, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer, type Material, type Object3D,
 } from 'three';
 import { applyCameraKey, fitToPoints, gestureMode, orbitCamera, panCamera, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
-import { framePoints, type SceneDescription } from '../scene/describe';
+import { framePoints, type PartDelta, type SceneDescription } from '../scene/describe';
+import { shouldRedraw } from '../scene/motion';
 import { emWidth, floorNameAxes, floorNameYaw, type FloorName } from '../scene/floorLabel';
 import { anchorLabels, cullOverlappingLabels, visibleFloorNames, type ScreenLabel } from '../scene/labels';
 import type { LocalPart } from '../scene/shapes';
@@ -90,26 +91,38 @@ function applyCamera(camera: PerspectiveCamera, cam: CameraState) {
   camera.updateProjectionMatrix();
 }
 
-function partMesh(part: LocalPart, color: string): Mesh {
+function placePart(mesh: Mesh, part: LocalPart, delta: PartDelta | undefined) {
+  mesh.position.set(part.x + (delta?.dx ?? 0), part.y + (delta?.dy ?? 0), part.z + (delta?.dz ?? 0));
+  mesh.rotation.set(0, 0, 0);
+  if (part.primitive === 'cylinder' && part.axis === 'x') mesh.rotateZ(Math.PI / 2);
+  if (part.primitive === 'cylinder' && part.axis === 'z') mesh.rotateX(Math.PI / 2);
+  if (delta?.spin) {
+    const axis = part.axis === 'x' ? new Vector3(1, 0, 0) : part.axis === 'z' ? new Vector3(0, 0, 1) : new Vector3(0, 1, 0);
+    mesh.rotateOnWorldAxis(axis, delta.spin);
+  }
+  if (delta?.glow) {
+    const mat = mesh.material as MeshStandardMaterial;
+    mat.emissive = new Color('#ffd36a');
+    mat.emissiveIntensity = delta.glow;
+  }
+}
+
+function partMesh(part: LocalPart, color: string, delta?: PartDelta): Mesh {
   const geo = part.primitive === 'cylinder'
     ? new CylinderGeometry(Math.max(part.w, part.d) / 2, Math.max(part.w, part.d) / 2, part.h, 16)
     : new BoxGeometry(part.w, part.h, part.d);
   const mesh = new Mesh(geo, new MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.04 }));
-  mesh.position.set(part.x, part.y, part.z);
-  if (part.primitive === 'cylinder' && part.axis === 'x') mesh.rotation.z = Math.PI / 2;
-  if (part.primitive === 'cylinder' && part.axis === 'z') mesh.rotation.x = Math.PI / 2;
+  placePart(mesh, part, delta);
   return mesh;
 }
 
-function styledMesh(part: StyledPart): Mesh {
+function styledMesh(part: StyledPart, delta?: PartDelta): Mesh {
   const spec = materialFor(part);
   const geo = part.primitive === 'cylinder'
     ? new CylinderGeometry(Math.max(part.w, part.d) / 2, Math.max(part.w, part.d) / 2, part.h, 20)
     : new BoxGeometry(part.w, part.h, part.d);
   const mesh = new Mesh(geo, new MeshStandardMaterial({ color: spec.color, metalness: spec.metalness, roughness: spec.roughness }));
-  mesh.position.set(part.x, part.y, part.z);
-  if (part.primitive === 'cylinder' && part.axis === 'x') mesh.rotation.z = Math.PI / 2;
-  if (part.primitive === 'cylinder' && part.axis === 'z') mesh.rotation.x = Math.PI / 2;
+  placePart(mesh, part, delta);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
@@ -305,8 +318,9 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
     const group = new Group();
     group.position.set(solid.draw.x, 0, solid.draw.z);
     group.userData.deviceId = solid.id;
+    const deltaFor = (motion?: string) => (motion ? solid.deltas?.find((delta) => delta.motion === motion) : undefined);
     if (photo) {
-      for (const part of photoPartsFor(solid.shape, solid.draw.w, solid.draw.d)) group.add(styledMesh(part));
+      for (const part of photoPartsFor(solid.shape, solid.draw.w, solid.draw.d)) group.add(styledMesh(part, deltaFor(part.motion)));
       if (emphasize && solid.highlight !== 'none') {
         group.add(markerRing(solid.draw.w, solid.draw.d, solid.highlight === 'fault' ? palette.fault : palette.active));
       }
@@ -314,7 +328,7 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
       const color = solid.highlight === 'fault' && emphasize ? palette.fault
         : solid.highlight === 'active' && emphasize ? palette.active
           : palette.solid;
-      for (const part of solid.parts) group.add(partMesh(part, color));
+      for (const part of solid.parts) group.add(partMesh(part, color, deltaFor(part.motion)));
     }
     root.add(group);
   }
@@ -608,11 +622,13 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, on
 }
 
 /** Center column. Without WebGL it explains that and offers the diagram. */
-export function Scene3D({ scene, showNames, emphasize, visualMode, selectedId, onSelect, onDiagram }: {
+export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMotion, running, selectedId, onSelect, onDiagram }: {
   scene: SceneDescription;
   showNames: boolean;
   emphasize: boolean;
   visualMode: VisualStyleId;
+  equipmentMotion: boolean;
+  running: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onDiagram: () => void;
@@ -673,6 +689,7 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, selectedId, o
   return (
     <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-selected-device={selectedId ?? ''}
       data-visual-style={visualMode} data-show-names={showNames ? 'on' : 'off'} data-floor-names={showNames ? scene.floorNames.length : 0}
+      data-equipment-motion={equipmentMotion ? 'on' : 'off'} data-redraw={shouldRedraw({ running, interacting: false }) ? 'live' : 'still'}
       data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}>
       <div className="scene3d-bar">
         <button type="button" aria-label="전체 보기" onClick={() => { moved.current = false; setCam(framed(viewSize.current.width / Math.max(1, viewSize.current.height), viewSize.current)); }}>전체 보기</button>

@@ -26,6 +26,19 @@ export interface SceneDraw {
   d: number;
 }
 
+/** One moving piece. Zero channels are the rest pose. */
+export interface PartDelta {
+  /** Matches `LocalPart.motion` on the schematic part and the photo part. */
+  motion: string;
+  dx: number;
+  dy: number;
+  dz: number;
+  /** Radians added around the part axis. Rollers use this. */
+  spin: number;
+  /** 0..1 emissive added on a lamp. */
+  glow: number;
+}
+
 export interface SceneSolid {
   id: string;
   name: string;
@@ -41,6 +54,8 @@ export interface SceneSolid {
   draw: SceneDraw;
   parts: LocalPart[];
   highlight: HighlightReason | 'none';
+  /** Set only while equipment motion is on and this device is away from its rest pose. */
+  deltas?: PartDelta[];
 }
 
 export interface SceneFlow {
