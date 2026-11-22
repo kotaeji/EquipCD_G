@@ -5,7 +5,7 @@ import { emptyProject } from '../src/model/factory';
 import { applyEdit, initHistory, redo, undo } from '../src/model/history';
 import { buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
 import type { AssetKind, Project } from '../src/model/types';
-import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, UNIT_HEADER, UNIT_PAD, rectsOverlap } from '../src/model/unitLayout';
+import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, UNIT_HEADER, UNIT_PAD, overlappingUnitIds, rectsOverlap } from '../src/model/unitLayout';
 
 const okp = (r: C.CmdResult) => { if (!r.ok) throw new Error(r.reason); return r.project; };
 const layout = (p: Project, id: string) => {
@@ -217,7 +217,10 @@ describe('TURN-028 device auto arrange', () => {
     expect(layout(out, both).x).toBeLessThan(maxX);
     expect(layout(out, loose).x).toBeGreaterThanOrEqual(minX);
     expect(layout(out, mid)).toMatchObject({ x: origin.x, y: origin.y });
-    expect(out.units.filter((u) => u.id !== mid).map((u) => u.layout)).toEqual(others);
+    // TURN-036: these side units sit on top of the grown box, so arrange pushes them clear.
+    expect(overlappingUnitIds(out.units.map((u) => ({ id: u.id, ...u.layout })))).toEqual([]);
+    expect(layout(out, left).y).toBe(others[0].y);
+    expect(layout(out, right).y).toBe(others[1].y);
     expectClear(out, mid);
   });
 
@@ -264,7 +267,13 @@ describe('TURN-028 device auto arrange', () => {
     const out = okp(C.arrangeDevices(sample, id));
     expect(layout(out, id).x).toBe(origin.x);
     expect(layout(out, id).y).toBe(origin.y);
-    expect(out.units.filter((u) => u.id !== id).map((u) => u.layout)).toEqual(sample.units.filter((u) => u.id !== id).map((u) => u.layout));
+    // TURN-036: S4 grows into S5, so S5 shifts right. S1–S3 stay.
+    const before = new Map(sample.units.map((u) => [u.id, { ...u.layout }]));
+    const moved = out.units.filter((u) => u.id !== id && (u.layout.x !== before.get(u.id)!.x || u.layout.y !== before.get(u.id)!.y));
+    expect(moved.map((u) => u.id)).toEqual(['U-S5']);
+    expect(layout(out, 'U-S5').y).toBe(before.get('U-S5')!.y);
+    expect(layout(out, 'U-S5').x).toBeGreaterThan(before.get('U-S5')!.x);
+    expect(overlappingUnitIds(out.units.map((u) => ({ id: u.id, ...u.layout })))).toEqual([]);
     expect(out.connections).toEqual(sample.connections);
     expect(out.devices.map((d) => ({ id: d.id, unitId: d.unitId, name: d.name, kind: d.kind, w: d.layout.w, h: d.layout.h, properties: d.properties }))).toEqual(
       sample.devices.map((d) => ({ id: d.id, unitId: d.unitId, name: d.name, kind: d.kind, w: d.layout.w, h: d.layout.h, properties: d.properties })),
