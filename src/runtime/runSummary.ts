@@ -62,6 +62,31 @@ export function stepStatusLabel(status: string): string {
   return STEP_STATUS_LABEL[status] ?? status;
 }
 
+export interface AggregateStepStatus {
+  phase: RunStepPhase;
+  /** Flow-table cell. A repeated completion is 「완료 N회」. One completion plus a skip is 「완료 · 건너뜀」. */
+  label: string;
+}
+
+/**
+ * One status for a step that may have several records.
+ * Priority: 오류 > 진행 중 > 정지 > 완료 > 건너뜀 > 대기.
+ * The words come from `stepStatusLabel`.
+ */
+export function aggregateStepStatus(rows: readonly { status: string }[]): AggregateStepStatus {
+  const has = (status: string) => rows.some((r) => r.status === status);
+  if (has('error')) return { phase: 'error', label: stepStatusLabel('error') };
+  if (has('active')) return { phase: 'active', label: stepStatusLabel('active') };
+  if (has('stopped')) return { phase: 'stopped', label: stepStatusLabel('stopped') };
+  const done = rows.filter((r) => r.status === 'done').length;
+  const skipped = has('skipped');
+  if (done > 1) return { phase: 'done', label: `${stepStatusLabel('done')} ${done}회` };
+  if (done === 1 && skipped) return { phase: 'done', label: `${stepStatusLabel('done')} · ${stepStatusLabel('skipped')}` };
+  if (done === 1) return { phase: 'done', label: stepStatusLabel('done') };
+  if (skipped) return { phase: 'skipped', label: stepStatusLabel('skipped') };
+  return { phase: 'pending', label: stepStatusLabel('pending') };
+}
+
 function phaseOf(status: StepRecord['status'] | undefined): RunStepPhase {
   return status && (PHASES as readonly string[]).includes(status) ? status : 'pending';
 }

@@ -4,6 +4,7 @@ import * as C from '../model/commands';
 import type { Condition, FlowNode, Project } from '../model/types';
 import { DEFAULT_MAX_RETRIES } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
+import { aggregateStepStatus } from '../runtime/runSummary';
 import type { EditFn } from './Inspector';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
 
@@ -29,22 +30,22 @@ function flatten(p: Project, nodes: FlowNode[], depth: number): Row[] {
       continue;
     }
     if (n.kind === 'branch') {
-      out.push({ key: n.id, depth, kind: 'branch', title: flowBlockTitle('branch', n.name), blockId: n.id, node: n });
+      out.push({ key: n.id, depth, kind: 'branch', title: flowBlockWord('branch'), blockId: n.id, node: n });
       out.push({ key: `${n.id}:then`, depth: depth + 1, kind: 'arm', title: '참', blockId: n.id, arm: 'then' });
       out.push(...flatten(p, n.then, depth + 2));
       out.push({ key: `${n.id}:else`, depth: depth + 1, kind: 'arm', title: '거짓', blockId: n.id, arm: 'else' });
       out.push(...flatten(p, n.else, depth + 2));
     } else if (n.kind === 'parallel') {
-      out.push({ key: n.id, depth, kind: 'parallel', title: flowBlockTitle('parallel', n.name), blockId: n.id, node: n });
+      out.push({ key: n.id, depth, kind: 'parallel', title: flowBlockWord('parallel'), blockId: n.id, node: n });
       n.lanes.forEach((lane, i) => {
         out.push({ key: `${n.id}:lane${i}`, depth: depth + 1, kind: 'arm', title: `갈래 ${i + 1}`, blockId: n.id, arm: i });
         out.push(...flatten(p, lane, depth + 2));
       });
     } else if (n.kind === 'loop') {
-      out.push({ key: n.id, depth, kind: 'loop', title: flowBlockTitle('loop', n.name), blockId: n.id, node: n });
+      out.push({ key: n.id, depth, kind: 'loop', title: flowBlockWord('loop'), blockId: n.id, node: n });
       out.push(...flatten(p, n.body, depth + 1));
     } else if (n.kind === 'retry') {
-      out.push({ key: n.id, depth, kind: 'retry', title: flowBlockTitle('retry', n.name), blockId: n.id, node: n });
+      out.push({ key: n.id, depth, kind: 'retry', title: flowBlockWord('retry'), blockId: n.id, node: n });
       out.push(...flatten(p, n.body, depth + 1));
     } else {
       const unit = p.units.find((u) => u.id === n.unitId);
@@ -106,17 +107,7 @@ function BlockName({ name, word, disabled, onCommit }: { name: string; word: str
 }
 
 function statusOf(rt: RuntimeState | null, stepId: string): string {
-  const rows = rt?.steps.filter((r) => r.stepId === stepId) ?? [];
-  if (!rows.length) return '대기';
-  if (rows.some((r) => r.status === 'active')) return '실행 중';
-  if (rows.some((r) => r.status === 'error')) return '오류';
-  const done = rows.filter((r) => r.status === 'done').length;
-  const skipped = rows.some((r) => r.status === 'skipped');
-  if (done > 1) return `완료 ${done}회`;
-  if (done === 1 && skipped) return '완료 · 건너뜀';
-  if (done === 1) return '완료';
-  if (skipped) return '건너뜀';
-  return '대기';
+  return aggregateStepStatus(rt?.steps.filter((r) => r.stepId === stepId) ?? []).label;
 }
 
 export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn }) {
@@ -154,6 +145,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
       <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}>Substation 시퀀스 넣기</button>
     </div>
     <p className="muted" style={{ fontSize: 11 }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
+    <p className="muted" style={{ fontSize: 11 }}>병렬로 묶으면 고른 줄이 갈래마다 하나씩 나뉩니다.</p>
     <table className="grid" aria-label="Station 흐름">
       <thead><tr><th></th><th>흐름</th><th>조건 · 횟수 · 갈래</th><th>상태</th><th></th></tr></thead>
       <tbody>
@@ -162,8 +154,9 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
           const step = row.stepId ? p.sequence.steps.find((s) => s.id === row.stepId) : undefined;
           const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
           const blockName = row.node && 'name' in row.node ? row.node.name : '';
+          const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
           return <tr key={row.key} data-flow-kind={row.kind} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
-            <td>{id && <input type="checkbox" aria-label={`${row.title} 선택`} disabled={locked} checked={picked.includes(id)} onChange={() => toggle(id)} />}</td>
+            <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={picked.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
               {isBlockKind(row.kind) && <BlockName name={blockName} word={flowBlockWord(row.kind)} disabled={locked} onCommit={(v) => edit(C.renameFlowBlock(p, row.blockId!, v), '블록 이름')} />}
