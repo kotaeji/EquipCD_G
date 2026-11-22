@@ -228,6 +228,9 @@ describe('TURN-035 unified run layout', () => {
     expect(runCss).toMatch(/\.run-steps-scroll\s*\{[^}]*overflow:\s*auto/);
     expect(runCss).toMatch(/\.run-steps-units\s*\{[^}]*max-height:\s*136px/);
     expect(runCss).toMatch(/\.run-strip\s*\{[^}]*max-height:\s*72px/);
+    expect(runCss).toMatch(/\.run-strip-fixed\s*\{[^}]*flex:\s*0 0 auto/);
+    expect(runCss).toMatch(/\.run-strip-id\s*\{[^}]*flex:\s*0 1000 auto/);
+    expect(runCss).toMatch(/\.run-strip-running\s*\{[^}]*text-overflow:\s*ellipsis/);
   });
 
   it('AC7 a running row uses the selected fill, and error and stopped rows use other edges', async () => {
