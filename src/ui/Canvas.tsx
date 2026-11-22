@@ -64,6 +64,11 @@ interface Props {
   connectNote: string | null;
   /** Viewport zoom → UserView.zoom. Pan is not stored. */
   onZoomChange?: (zoom: number) => void;
+  /**
+   * `layout` keeps the stage-2 fit (once, large insets, left pin at min zoom).
+   * `run` fits the station into the stage-6 pane and refits when that pane changes.
+   */
+  frame?: 'layout' | 'run';
 }
 
 const BLOCKED = '실행 중에는 배치 이동(모델 편집)이 차단됩니다. 선택·보기만 가능합니다.';
@@ -78,6 +83,62 @@ const FIT_PADDING = { top: '48px', right: '188px', bottom: '140px', left: '52px'
 export function leftAlignedViewport(vp: { x: number; y: number; zoom: number }, minZoom: number, leftmostX: number, leftInset: number) {
   if (vp.zoom > minZoom + 0.001) return vp;
   return { x: leftInset - leftmostX * vp.zoom, y: vp.y, zoom: vp.zoom };
+}
+
+/** Stage-6 insets. Top clears the 28px legend; the other sides stay small so the station can fill the pane. */
+export const RUN_FIT_PAD = { top: 44, right: 12, bottom: 16, left: 12 } as const;
+export const RUN_FIT_MIN_ZOOM = 0.05;
+export const RUN_FIT_MAX_ZOOM = 2;
+
+export type PlanBox = { x: number; y: number; w: number; h: number };
+
+export function unionBounds(boxes: PlanBox[]): PlanBox | null {
+  if (!boxes.length) return null;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const b of boxes) {
+    x0 = Math.min(x0, b.x);
+    y0 = Math.min(y0, b.y);
+    x1 = Math.max(x1, b.x + b.w);
+    y1 = Math.max(y1, b.y + b.h);
+  }
+  if (!Number.isFinite(x0) || x1 <= x0 || y1 <= y0) return null;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/** Center `bounds` in the pane inside `pad`. Zoom stays within the run limits. */
+export function runPlanViewport(
+  bounds: PlanBox,
+  width: number,
+  height: number,
+  pad: { top: number; right: number; bottom: number; left: number } = RUN_FIT_PAD,
+  minZoom = RUN_FIT_MIN_ZOOM,
+  maxZoom = RUN_FIT_MAX_ZOOM,
+) {
+  const innerW = Math.max(1, width - pad.left - pad.right);
+  const innerH = Math.max(1, height - pad.top - pad.bottom);
+  const zoom = Math.min(maxZoom, Math.max(minZoom, Math.min(innerW / bounds.w, innerH / bounds.h)));
+  const cx = bounds.x + bounds.w / 2;
+  const cy = bounds.y + bounds.h / 2;
+  return {
+    x: pad.left + innerW / 2 - cx * zoom,
+    y: pad.top + innerH / 2 - cy * zoom,
+    zoom,
+  };
+}
+
+/** How much of the pane the box uses, and whether it sits inside the pane. */
+export function planFitReport(bounds: PlanBox, width: number, height: number, vp: { x: number; y: number; zoom: number }, maxZoom = RUN_FIT_MAX_ZOOM) {
+  const left = bounds.x * vp.zoom + vp.x;
+  const top = bounds.y * vp.zoom + vp.y;
+  const boxW = bounds.w * vp.zoom;
+  const boxH = bounds.h * vp.zoom;
+  const inside = left >= -0.5 && top >= -0.5 && left + boxW <= width + 0.5 && top + boxH <= height + 0.5;
+  const ratio = Math.max(boxW / width, boxH / height);
+  const atMax = vp.zoom >= maxZoom - 0.001;
+  return { inside, ratio, atMax, fills: atMax || ratio >= 0.7 - 1e-6, left, top, boxW, boxH };
 }
 
 type DragApi = {
@@ -258,7 +319,7 @@ function SignalEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
 }
 
 function FlowCanvas(props: Props) {
-  const { project: p, rt, view, selection, mode, connectFrom } = props;
+  const { project: p, rt, view, selection, mode, connectFrom, frame = 'layout' } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -539,9 +600,31 @@ function FlowCanvas(props: Props) {
     alignLeftIfMin();
   }, [fitView, alignLeftIfMin]);
 
+  const userAdjusted = useRef(false);
+  const fitting = useRef(false);
+  const fittedVp = useRef<Viewport | null>(null);
+  const lastSize = useRef({ width: 0, height: 0 });
+  const setViewportRef = useRef(setViewport);
+  setViewportRef.current = setViewport;
+  const getViewportRef = useRef(getViewport);
+  getViewportRef.current = getViewport;
+
+  const fitRunTo = useCallback((width: number, height: number) => {
+    if (width <= 40 || height <= 40) return;
+    const bounds = unionBounds(runEquipmentBoxes(propsRef.current.project, propsRef.current.rt));
+    if (!bounds) return;
+    const vp = runPlanViewport(bounds, width, height);
+    fitting.current = true;
+    userAdjusted.current = false;
+    void setViewportRef.current(vp, { duration: 0 }).then(() => {
+      fittedVp.current = getViewportRef.current();
+      fitting.current = false;
+    });
+  }, []);
+
   useEffect(() => {
     const el = hostRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
+    if (!el || typeof ResizeObserver === 'undefined' || frame === 'run') return;
     let fitted = false;
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
@@ -554,19 +637,59 @@ function FlowCanvas(props: Props) {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [fitCanvas]);
+  }, [frame, fitCanvas]);
 
   useEffect(() => {
+    const el = hostRef.current;
+    if (!el || typeof ResizeObserver === 'undefined' || frame !== 'run') return;
+    const ro = new ResizeObserver((entries) => {
+      const box = entries[0]?.contentRect;
+      if (!box) return;
+      lastSize.current = { width: box.width, height: box.height };
+      if (userAdjusted.current) return;
+      fitRunTo(box.width, box.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [frame, fitRunTo]);
+
+  useEffect(() => {
+    if (frame === 'run') return;
     const vp = getViewport();
     if (Math.abs(vp.zoom - view.zoom) < 0.001) return;
     void zoomTo(view.zoom, { duration: 0 });
-  }, [view.zoom, getViewport, zoomTo]);
+  }, [frame, view.zoom, getViewport, zoomTo]);
 
-  const onMove = useCallback((_: unknown, vp: Viewport) => {
+  const noteUserViewport = useCallback((_event: MouseEvent | TouchEvent | null, vp: Viewport) => {
+    // Zoom buttons call into the viewport with a null event. A drift from the last fit is the user's view.
+    if (propsRef.current.frame !== 'run' || fitting.current) return;
+    const fitted = fittedVp.current;
+    if (!fitted) return;
+    const drifted = Math.abs(vp.x - fitted.x) >= 1 || Math.abs(vp.y - fitted.y) >= 1 || Math.abs(vp.zoom - fitted.zoom) >= 0.002;
+    if (drifted) userAdjusted.current = true;
+  }, []);
+
+  const onMove = useCallback((event: MouseEvent | TouchEvent | null, vp: Viewport) => {
+    if (propsRef.current.frame === 'run') {
+      noteUserViewport(event, vp);
+      return;
+    }
     const z = Math.min(2, Math.max(0.5, vp.zoom));
     if (Math.abs(z - propsRef.current.view.zoom) < 0.001) return;
     propsRef.current.onZoomChange?.(z);
-  }, []);
+  }, [noteUserViewport]);
+
+  const onMoveStart = useCallback((event: MouseEvent | TouchEvent | null, vp: Viewport) => {
+    noteUserViewport(event, vp);
+  }, [noteUserViewport]);
+
+  const onRunFitClick = () => {
+    const el = hostRef.current;
+    const rect = el?.getBoundingClientRect();
+    const width = rect && rect.width > 40 ? rect.width : lastSize.current.width;
+    const height = rect && rect.height > 40 ? rect.height : lastSize.current.height;
+    fitRunTo(width, height);
+  };
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -638,13 +761,14 @@ function FlowCanvas(props: Props) {
 
   const pal = THEMES[paletteTheme(view.theme)].vars;
   return (
-    <div ref={hostRef} className="rf-host" data-mode={mode} data-linking={link ? '1' : '0'} onPointerDownCapture={onBandDown} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div ref={hostRef} className="rf-host" data-mode={mode} data-frame={frame} data-linking={link ? '1' : '0'} onPointerDownCapture={onBandDown} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onMove={onMove}
+        onMoveStart={onMoveStart}
         onNodeClick={() => undefined /* NodeWrapper turns pointer events on only when a click handler exists. Selection stays on pointerdown. */}
         onEdgeClick={(_, edge) => propsRef.current.onSelect([edge.id], false)}
         onPaneClick={(e) => {
@@ -654,8 +778,8 @@ function FlowCanvas(props: Props) {
           if (propsRef.current.mode === 'select') propsRef.current.onSelect([], false);
         }}
         defaultViewport={{ x: 0, y: 0, zoom: view.zoom }}
-        minZoom={0.5}
-        maxZoom={2}
+        minZoom={frame === 'run' ? RUN_FIT_MIN_ZOOM : 0.5}
+        maxZoom={frame === 'run' ? RUN_FIT_MAX_ZOOM : 2}
         panOnDrag={!(mode === 'select' && shiftHeld)}
         zoomOnScroll
         zoomOnPinch
@@ -685,9 +809,14 @@ function FlowCanvas(props: Props) {
         style={{ background: 'var(--canvas)' }}
       >
         {L.background && <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--grid)" />}
-        <Controls showInteractive={false} position="bottom-left" className="nopan" aria-label="도면 확대 축소"
+        <Controls showInteractive={false} showFitView={frame !== 'run'} position="bottom-left" className="nopan" aria-label="도면 확대 축소"
           fitViewOptions={{ padding: FIT_PADDING, duration: 0, minZoom: FIT_MIN_ZOOM, maxZoom: 2 }}
           onFitView={() => { requestAnimationFrame(() => requestAnimationFrame(() => alignLeftIfMin())); }} />
+        {frame === 'run' && (
+          <Panel position="top-right" className="rf-run-fit nopan">
+            <button type="button" className="small" onClick={onRunFitClick}>화면 맞춤</button>
+          </Panel>
+        )}
         <MiniMap
           className="nopan"
           position="bottom-right"
@@ -745,6 +874,17 @@ function materialMarker(p: Project, rt: RuntimeState | null, off: (id: string, u
   }
   if (!pos) return null;
   return { ...pos, label: `${m0?.name.split(' ')[0] ?? 'M'} · ${mi.state}` };
+}
+
+/** Units, devices, and the runtime material marker. Stage-6 fit uses this box. */
+export function runEquipmentBoxes(project: Project, rt: RuntimeState | null): PlanBox[] {
+  const boxes: PlanBox[] = [
+    ...project.units.map((u) => ({ x: u.layout.x, y: u.layout.y, w: u.layout.w, h: u.layout.h })),
+    ...project.devices.map((d) => ({ x: d.layout.x, y: d.layout.y, w: d.layout.w, h: d.layout.h })),
+  ];
+  const mat = materialMarker(project, rt, () => ({ dx: 0, dy: 0 }));
+  if (mat) boxes.push({ x: mat.x - 11, y: mat.y - 11, w: 22, h: 22 });
+  return boxes;
 }
 
 export function Canvas(props: Props) {
