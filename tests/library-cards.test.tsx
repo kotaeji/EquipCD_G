@@ -13,7 +13,7 @@ import { DIAGRAM_SLOT_H, DIAGRAM_SLOT_W, DIAGRAM_SLOTS, LibraryWorkspace, Visual
 
 const NEW_KINDS = ['stopper', 'gantry', 'picker', 'sensor', 'photoelectricSensor', 'proximitySensor', 'limitSwitch', 'unitInput', 'unitIdentify', 'unitTransfer'] as const;
 const HANDED = ['a3687.svg', '238b4.svg', '91c95.svg'] as const;
-const ALLOWED = new Set(['#245BCE', '#E5EDFF']);
+const ALLOWED = new Set(['#2C2C2C', '#E6E6E6']);
 
 const fullBackdrop = (text: string) => /<rect\b[^>]*\bwidth="100"(?=[^>]*\bheight="48")/.test(text)
   || /<rect\b[^>]*\bheight="48"(?=[^>]*\bwidth="100")/.test(text)
@@ -53,22 +53,22 @@ describe('library card diagrams', () => {
     for (const file of HANDED) {
       const text = readFileSync(`src/ui/slots/${file}`, 'utf8');
       expect(text).not.toContain('<rect width="100" height="48" fill="white"/>');
-      expect(text).toContain('fill="#E5EDFF"');
-      expect(text).toContain('stroke="#245BCE"');
+      expect(text).toContain('fill="#E6E6E6"');
+      expect(text).toContain('stroke="#2C2C2C"');
     }
     expect(readFileSync('src/ui/slots/47069.svg', 'utf8')).toContain('<rect width="16" height="16" fill="white"/>');
     expect(readFileSync('src/ui/slots/e5f85.svg', 'utf8')).not.toContain('fill="white"');
   });
 
-  it('paints the ten new diagrams with only #245BCE and #E5EDFF', () => {
+  it('paints the ten new diagrams with only #2C2C2C and #E6E6E6', () => {
     for (const kind of NEW_KINDS) {
       const text = readFileSync(`src/ui/slots/${DIAGRAM_SLOTS[kind].file}`, 'utf8');
       const hexes = text.match(/#[0-9A-Fa-f]{3,8}/g) ?? [];
       expect(hexes.length).toBeGreaterThan(0);
       for (const hex of hexes) expect(ALLOWED.has(hex.toUpperCase()), `${kind} ${hex}`).toBe(true);
       expect(text).not.toMatch(/\b(?:white|black|rgb|hsl)\b/i);
-      expect(text).toContain('fill="#E5EDFF"');
-      expect(text).toContain('stroke="#245BCE"');
+      expect(text).toContain('fill="#E6E6E6"');
+      expect(text).toContain('stroke="#2C2C2C"');
     }
   });
 

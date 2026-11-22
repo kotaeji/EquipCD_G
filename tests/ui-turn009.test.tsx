@@ -91,7 +91,8 @@ describe('TURN-009 layout tabs', () => {
     const rule = css.slice(css.indexOf('.ui-tabs [role="tab"][aria-selected="true"]'));
     expect(rule).toMatch(/color:\s*var\(--accent\)/);
     expect(css).not.toMatch(/\.layout-tabs \[role="tab"\]/);
-    expect(css).toMatch(/\.layout-tabs \.diagram-canvas \{[^}]*min-height:\s*360px/);
+    // TURN-026: the palette wraps, so the diagram fills the space under it instead of a fixed 360px floor that would run past the stage.
+    expect(css).toMatch(/\.layout-tabs \.diagram-canvas \{[^}]*min-height:\s*0/);
     expect(css).toMatch(/\.stage\.layout-stage \{[^}]*overflow:\s*hidden/);
   });
 

@@ -287,7 +287,7 @@ button.btn-main:disabled { opacity: .5; }
 .libdetail h2 { margin: 0 0 8px; font-size: 18px; }
 .card .cname { font-size: 20px; font-weight: 700; line-height: 1.4; }
 .card .cbadges { display: none; }
-.libmain .cards { grid-template-columns: repeat(2, minmax(280px, 368px)); }
+.libmain .cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .lib-more { margin: 8px 12px 16px; font-size: 14px; }
 .slot-diagram { position: relative; width: 100px; height: 48px; flex: 0 0 auto; background: transparent; overflow: hidden; }
 .slot-diagram img, .slot-diagram svg { width: 100%; height: 100%; display: block; object-fit: contain; }
@@ -297,15 +297,15 @@ button.btn-main:disabled { opacity: .5; }
 .tree .twisty img { width: 16px; height: 16px; display: block; }
 .statusbar b { color: var(--muted); font-weight: 400; }
 .statusbar .btn-main { height: 44px; }
-/* Same Figma alias colors as the inline variables, so the selected chip does not linger on the other palette. */
+/* Light controls follow the theme tokens. Dark keeps its own literals so a chip does not linger on the other palette. */
 .app[data-appearance="light"] button.primary,
-.app[data-appearance="light"] button.btn-main.primary { background-color: #245bce; color: #ffffff; }
+.app[data-appearance="light"] button.btn-main.primary { background-color: var(--accent); color: var(--on-accent); }
 .app[data-appearance="dark"] button.primary,
 .app[data-appearance="dark"] button.btn-main.primary { background-color: #42d6cc; color: #102c2d; }
-.app[data-appearance="light"] button.btn-main.secondary { background-color: #e5edff; color: #17283f; }
+.app[data-appearance="light"] button.btn-main.secondary { background-color: var(--selected); color: var(--text); }
 .app[data-appearance="dark"] button.btn-main.secondary { background-color: #203d4c; color: #eff5fd; }
-.app[data-appearance="light"] .theme-toggle button[data-theme-choice="light"] { background-color: #245bce; color: #ffffff; }
-.app[data-appearance="light"] .theme-toggle button[data-theme-choice="dark"] { background-color: #ffffff; color: #17283f; }
+.app[data-appearance="light"] .theme-toggle button[data-theme-choice="light"] { background-color: var(--theme-light-bg); color: var(--theme-light-fg); }
+.app[data-appearance="light"] .theme-toggle button[data-theme-choice="dark"] { background-color: var(--theme-dark-bg); color: var(--theme-dark-fg); }
 .app[data-appearance="dark"] .theme-toggle button[data-theme-choice="light"] { background-color: #19283a; color: #eff5fd; }
 .app[data-appearance="dark"] .theme-toggle button[data-theme-choice="dark"] { background-color: #42d6cc; color: #102c2d; }
 .app .ws-canvas { grid-template-columns: minmax(0, 1fr) 256px; grid-template-rows: minmax(0, 1fr); }
@@ -397,8 +397,32 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   color: #FFFFFF;
   background-color: transparent;
   border-color: transparent;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 28px;
+  line-height: 1;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.app > .header button.icon .hdr-glyph {
+  display: block;
+  font-size: 28px;
+  line-height: 1;
+  transform: scale(2.4);
+  transform-origin: center;
 }
 .app > .header button:disabled { opacity: .5; }
+.app > .header button.icon:disabled {
+  opacity: 1;
+  color: #F5D6DE;
+}
 .app > .header button:hover:not(:disabled) {
   border-color: #FFFFFF;
 }
@@ -748,9 +772,9 @@ details[open] .fold-open { display: inline; }
 .layout-stage .stage-head .stage-title { flex: 0 0 auto; font-size: 20px; line-height: 1.2; }
 .layout-stage .stage-head .tool-pills { flex: 1 1 auto; min-width: 0; }
 .layout-stage .palette-hint { line-height: 1.35; }
-.layout-stage .palette-fold { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.layout-stage .palette-fold > summary { flex: 0 0 auto; }
-.layout-stage .palette-fold .palette { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; padding: 0; border-top: 0; }
+.layout-stage .palette-fold { display: block; width: 100%; max-width: 100%; min-width: 0; flex-shrink: 0; }
+.layout-stage .palette-fold > summary { display: block; }
+.layout-stage .palette-fold .palette { display: flex; width: 100%; max-width: 100%; min-width: 0; flex-wrap: wrap; overflow-x: hidden; padding: 4px 0 0; border-top: 0; }
 .layout-stage .palette-fold .pi { flex: 0 0 auto; display: flex; flex-direction: row; align-items: center; gap: 4px; white-space: nowrap; padding: 4px 8px; }
 .layout-stage .palette-fold .pi svg { margin: 0; }
 .layout-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -762,7 +786,7 @@ details[open] .fold-open { display: inline; }
 .layout-tabs .path-note { flex: 0 0 auto; }
 .layout-tabs .diagram-tools { flex: 0 0 auto; margin: 0; }
 .diagram-hint { flex: 1 0 100%; margin: 0; font-size: 12px; line-height: 1.35; color: var(--text); }
-.layout-tabs .diagram-canvas { flex: 1 1 auto; height: auto; min-height: 360px; }
+.layout-tabs .diagram-canvas { flex: 1 1 auto; height: auto; min-height: 0; }
 
 /* TURN-010: short project list above the equipment tree. Six rows fit; the seventh scrolls inside the list. */
 .proj-line { padding: 4px 8px 0; }
@@ -797,3 +821,15 @@ details[open] .fold-open { display: inline; }
 .canvas-rail .tree .tnode { padding: 1px 4px; }
 .canvas-rail .tree div { font-size: 13px; line-height: 1.25; }
 .canvas-rail .muted { margin: 0; font-size: 12px; line-height: 1.35; }
+
+/* TURN-026: a selected row keeps an accent edge, so a gray fill is not the only cue. */
+button.on,
+.ptab.on,
+.exitem.on,
+.stepper .st.on,
+.ws-card.on,
+.tabbar .ptab.on {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.tree div.sel { box-shadow: inset 3px 0 0 var(--accent); }
+.card.sel { border-width: 2px; box-shadow: 0 0 0 2px var(--accent); }

@@ -1,5 +1,5 @@
 /* TURN-019. Dark card-diagram colors live only in this file.
-   Light theme keeps the SVG presentation attributes: stroke #245BCE, fill #E5EDFF.
+   Light theme keeps the SVG presentation attributes: stroke #2C2C2C, fill #E6E6E6.
    CSS rules override those attributes when the app is dark (same approach as the header mark).
    Do not set the colors with a filter, and do not put var() in the SVG attributes.
    Measured (WCAG): stroke #8FB4FF is 7.21:1 on #19283a and 5.53:1 on #203d4c.
