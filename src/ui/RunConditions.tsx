@@ -80,7 +80,7 @@ function ActionTimes({ action, disabled, onDuration, onTimeout }: {
 }
 
 /** Right column of the 3D run view. Duration and timeout edits go through setQuantity. */
-export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold }: {
+export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, equipmentMotion, setEquipmentMotion, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold }: {
   p: Project;
   locked: boolean;
   edit: EditFn;
@@ -90,6 +90,8 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
   setShowNames: (v: boolean) => void;
   emphasize: boolean;
   setEmphasize: (v: boolean) => void;
+  equipmentMotion: boolean;
+  setEquipmentMotion: (v: boolean) => void;
   canRevert: boolean;
   onRevert: () => void;
   onDuration: (actionId: string, value: number) => void;
@@ -111,6 +113,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
       </label>
       <label className="run3d-check"><input type="checkbox" aria-label="이름 표시" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} />이름 표시</label>
       <label className="run3d-check"><input type="checkbox" aria-label="동작 강조" checked={emphasize} onChange={(e) => setEmphasize(e.target.checked)} />동작 강조</label>
+      <label className="run3d-check"><input type="checkbox" aria-label="설비 동작" checked={equipmentMotion} onChange={(e) => setEquipmentMotion(e.target.checked)} />설비 동작</label>
       <h3>동작 시간 · 타임아웃</h3>
       {locked && <p className="run3d-lock" data-duration-locked="true" data-timeout-locked="true">실행 중 · 일시정지 중에는 동작 시간과 타임아웃을 바꿀 수 없습니다. 초기화한 뒤 편집하세요.</p>}
       {p.units.map((unit) => {
