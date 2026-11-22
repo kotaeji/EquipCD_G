@@ -10,6 +10,7 @@ import type { AssetKind, Project } from '../model/types';
 import { flowUsesSignal, hasFlow } from '../model/flow';
 import { checkRunReadiness, validateProject, type Diagnostic } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
+import { aggregateStepStatus, type AggregateStepStatus } from '../runtime/runSummary';
 import type { QuarantineEntry } from '../storage/localStore';
 import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
@@ -26,6 +27,14 @@ function readResultUsed(p: Project, deviceId: string): boolean {
   return !!sig && hasFlow(p) && flowUsesSignal(p.sequence.flow ?? [], sig.id);
 }
 export { fmt as fmtTime };
+
+function sequenceStatus(view: AggregateStepStatus) {
+  if (view.phase === 'done') return <Badge kind="ok">{view.label}</Badge>;
+  if (view.phase === 'active') return <Badge kind="acc">{view.label}</Badge>;
+  if (view.phase === 'error') return <Badge kind="err">{view.label}</Badge>;
+  if (view.phase === 'stopped') return <Badge kind="warn">{view.label}</Badge>;
+  return <span className="muted">{view.label}</span>;
+}
 
 // ---------------- F5 Sequence ----------------
 export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onSelect: (id: string) => void }) {
@@ -68,8 +77,8 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
           <tbody>
             {p.sequence.steps.map((s, i) => {
               const a = p.actions.find((x) => x.id === s.actionId);
-              const rec = rt?.steps.find((r) => r.stepId === s.id);
-              const st = rec?.status ?? 'pending';
+              const view = aggregateStepStatus(rt?.steps.filter((r) => r.stepId === s.id) ?? []);
+              const st = view.phase;
               return (
                 <tr key={s.id} className={st === 'active' ? 'active' : st === 'error' ? 'err' : ''} draggable={!locked}
                   onDragStart={(e) => { setDragIdx(i); e.dataTransfer.setData('text/plain', s.id); }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => dropAt(e, i)}>
@@ -80,7 +89,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
                   <td>{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as), '단계 타임아웃')} />}</td>
                   <td style={{ fontSize: 11 }}>{a ? effectLabel(p, a.effect) : ''}</td>
                   <td style={{ fontSize: 10 }} className="muted">{s.origin}{s.sourceText ? `: "${s.sourceText}"` : ''}</td>
-                  <td>{st === 'done' ? <Badge kind="ok">완료</Badge> : st === 'active' ? <Badge kind="acc">실행 중</Badge> : st === 'error' ? <Badge kind="err">오류</Badge> : <span className="muted">대기</span>}</td>
+                  <td>{sequenceStatus(view)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="small" disabled={locked || i === 0} onClick={() => edit(C.moveStep(p, i, i - 1), '단계 위로')}>↑</button>
                     <button className="small" disabled={locked || i === p.sequence.steps.length - 1} onClick={() => edit(C.moveStep(p, i, i + 1), '단계 아래로')}>↓</button>

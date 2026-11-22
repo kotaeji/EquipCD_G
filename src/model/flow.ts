@@ -128,9 +128,20 @@ export function findConsecutive(nodes: FlowNode[], ids: string[]): { list: FlowN
   return hit;
 }
 
+/**
+ * Parallel wrap. One node stays in lane 1 and lane 2 stays empty.
+ * Two to four nodes get one lane each, top to bottom.
+ * Five or more: the first three nodes each get a lane, and the rest stay in lane 4, in order.
+ */
+export function parallelWrapLanes(inner: FlowNode[]): FlowNode[][] {
+  if (inner.length <= 1) return [inner, []];
+  if (inner.length <= 4) return inner.map((n) => [n]);
+  return [[inner[0]], [inner[1]], [inner[2]], inner.slice(3)];
+}
+
 function putInner(block: FlowNode, inner: FlowNode[]): FlowNode {
   if (block.kind === 'branch') return { ...block, then: inner };
-  if (block.kind === 'parallel') return { ...block, lanes: [inner, ...block.lanes.slice(1)] };
+  if (block.kind === 'parallel') return { ...block, lanes: parallelWrapLanes(inner) };
   if (block.kind === 'loop' || block.kind === 'retry') return { ...block, body: inner };
   return block;
 }
