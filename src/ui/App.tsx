@@ -777,7 +777,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   });
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
-  const runCanvasEl = <Canvas project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
+  const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;

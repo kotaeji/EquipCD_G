@@ -847,7 +847,10 @@ button.on,
 .run-details { flex: 0 0 auto; min-height: 0; border-top: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; }
 .run-details.is-open { flex: 0 1 150px; max-height: 150px; min-height: 0; overflow: hidden; }
 .run-details-head { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 8px; }
+.run-details-head > button { flex: 0 0 auto; white-space: nowrap; min-width: max-content; line-height: 18px; }
 .run-details-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.rf-host .rf-run-fit.react-flow__panel { top: 48px; right: 8px; margin: 0; }
+.rf-run-fit button { white-space: nowrap; }
 .run-details-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 8px 8px; }
 .run-details .ui-tabs-root { min-height: 0; }
 .run-inspect { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
