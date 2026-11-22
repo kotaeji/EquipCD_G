@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GAP_KIND_LABEL } from '../src/model/gaps';
 import { App } from '../src/ui/App';
-import { TIMEOUT_WARN } from '../src/ui/RunConditions';
+import { TIMEOUT_EQUAL, TIMEOUT_WARN } from '../src/ui/RunConditions';
 import { holdRuntimeClock } from './holdRuntimeClock';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -140,15 +140,23 @@ describe('TURN-033 3D info and timeout', () => {
     expect((u.el.querySelector('[aria-label="S1 푸셔 투입 타임아웃 숫자"]') as HTMLInputElement).value).toBe('3');
   });
 
-  it('AC6 a timeout at or under the duration warns, and a shorter timeout stops on TIMEOUT', async () => {
+  it('AC6 a shorter timeout warns and stops on TIMEOUT, and an equal timeout warns without stopping', async () => {
     const u = await open3d();
     const input = () => u.el.querySelector('[aria-label="S1 푸셔 투입 타임아웃 숫자"]') as HTMLInputElement;
     await setNumber(input(), '0.8');
-    expect(u.el.querySelector('[data-timeout-warn="PSH-01.push"]') ?? u.el.querySelector('[data-timeout-warn]')).toBeTruthy();
-    const equalWarn = [...u.el.querySelectorAll('[data-timeout-warn]')].find((node) => node.textContent === TIMEOUT_WARN);
+    const equalWarn = [...u.el.querySelectorAll('[data-timeout-warn]')].find((node) => node.textContent === TIMEOUT_EQUAL);
     expect(equalWarn).toBeTruthy();
+    expect([...u.el.querySelectorAll('[data-timeout-warn]')].some((node) => node.textContent === TIMEOUT_WARN)).toBe(false);
+    await runToEnd(u);
+    expect(u.el.querySelector('[data-run-status]')!.getAttribute('data-run-status')).toBe('completed');
+    expect(u.el.querySelector('[data-run-time]')!.textContent).toBe('00:11.100');
+    await u.click(u.btn('도면'));
+    expect(u.el.querySelector('.log-list')!.textContent).not.toContain('TIMEOUT');
+    await u.click(u.btn('3D'));
+    await u.click(u.btn('⟲ 초기화'));
     await setNumber(u.el.querySelector('[aria-label="S1 푸셔 투입 타임아웃 숫자"]') as HTMLInputElement, '0.5');
     expect([...u.el.querySelectorAll('[data-timeout-warn]')].some((node) => node.textContent === TIMEOUT_WARN)).toBe(true);
+    expect([...u.el.querySelectorAll('[data-timeout-warn]')].some((node) => node.textContent === TIMEOUT_EQUAL)).toBe(false);
     await runToEnd(u);
     expect(u.el.querySelector('[data-run-status]')!.getAttribute('data-run-status')).toBe('error');
     expect(u.el.querySelector('[data-throughput]')!.textContent).toBe('—');

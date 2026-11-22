@@ -6,11 +6,18 @@ import type { EditFn } from './Inspector';
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
 export const TIMEOUT_WARN = '타임아웃이 동작 시간보다 짧습니다 — 실행하면 TIMEOUT';
+export const TIMEOUT_EQUAL = '타임아웃이 동작 시간과 같습니다 — 여유가 없습니다';
 
-function timeoutTooShort(action: Action): boolean {
+/** Matches the engine tie rule: equal millisecond instants succeed, a shorter timeout is TIMEOUT. */
+function timeoutNote(action: Action): string | null {
   const timeout = action.timeout.value;
   const duration = action.duration.value;
-  return timeout !== null && duration !== null && timeout <= duration;
+  if (timeout === null || duration === null) return null;
+  const timeoutMs = Math.round(timeout * 1000);
+  const durationMs = Math.round(duration * 1000);
+  if (timeoutMs < durationMs) return TIMEOUT_WARN;
+  if (timeoutMs === durationMs) return TIMEOUT_EQUAL;
+  return null;
 }
 
 function QuantityRow({ action, field, label, disabled, onCommit }: {
@@ -61,12 +68,13 @@ function ActionTimes({ action, disabled, onDuration, onTimeout }: {
   onDuration: (value: number) => void;
   onTimeout: (value: number) => void;
 }) {
+  const note = timeoutNote(action);
   return (
     <div className="run3d-dur">
       <span className="run3d-dur-name" title={action.name}>{action.name}</span>
       <QuantityRow action={action} field="duration" label="동작 시간" disabled={disabled} onCommit={onDuration} />
       <QuantityRow action={action} field="timeout" label="타임아웃" disabled={disabled} onCommit={onTimeout} />
-      {timeoutTooShort(action) && <p className="run3d-timeout-warn" data-timeout-warn={action.id}>{TIMEOUT_WARN}</p>}
+      {note && <p className="run3d-timeout-warn" data-timeout-warn={action.id}>{note}</p>}
     </div>
   );
 }
