@@ -23,10 +23,11 @@ function deviceState(p: Project, rt: RuntimeState | null, deviceId: string): str
 }
 
 /** Left column of the 3D run view. */
-export function RunInfoPanel({ p, rt, selectedId, folded, onToggleFold }: { p: Project; rt: RuntimeState | null; selectedId: string | null; folded: boolean; onToggleFold: () => void }) {
+export function RunInfoPanel({ p, rt, selectedId, folded, onToggleFold, onOpenGaps }: { p: Project; rt: RuntimeState | null; selectedId: string | null; folded: boolean; onToggleFold: () => void; onOpenGaps: () => void }) {
   const info = describeRunInfo(p, rt);
   const scene = describeScene(p, rt);
   const maxMs = Math.max(1, ...info.bars.map((bar) => bar.widthMs));
+  const unitMax = Math.max(1, ...info.unitTotals.map((row) => row.ms));
   const device = selectedId ? p.devices.find((d) => d.id === selectedId) : undefined;
   const unit = device ? p.units.find((u) => u.id === device.unitId) : undefined;
   return (
@@ -42,6 +43,39 @@ export function RunInfoPanel({ p, rt, selectedId, folded, onToggleFold }: { p: P
         <div><dt>실행 상태</dt><dd data-run-status={info.status}>{RUN_STATUS_KO[info.status] ?? info.status}</dd></div>
         <div><dt>가상 시간</dt><dd className="mono" data-run-time="">{info.timeText}</dd></div>
       </dl>
+      <section aria-label="사이클 시간">
+        <h3>사이클 시간</h3>
+        <p className="mono run3d-metric" data-cycle-time="" aria-label="사이클 시간">{info.cycleText}</p>
+      </section>
+      <section aria-label="시간당 생산량">
+        <h3>시간당 생산량(가정)</h3>
+        <p className="mono run3d-metric" data-throughput="" aria-label="시간당 생산량">{info.throughputText}</p>
+        <p className="run3d-note" data-throughput-note="">{info.throughputNote}</p>
+      </section>
+      <section aria-label="병목 Unit">
+        {info.bottleneck
+          ? <p className="run3d-longest" data-bottleneck={info.bottleneck.unitId} aria-label="병목 Unit">병목 {info.bottleneck.name} {info.bottleneck.timeText}</p>
+          : <p className="muted">Unit 없음</p>}
+      </section>
+      <section aria-label="Gap">
+        <p data-gap-total={info.gapTotal} aria-label="Gap 건수">Gap 전체 {info.gapTotal}건</p>
+        <ul className="run3d-gap-kinds">
+          {info.gapKinds.map((row) => <li key={row.kind} data-gap-kind={row.kind} data-gap-count={row.count}>{row.label} {row.count}</li>)}
+        </ul>
+        <button type="button" className="run3d-gap-open" aria-label="5단계에서 보기" onClick={onOpenGaps}>5단계에서 보기</button>
+      </section>
+      <section aria-label="Unit 별 합계">
+        <h3>Unit 별 합계</h3>
+        <ul className="run3d-bars units">
+          {info.unitTotals.map((row) => (
+            <li key={row.unitId} className={info.bottleneck?.unitId === row.unitId ? 'is-bottleneck' : ''} data-unit-total={row.unitId}>
+              <span className="run3d-bar-name" title={row.name}>{row.name}{info.bottleneck?.unitId === row.unitId ? ' · 병목' : ''}</span>
+              <span className="run3d-bar-track" aria-hidden="true"><span className="run3d-bar-fill" style={{ width: `${Math.min(100, (row.ms / unitMax) * 100)}%` }} /></span>
+              <span className="mono run3d-bar-time">{row.timeText}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
       <section aria-label="실행 중 단계">
         <h3>실행 중 단계</h3>
         {info.running.length === 0 && <p className="muted">진행 중인 단계 없음</p>}
@@ -67,12 +101,6 @@ export function RunInfoPanel({ p, rt, selectedId, folded, onToggleFold }: { p: P
               <span className="mono run3d-bar-time">{bar.timeText}</span>
             </li>
           ))}
-        </ul>
-      </section>
-      <section aria-label="Unit 별 합계">
-        <h3>Unit 별 합계</h3>
-        <ul className="run3d-list">
-          {info.unitTotals.map((row) => <li key={row.unitId} data-unit-total={row.unitId}>{row.name} · {row.timeText}</li>)}
         </ul>
       </section>
       <section aria-label="선택한 Device">

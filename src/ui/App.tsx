@@ -11,7 +11,7 @@ import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION }
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
 import { orderRunRecords, stepStatusLabel } from '../runtime/runSummary';
 import { describeScene } from '../scene/describe';
-import { DURATION_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
+import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
@@ -207,23 +207,30 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const doStep = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'paused' ? { ...t, runtime: pause(advance(resume(t.runtime), 100)) } : t));
   const doToEnd = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? { ...t, runtime: runToEnd(t.runtime) } : t));
 
-  const onDuration = (actionId: string, value: number) => {
+  const onActionQuantity = (actionId: string, field: 'duration' | 'timeout', value: number) => {
     const action = p.actions.find((a) => a.id === actionId);
-    if (!action || action.duration.value === value) return;
+    if (!action || action[field].value === value) return;
+    const label = field === 'duration' ? DURATION_EDIT_LABEL : TIMEOUT_EDIT_LABEL;
+    const other = field === 'duration' ? 'timeout' : 'duration';
     const last = tab.history.labels[tab.history.labels.length - 1];
     const prev = tab.history.past[tab.history.past.length - 1];
-    // Typing or dragging keeps one undo: replace the latest duration edit of this action.
-    if (last === DURATION_EDIT_LABEL && prev) {
+    // Typing or dragging keeps one undo: replace the latest edit of this field on this action.
+    if (last === label && prev) {
       const before = prev.actions.find((a) => a.id === actionId);
-      const sameOthers = prev.actions.every((a) => a.id === actionId || a.duration.value === p.actions.find((x) => x.id === a.id)?.duration.value)
-        && prev.actions.length === p.actions.length;
-      if (before && before.duration.value !== action.duration.value && sameOthers) {
-        const replaced = C.setQuantity(prev, { kind: 'action', id: actionId, field: 'duration' }, value, action.duration.assumption);
+      const sameOthers = prev.actions.length === p.actions.length && prev.actions.every((a) => {
+        if (a.id === actionId) return true;
+        const cur = p.actions.find((x) => x.id === a.id);
+        return !!cur && a.duration.value === cur.duration.value && a.timeout.value === cur.timeout.value;
+      });
+      if (before && before[field].value !== action[field].value && before[other].value === action[other].value && sameOthers) {
+        const replaced = C.setQuantity(prev, { kind: 'action', id: actionId, field }, value, action[field].assumption);
         if (replaced.ok) { updTab(tab.key, (t) => ({ ...t, history: { ...t.history, present: replaced.project }, runtime: null })); return; }
       }
     }
-    edit(C.setQuantity(p, { kind: 'action', id: actionId, field: 'duration' }, value, action.duration.assumption), DURATION_EDIT_LABEL);
+    edit(C.setQuantity(p, { kind: 'action', id: actionId, field }, value, action[field].assumption), label);
   };
+  const onDuration = (actionId: string, value: number) => onActionQuantity(actionId, 'duration', value);
+  const onTimeout = (actionId: string, value: number) => onActionQuantity(actionId, 'timeout', value);
   const revertDurations = () => {
     const base = durationBaseline.current;
     if (!base || locked) return;
@@ -739,13 +746,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       durationBaseline.current = {
         sessionKey: runSession,
         depth: tab.history.past.length,
-        snap: p.actions.map((a) => ({ id: a.id, value: a.duration.value, assumption: a.duration.assumption })),
+        snap: p.actions.map((a) => ({
+          id: a.id,
+          value: a.duration.value,
+          assumption: a.duration.assumption,
+          timeout: a.timeout.value,
+          timeoutAssumption: a.timeout.assumption,
+        })),
       };
     }
   } else if (durationBaseline.current) durationBaseline.current = null;
   const canRevertDurations = !!durationBaseline.current && p.actions.some((a) => {
     const snap = durationBaseline.current?.snap.find((s) => s.id === a.id);
-    return !!snap && snap.value !== a.duration.value;
+    return !!snap && (snap.value !== a.duration.value || snap.timeout !== a.timeout.value);
   });
   const runViewToggle = <div role="radiogroup" aria-label="실행 보기">
     <button type="button" role="radio" aria-checked={view.runView === 'diagram'} className={view.runView === 'diagram' ? 'on' : ''} onClick={() => setRunView('diagram')}>도면</button>
@@ -1123,11 +1136,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <span className="badge">{rt?.status === 'completed' ? '시뮬 완료' : `시뮬 ${rt?.status ?? 'idle'}`}</span>
           <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
         {view.runView === '3d' && scene3d ? <>
-          <RunInfoPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldInfo} onToggleFold={() => setFoldInfo((v) => !v)} />
+          <RunInfoPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldInfo} onToggleFold={() => setFoldInfo((v) => !v)} onOpenGaps={() => goStep('check', 'gap')} />
           <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
             onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
           <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
-            emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} />
+            emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout} />
         </> : <>
         <div className="center sparse-page">
         {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
