@@ -5,7 +5,7 @@ import type { Action, AssetKind, Condition, Connection, Device, FlowNode, Materi
 import { DEFAULT_MAX_RETRIES, q } from './types';
 import { containsList, containsParallelOrSubstation, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
 import { arrangeUnitDevices } from './deviceArrange';
-import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, tightUnitLayout, unitMinSize } from './unitLayout';
+import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, rectsOverlap, tightUnitLayout, unitMinSize } from './unitLayout';
 
 export type CmdResult = { ok: true; project: Project; note?: string } | { ok: false; reason: string };
 
@@ -505,7 +505,41 @@ export {
   deviceVisualBox,
 } from './deviceArrange';
 
-/** 「자동 정렬」: place this Unit's Devices by signal flow. One undo step. Origin stays. */
+/**
+ * After auto-arrange, clear Unit boxes that overlap the arranged Unit.
+ * Right side reuses 「겹침 풀기」: x order, minimum `UNIT_SPREAD_GAP`, y stays, Devices move with the Unit.
+ * The arranged Unit is the fixed left edge of that walk, so its top-left stays.
+ * A Unit on the left that overlaps it is pushed left by the same gap — the stock rule would move this Unit.
+ * No other Unit moves when this one overlaps nobody. Unrelated pairs that already overlapped stay overlapped.
+ */
+function clearArrangeOverlaps(p: Project, anchorId: string): void {
+  const anchor = p.units.find((u) => u.id === anchorId);
+  if (!anchor) return;
+  const sorted = sortUnits(p.units, 'x');
+  const ai = sorted.findIndex((u) => u.id === anchorId);
+  if (ai < 0) return;
+  const overlapsAnchor = (u: Unit) => u.id !== anchorId && rectsOverlap(u.layout, anchor.layout);
+  if (!sorted.some(overlapsAnchor)) return;
+  if (sorted.slice(ai + 1).some(overlapsAnchor)) {
+    for (let i = ai + 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const cur = sorted[i];
+      const space = cur.layout.x - (prev.layout.x + prev.layout.w);
+      if (space < UNIT_SPREAD_GAP) shiftUnit(cur, p.devices, prev.layout.x + prev.layout.w + UNIT_SPREAD_GAP - cur.layout.x, 0);
+    }
+  }
+  if (sorted.slice(0, ai).some(overlapsAnchor)) {
+    for (let i = ai - 1; i >= 0; i--) {
+      const next = sorted[i + 1];
+      const cur = sorted[i];
+      if (!rectsOverlap(cur.layout, anchor.layout) && !rectsOverlap(cur.layout, next.layout)) continue;
+      const space = next.layout.x - (cur.layout.x + cur.layout.w);
+      if (space < UNIT_SPREAD_GAP) shiftUnit(cur, p.devices, next.layout.x - UNIT_SPREAD_GAP - cur.layout.w - cur.layout.x, 0);
+    }
+  }
+}
+
+/** 「자동 정렬」: place this Unit's Devices by signal flow, then push Units it overlaps. One undo step. Origin stays. */
 export function arrangeDevices(p0: Project, unitId: string): CmdResult {
   const u0 = p0.units.find((u) => u.id === unitId);
   if (!u0) return no('Unit 없음');
@@ -524,6 +558,7 @@ export function arrangeDevices(p0: Project, unitId: string): CmdResult {
     dev.layout.x = d.x;
     dev.layout.y = d.y;
   }
+  clearArrangeOverlaps(p, unitId);
   return ok(p);
 }
 
