@@ -96,9 +96,9 @@ describe('TURN-001 group-run blocker guidance (jsdom)', () => {
     expect(u.appEl.dataset.step).toBe('sequence');
     expect(u.el.querySelector('.subtabs button.on')!.textContent).toMatch(/^Substation 시퀀스/);
     expect(u.history()).toEqual(before);
-    await u.click(u.btn('↶'));
+    await u.click(u.el.querySelector('[aria-label="실행 취소"]')!);
     expect(u.history().present).toEqual(before.past[before.past.length - 1]);
-    await u.click(u.btn('↷'));
+    await u.click(u.el.querySelector('[aria-label="다시 실행"]')!);
     expect(u.history().present).toEqual(before.present);
     expect(u.history().past).toEqual(before.past);
   });

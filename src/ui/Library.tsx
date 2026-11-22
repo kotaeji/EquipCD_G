@@ -35,7 +35,7 @@ function slotRaw(file: string): string {
 /**
  * Card diagrams, 100×48. Four kinds keep the handed slot files. Cylinder card 1:594 was returned as the same file as the
  * pusher slot 1:585 (assets-manifest callsites both reference a3687.svg). This app does not redraw a second cylinder.
- * The other ten are card-only SVGs: same size, stroke #245BCE, fill #E5EDFF, no backdrop. Files (not a second Symbol)
+ * The other ten are card-only SVGs: same size, stroke #2C2C2C, fill #E6E6E6, no backdrop. Files (not a second Symbol)
  * so the canvas Symbol stays unchanged. Schematic cards inline that SVG: an img cannot take the page stylesheet, and
  * the dark palette lives in one place (slot-theme.css). Photo mode still uses an img.
  */
@@ -56,8 +56,8 @@ export const DIAGRAM_SLOTS: Record<string, { src: string; raw: string; slot: str
   unitTransfer: { src: diagramUnitTransfer, raw: slotRaw('unitTransfer.svg'), slot: 'card:unitTransfer', file: 'unitTransfer.svg' },
 };
 
-const LIGHT_STROKE = 'stroke="#245BCE"';
-const LIGHT_FILL = 'fill="#E5EDFF"';
+const LIGHT_STROKE = 'stroke="#2C2C2C"';
+const LIGHT_FILL = 'fill="#E6E6E6"';
 
 /** Inline a card SVG. Light colors stay on the attributes. Dark theme CSS targets .slot-stroke / .slot-fill. */
 export function slotSvgHtml(raw: string, idPrefix: string): string {

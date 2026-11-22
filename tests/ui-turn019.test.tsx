@@ -16,8 +16,8 @@ import { THEMES } from '../src/ui/viewSettings';
 
 const PANEL = '#19283a';
 const SELECTED = '#203d4c';
-const LIGHT_STROKE = '#245BCE';
-const LIGHT_FILL = '#E5EDFF';
+const LIGHT_STROKE = '#2C2C2C';
+const LIGHT_FILL = '#E6E6E6';
 
 const lum = (hex: string) => {
   const h = hex.replace('#', '');
@@ -103,17 +103,17 @@ describe('TURN-019 dark card diagrams', () => {
   });
 
   it('AC2: light stroke and fill stay on the card files, and every line is marked for the dark override', () => {
-    expect(readFileSync('src/ui/slots/47069.svg', 'utf8')).toContain('stroke="#53647B"');
-    expect(readFileSync('src/ui/slots/e5f85.svg', 'utf8')).toContain('stroke="#53647B"');
+    expect(readFileSync('src/ui/slots/47069.svg', 'utf8')).toContain('stroke="#747474"');
+    expect(readFileSync('src/ui/slots/e5f85.svg', 'utf8')).toContain('stroke="#747474"');
     for (const kind of BUILTIN_KINDS) {
       const raw = readFileSync(`src/ui/slots/${DIAGRAM_SLOTS[kind].file}`, 'utf8');
-      const strokes = raw.match(/stroke="#245BCE"/g)?.length ?? 0;
-      const fills = raw.match(/fill="#E5EDFF"/g)?.length ?? 0;
+      const strokes = raw.match(/stroke="#2C2C2C"/g)?.length ?? 0;
+      const fills = raw.match(/fill="#E6E6E6"/g)?.length ?? 0;
       expect(strokes).toBeGreaterThan(0);
       expect(fills).toBeGreaterThan(0);
       const html = slotSvgHtml(raw, kind);
-      expect(html.match(/stroke="#245BCE"/g)?.length).toBe(strokes);
-      expect(html.match(/fill="#E5EDFF"/g)?.length).toBe(fills);
+      expect(html.match(/stroke="#2C2C2C"/g)?.length).toBe(strokes);
+      expect(html.match(/fill="#E6E6E6"/g)?.length).toBe(fills);
       expect(html.match(/\bslot-stroke\b/g)?.length).toBe(strokes);
       expect(html.match(/\bslot-fill\b/g)?.length).toBe(fills);
       expect(html).toContain('aria-hidden="true"');
@@ -142,8 +142,8 @@ describe('TURN-019 dark card diagrams', () => {
       expect(svg.getAttribute('height')).toBe(String(DIAGRAM_SLOT_H));
       expect(card.querySelector('.slot-diagram')!.getAttribute('data-slot-file')).toBe(DIAGRAM_SLOTS[kind].file);
       const raw = readFileSync(`src/ui/slots/${DIAGRAM_SLOTS[kind].file}`, 'utf8');
-      expect(card.querySelectorAll('.slot-stroke').length).toBe(raw.match(/stroke="#245BCE"/g)?.length ?? 0);
-      expect(card.querySelectorAll('.slot-fill').length).toBe(raw.match(/fill="#E5EDFF"/g)?.length ?? 0);
+      expect(card.querySelectorAll('.slot-stroke').length).toBe(raw.match(/stroke="#2C2C2C"/g)?.length ?? 0);
+      expect(card.querySelectorAll('.slot-fill').length).toBe(raw.match(/fill="#E6E6E6"/g)?.length ?? 0);
       for (const line of card.querySelectorAll('.slot-stroke')) expect(line.getAttribute('stroke')).toBe(LIGHT_STROKE);
       for (const body of card.querySelectorAll('.slot-fill')) expect(body.getAttribute('fill')).toBe(LIGHT_FILL);
     }

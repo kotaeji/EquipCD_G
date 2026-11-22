@@ -55,6 +55,23 @@ function makeTab(p: Project, saved: { rev: number; at: string } | null = null): 
   return { key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, gaps, analyzedRevision: p.revision };
 }
 
+/** Header undo / redo. A 24px stroke sits inside the 44px button; currentColor follows the button. */
+function HistoryIcon({ dir }: { dir: 'undo' | 'redo' }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M8 4.5 3.5 9.5 8 14.5M4 9.5h10a5.5 5.5 0 1 1 0 11H9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        transform={dir === 'redo' ? 'translate(24 0) scale(-1 1)' : undefined}
+      />
+    </svg>
+  );
+}
+
 function download(name: string, text: string, mime = 'application/json') {
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -697,8 +714,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}>내보내기</button>
         <button className="btn-main secondary" onClick={() => setViewOpen(true)}>보기 설정</button>
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
-        <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title="실행 취소 (Ctrl/Cmd+Z)" aria-label="실행 취소">↶</button>
-        <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title="다시 실행 (Ctrl/Cmd+Shift+Z)" aria-label="다시 실행">↷</button>
+        <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title="실행 취소 (Ctrl/Cmd+Z)" aria-label="실행 취소"><HistoryIcon dir="undo" /></button>
+        <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title="다시 실행 (Ctrl/Cmd+Shift+Z)" aria-label="다시 실행"><HistoryIcon dir="redo" /></button>
       </header>
       <div className="workbar" aria-label="현재 작업">
         <button type="button" className="work-crumb" onClick={() => openExplorerTab('workspace')}>Workspace {curWs.name}</button>

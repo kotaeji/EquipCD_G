@@ -60,9 +60,9 @@ describe('theme colors', () => {
     expect(headerRule).toMatch(/background:\s*var\(--header-bg\)/);
     expect(headerRule).toMatch(/color:\s*var\(--header-fg\)/);
     expect(headerRule).toMatch(/border-bottom:\s*1px solid #7A0027/);
-    expect(css).toMatch(/\.app\[data-appearance="light"\] button\.btn-main\.primary \{ background-color: #245bce; color: #ffffff; \}/);
+    expect(css).toMatch(/\.app\[data-appearance="light"\] button\.btn-main\.primary \{ background-color: var\(--accent\); color: var\(--on-accent\); \}/);
     expect(css).toMatch(/\.app\[data-appearance="dark"\] button\.btn-main\.primary \{ background-color: #42d6cc; color: #102c2d; \}/);
-    expect(css).toMatch(/\.app\[data-appearance="light"\] button\.btn-main\.secondary \{ background-color: #e5edff; color: #17283f; \}/);
+    expect(css).toMatch(/\.app\[data-appearance="light"\] button\.btn-main\.secondary \{ background-color: var\(--selected\); color: var\(--text\); \}/);
     expect(css).toMatch(/\.app\[data-appearance="dark"\] button\.btn-main\.secondary \{ background-color: #203d4c; color: #eff5fd; \}/);
   });
 
