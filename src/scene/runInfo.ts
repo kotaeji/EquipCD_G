@@ -3,9 +3,18 @@
 
 import type { Project } from '../model/types';
 import { collectStepIds } from '../model/flow';
+import { analyzeGaps, GAP_KIND_LABEL, type GapKind } from '../model/gaps';
 import type { RuntimeState } from '../runtime/engine';
 import { stepStatusLabel, summarizeRun, type RunStepSummary } from '../runtime/runSummary';
 import { deviceOfStep } from './describe';
+
+/** Shown until a run has ended. No estimated cycle is invented. */
+export const CYCLE_PENDING = '실행 뒤 표시';
+/** Shown when a run has not finished successfully. */
+export const THROUGHPUT_EMPTY = '—';
+export const THROUGHPUT_NOTE = '자재를 한 개씩 이어서 넣는다고 본 값 — 실제 택트 아님';
+
+const GAP_KINDS: GapKind[] = ['io', 'unit', 'axisSpec', 'interference', 'timing'];
 
 export function formatMs(msv: number): string {
   return `${String(Math.floor(msv / 60000)).padStart(2, '0')}:${(Math.floor(msv / 1000) % 60).toString().padStart(2, '0')}.${(Math.round(msv) % 1000).toString().padStart(3, '0')}`;
@@ -39,6 +48,15 @@ export interface RunInfo {
   unitTotals: { unitId: string; name: string; ms: number; timeText: string }[];
   /** True when no step has started and the bars are assumed Action times. */
   assumed: boolean;
+  /** Total virtual time once the run has ended. `CYCLE_PENDING` before that. */
+  cycleText: string;
+  /** Pieces per hour if one material follows another with no gap. `THROUGHPUT_EMPTY` until a successful finish. */
+  throughputText: string;
+  throughputNote: string;
+  /** Unit with the greatest total. A tie keeps the earlier unit. */
+  bottleneck: { unitId: string; name: string; timeText: string } | null;
+  gapTotal: number;
+  gapKinds: { kind: GapKind; label: string; count: number }[];
 }
 
 function stepCountOf(p: Project): number {
@@ -144,6 +162,22 @@ export function describeRunInfo(p: Project, rt: RuntimeState | null): RunInfo {
     const ms = totals.get(u.id) ?? 0;
     return { unitId: u.id, name: u.name, ms, timeText: formatMs(ms) };
   });
+  const bottleneck = unitTotals.reduce<{ unitId: string; name: string; timeText: string; ms: number } | null>(
+    (best, row) => (!best || row.ms > best.ms ? row : best),
+    null,
+  );
+
+  const ended = rt?.status === 'completed' || rt?.status === 'error';
+  const cycleText = ended && rt ? formatMs(rt.timeMs) : CYCLE_PENDING;
+  const throughputText = rt?.status === 'completed' && rt.timeMs > 0
+    ? (Math.round((3_600_000 / rt.timeMs) * 10) / 10).toFixed(1)
+    : THROUGHPUT_EMPTY;
+  const gaps = analyzeGaps(p);
+  const gapKinds = GAP_KINDS.map((kind) => ({
+    kind,
+    label: GAP_KIND_LABEL[kind],
+    count: gaps.filter((g) => g.kind === kind).length,
+  }));
 
   const mat = rt?.material;
   const def = p.materials[0];
@@ -166,5 +200,11 @@ export function describeRunInfo(p: Project, rt: RuntimeState | null): RunInfo {
     longestText,
     unitTotals,
     assumed,
+    cycleText,
+    throughputText,
+    throughputNote: THROUGHPUT_NOTE,
+    bottleneck: bottleneck ? { unitId: bottleneck.unitId, name: bottleneck.name, timeText: bottleneck.timeText } : null,
+    gapTotal: gaps.length,
+    gapKinds,
   };
 }
