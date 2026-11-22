@@ -214,7 +214,7 @@ describe('TURN-033 3D info and timeout', () => {
     expect(css).toMatch(/\.run3d-metric\s*\{[^}]*overflow-wrap:\s*anywhere/);
     expect(css).toMatch(/\.run3d-gap-kinds li\s*\{[^}]*overflow-wrap:\s*anywhere/);
     expect(css).toMatch(/\.run3d-timeout-warn\s*\{[^}]*overflow-wrap:\s*anywhere/);
-    expect(css).toMatch(/\.run3d-gap-open\s*\{[^}]*white-space:\s*normal/);
+    expect(css).toMatch(/\.run3d-gap-open\s*\{[^}]*white-space:\s*nowrap/);
     expect(css).toContain('grid-template-columns: 232px minmax(0, 1fr) 248px');
     const name = u.el.querySelector('.run-steps .run3d-bars.units .run3d-bar-name') as HTMLElement;
     expect(getComputedStyle(name).overflowWrap).toBe('anywhere');

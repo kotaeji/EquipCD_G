@@ -224,6 +224,6 @@ describe('TURN-029 3D run view', () => {
     expect(u.el.querySelector('[aria-label="이름 표시"]')).not.toBeNull();
     expect(u.el.querySelector('[aria-label="동작 강조"]')).not.toBeNull();
     expect(u.el.querySelector('[aria-label="S1 푸셔 투입 동작 시간"]')).not.toBeNull();
-    expect(u.el.textContent).toContain('화살표 회전');
+    expect(u.el.querySelector('.scene3d-bar')!.getAttribute('title')).toContain('화살표 회전');
   });
 });

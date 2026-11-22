@@ -223,7 +223,11 @@ describe('TURN-035 unified run layout', () => {
 
   it('AC6 the canvas keeps a 200px floor in the stylesheet', () => {
     expect(styles).toMatch(/\.run-canvas\s*\{[^}]*min-height:\s*200px/);
-    expect(styles).toMatch(/\.run-details\.is-open\s*\{[^}]*flex:\s*0 1 220px/);
+    expect(styles).toMatch(/\.run-details\.is-open\s*\{[^}]*max-height:\s*150px/);
+    const runCss = readFileSync('src/ui/run3d.css', 'utf8');
+    expect(runCss).toMatch(/\.run-steps-scroll\s*\{[^}]*overflow:\s*auto/);
+    expect(runCss).toMatch(/\.run-steps-units\s*\{[^}]*max-height:\s*136px/);
+    expect(runCss).toMatch(/\.run-strip\s*\{[^}]*max-height:\s*72px/);
   });
 
   it('AC7 a running row uses the selected fill, and error and stopped rows use other edges', async () => {

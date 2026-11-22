@@ -77,28 +77,28 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
   const full = info.running.map(runningText).join(', ');
   const shown = info.running.slice(0, RUNNING_SHOWN).map(runningText).join(', ');
   const extra = info.running.length - RUNNING_SHOWN;
+  const gapTitle = info.gapKinds.map((row) => `${row.label} ${row.count}`).join(' · ');
   return (
     <section className={`run-strip ${folded ? 'is-folded' : ''}`} aria-label="실행 요약">
-      <div className="run-strip-top">
-        {!folded && <p className="run-strip-id"><span data-project-name="">{info.projectName}</span> · Unit {info.unitCount} · Device {info.deviceCount} · 단계 {info.stepCount}</p>}
-        <button type="button" className="small" aria-label={folded ? '요약 펼치기' : '요약 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
-      </div>
       <div className="run-strip-row">
+        {!folded && <span className="run-strip-id"><span data-project-name="">{info.projectName}</span> · U{info.unitCount} D{info.deviceCount} 단계{info.stepCount}</span>}
         <span>실행 상태 <b data-run-status={info.status}>{RUN_STATUS_KO[info.status] ?? info.status}</b></span>
         <span>가상 시간 <b className="mono" data-run-time="">{info.timeText}</b></span>
-        <span>실행 중 단계 <b data-running-count={info.running.length} title={full || undefined}>{info.running.length === 0 ? '없음' : shown}{extra > 0 ? ` 외 ${extra}` : ''}</b></span>
+        <span>실행 중 <b data-running-count={info.running.length} title={full || undefined}>{info.running.length === 0 ? '없음' : shown}{extra > 0 ? ` 외 ${extra}` : ''}</b></span>
         {!folded && <span data-material="">자재 {info.material ? `${info.material.where} · ${info.material.state || '상태 없음'}` : '없음'}</span>}
+        <button type="button" className="small run-strip-fold" aria-label={folded ? '요약 펼치기' : '요약 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
       </div>
       {!folded && <div className="run-strip-row metrics">
-        <span>사이클 시간 <b className="mono" data-cycle-time="" aria-label="사이클 시간">{info.cycleText}</b></span>
-        <span title={info.throughputNote}>시간당 생산량(가정) <b className="mono" data-throughput="" aria-label="시간당 생산량">{info.throughputText}</b> <small data-throughput-note="">{info.throughputNote}</small></span>
+        <span>사이클 <b className="mono" data-cycle-time="" aria-label="사이클 시간">{info.cycleText}</b></span>
+        <span title={info.throughputNote}>시간당 <b className="mono" data-throughput="" aria-label="시간당 생산량">{info.throughputText}</b> <span className="run-strip-tip" title={info.throughputNote}>ⓘ</span></span>
         {info.bottleneck
           ? <span data-bottleneck={info.bottleneck.unitId} aria-label="병목 Unit">병목 {info.bottleneck.name} {info.bottleneck.timeText}</span>
           : <span className="muted">Unit 없음</span>}
-        <span data-gap-total={info.gapTotal} aria-label="Gap 건수">Gap {info.gapTotal}건</span>
-        <span className="run3d-gap-kinds">{info.gapKinds.map((row) => <span key={row.kind} data-gap-kind={row.kind} data-gap-count={row.count}>{row.label} {row.count}</span>)}</span>
+        <span data-gap-total={info.gapTotal} aria-label="Gap 건수" title={gapTitle}>Gap {info.gapTotal}건</span>
         <button type="button" className="small run3d-gap-open" aria-label="5단계에서 보기" onClick={onOpenGaps}>5단계에서 보기</button>
       </div>}
+      <span className="run-strip-sr" data-throughput-note="">{info.throughputNote}</span>
+      <span className="run-strip-sr run3d-gap-kinds">{info.gapKinds.map((row) => <span key={row.kind} data-gap-kind={row.kind} data-gap-count={row.count}>{row.label} {row.count}</span>)}</span>
     </section>
   );
 }
@@ -145,7 +145,7 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold }: {
             ))}
           </ul>
         </section>
-        <section aria-label="Unit 별 합계">
+        <section className="run-steps-units" aria-label="Unit 별 합계">
           <h3>Unit 별 합계</h3>
           <ul className="run3d-bars units">
             {info.unitTotals.map((row) => (

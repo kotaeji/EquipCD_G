@@ -660,15 +660,16 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
     moved.current = true;
     setCam(fn);
   }, []);
+  const fittedSize = useRef({ width: 0, height: 0 });
   const onView = (width: number, height: number) => {
     viewSize.current = { width, height };
-    const aspect = width / Math.max(1, height);
-    setCam((c) => {
-      if (moved.current) return Math.abs(c.aspect - aspect) < 0.01 ? c : { ...c, aspect };
-      const next = framed(aspect, { width, height });
-      if (Math.abs(next.distance - c.distance) < 0.5 && Math.abs(next.targetX - c.targetX) < 0.5 && Math.abs(next.aspect - c.aspect) < 0.01) return c;
-      return next;
-    });
+    if (width < 2 || height < 2) return;
+    if (Math.abs(width - fittedSize.current.width) < 2 && Math.abs(height - fittedSize.current.height) < 2) return;
+    fittedSize.current = { width, height };
+    const aspect = width / height;
+    setCam((c) => (moved.current
+      ? (Math.abs(c.aspect - aspect) < 0.01 ? c : { ...c, aspect })
+      : framed(aspect, { width, height })));
   };
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const tag = (e.target as HTMLElement).tagName;
@@ -691,9 +692,8 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
       data-visual-style={visualMode} data-show-names={showNames ? 'on' : 'off'} data-floor-names={showNames ? scene.floorNames.length : 0}
       data-equipment-motion={equipmentMotion ? 'on' : 'off'} data-redraw={shouldRedraw({ running, interacting: false }) ? 'live' : 'still'}
       data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}>
-      <div className="scene3d-bar">
-        <button type="button" aria-label="전체 보기" onClick={() => { moved.current = false; setCam(framed(viewSize.current.width / Math.max(1, viewSize.current.height), viewSize.current)); }}>전체 보기</button>
-        <p className="scene3d-help">끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기</p>
+      <div className="scene3d-bar" title="끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기">
+        <button type="button" aria-label="전체 보기" title="끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기" onClick={() => { moved.current = false; fittedSize.current = { width: 0, height: 0 }; setCam(framed(viewSize.current.width / Math.max(1, viewSize.current.height), viewSize.current)); }}>전체 보기</button>
       </div>
       {visualMode === 'photo' && <p className="scene3d-photo-note">{PHOTO_NOTE}</p>}
       {gl
