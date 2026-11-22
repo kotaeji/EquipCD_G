@@ -215,6 +215,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!id) return;
     edit(C.fitUnitToContent(p, id), '크기 맞춤');
   };
+  const arrangeTarget = C.arrangeDevicesTarget(p, selection);
+  const arrangeDevicesTitle = locked
+    ? C.ARRANGE_DEVICES_LOCKED
+    : 'unitId' in arrangeTarget ? C.ARRANGE_DEVICES_HINT : arrangeTarget.reason;
+  const arrangeSelectedDevices = () => {
+    const target = C.arrangeDevicesTarget(p, selection);
+    if (!('unitId' in target)) return;
+    edit(C.arrangeDevices(p, target.unitId), '자동 정렬');
+  };
   const selectedUnitCount = p.units.filter((u) => selection.includes(u.id)).length;
   const selectedDeviceIds = selection.filter((id) => p.devices.some((d) => d.id === id));
   const selectedNodeIds = selection.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
@@ -820,6 +829,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                     </div>}
                   </div>
                   <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}>크기 맞춤</button>
+                  <button type="button" onClick={arrangeSelectedDevices} disabled={locked || !('unitId' in arrangeTarget)} title={arrangeDevicesTitle}>자동 정렬</button>
                   <button type="button" onClick={requestDuplicate} disabled={selectedDeviceIds.length === 0 || locked} title={selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : '선택한 Device 복제 (Ctrl+D)'}>복제</button>
                   <button className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}>삭제</button>
                 </div>
