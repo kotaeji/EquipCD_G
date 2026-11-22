@@ -74,6 +74,10 @@ TURN-034 흐름 표 다듬기는 검토 후보입니다. 사람 검수 전이며
 
 TURN-035 6단계 통일은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-035.md`](docs/turns/TURN-035.md). 도면과 3D가 같은 틀이고 가운데 캔버스만 바뀝니다. 진행 중인 단계 줄이 눈에 띄고, 탐색기를 접으면 작업 영역이 넓어집니다.
 
+TURN-036 자동 정렬 뒤 겹침 풀기는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-036.md`](docs/turns/TURN-036.md). 「자동 정렬」로 Unit 이 넓어져 옆 Unit 과 겹치면 같은 명령에서 옆 Unit 을 밀어냅니다. 실행 취소 한 번에 함께 돌아갑니다.
+
+TURN-037 6단계 도면 맞춤은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-037.md`](docs/turns/TURN-037.md). 6단계 「도면」이 가운데 칸에 맞게 크게 보이고 칸 크기가 바뀌면 다시 맞춰집니다. 「자세히」 단추 글자는 한 줄입니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
