@@ -41,6 +41,8 @@ export interface UserView {
   explorerTab: ExplorerTab;
   /** TURN-009: card board or diagram under the layout palette. This browser only — never written into a project file. */
   layoutTab: LayoutTab;
+  /** TURN-029: diagram or 3D on the run step. This browser only — never written into a project file. */
+  runView: 'diagram' | '3d';
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -91,7 +93,7 @@ function cleanPanels(v: unknown): PanelWidths {
 }
 
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
-  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board' };
+  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram' };
 
 function cleanCollapsed(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -115,6 +117,7 @@ export function loadView(kv: KV | null): UserView {
       panels: cleanPanels(o.panels),
       explorerTab: o.explorerTab === 'workspace' ? 'workspace' : 'project',
       layoutTab: o.layoutTab === 'diagram' ? 'diagram' : 'board',
+      runView: o.runView === '3d' ? '3d' : 'diagram',
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
       home: o.home === false ? false : true };
   } catch { return DEFAULT_VIEW; }
