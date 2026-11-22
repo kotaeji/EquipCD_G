@@ -403,20 +403,16 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   min-width: 44px;
   min-height: 44px;
   padding: 0;
-  font-size: 28px;
-  line-height: 1;
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
 }
-.app > .header button.icon .hdr-glyph {
+.app > .header button.icon svg {
   display: block;
-  font-size: 28px;
-  line-height: 1;
-  transform: scale(2.4);
-  transform-origin: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
 }
 .app > .header button:disabled { opacity: .5; }
 .app > .header button.icon:disabled {

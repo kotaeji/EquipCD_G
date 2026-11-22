@@ -107,7 +107,16 @@ describe('theme shell (jsdom)', () => {
     expect(iconStyle.opacity).toBe('1');
     expect(iconStyle.width).toBe('44px');
     expect(iconStyle.height).toBe('44px');
-    expect(parseFloat(iconStyle.fontSize)).toBeGreaterThanOrEqual(20);
+    const glyph = icon.querySelector('svg') as SVGElement;
+    const glyphStyle = getComputedStyle(glyph);
+    const box = parseFloat(iconStyle.width);
+    const glyphW = parseFloat(glyphStyle.width);
+    const glyphH = parseFloat(glyphStyle.height);
+    expect(glyphW).toBeGreaterThanOrEqual(20);
+    expect(glyphH).toBeGreaterThanOrEqual(20);
+    expect(glyphW).toBeLessThanOrEqual(box);
+    expect(glyphH).toBeLessThanOrEqual(parseFloat(iconStyle.height));
+    expect(glyph.getAttribute('stroke-width') ?? glyph.querySelector('path')?.getAttribute('stroke-width')).toBe('2');
   });
 
   it('Tab stays inside the top dialog and Ctrl+Z does not undo behind it', async () => {
