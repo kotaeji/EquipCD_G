@@ -199,16 +199,12 @@ describe('TURN-007 panel resize', () => {
     expect(canvas.getAttribute('aria-valuenow')).toBe('544');
 
     await u.click(u.el.querySelector('.stepper [data-stepid="run"]')!);
-    const run = split(u.el, 'run');
     expect(u.el.querySelector('.ws-run')).not.toBeNull();
-    expect(run.getAttribute('aria-valuenow')).toBe('380');
-    await pointerDrag(run, 100, 140);
-    expect(run.getAttribute('aria-valuenow')).toBe('340');
-    expect(u.app().style.getPropertyValue('--runw')).toBe('340px');
-    await pointerDrag(run, 0, -500);
-    expect(run.getAttribute('aria-valuenow')).toBe('560');
-    await pointerDrag(run, 0, 900);
-    expect(run.getAttribute('aria-valuenow')).toBe('240');
+    expect(u.el.querySelector('[aria-label="실행 패널 너비"]')).toBeNull();
+    await u.click(u.el.querySelector('[aria-label="가동 조건 접기"]')!);
+    expect(u.el.querySelector('.ws-run')!.className).toContain('fold-cond');
+    await u.click(u.el.querySelector('[aria-label="가동 조건 펼치기"]')!);
+    expect(u.el.querySelector('.ws-run')!.className).not.toContain('fold-cond');
   });
 
   it('AC5: widths survive a remount in UserView and stay out of the project JSON', async () => {

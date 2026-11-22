@@ -69,18 +69,19 @@ async function setNumber(input: HTMLInputElement, value: string) {
 describe('TURN-033 3D info and timeout', () => {
   it('AC1 AC2 AC3 the info column shows cycle, throughput, and the bottleneck after a run', async () => {
     const sample = await open3d();
-    const info = () => sample.el.querySelector('.run-info')!;
-    expect(info().querySelector('[data-cycle-time]')!.textContent).toBe('실행 뒤 표시');
-    expect(info().querySelector('[data-throughput]')!.textContent).toBe('—');
-    expect(info().querySelector('[data-throughput-note]')!.textContent).toBe('자재를 한 개씩 이어서 넣는다고 본 값 — 실제 택트 아님');
-    expect(info().querySelector('[data-bottleneck]')).not.toBeNull();
-    expect(info().querySelector('.run3d-bars.units .run3d-bar-fill')).not.toBeNull();
+    const strip = () => sample.el.querySelector('.run-strip')!;
+    const steps = () => sample.el.querySelector('.run-steps')!;
+    expect(strip().querySelector('[data-cycle-time]')!.textContent).toBe('실행 뒤 표시');
+    expect(strip().querySelector('[data-throughput]')!.textContent).toBe('—');
+    expect(strip().querySelector('[data-throughput-note]')!.textContent).toBe('자재를 한 개씩 이어서 넣는다고 본 값 — 실제 택트 아님');
+    expect(strip().querySelector('[data-bottleneck]')).not.toBeNull();
+    expect(steps().querySelector('.run3d-bars.units .run3d-bar-fill')).not.toBeNull();
     await runToEnd(sample);
-    expect(info().querySelector('[data-cycle-time]')!.textContent).toBe('00:11.100');
-    expect(info().querySelector('[data-throughput]')!.textContent).toBe('324.3');
-    const bottleneck = info().querySelector('[data-bottleneck]')!;
+    expect(strip().querySelector('[data-cycle-time]')!.textContent).toBe('00:11.100');
+    expect(strip().querySelector('[data-throughput]')!.textContent).toBe('324.3');
+    const bottleneck = strip().querySelector('[data-bottleneck]')!;
     expect(bottleneck.textContent).toContain('병목');
-    const marked = info().querySelector('.run3d-bars.units li.is-bottleneck')!;
+    const marked = steps().querySelector('.run3d-bars.units li.is-bottleneck')!;
     expect(marked.textContent).toContain('병목');
     expect(marked.getAttribute('data-unit-total')).toBe(bottleneck.getAttribute('data-bottleneck'));
 
@@ -92,7 +93,7 @@ describe('TURN-033 3D info and timeout', () => {
 
   it('AC4 gap counts match step 5 and the button opens that screen during a run', async () => {
     const u = await open3d();
-    const info = u.el.querySelector('.run-info')!;
+    const info = u.el.querySelector('.run-strip')!;
     const total = info.querySelector('[data-gap-total]')!.getAttribute('data-gap-total');
     const kinds = [...info.querySelectorAll('[data-gap-kind]')].map((node) => [node.getAttribute('data-gap-kind'), node.getAttribute('data-gap-count'), node.textContent]);
     const clock = holdRuntimeClock();
@@ -151,6 +152,8 @@ describe('TURN-033 3D info and timeout', () => {
     expect(u.el.querySelector('[data-run-status]')!.getAttribute('data-run-status')).toBe('completed');
     expect(u.el.querySelector('[data-run-time]')!.textContent).toBe('00:11.100');
     await u.click(u.btn('도면'));
+    await u.click(u.btn('자세히'));
+    await u.click(u.el.querySelector('#run-detail-tab-log')!);
     expect(u.el.querySelector('.log-list')!.textContent).not.toContain('TIMEOUT');
     await u.click(u.btn('3D'));
     await u.click(u.btn('⟲ 초기화'));
@@ -199,7 +202,7 @@ describe('TURN-033 3D info and timeout', () => {
 
   it('AC8 new numbers and buttons have labels, and the narrow column wraps instead of clipping', async () => {
     const u = await open3d();
-    const info = u.el.querySelector('.run-info')!;
+    const info = u.el.querySelector('.run-strip')!;
     expect(info.querySelector('[data-cycle-time]')!.getAttribute('aria-label')).toBe('사이클 시간');
     expect(info.querySelector('[data-throughput]')!.getAttribute('aria-label')).toBe('시간당 생산량');
     expect(info.querySelector('[aria-label="병목 Unit"]')).not.toBeNull();
@@ -211,9 +214,9 @@ describe('TURN-033 3D info and timeout', () => {
     expect(css).toMatch(/\.run3d-metric\s*\{[^}]*overflow-wrap:\s*anywhere/);
     expect(css).toMatch(/\.run3d-gap-kinds li\s*\{[^}]*overflow-wrap:\s*anywhere/);
     expect(css).toMatch(/\.run3d-timeout-warn\s*\{[^}]*overflow-wrap:\s*anywhere/);
-    expect(css).toMatch(/\.run3d-gap-open\s*\{[^}]*white-space:\s*normal/);
-    expect(css).toContain('grid-template-columns: 200px minmax(0, 1fr) 220px');
-    const name = info.querySelector('.run3d-bars.units .run3d-bar-name') as HTMLElement;
+    expect(css).toMatch(/\.run3d-gap-open\s*\{[^}]*white-space:\s*nowrap/);
+    expect(css).toContain('grid-template-columns: 232px minmax(0, 1fr) 248px');
+    const name = u.el.querySelector('.run-steps .run3d-bars.units .run3d-bar-name') as HTMLElement;
     expect(getComputedStyle(name).overflowWrap).toBe('anywhere');
   });
 });

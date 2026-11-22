@@ -6,6 +6,7 @@ import { DEFAULT_MAX_RETRIES } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus } from '../runtime/runSummary';
 import type { EditFn } from './Inspector';
+import { stepLiveClass } from './RunSummary';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
 
 type Arm = 'then' | 'else' | 'body' | number;
@@ -106,8 +107,8 @@ function BlockName({ name, word, disabled, onCommit }: { name: string; word: str
     onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />;
 }
 
-function statusOf(rt: RuntimeState | null, stepId: string): string {
-  return aggregateStepStatus(rt?.steps.filter((r) => r.stepId === stepId) ?? []).label;
+function statusOf(rt: RuntimeState | null, stepId: string) {
+  return aggregateStepStatus(rt?.steps.filter((r) => r.stepId === stepId) ?? []);
 }
 
 export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn }) {
@@ -155,7 +156,8 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
           const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
           const blockName = row.node && 'name' in row.node ? row.node.name : '';
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
-          return <tr key={row.key} data-flow-kind={row.kind} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
+          const live = row.stepId ? statusOf(rt, row.stepId) : null;
+          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
             <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={picked.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
@@ -178,7 +180,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
               </span>}
               {row.kind === 'arm' && typeof row.arm === 'number' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.removeParallelLane(p, row.blockId!, row.arm as number), '갈래 삭제')}>이 갈래 삭제</button>}
             </td>
-            <td>{row.stepId ? statusOf(rt, row.stepId) : ''}</td>
+            <td>{live ? live.label : ''}</td>
             <td style={{ whiteSpace: 'nowrap' }}>
               {id && <>
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowNode(p, id, -1), row.kind === 'step' ? '단계 위로' : '블록 위로')}>위로</button>

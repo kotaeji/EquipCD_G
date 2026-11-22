@@ -362,14 +362,13 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
 .ws-full { display: flex; flex-direction: column; }
 .ws-full > .stage-title { padding: 24px 24px 0; }
 .ws-full > .bbody, .ws-full > .libws { flex: 1; min-height: 0; }
-.app .ws-run { grid-template-rows: auto auto minmax(0, 1fr); }
-.app .ws-run > .run-title { grid-column: 1 / -1; grid-row: 1; padding: 16px 24px 0; }
+.app .ws-run { grid-template-rows: auto auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; }
+.app .ws-run > .run-title { grid-column: 1 / -1; grid-row: 1; padding: 8px 16px 0; font-size: 20px; line-height: 1.3; }
 .app .ws-run > .toolbar { grid-column: 1 / -1; grid-row: 2; }
-.app .ws-run > .center { grid-column: 1; grid-row: 3; }
-.app .ws-run > .right { grid-column: 2; grid-row: 3; }
 .tree div { font-size: 14px; line-height: 1.45; }
 @media (min-width: 1600px) {
-  .app, .app.ex-collapsed { --exw: 224px; }
+  .app { --exw: 224px; }
+  .app.ex-collapsed { --exw: 40px; }
   .app .ws-canvas { grid-template-columns: minmax(0, 1fr) 256px; }
   .libws { grid-template-columns: minmax(0, 1fr) 256px; }
 }
@@ -738,7 +737,6 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
 .app .ws-canvas { position: relative; grid-template-columns: minmax(0, 1fr) var(--propw, 256px); }
 .app .ws-canvas > .right { width: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-left: 0; position: relative; }
 .prop-body { flex: 1; min-height: 0; overflow: auto; }
-.app .ws-run { grid-template-columns: minmax(0, 1fr) var(--runw, 380px); }
 .app .ws-run > .right,
 .run-side { position: relative; width: auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-left: 0; }
 .run-side-body { flex: 1; min-height: 0; overflow: auto; }
@@ -830,20 +828,32 @@ button.on,
 .tree div.sel { box-shadow: inset 3px 0 0 var(--accent); }
 .card.sel { border-width: 2px; box-shadow: 0 0 0 2px var(--accent); }
 
-/* TURN-030: run-step tabs. The diagram fills the tab; the page itself does not scroll. */
-.app .ws-run > .center.run-main {
-  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
-  gap: 8px; padding: 8px 12px 8px; background: var(--bg);
-}
-.app .ws-run > .center.run-main > .sheet { flex: 0 1 auto; min-height: 0; max-height: 38%; overflow: auto; }
-.run-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.run-tabs > .ui-tabs-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.run-tabs .ui-tabs-panel:not([hidden]) {
-  flex: 1 1 auto; min-height: 0; overflow: auto;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.run-tabs #run-panel-diagram:not([hidden]) { overflow: hidden; padding: 8px; }
-.run-tabs #run-panel-diagram:not([hidden]) .diagram-canvas {
-  flex: 1 1 auto; height: auto; min-height: 360px;
-}
+/* TURN-035: one run frame. The center canvas keeps at least 200px; the page does not scroll. */
+.app .ws-run > .toolbar.tool-pills { padding: 4px 12px; min-height: 0; }
+.app .ws-run > .toolbar.tool-pills > button,
+.app .ws-run > .toolbar.tool-pills select { height: 32px; }
+.app .ws-run > .run-steps,
+.app .ws-run > .run-center,
+.app .ws-run > .run-conditions { grid-row: 3; min-height: 0; min-width: 0; }
+.app .ws-run > .run-steps { grid-column: 1; }
+.app .ws-run > .run-center { grid-column: 2; }
+.app .ws-run > .run-conditions { grid-column: 3; }
+.run-center { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--canvas); }
+.run-center > .sheet { flex: 0 1 auto; max-height: 28%; overflow: auto; margin: 8px 8px 0; }
+.run-canvas { flex: 1 1 auto; min-height: 200px; min-width: 0; display: flex; flex-direction: column; }
+.run-canvas .diagram-canvas,
+.run-canvas .run-stage { flex: 1 1 auto; height: auto; min-height: 0; width: 100%; }
+.run-canvas .diagram-canvas { border: 0; border-radius: 0; }
+.run-details { flex: 0 0 auto; min-height: 0; border-top: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; }
+.run-details.is-open { flex: 0 1 150px; max-height: 150px; min-height: 0; overflow: hidden; }
+.run-details-head { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 8px; }
+.run-details-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.run-details-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 8px 8px; }
+.run-details .ui-tabs-root { min-height: 0; }
 .run-inspect { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.step-row.is-running { background: var(--selected); border: 2px solid var(--accent); font-weight: 700; outline: 2px solid var(--accent); outline-offset: -2px; }
+.step-row.is-error { border: 2px solid var(--danger); outline: 2px solid var(--danger); outline-offset: -2px; }
+.step-row.is-stopped { border: 2px solid var(--warning); outline: 2px solid var(--warning); outline-offset: -2px; }
+tr.step-row.is-running td { background: var(--selected); font-weight: 700; }
+tr.step-row.is-error td:first-child { box-shadow: inset 2px 0 0 var(--danger); }
+tr.step-row.is-stopped td:first-child { box-shadow: inset 2px 0 0 var(--warning); }

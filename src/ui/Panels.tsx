@@ -191,21 +191,31 @@ export function RunStatusExtras({ p, rt }: { p: Project; rt: RuntimeState | null
   );
 }
 
-/** Readiness, blocker moves, and fault injection. The 검사 · 오류 주입 tab. */
-export function RunInspectPanel({ p, locked, edit, onGoBlocker }: { p: Project; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
+/** Readiness and the blocker list with move buttons. Shared by the run conditions column. */
+export function RunReadiness({ p, onGoBlocker }: { p: Project; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
   const readiness = checkRunReadiness(p);
   return (
+    <section className="run-readiness" aria-label="준비 검사">
+      <h3>준비 검사</h3>
+      {readiness.ok
+        ? <p data-readiness="ok">실행 가능</p>
+        : <p data-readiness="blocked">차단 {readiness.blockers.length}건</p>}
+      {!readiness.ok && <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
+        <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
+        <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
+          {onGoBlocker && c.button && <button type="button" className="small" data-blocker-code={b.code} data-guide-kind={g.kind} aria-label={c.aria} onClick={() => onGoBlocker(b, g)}>{c.button}</button>}
+        </div></li>; })}</ul>}
+    </section>
+  );
+}
+
+/** Readiness, blocker moves, and fault injection. Kept for the older runtime panel. */
+export function RunInspectPanel({ p, locked, edit, onGoBlocker }: { p: Project; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
+  return (
     <div className="run-inspect">
-      <div className="row"><label>준비 검사</label>{readiness.ok ? <Badge kind="ok">실행 가능</Badge> : <Badge kind="err">차단 {readiness.blockers.length}</Badge>}</div>
-      {!readiness.ok && readiness.blockers.slice(0, 6).map((b) => <div key={b.id} style={{ fontSize: 11, color: 'var(--danger)' }}>• {b.message}</div>)}
+      <RunReadiness p={p} onGoBlocker={onGoBlocker} />
       <h4 style={{ margin: '10px 0 4px', fontSize: 12 }}>검증용 오류 주입 (시뮬 설정)</h4>
       <ReadFailFaults p={p} locked={locked} edit={edit} />
-      {!readiness.ok && <div className="section"><h4>실행 전 검사 — 차단 {readiness.blockers.length}건</h4>
-        <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
-          <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
-          <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
-            {onGoBlocker && c.button && <button type="button" className="small" data-blocker-code={b.code} data-guide-kind={g.kind} aria-label={c.aria} onClick={() => onGoBlocker(b, g)}>{c.button}</button>}
-          </div></li>; })}</ul></div>}
       <NeverTrueFaults p={p} locked={locked} edit={edit} />
     </div>
   );

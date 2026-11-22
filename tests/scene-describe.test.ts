@@ -162,7 +162,7 @@ describe('TURN-029 camera', () => {
     }
     expect(centerFraction(1280 - 224)).toBeGreaterThanOrEqual(0.5);
     const css = readFileSync('src/ui/run3d.css', 'utf8');
-    expect(css).toContain('grid-template-columns: 200px minmax(0, 1fr) 220px');
+    expect(css).toContain('grid-template-columns: 232px minmax(0, 1fr) 248px');
     expect(orbitCamera(cam, 40, 0).yaw).not.toBe(cam.yaw);
     expect(panCamera(cam, 24, 0).targetX).not.toBe(cam.targetX);
     expect(zoomCamera(cam, 180).distance).toBeGreaterThan(cam.distance);

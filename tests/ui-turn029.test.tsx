@@ -69,9 +69,11 @@ describe('TURN-029 3D run view', () => {
   it('AC1 the run step switches to info, 3D, and conditions, and remembers the choice', async () => {
     const u = await open3d();
     expect(u.el.querySelector('[data-run-view]')!.getAttribute('data-run-view')).toBe('3d');
-    expect(u.el.querySelector('.run-info')!.getAttribute('aria-label')).toBe('정보 표시');
+    expect(u.el.querySelector('.run-steps')!.getAttribute('aria-label')).toBe('단계');
+    expect(u.el.querySelector('.run-strip')!.getAttribute('aria-label')).toBe('실행 요약');
     expect(u.el.querySelector('.run-stage')!.getAttribute('aria-label')).toBe('3D 시뮬레이션');
     expect(u.el.querySelector('.run-conditions')!.getAttribute('aria-label')).toBe('가동 조건');
+    expect(u.el.querySelector('.run-details')).not.toBeNull();
     const actionName = [...u.el.querySelectorAll('.run3d-dur-name')].find((node) => node.textContent === 'S1 푸셔 투입') as HTMLElement;
     expect(actionName).toBeTruthy();
     expect(actionName.title).toBe('S1 푸셔 투입');
@@ -84,7 +86,8 @@ describe('TURN-029 3D run view', () => {
     root = null;
     const again = await mount(true);
     expect(again.el.querySelector('[data-run-view]')!.getAttribute('data-run-view')).toBe('3d');
-    expect(again.el.querySelector('.run-info')).not.toBeNull();
+    expect(again.el.querySelector('.run-steps')).not.toBeNull();
+    expect(again.el.querySelector('.run-strip')).not.toBeNull();
   });
 
   it('AC10 without WebGL the view explains itself and returns to the diagram', async () => {
@@ -120,18 +123,19 @@ describe('TURN-029 3D run view', () => {
   it('AC5 the info column shows the same step times as the run summary', async () => {
     const u = await open3d('flow');
     expect(u.el.querySelector('[data-longest]')!.textContent).toContain('가장 긴 단계');
-    expect(u.el.querySelector('.run-info')!.textContent).toContain('가정');
+    expect(u.el.querySelector('.run-steps')!.textContent).toContain('가정');
     await runToEnd(u);
-    const info = u.el.querySelector('.run-info')!;
-    expect(info.querySelector('[data-run-status]')!.textContent).toBe('완료');
-    expect(info.querySelector('[data-run-time]')!.textContent).toBe('00:13.100');
-    expect(info.querySelector('[data-longest]')!.textContent).toContain('가장 긴 단계');
-    expect(info.querySelector('[data-longest]')!.textContent).toContain('00:02.000');
-    expect(info.textContent).toContain('건너뜀');
-    expect(info.querySelector('[data-material]')!.textContent).toContain('배출');
-    expect(info.querySelectorAll('[data-unit-total]').length).toBeGreaterThan(0);
-    expect(info.textContent).toContain('실제 택트가 아닙니다');
-    const times = [...info.querySelectorAll('[data-elapsed]')].map((node) => node.getAttribute('data-elapsed'));
+    const steps = u.el.querySelector('.run-steps')!;
+    const strip = u.el.querySelector('.run-strip')!;
+    expect(strip.querySelector('[data-run-status]')!.textContent).toBe('완료');
+    expect(strip.querySelector('[data-run-time]')!.textContent).toBe('00:13.100');
+    expect(steps.querySelector('[data-longest]')!.textContent).toContain('가장 긴 단계');
+    expect(steps.querySelector('[data-longest]')!.textContent).toContain('00:02.000');
+    expect(steps.textContent).toContain('건너뜀');
+    expect(strip.querySelector('[data-material]')!.textContent).toContain('배출');
+    expect(steps.querySelectorAll('[data-unit-total]').length).toBeGreaterThan(0);
+    expect(steps.textContent).toContain('실제 택트가 아닙니다');
+    const times = [...steps.querySelectorAll('[data-elapsed]')].map((node) => node.getAttribute('data-elapsed'));
     expect(times).toContain('00:02.000');
     expect(times).toContain('-');
   });
@@ -220,6 +224,6 @@ describe('TURN-029 3D run view', () => {
     expect(u.el.querySelector('[aria-label="이름 표시"]')).not.toBeNull();
     expect(u.el.querySelector('[aria-label="동작 강조"]')).not.toBeNull();
     expect(u.el.querySelector('[aria-label="S1 푸셔 투입 동작 시간"]')).not.toBeNull();
-    expect(u.el.textContent).toContain('화살표 회전');
+    expect(u.el.querySelector('.scene3d-bar')!.getAttribute('title')).toContain('화살표 회전');
   });
 });
