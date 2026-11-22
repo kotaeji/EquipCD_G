@@ -4,6 +4,7 @@ import { instantiateDevice, makeUnit, newId } from './factory';
 import type { Action, AssetKind, Condition, Connection, Device, FlowNode, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { DEFAULT_MAX_RETRIES, q } from './types';
 import { containsList, containsParallelOrSubstation, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
+import { arrangeUnitDevices } from './deviceArrange';
 import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, tightUnitLayout, unitMinSize } from './unitLayout';
 
 export type CmdResult = { ok: true; project: Project; note?: string } | { ok: false; reason: string };
@@ -493,6 +494,36 @@ export function fitUnitToContent(p0: Project, unitId: string): CmdResult {
   if (layout.x === u0.layout.x && layout.y === u0.layout.y && layout.w === u0.layout.w && layout.h === u0.layout.h) return no('크기 변화 없음');
   const p = clone(p0);
   p.units.find((u) => u.id === unitId)!.layout = layout;
+  return ok(p);
+}
+
+export {
+  ARRANGE_DEVICES_HINT,
+  ARRANGE_DEVICES_LOCKED,
+  ARRANGE_DEVICES_NEED_ONE,
+  arrangeDevicesTarget,
+  deviceVisualBox,
+} from './deviceArrange';
+
+/** 「자동 정렬」: place this Unit's Devices by signal flow. One undo step. Origin stays. */
+export function arrangeDevices(p0: Project, unitId: string): CmdResult {
+  const u0 = p0.units.find((u) => u.id === unitId);
+  if (!u0) return no('Unit 없음');
+  const next = arrangeUnitDevices(p0, unitId);
+  if (!next) return no('Unit 없음');
+  const sameUnit = u0.layout.x === next.unit.x && u0.layout.y === next.unit.y && u0.layout.w === next.unit.w && u0.layout.h === next.unit.h;
+  const sameDevices = next.devices.every((d) => {
+    const cur = p0.devices.find((x) => x.id === d.id)!;
+    return cur.layout.x === d.x && cur.layout.y === d.y;
+  });
+  if (sameUnit && sameDevices) return no(ARRANGE_UNCHANGED);
+  const p = clone(p0);
+  p.units.find((u) => u.id === unitId)!.layout = next.unit;
+  for (const d of next.devices) {
+    const dev = p.devices.find((x) => x.id === d.id)!;
+    dev.layout.x = d.x;
+    dev.layout.y = d.y;
+  }
   return ok(p);
 }
 
