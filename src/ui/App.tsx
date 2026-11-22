@@ -9,7 +9,6 @@ import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject 
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
-import { orderRunRecords, stepStatusLabel } from '../runtime/runSummary';
 import { describeScene } from '../scene/describe';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
@@ -22,12 +21,12 @@ import { LibraryWorkspace } from './Library';
 import { evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
 import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
-import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RunInspectPanel, RunStatusExtras, SequencePanel, SfcPanel } from './Panels';
+import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { SubSequencePanel } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
-import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type RunTab, type UserView } from './viewSettings';
+import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type RunDetailsTab, type UserView } from './viewSettings';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
 import * as W from '../storage/workspaces';
@@ -38,9 +37,9 @@ import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
 import { RunConditions } from './RunConditions';
-import { RunInfoPanel } from './RunInfoPanel';
+import { RunDetails } from './RunDetails';
+import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
 import { Scene3D } from './Scene3D';
-import { RunSummary } from './RunSummary';
 import { Tabs } from './Tabs';
 
 interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; gaps: Gap[]; analyzedRevision: number | null }
@@ -132,7 +131,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [speed, setSpeed] = useState(1);
   const [showNames, setShowNames] = useState(true);
   const [emphasizeMotion, setEmphasizeMotion] = useState(true);
-  const [foldInfo, setFoldInfo] = useState(false);
+  const [foldSteps, setFoldSteps] = useState(false);
   const [foldCond, setFoldCond] = useState(false);
   const durationBaseline = useRef<{ sessionKey: string; depth: number; snap: DurationSnap[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -143,7 +142,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const locked = rt?.status === 'running' || rt?.status === 'paused';
   const [subUnitPref, setSubUnitPref] = useState('');
   const runMode = 'station' as const;
-  const [explorerOpen, setExplorerOpen] = useState(true);
+  const explorerOpen = view.explorerOpen;
   const [libDetail, setLibDetail] = useState(false);
   const [guide, setGuide] = useState<'files' | 'bundle' | 'search' | null>(null);
   const [gapFilter, setGapFilter] = useState<'all' | 'shortfall' | 'human' | 'hidden'>('all');
@@ -495,14 +494,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (r.warnings.length) say(`경고 ${r.warnings.length}: ${r.warnings[0].message}`);
   };
   const openExplorerTab = (id: ExplorerTab) => {
-    setExplorerOpen(true);
-    setView((v) => (v.explorerTab === id ? v : { ...v, explorerTab: id }));
+    setView((v) => (v.explorerTab === id && v.explorerOpen ? v : { ...v, explorerTab: id, explorerOpen: true }));
   };
+  const toggleExplorer = () => setView((v) => ({ ...v, explorerOpen: !v.explorerOpen }));
+  const setRunDetailsOpen = (open: boolean) => setView((v) => (v.runDetailsOpen === open ? v : { ...v, runDetailsOpen: open }));
+  const setRunDetailsTab = (id: RunDetailsTab) => setView((v) => (v.runDetailsTab === id ? v : { ...v, runDetailsTab: id }));
+  const toggleRunStrip = () => setView((v) => ({ ...v, runStripFolded: !v.runStripFolded }));
   const openLayoutTab = (id: LayoutTab) => {
     setView((v) => (v.layoutTab === id ? v : { ...v, layoutTab: id }));
-  };
-  const openRunTab = (id: RunTab) => {
-    setView((v) => (v.runTab === id ? v : { ...v, runTab: id }));
   };
   const showOpen = () => {
     if (!kv) { say(`${storage.reason}. JSON 가져오기를 사용하세요.`, true); return; }
@@ -549,7 +548,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const themeVars = THEMES[paletteTheme(view.theme)].vars;
   const setPanel = (key: PanelKey, n: number) => setView((v) => (v.panels[key] === n ? v : { ...v, panels: { ...v.panels, [key]: n } }));
   const style = { ...Object.fromEntries(Object.entries(themeVars).map(([k, v]) => [`--${k}`, v])),
-    '--exw': `${view.panels.explorer}px`, '--libw': `${view.panels.library}px`, '--propw': `${view.panels.canvas}px`, '--runw': `${view.panels.run}px` } as React.CSSProperties;
+    '--exw': `${explorerOpen ? view.panels.explorer : 40}px`, '--libw': `${view.panels.library}px`, '--propw': `${view.panels.canvas}px`, '--runw': `${view.panels.run}px` } as React.CSSProperties;
   const selectedId = selection.length === 1 ? selection[0] : null;
   const dirty = tab.savedRevision !== p.revision;
   const L = view.layers;
@@ -724,8 +723,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     </div>
   </div>;
   const explorer = <aside className={`explorer ${explorerOpen ? '' : 'collapsed'}`} aria-label="Workspace / Project 탐색기">
-    <PanelSplit kind="explorer" value={view.panels.explorer} onChange={(n) => setPanel('explorer', n)} label="탐색기 너비" />
-    <div className="exhead"><button className="small icon" onClick={() => setExplorerOpen(!explorerOpen)} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>탐색기</b>}</div>
+    {explorerOpen && <PanelSplit kind="explorer" value={view.panels.explorer} onChange={(n) => setPanel('explorer', n)} label="탐색기 너비" />}
+    <div className="exhead"><button className="small icon" onClick={toggleExplorer} aria-expanded={explorerOpen} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>탐색기</b>}</div>
     {explorerOpen && <Tabs label="탐색기" idBase="explorer" value={view.explorerTab} onChange={openExplorerTab} tabs={[
       { id: 'workspace', label: 'Workspace', panel: workspacePanel },
       { id: 'project', label: 'Project', panel: projectPanel },
@@ -744,8 +743,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{[0.25, 0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}x</option>)}</select>
     <span className="mono" style={{ minWidth: 80 }}>{fmtTime(rt?.timeMs ?? 0)}</span></>;
   const setRunView = (runView: 'diagram' | '3d') => setView((v) => (v.runView === runView ? v : { ...v, runView }));
-  const runSession = `${tab.key}:${view.runView}:${step}`;
-  if (step === 'run' && view.runView === '3d') {
+  const runSession = `${tab.key}:${step}`;
+  if (step === 'run') {
     if (!durationBaseline.current || durationBaseline.current.sessionKey !== runSession) {
       durationBaseline.current = {
         sessionKey: runSession,
@@ -838,7 +837,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button>
         <SearchSheet tabs={tabs.map((t) => ({ key: t.key, name: t.history.present.name, active: t.key === tab.key }))}
           tree={p.units.flatMap((u) => [{ id: u.id, label: u.name, depth: 0 }, ...u.deviceIds.map((id) => ({ id, label: devName(p, id), depth: 1 }))])}
-          onTab={(key) => switchTab(key)} onPick={(id) => { setSelection([id]); setGuide(null); goStep('canvas'); }} onFold={() => setExplorerOpen(false)} onCanvas={() => { setGuide(null); goStep('canvas'); }} />
+          onTab={(key) => switchTab(key)} onPick={(id) => { setSelection([id]); setGuide(null); goStep('canvas'); }} onFold={() => setView((v) => ({ ...v, explorerOpen: false }))} onCanvas={() => { setGuide(null); goStep('canvas'); }} />
       </div></div>}
 
       {!guide && view.home && <div className="workspace home-main">
@@ -1132,60 +1131,28 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
       </div>}
 
-      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${view.runView === '3d' ? 'is-3d' : ''} ${foldInfo ? 'fold-info' : ''} ${foldCond ? 'fold-cond' : ''}`} data-run-view={view.runView}>
+      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${foldSteps ? 'fold-steps' : ''} ${foldCond ? 'fold-cond' : ''} ${view.runStripFolded ? 'fold-strip' : ''}`} data-run-view={view.runView}>
         <h1 className="stage-title run-title">{screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'}</h1>
         <div className="toolbar tool-pills">
           {runControls}<div className="sep" />{runViewToggle}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
           <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
-        {view.runView === '3d' && scene3d ? <>
-          <RunInfoPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldInfo} onToggleFold={() => setFoldInfo((v) => !v)} onOpenGaps={() => goStep('check', 'gap')} />
-          <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
-            onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
-          <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
-            emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout} />
-        </> : <>
-        <div className="center run-main">
-        {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
-          <div className="run-tabs">
-            <Tabs label="실행" idBase="run" value={view.runTab} onChange={openRunTab} tabs={[
-              { id: 'status', label: '실행 상태', panel: <>
-                <section className="sheet">
-                  <h2>Station 실행 상태</h2>
-                  <div className="form-grid">
-                    <label>실행 상태<span className="field-ro">{runStatusLabel(rt?.status)}{locked ? ' · 편집 잠금' : ''}</span></label>
-                    <label>가상 시간<span className="field-ro">{fmtTime(rt?.timeMs ?? 0)}</span></label>
-                  </div>
-                  <table className="grid plain"><thead><tr><th>단계</th><th>갈래 · 회차</th><th>상태</th><th>자재</th></tr></thead>
-                    <tbody>{orderRunRecords(p, rt?.steps ?? p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const }))).map((row, i) => {
-                      const rowStep = p.sequence.steps.find((s) => s.id === row.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === row.stepId);
-                      const where = [('lane' in row ? row.lane : undefined), ('pass' in row && row.pass ? `${row.pass}회` : '')].filter(Boolean).join(' ');
-                      const label = stepStatusLabel(row.status);
-                      return <tr key={`${row.stepId}:${i}`}><td>{rowStep?.name ?? row.stepId}</td><td>{where || '—'}</td><td>{label}</td><td>{rt?.material ? unitName(p, rt.material.location) : '대기'}</td></tr>;
-                    })}</tbody></table>
-                  <p className="muted">이 값은 이번 실행의 가상 시각과 단계 상태입니다. 예시 시각을 고정해 두지 않습니다. 논리 실행이며 안전 판정이 아닙니다.</p>
-                </section>
-                <RunSummary p={p} rt={rt} />
-                <RunStatusExtras p={p} rt={rt} />
-              </> },
-              { id: 'diagram', label: '실행 도면', panel: <div className="diagram-canvas">{runCanvasEl}</div> },
-              { id: 'inspect', label: '검사 · 오류 주입', panel: <RunInspectPanel p={p} locked={locked} edit={edit} onGoBlocker={goBlocker} /> },
-            ]} />
+        <RunStepsPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} />
+        <div className="run-center">
+          <RunSummaryStrip p={p} rt={rt} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
+          {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
+          <div className="run-canvas">
+            {view.runView === '3d' && scene3d
+              ? <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
+                onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
+              : <div className="diagram-canvas">{runCanvasEl}</div>}
           </div>
+          <RunDetails p={p} rt={rt} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} />
         </div>
-        <div className="right run-side">
-          <PanelSplit kind="run" value={view.panels.run} onChange={(n) => setPanel('run', n)} label="실행 패널 너비" />
-          <div className="run-side-body">
-            <aside className="sheet">
-              <h2>실행 로그</h2>
-              <ul className="log-list">{(rt?.log ?? []).length === 0 && <li>로그 없음. 실행을 누르면 이 세션의 기록이 쌓입니다.</li>}
-                {(rt?.log ?? []).slice(-8).map((l, i) => <li key={i}>{fmtTime(l.t)} {l.code}</li>)}</ul>
-              <button type="button" className="btn-main primary" onClick={doSave}>{dirty ? '저장' : '저장됨'}</button>
-            </aside>
-          </div>
-        </div>
-        </>}
+        <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
+          emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
+          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} />
       </div>}
 
       <div className="statusbar">

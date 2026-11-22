@@ -18,15 +18,21 @@ const STATUS_LABEL: Record<RunStepPhase, string> = {
 
 const dash = (ms: number | null) => (ms === null ? '-' : fmt(ms));
 
-/** Station run summary, placed above the runtime log table. Starts expanded. */
-export function RunSummary({ p, rt }: { p: Project; rt: RuntimeState | null }) {
+/** Shared row cue for a running, failed, or stopped step. Color is not the only difference. */
+export function stepLiveClass(status: string): string {
+  if (status === 'active') return 'step-row is-running';
+  if (status === 'error') return 'step-row is-error';
+  if (status === 'stopped') return 'step-row is-stopped';
+  return 'step-row';
+}
+
+/** Station run summary. Embedded under 「자세히」; the fold is the standalone form. */
+export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: RuntimeState | null; embedded?: boolean }) {
   // Before a run: no runtime, or no step has started. A log line that is not a step
   // (for example a sensor turning on) does not count as a start.
   const summary = rt ? summarizeRun(p, rt) : null;
   const notStarted = !summary || summary.steps.every((step) => step.startMs === null);
-  return (
-    <Fold className="run-summary" summary="실행 결과 요약">
-      {notStarted || !summary ? <p className="run-summary-empty">실행하면 단계별 시간이 여기에 나옵니다</p> : (
+  const body = notStarted || !summary ? <p className="run-summary-empty">실행하면 단계별 시간이 여기에 나옵니다</p> : (
         <>
           <p className="run-summary-head">
             {summary.aborted && <span className="run-summary-abort">오류로 중단 </span>}
@@ -45,7 +51,7 @@ export function RunSummary({ p, rt }: { p: Project; rt: RuntimeState | null }) {
                     && summary.steps.findIndex((s) => s.stepId === step.stepId && s.elapsedMs === step.elapsedMs) === i;
                   const where = [step.lane, step.pass != null ? `${step.pass}회` : ''].filter(Boolean).join(' · ');
                   return (
-                    <tr key={`${step.stepId}:${i}`} className={longest ? 'is-longest' : undefined} data-step-id={step.stepId}>
+                    <tr key={`${step.stepId}:${i}`} className={`${stepLiveClass(step.status)}${longest ? ' is-longest' : ''}`} data-step-id={step.stepId}>
                       <td>{step.name}{longest && <span className="run-summary-tag">가장 김</span>}</td>
                       <td>{where || '—'}</td>
                       <td className={step.status === 'error' ? 'run-summary-error' : step.status === 'stopped' ? 'run-summary-stopped' : undefined}>{STATUS_LABEL[step.status]}</td>
@@ -60,7 +66,7 @@ export function RunSummary({ p, rt }: { p: Project; rt: RuntimeState | null }) {
           </div>
           <p className="run-summary-note">가정 시간 기준 · 실제 택트가 아닙니다</p>
         </>
-      )}
-    </Fold>
-  );
+      );
+  if (embedded) return <div className="run-summary is-embedded">{body}</div>;
+  return <Fold className="run-summary" summary="실행 결과 요약">{body}</Fold>;
 }

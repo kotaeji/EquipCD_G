@@ -43,8 +43,13 @@ export interface UserView {
   layoutTab: LayoutTab;
   /** TURN-029: diagram or 3D on the run step. This browser only — never written into a project file. */
   runView: 'diagram' | '3d';
-  /** TURN-030: which run-step tab is showing. This browser only — never written into a project file. */
-  runTab: RunTab;
+  /** TURN-035: explorer rail. This browser only — never written into a project file. */
+  explorerOpen: boolean;
+  /** TURN-035: the run summary strip is one line. This browser only. */
+  runStripFolded: boolean;
+  /** TURN-035: the run 「자세히」 panel. This browser only. */
+  runDetailsOpen: boolean;
+  runDetailsTab: RunDetailsTab;
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -53,8 +58,8 @@ export type PanelKey = 'explorer' | 'library' | 'canvas' | 'run';
 export type ExplorerTab = 'workspace' | 'project';
 /** TURN-009 layout tabs. The card board is the default; signal mode switches to the diagram. */
 export type LayoutTab = 'board' | 'diagram';
-/** TURN-030 run-step tabs. The status table is the default. */
-export type RunTab = 'status' | 'diagram' | 'inspect';
+/** TURN-035 tabs under the run canvas. The summary table is the default, and the panel starts closed. */
+export type RunDetailsTab = 'summary' | 'log' | 'signals';
 export interface PanelWidths { explorer: number; library: number; canvas: number; run: number }
 export const PANEL_LIMITS: Record<PanelKey, { min: number; max: number; def: number }> = {
   explorer: { min: 180, max: 420, def: 224 },
@@ -97,7 +102,8 @@ function cleanPanels(v: unknown): PanelWidths {
 }
 
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
-  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram', runTab: 'status' };
+  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
+  explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary' };
 
 function cleanCollapsed(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -111,7 +117,10 @@ export function loadView(kv: KV | null): UserView {
   try {
     const v = kv.getItem(VIEW_KEY); if (!v) return DEFAULT_VIEW;
     const o = JSON.parse(v);
-    return { ...DEFAULT_VIEW, ...o, layers: { ...DEFAULT_VIEW.layers, ...(o.layers ?? {}) }, theme: THEME_ORDER.includes(o.theme) ? o.theme : 'A',
+    // TURN-030 `runTab` is retired. Drop it so a saved view does not keep the old key.
+    delete o.runTab;
+    const rest = o;
+    return { ...DEFAULT_VIEW, ...rest, layers: { ...DEFAULT_VIEW.layers, ...(o.layers ?? {}) }, theme: THEME_ORDER.includes(o.theme) ? o.theme : 'A',
       // broken/unknown UserView step → first valid step (model is never reset because of view data)
       step: STEPS.some((s) => s.id === o.step) ? o.step : 'library',
       visualMode: o.visualMode === 'photo' ? 'photo' : 'schematic',
@@ -122,7 +131,10 @@ export function loadView(kv: KV | null): UserView {
       explorerTab: o.explorerTab === 'workspace' ? 'workspace' : 'project',
       layoutTab: o.layoutTab === 'diagram' ? 'diagram' : 'board',
       runView: o.runView === '3d' ? '3d' : 'diagram',
-      runTab: o.runTab === 'diagram' || o.runTab === 'inspect' ? o.runTab : 'status',
+      explorerOpen: o.explorerOpen === false ? false : true,
+      runStripFolded: o.runStripFolded === true,
+      runDetailsOpen: o.runDetailsOpen === true,
+      runDetailsTab: o.runDetailsTab === 'log' || o.runDetailsTab === 'signals' ? o.runDetailsTab : 'summary',
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
       home: o.home === false ? false : true };
   } catch { return DEFAULT_VIEW; }

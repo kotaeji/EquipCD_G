@@ -33,6 +33,7 @@ async function mount() {
   const btn = (label: string) => [...el.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === label) as HTMLButtonElement;
   await click(btn('시작하기'));
   await click(el.querySelector('.stepper [data-stepid="run"]')!);
+  await click(btn('자세히'));
   return { el, click, btn };
 }
 
@@ -49,8 +50,8 @@ describe('TURN-018 run summary UI', () => {
     const u = await mount();
     const box = summaryOf(u.el);
     expect(box).not.toBeNull();
-    expect(box.open).toBe(true);
-    expect(box.querySelector('summary')!.textContent).toBe('실행 결과 요약');
+    expect(u.el.querySelector('#run-detail-tab-summary')!.getAttribute('aria-selected')).toBe('true');
+    expect(u.el.querySelector('#run-detail-tab-summary')!.textContent).toBe('실행 결과 요약');
     expect(box.querySelector('.run-summary-empty')!.textContent).toBe('실행하면 단계별 시간이 여기에 나옵니다');
     expect(box.querySelector('table')).toBeNull();
     expect(logTable(u.el).textContent).toContain('로그 없음');

@@ -1,27 +1,32 @@
-/* TURN-029: 3D run view. Tokens only. */
-.app .ws-run.is-3d {
-  grid-template-columns: 200px minmax(0, 1fr) 220px;
-  grid-template-rows: auto auto minmax(0, 1fr);
-}
-.app .ws-run.is-3d.fold-info { grid-template-columns: 40px minmax(0, 1fr) 220px; }
-.app .ws-run.is-3d.fold-cond { grid-template-columns: 200px minmax(0, 1fr) 40px; }
-.app .ws-run.is-3d.fold-info.fold-cond { grid-template-columns: 40px minmax(0, 1fr) 40px; }
-.app .ws-run.is-3d > .run-title { grid-column: 1 / -1; grid-row: 1; }
-.app .ws-run.is-3d > .toolbar { grid-column: 1 / -1; grid-row: 2; }
-.app .ws-run.is-3d > .run-info,
-.app .ws-run.is-3d > .run-stage,
-.app .ws-run.is-3d > .run-conditions { grid-row: 3; min-height: 0; min-width: 0; }
-.app .ws-run.is-3d > .run-info { grid-column: 1; overflow: auto; background: var(--panel); border-right: 1px solid var(--border); padding: 12px 14px 20px; }
-.app .ws-run.is-3d > .run-stage { grid-column: 2; display: flex; flex-direction: column; background: var(--canvas); }
-.app .ws-run.is-3d > .run-conditions { grid-column: 3; overflow: auto; background: var(--panel); border-left: 1px solid var(--border); padding: 12px 14px 20px; }
+/* TURN-029 / TURN-035: run columns. The frame is the same for the diagram and 3D. Tokens only. */
+.app .ws-run { grid-template-columns: 232px minmax(0, 1fr) 248px; }
+.app .ws-run.fold-steps { grid-template-columns: 40px minmax(0, 1fr) 248px; }
+.app .ws-run.fold-cond { grid-template-columns: 232px minmax(0, 1fr) 40px; }
+.app .ws-run.fold-steps.fold-cond { grid-template-columns: 40px minmax(0, 1fr) 40px; }
+.app .ws-run > .run-steps { overflow: hidden; background: var(--panel); border-right: 1px solid var(--border); padding: 8px 10px 12px; display: flex; flex-direction: column; }
+.app .ws-run > .run-conditions { overflow: auto; background: var(--panel); border-left: 1px solid var(--border); padding: 8px 10px 12px; }
+.run-canvas .run-stage { display: flex; flex-direction: column; background: var(--canvas); outline: none; }
 
-.run3d-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.run-info h2, .run-conditions h2 { margin: 0 0 8px; font-size: 16px; }
-.run-info h3 { margin: 8px 0 2px; }
-.run-info.is-folded, .run-conditions.is-folded { padding: 8px 4px; }
-.run-info.is-folded h2, .run-conditions.is-folded h2 { display: none; }
-.run-info h3, .run-conditions h3 { margin: 12px 0 4px; font-size: 13px; }
-.run-info p, .run-conditions p, .run-info li, .run-conditions li { font-size: 12px; line-height: 1.45; }
+.run3d-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 0 0 auto; }
+.run-steps h2, .run-conditions h2 { margin: 0; font-size: 16px; }
+.run-steps h3 { margin: 8px 0 2px; }
+.run-steps.is-folded, .run-conditions.is-folded { padding: 8px 4px; }
+.run-steps.is-folded h2, .run-conditions.is-folded h2 { display: none; }
+.run-steps h3, .run-conditions h3 { margin: 8px 0 4px; font-size: 13px; }
+.run-steps p, .run-conditions p, .run-steps li, .run-conditions li { font-size: 12px; line-height: 1.35; }
+.run-steps-main { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.run-steps-scroll { flex: 1 1 auto; min-height: 80px; overflow: auto; }
+.run-strip { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.run-strip-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; }
+.run-strip-id { margin: 0; color: var(--muted); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-strip-row { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 2px 10px; font-size: 12px; line-height: 1.35; min-width: 0; }
+.run-strip-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-strip-row > span:nth-child(3) { flex: 1 1 auto; }
+.run-strip-row.metrics { flex-wrap: wrap; }
+.run-strip-row.metrics > span { white-space: normal; overflow: visible; text-overflow: clip; }
+.run-strip-row small, .run-strip .run3d-gap-kinds { color: var(--muted); font-size: 11px; }
+.run-strip .run3d-gap-kinds { display: inline-flex; flex-wrap: wrap; gap: 2px 8px; }
+.run3d-check.is-off { opacity: .55; }
 .run3d-name { font-weight: 700; margin: 0; }
 .run3d-counts, .run3d-note { color: var(--muted); margin: 4px 0; }
 .run3d-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
@@ -32,7 +37,9 @@
 .run3d-list li { padding: 2px 0; border-bottom: 1px solid var(--border); }
 .run3d-longest { font-weight: 700; margin: 0 0 6px; }
 .run3d-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.run3d-bars li { display: grid; grid-template-columns: auto minmax(48px, 1fr) auto; grid-template-areas: "name name name" "status track time"; gap: 4px 6px; align-items: center; }
+.run3d-bars li { display: grid; grid-template-columns: auto minmax(48px, 1fr) auto; grid-template-areas: "name name name" "status track time"; gap: 2px 6px; align-items: center; }
+.run-steps-scroll li { grid-template-areas: "name name name" "where where where" "status track time"; }
+.run3d-bar-where { grid-area: where; color: var(--muted); font-size: 11px; }
 .run3d-bar-name { grid-area: name; white-space: normal; overflow-wrap: anywhere; }
 .run3d-bar-status { grid-area: status; }
 .run3d-bar-track { grid-area: track; }
@@ -58,7 +65,7 @@
 .run3d-metric { margin: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
 .run3d-gap-kinds { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 8px; }
 .run3d-gap-kinds li { padding: 0; overflow-wrap: anywhere; }
-.run-info button.run3d-gap-open { width: 100%; height: auto; min-height: 28px; white-space: normal; overflow-wrap: anywhere; margin-top: 4px; }
+.run-strip button.run3d-gap-open { height: 22px; white-space: normal; overflow-wrap: anywhere; }
 .run3d-bars.units li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "track time"; }
 .run3d-bars.units li.is-bottleneck .run3d-bar-name { font-weight: 700; }
 .run3d-bars.units li.is-bottleneck .run3d-bar-fill { background: var(--warning); }
@@ -82,5 +89,4 @@
 .scene3d-label.marker.fault { color: var(--danger); border-color: var(--danger); }
 .scene3d-label.material { color: var(--warning); border-color: var(--warning); font-weight: 700; }
 .scene3d-fallback { flex: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; padding: 24px; }
-.run-stage { outline: none; }
 .run-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
