@@ -32,6 +32,7 @@ import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { Symbol } from './Symbols';
 import { overlappingUnitIds, rectsOverlap, unitMinSize, type Box } from '../model/unitLayout';
+import { pointerSelection, SELECT_HINT } from './selectAll';
 import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
 import './canvas-select.css';
 
@@ -356,13 +357,14 @@ function FlowCanvas(props: Props) {
       }
       if (cur.mode !== 'select') return;
       e.stopPropagation();
-      const additive = e.shiftKey || e.metaKey || e.ctrlKey;
       const have = modelIds(cur.selection);
-      const ids = have.includes(id) && !additive ? have : additive ? [...new Set([...have, id])] : [id];
-      cur.onSelect(ids, false);
+      const next = pointerSelection(have, id, e);
+      cur.onSelect(next.ids, false);
+      // Ctrl/Cmd click that removes the node must not drag whatever is still selected.
+      if (!next.drag) { dragRef.current = null; return; }
       if (cur.locked) { cur.onBlocked(BLOCKED); return; }
       const pt = flowRef.current({ x: e.clientX, y: e.clientY });
-      dragRef.current = { ids, sx: pt.x, sy: pt.y, origin: id };
+      dragRef.current = { ids: next.ids, sx: pt.x, sy: pt.y, origin: id };
       try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* jsdom */ }
     },
     move: (e, id) => {
@@ -699,7 +701,7 @@ function FlowCanvas(props: Props) {
           ariaLabel="도면 미니맵"
         />
         {props.connectNote && <Panel position="top-left" className="notice rf-connect-note nopan" style={{ position: 'absolute', top: 48, pointerEvents: 'none' }}>{props.connectNote}</Panel>}
-        <Panel position="top-left" className="rf-legend nopan" title="배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작) · Shift + 끌기: 여러 개 고르기">
+        <Panel position="top-left" className="rf-legend nopan" title={`배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작) · Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="var(--text)" strokeWidth="2" /><path d="M12 1 L20 4 L12 7 Z" fill="var(--text)" /></svg>자재 흐름(물류)</div>
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="5 4" /></svg>논리 신호 (out●→in○)</div>
           <div><svg width="12" height="8" aria-hidden="true"><path d="M6 0 L2 8 L10 8 Z" fill="none" stroke="var(--warning)" /></svg>Position</div>

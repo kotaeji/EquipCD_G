@@ -13,6 +13,7 @@ import { orderRunRecords, stepStatusLabel } from '../runtime/runSummary';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
+import { selectAll, SELECT_HINT } from './selectAll';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector } from './Inspector';
 import { LibraryWorkspace } from './Library';
@@ -359,6 +360,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
       if (dialogOpen()) return;
       if (typing) return;
+      // TURN-027. Step 2 only. Inputs and dialogs already returned, so the browser keeps its own Ctrl+A.
+      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        if (view.home || guide || step !== 'canvas') return;
+        e.preventDefault();
+        const hit = selectAll(p, selection);
+        if ('keep' in hit) say(hit.message, true);
+        else setSelection(hit.ids);
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
       else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); doRedo(); }
       else if ((e.key === 'Delete' || e.key === 'Backspace') && (step === 'canvas' || step === 'attributes')) {
@@ -806,7 +816,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               </> },
               { id: 'diagram', label: '도면 도식', panel: <>
                 <div className="diagram-tools">
-                  <p className="diagram-hint" title="Shift + 끌기: 여러 개 고르기">신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기</p>
+                  <p className="diagram-hint" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
                   {visualToggle}
                   <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
                   <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>

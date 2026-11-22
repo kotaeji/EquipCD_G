@@ -4,6 +4,7 @@ import { findAsset } from '../assets/library';
 import { nextDeviceSlot } from '../model/unitLayout';
 import type { AssetKind, Project } from '../model/types';
 import type { Mode } from './Canvas';
+import { cardSelection } from './selectAll';
 
 interface Props {
   project: Project;
@@ -48,7 +49,7 @@ export function LayoutBoard(props: Props) {
       if (kind === 'unit' || (kind && findAsset(kind)?.template)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
     }}>
       {units.map((u) => <article key={u.id} className={`station-card ${selection.includes(u.id) ? 'on' : ''}`}
-        onClick={() => { if (mode === 'flow') props.onUnitConnectClick(u.id); else if (mode === 'signal') props.onSignalHint(); else props.onSelect([u.id]); }}
+        onClick={(e) => { if (mode === 'flow') props.onUnitConnectClick(u.id); else if (mode === 'signal') props.onSignalHint(); else props.onSelect(cardSelection(selection, u.id, e)); }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.stopPropagation();
@@ -62,7 +63,7 @@ export function LayoutBoard(props: Props) {
           if (!d) return null;
           const on = selection.includes(d.id);
           return <button key={id} type="button" className={`chip ${on ? 'on' : ''}`} draggable={!props.locked}
-            onClick={(e) => { e.stopPropagation(); props.onSelect([d.id]); }}
+            onClick={(e) => { e.stopPropagation(); props.onSelect(cardSelection(selection, d.id, e)); }}
             onDragStart={(e) => { e.dataTransfer.setData('application/x-ecd-device', d.id); e.dataTransfer.effectAllowed = 'move'; }}>
             {d.name} · {kindLabel(d.kind)}
           </button>;
