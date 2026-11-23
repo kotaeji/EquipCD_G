@@ -3,30 +3,30 @@
 .app .ws-run.fold-steps { grid-template-columns: 40px minmax(0, 1fr) 248px; }
 .app .ws-run.fold-cond { grid-template-columns: 232px minmax(0, 1fr) 40px; }
 .app .ws-run.fold-steps.fold-cond { grid-template-columns: 40px minmax(0, 1fr) 40px; }
-.app .ws-run > .run-steps { overflow: hidden; background: var(--panel); border-right: 1px solid var(--border); padding: 4px 8px 6px; display: flex; flex-direction: column; }
-.app .ws-run > .run-conditions { overflow: auto; background: var(--panel); border-left: 1px solid var(--border); padding: 8px 10px 12px; }
+.app .ws-run > .run-steps { overflow: hidden; background: var(--panel); border-right: 1px solid var(--border); padding: var(--sp-1) var(--sp-2) var(--sp-1); display: flex; flex-direction: column; }
+.app .ws-run > .run-conditions { overflow: auto; background: var(--panel); border-left: 1px solid var(--border); padding: var(--sp-2) var(--sp-2) var(--sp-3); }
 .run-canvas .run-stage { display: flex; flex-direction: column; background: var(--canvas); outline: none; }
 
-.run3d-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 0 0 auto; }
-.run-steps h2, .run-conditions h2 { margin: 0; font-size: 16px; }
+.run3d-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); flex: 0 0 auto; }
+.run-steps h2, .run-conditions h2 { margin: 0; font-size: var(--fs-lg); }
 .run-steps h3 { margin: 2px 0; }
-.run-steps.is-folded, .run-conditions.is-folded { padding: 8px 4px; }
+.run-steps.is-folded, .run-conditions.is-folded { padding: var(--sp-2) var(--sp-1); }
 .run-steps.is-folded h2, .run-conditions.is-folded h2 { display: none; }
-.run-steps h3, .run-conditions h3 { margin: 8px 0 4px; font-size: 13px; }
+.run-steps h3, .run-conditions h3 { margin: var(--sp-2) 0 var(--sp-1); font-size: var(--fs-md); }
 .run-steps h3 { margin: 2px 0; }
 .run3d-longest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.run-steps p, .run-conditions p, .run-steps li, .run-conditions li { font-size: 12px; line-height: 1.35; }
+.run-steps p, .run-conditions p, .run-steps li, .run-conditions li { font-size: var(--fs-sm); line-height: 1.35; }
 .run-steps-main { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 .run-steps-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .run-steps-units { flex: 0 0 auto; max-height: 136px; overflow: auto; }
-.run-steps-units .run3d-bars.units li { grid-template-columns: minmax(0, 1fr) 40px auto; grid-template-areas: "name track time"; height: 18px; gap: 4px; }
+.run-steps-units .run3d-bars.units li { grid-template-columns: minmax(0, 1fr) 40px auto; grid-template-areas: "name track time"; height: 18px; gap: var(--sp-1); }
 .run-steps [aria-label="선택한 Device"] h3,
 .run-steps [aria-label="선택한 Device"] p { margin: 0; }
 .run-steps .run3d-note { flex: 0 0 auto; margin: 0; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.run-strip { position: relative; flex: 0 0 auto; display: flex; flex-direction: column; gap: 0; max-height: 72px; overflow: hidden; padding: 2px 8px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.run-strip { position: relative; flex: 0 0 auto; display: flex; flex-direction: column; gap: 0; max-height: 72px; overflow: hidden; padding: 2px var(--sp-2); background: var(--panel); border-bottom: 1px solid var(--border); }
 .run-strip.is-folded { max-height: 28px; }
-.run-strip-row { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; height: 24px; min-width: 0; font-size: 12px; line-height: 24px; }
-.run-strip-id { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+.run-strip-row { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-2); height: 24px; min-width: 0; font-size: var(--fs-sm); line-height: 24px; }
+.run-strip-id { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--fs-xs); }
 .run-strip-fixed { flex: 0 0 auto; white-space: nowrap; }
 .run-strip-running { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-strip-fold { flex: 0 0 auto; }
@@ -34,18 +34,18 @@
 .run-strip-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .run3d-check.is-off { opacity: .55; }
 .run3d-name { font-weight: 700; margin: 0; }
-.run3d-counts, .run3d-note { color: var(--muted); margin: 4px 0; }
-.run3d-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.run3d-counts, .run3d-note { color: var(--muted); margin: var(--sp-1) 0; }
+.run3d-facts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); margin: var(--sp-2) 0; }
 .run3d-facts div { display: flex; flex-direction: column; gap: 2px; }
-.run3d-facts dt { color: var(--muted); font-size: 11px; }
+.run3d-facts dt { color: var(--muted); font-size: var(--fs-xs); }
 .run3d-facts dd { margin: 0; }
 .run3d-list { list-style: none; margin: 0; padding: 0; }
 .run3d-list li { padding: 2px 0; border-bottom: 1px solid var(--border); }
-.run3d-longest { font-weight: 700; margin: 0 0 6px; }
-.run3d-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.run3d-bars li { display: grid; grid-template-columns: auto minmax(48px, 1fr) auto; grid-template-areas: "name name name" "status track time"; gap: 2px 6px; align-items: center; }
+.run3d-longest { font-weight: 700; margin: 0 0 var(--sp-1); }
+.run3d-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.run3d-bars li { display: grid; grid-template-columns: auto minmax(48px, 1fr) auto; grid-template-areas: "name name name" "status track time"; gap: 2px var(--sp-1); align-items: center; }
 .run-steps-scroll li { grid-template-areas: "name name name" "where where where" "status track time"; }
-.run3d-bar-where { grid-area: where; color: var(--muted); font-size: 11px; }
+.run3d-bar-where { grid-area: where; color: var(--muted); font-size: var(--fs-xs); }
 .run3d-bar-name { grid-area: name; white-space: normal; overflow-wrap: anywhere; }
 .run3d-bar-status { grid-area: status; }
 .run3d-bar-track { grid-area: track; }
@@ -56,29 +56,29 @@
 .run3d-bar-fill { display: block; height: 8px; background: var(--accent); }
 .run3d-bars li.is-longest .run3d-bar-fill { background: var(--warning); }
 .run3d-lock { color: var(--danger); font-weight: 700; }
-.run3d-field, .run3d-check { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+.run3d-field, .run3d-check { display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-1) 0; font-size: var(--fs-md); }
 .run3d-field select { height: 32px; }
-.run3d-unit { margin: 6px 0; border-top: 1px solid var(--border); }
-.run3d-unit > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
-.run3d-dur { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin: 6px 0; font-size: 11px; min-width: 0; }
+.run3d-unit { margin: var(--sp-1) 0; border-top: 1px solid var(--border); }
+.run3d-unit > summary { cursor: pointer; font-weight: 600; padding: var(--sp-1) 0; }
+.run3d-dur { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin: var(--sp-1) 0; font-size: var(--fs-xs); min-width: 0; }
 .run3d-dur-name { display: block; width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; max-height: 2.7em; overflow: hidden; }
-.run3d-qty { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.run3d-qty { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1); min-width: 0; }
 .run3d-qty-label { flex: 1 0 100%; color: var(--muted); overflow-wrap: anywhere; }
 .run3d-dur input[type="range"] { width: 72px; flex: 1 1 48px; min-width: 48px; }
 .run3d-dur input.num { width: 64px; max-width: 100%; height: 28px; }
-.run3d-timeout-warn { margin: 2px 0 6px; color: var(--danger); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
-.run-conditions > button { margin-top: 8px; white-space: normal; height: auto; min-height: 44px; overflow-wrap: anywhere; }
-.run3d-metric { margin: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
-.run3d-gap-kinds { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.run3d-timeout-warn { margin: 2px 0 var(--sp-1); color: var(--danger); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.run-conditions > button { margin-top: var(--sp-2); white-space: normal; height: auto; min-height: 44px; overflow-wrap: anywhere; }
+.run3d-metric { margin: 0; font-size: var(--fs-lg); font-weight: 700; overflow-wrap: anywhere; }
+.run3d-gap-kinds { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px var(--sp-2); }
 .run3d-gap-kinds li { padding: 0; overflow-wrap: anywhere; }
 .run-strip button.run3d-gap-open { height: 22px; flex: 0 0 auto; white-space: nowrap; }
 .run3d-bars.units li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "track time"; }
 .run3d-bars.units li.is-bottleneck .run3d-bar-name { font-weight: 700; }
 .run3d-bars.units li.is-bottleneck .run3d-bar-fill { background: var(--warning); }
 
-.scene3d-bar { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.scene3d-bar { display: flex; align-items: center; gap: var(--sp-2); height: 28px; padding: 0 var(--sp-2); border-bottom: 1px solid var(--border); background: var(--panel); }
 .scene3d-bar button { flex: 0 0 auto; white-space: nowrap; height: 22px; }
-.scene3d-photo-note { margin: 0; padding: 6px 10px; font-size: 12px; line-height: 1.4; color: var(--text); background: color-mix(in srgb, var(--warning) 16%, var(--panel)); border-bottom: 1px solid var(--border); }
+.scene3d-photo-note { margin: 0; padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); line-height: 1.4; color: var(--text); background: color-mix(in srgb, var(--warning) 16%, var(--panel)); border-bottom: 1px solid var(--border); }
 .scene3d-host { flex: 1; min-height: 0; position: relative; }
 .scene3d-host canvas { display: block; width: 100%; height: 100%; }
 .scene3d-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
@@ -86,7 +86,7 @@
   position: absolute; transform: translate(-50%, -100%); white-space: nowrap;
   font-size: 12px; line-height: 1.25; font-weight: 600; color: var(--text);
   background: color-mix(in srgb, var(--panel) 88%, transparent);
-  border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+  border: 1px solid var(--border); border-radius: 4px; padding: 1px var(--sp-1);
 }
 .scene3d-label.unit { font-size: 14px; font-weight: 700; }
 .scene3d-label.marker { font-size: 13px; font-weight: 700; }
@@ -94,5 +94,23 @@
 .scene3d-label.marker.fault { color: var(--status-error); border-color: var(--status-error); }
 .scene3d-label.material { color: var(--warning); border-color: var(--warning); font-weight: 700; }
 .scene3d-label.material.waiting { color: var(--status-pending); border-color: var(--status-pending); }
-.scene3d-fallback { flex: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; padding: 24px; }
+.scene3d-fallback { flex: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--sp-3); padding: var(--sp-5); }
 .run-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* TURN-054: the run column heads use the same step as the explorer head. */
+.run3d-head,
+.run-steps h2,
+.run-conditions h2 {
+  box-sizing: border-box;
+  height: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding-left: var(--sp-2);
+  padding-right: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 32px;
+}
+.run3d-head > button { order: -1; flex: 0 0 auto; }
+.scene3d-label { pointer-events: auto; }
+.scene3d-label.is-culled { opacity: 0; }

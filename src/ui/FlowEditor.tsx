@@ -106,7 +106,7 @@ function BlockName({ name, word, disabled, onCommit }: { name: string; word: str
     if (next === name) { setV(name); return; }
     if (!onCommit(v)) setV(name);
   };
-  return <input aria-label={`${word} 이름`} value={v} disabled={disabled} style={{ width: 140, marginLeft: 6 }}
+  return <input aria-label={`${word} 이름`} value={v} disabled={disabled} style={{ width: 140, marginLeft: 'var(--sp-1)' }}
     onChange={(e) => setV(e.target.value)} onBlur={commit}
     onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />;
 }
@@ -139,7 +139,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
     }
   };
   return <div>
-    <div className="row wrap" style={{ gap: 6, marginBottom: 6 }}>
+    <div className="row wrap" style={{ gap: 'var(--sp-1)', marginBottom: 'var(--sp-1)' }}>
       <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('branch', '분기로 묶기')}>분기로 묶기</button>
       <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('parallel', '병렬로 묶기')}>병렬로 묶기</button>
       <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('loop', '반복으로 묶기')}>반복으로 묶기</button>
@@ -150,8 +150,8 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
       <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}>Substation 시퀀스 넣기</button>
       <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}>신호 기다림 추가</button>
     </div>
-    <p className="muted" style={{ fontSize: 11 }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
-    <p className="muted" style={{ fontSize: 11 }}>병렬로 묶으면 고른 줄이 갈래마다 하나씩 나뉩니다.</p>
+    <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
+    <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>병렬로 묶으면 고른 줄이 갈래마다 하나씩 나뉩니다.</p>
     <table className="grid" aria-label="Station 흐름">
       <thead><tr><th></th><th>흐름</th><th>조건 · 횟수 · 갈래</th><th>상태</th><th></th></tr></thead>
       <tbody>
@@ -168,19 +168,19 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
               {isBlockKind(row.kind) && <BlockName name={blockName} word={flowBlockWord(row.kind)} disabled={locked} onCommit={(v) => edit(C.renameFlowBlock(p, row.blockId!, v), '블록 이름')} />}
-              {row.kind === 'step' && action && <div className="muted" style={{ fontSize: 11 }}>{unitName(p, action.unitId)} / {devName(p, action.deviceId)}</div>}
+              {row.kind === 'step' && action && <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>{unitName(p, action.unitId)} / {devName(p, action.deviceId)}</div>}
               {row.kind === 'arm' && <span className="muted"> {row.title === '참' ? '(조건이 참)' : row.title === '거짓' ? '(조건이 거짓)' : ''}</span>}
             </td>
             <td>
-              {row.node?.kind === 'wait' && <div className="row" style={{ gap: 4 }}>
+              {row.node?.kind === 'wait' && <div className="row" style={{ gap: 'var(--sp-1)' }}>
                 <CondSelect p={p} cond={row.node.cond} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '기다림 조건')} />
                 <label style={{ whiteSpace: 'nowrap' }}>타임아웃 <input aria-label="기다림 타임아웃" type="number" min={0} step={0.1} disabled={locked} value={row.node.timeout.value ?? ''} style={{ width: 64 }}
                   onChange={(e) => edit(C.setWaitTimeout(p, row.blockId!, e.target.value === '' ? null : Number(e.target.value)), '기다림 타임아웃')} />s</label>
               </div>}
-              {row.node?.kind === 'wait' && <div className="muted" style={{ fontSize: 11 }}>{condLabel(p, row.node.cond)}</div>}
+              {row.node?.kind === 'wait' && <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>{condLabel(p, row.node.cond)}</div>}
               {row.node?.kind === 'branch' && <CondSelect p={p} cond={row.node.cond} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '분기 조건')} />}
-              {row.node?.kind === 'branch' && <div className="muted" style={{ fontSize: 11 }}>{condLabel(p, row.node.cond)}</div>}
-              {row.node?.kind === 'retry' && <div className="row" style={{ gap: 4 }}>
+              {row.node?.kind === 'branch' && <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>{condLabel(p, row.node.cond)}</div>}
+              {row.node?.kind === 'retry' && <div className="row" style={{ gap: 'var(--sp-1)' }}>
                 <CondSelect p={p} cond={row.node.until} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '재시도 조건')} />
                 <label>최대 <input aria-label="재시도 횟수" type="number" min={0} max={DEFAULT_MAX_RETRIES} disabled={locked} value={row.node.maxRetries} style={{ width: 48 }}
                   onChange={(e) => edit(C.setRetryMax(p, row.blockId!, Number(e.target.value)), '재시도 횟수')} />회</label>

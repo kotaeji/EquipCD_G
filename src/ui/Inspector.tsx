@@ -47,10 +47,10 @@ function ConditionEditor({ p, list, onChange, disabled }: { p: Project; list: Co
   const states = p.materials[0]?.states ?? [];
   return (
     <div>
-      {list.length === 0 && <div className="muted" style={{ fontSize: 11 }}>(없음)</div>}
+      {list.length === 0 && <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>(없음)</div>}
       {list.map((c, i) => (
         <div key={i} className="row" style={{ minHeight: 22 }}>
-          <span style={{ flex: 1, fontSize: 11, color: c.kind === 'undefined' ? 'var(--warning)' : undefined }}>{condLabel(p, c)}</span>
+          <span style={{ flex: 1, fontSize: 'var(--fs-xs)', color: c.kind === 'undefined' ? 'var(--warning)' : undefined }}>{condLabel(p, c)}</span>
           <button className="small" disabled={disabled} onClick={() => onChange(list.filter((_, j) => j !== i))}>×</button>
         </div>
       ))}
@@ -78,7 +78,7 @@ function ActionEditor({ p, a, locked, edit, onAddStep, confirmDelete }: { p: Pro
   return (
     <div className="section">
       <div className="row"><TextInput value={a.name} disabled={locked} width={220} onCommit={(v) => edit(C.renameObject(p, a.id, v), 'Action 이름')} /></div>
-      <div className="row"><label>ID</label><span className="mono muted" style={{ fontSize: 11 }}>{a.id}</span></div>
+      <div className="row"><label>ID</label><span className="mono muted" style={{ fontSize: 'var(--fs-xs)' }}>{a.id}</span></div>
       <div className="row"><label>동작 시간</label><QtyInput q={a.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'duration' }, v, as), '동작 시간')} /></div>
       <div className="row" data-jump={`timeout:${a.id}`}><label>타임아웃</label><QtyInput q={a.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'timeout' }, v, as), '타임아웃')} /></div>
       <div className="row"><label>명령 Signal</label><select disabled={locked} value={a.commandSignalId ?? ''} onChange={(e) => upd({ commandSignalId: e.target.value || null }, '명령 Signal')} style={{ width: 170 }}><option value="">(없음)</option>{devSignals.filter((s) => s.direction === 'in').map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
@@ -86,16 +86,16 @@ function ActionEditor({ p, a, locked, edit, onAddStep, confirmDelete }: { p: Pro
       {!a.completeSignalId && <div className="notice warn">완료 조건 미정 — 실행 준비 검사에서 차단, Gap(부족 I/O) 표시</div>}
       <div className="row"><label>목표 Position</label><select disabled={locked} value={a.targetPositionId ?? ''} onChange={(e) => upd({ targetPositionId: e.target.value || null }, '목표 Position')} style={{ width: 170 }}><option value="">(없음)</option>{p.positions.filter((x) => x.deviceId === a.deviceId).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
       <div data-jump={`pre:${a.id}`}>
-        <h4 style={{ marginTop: 8 }}>전제(pre) 조건</h4>
+        <h4 style={{ marginTop: 'var(--sp-2)' }}>전제(pre) 조건</h4>
         <ConditionEditor p={p} list={a.pre} disabled={locked} onChange={(l) => upd({ pre: l }, 'pre 조건')} />
       </div>
-      <h4 style={{ marginTop: 8 }}>완료 후(post) 검증 조건</h4>
+      <h4 style={{ marginTop: 'var(--sp-2)' }}>완료 후(post) 검증 조건</h4>
       <ConditionEditor p={p} list={a.post} disabled={locked} onChange={(l) => upd({ post: l }, 'post 조건')} />
-      <h4 style={{ marginTop: 8 }}>자재 변화 (완료 시)</h4>
+      <h4 style={{ marginTop: 'var(--sp-2)' }}>자재 변화 (완료 시)</h4>
       <div className="row"><label>위치 이동</label><select disabled={locked} value={a.effect.moveTo ?? ''} onChange={(e) => { const eff = { ...a.effect }; if (e.target.value) eff.moveTo = e.target.value; else delete eff.moveTo; upd({ effect: eff }, '자재 이동'); }}><option value="">(변화 없음)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}<option value="EXIT">배출(장비 밖)</option></select></div>
       <div className="row"><label>상태 변경</label><select disabled={locked} value={a.effect.setState ?? ''} onChange={(e) => { const eff = { ...a.effect }; if (e.target.value) eff.setState = e.target.value; else delete eff.setState; upd({ effect: eff }, '자재 상태'); }}><option value="">(변화 없음)</option>{states.map((s) => <option key={s}>{s}</option>)}</select></div>
       <div className="row"><label>잡기/놓기</label><select disabled={locked} value={a.effect.holder === undefined ? '' : a.effect.holder === null ? '__release' : a.effect.holder} onChange={(e) => { const eff = { ...a.effect }; if (e.target.value === '') delete eff.holder; else eff.holder = e.target.value === '__release' ? null : e.target.value; upd({ effect: eff }, '잡기/놓기'); }}><option value="">(변화 없음)</option><option value="__release">놓기(해제)</option>{p.devices.filter((d) => d.kind === 'picker').map((d) => <option key={d.id} value={d.id}>{d.name} 잡음</option>)}</select></div>
-      <div className="row danger-row" style={{ marginTop: 6 }}>
+      <div className="row danger-row" style={{ marginTop: 'var(--sp-1)' }}>
         <button type="button" disabled={locked} onClick={() => onAddStep(a.id)}>시퀀스 끝에 추가</button>
         {used && <span className="danger-note" data-delete-impact>{used}</span>}
         <button type="button" className="danger" disabled={locked} onClick={() => confirmDelete(`${a.name} 삭제`, actionDeleteDetail(p, a.id), () => edit(C.deleteAction(p, a.id), 'Action 삭제'))}>Action 삭제</button>
@@ -112,12 +112,12 @@ export function CapabilityTable({ p, unitId }: { p: Project; unitId: string }) {
       <thead><tr><th>동작(Action)</th><th>I/O (명령→완료)</th><th>Position</th><th>자재 변화</th><th>전제/금지</th><th>근거</th></tr></thead>
       <tbody>{acts.map((a) => (
         <tr key={a.id}>
-          <td>{a.name}<div className="muted mono" style={{ fontSize: 10 }}>{devName(p, a.deviceId)}</div></td>
-          <td style={{ fontSize: 11 }}>{sigName(p, a.commandSignalId)} → {a.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
-          <td style={{ fontSize: 11 }}>{a.targetPositionId ? p.positions.find((x) => x.id === a.targetPositionId)?.name : '-'}</td>
-          <td style={{ fontSize: 11 }}>{effectLabel(p, a.effect)}</td>
-          <td style={{ fontSize: 11 }}>{a.pre.map((c) => condLabel(p, c)).join('; ') || '-'}{interlocks(a).map((k) => <div key={k.id}><Badge kind={k.confirmation === 'confirmed' ? 'ok' : 'warn'}>IL {k.confirmation === 'confirmed' ? '확인됨' : '후보'}</Badge> {k.description}</div>)}</td>
-          <td style={{ fontSize: 10 }} className="muted">시간 {a.duration.value ?? <StatusMark status="undetermined" />}s{a.duration.assumption ? <> <StatusMark status="assumption" /></> : null} · {a.duration.source?.method ?? '-'}</td>
+          <td>{a.name}<div className="muted mono" style={{ fontSize: 'var(--fs-xs)' }}>{devName(p, a.deviceId)}</div></td>
+          <td style={{ fontSize: 'var(--fs-xs)' }}>{sigName(p, a.commandSignalId)} → {a.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
+          <td style={{ fontSize: 'var(--fs-xs)' }}>{a.targetPositionId ? p.positions.find((x) => x.id === a.targetPositionId)?.name : '-'}</td>
+          <td style={{ fontSize: 'var(--fs-xs)' }}>{effectLabel(p, a.effect)}</td>
+          <td style={{ fontSize: 'var(--fs-xs)' }}>{a.pre.map((c) => condLabel(p, c)).join('; ') || '-'}{interlocks(a).map((k) => <div key={k.id}><Badge kind={k.confirmation === 'confirmed' ? 'ok' : 'warn'}>IL {k.confirmation === 'confirmed' ? '확인됨' : '후보'}</Badge> {k.description}</div>)}</td>
+          <td style={{ fontSize: 'var(--fs-xs)' }} className="muted">시간 {a.duration.value ?? <StatusMark status="undetermined" />}s{a.duration.assumption ? <> <StatusMark status="assumption" /></> : null} · {a.duration.source?.method ?? '-'}</td>
         </tr>))}
         {acts.length === 0 && <tr><td colSpan={6} className="muted">Action 없음</td></tr>}
       </tbody>
@@ -135,7 +135,7 @@ export function Inspector(props: Props) {
   if (!selectedId || (!unit && !dev && !conn)) {
     return <div className="section"><h4>속성</h4><div className="muted">캔버스나 트리에서 Unit / Device / 연결을 선택하세요.</div>
       <div className="notice">Device는 팔레트에서 Unit 영역 안으로 드래그해 놓습니다. Unit은 팔레트의 “유닛”을 빈 곳에 놓습니다.</div>
-      <h4 style={{ marginTop: 12 }}>Interlock 후보 (사람 확인 필요)</h4>
+      <h4 style={{ marginTop: 'var(--sp-3)' }}>Interlock 후보 (사람 확인 필요)</h4>
       {p.constraints.map((k) => <InterlockRow key={k.id} p={p} id={k.id} locked={locked} edit={edit} />)}
     </div>;
   }
@@ -155,7 +155,7 @@ export function Inspector(props: Props) {
         <div className="row"><label>이름</label><TextInput value={unit.name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, unit.id, v), 'Unit 이름')} /></div>
         <div className="row"><label>ID / 코드</label><span className="mono">{unit.id} · {unit.code}</span></div>
         <div className="row"><label>소속</label>{p.equipment.name} &gt; {unit.name}</div>
-        {unit.templateRef && <div className="row"><label>유닛 템플릿</label><span className="mono" style={{ fontSize: 11 }}>{unit.templateRef.assetId}@{unit.templateRef.version} (고정, 인스턴스별 독립 편집)</span></div>}
+        {unit.templateRef && <div className="row"><label>유닛 템플릿</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{unit.templateRef.assetId}@{unit.templateRef.version} (고정, 인스턴스별 독립 편집)</span></div>}
         <div className="row"><label>수용 개수</label><QtyInput q={unit.capacity.maxMaterials} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxMaterials' }, v, as), '수용 개수')} /></div>
         <div className="row"><label>허용 무게</label><QtyInput q={unit.capacity.maxWeight} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxWeight' }, v, as), '허용 무게')} /></div>
         <div className="row"><label>Device</label><span>{unit.deviceIds.map((d) => devName(p, d)).join(', ') || '(없음)'}</span></div>
@@ -177,19 +177,19 @@ export function Inspector(props: Props) {
     <div className="section">
       <div className="row" style={{ justifyContent: 'space-between' }}><b>{def.name}</b><span className="mono" style={{ color: 'var(--accent)' }}>{d.id}</span></div>
       <div className="row"><label>이름</label><TextInput value={d.name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, d.id, v), 'Device 이름')} /></div>
-      <div className="row"><label>정의</label><span className="mono" style={{ fontSize: 11 }}>{d.definitionRef.assetId}@{d.definitionRef.version} (고정)</span></div>
+      <div className="row"><label>정의</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{d.definitionRef.assetId}@{d.definitionRef.version} (고정)</span></div>
       <div className="row"><label>Substation</label><select disabled={locked} value={d.unitId} onChange={(e) => props.onReparent(d.id, e.target.value)}>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
       <div className="row"><label>시각</label>{props.visualMode === 'photo' ? (gen.status === 'available' ? <span title={GENERATED_META.label}><Badge kind="acc">{AI_BADGE} 실사풍 (실제 사진 아님) · 종류 대표</Badge></span> : <Badge kind="warn">AI 이미지 미준비 → 도식</Badge>) : <Badge>도식 사용 중</Badge>}</div>
-      <div className="muted" style={{ fontSize: 11 }}>AML 원본: {def.amlSource.file} · {def.amlSource.sucPath}{d.templateChild ? ` · 템플릿 자식 ${d.templateChild}${unitT ? ` (${unitT.assetId}@${unitT.version})` : ''}` : ''}</div>
+      <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>AML 원본: {def.amlSource.file} · {def.amlSource.sucPath}{d.templateChild ? ` · 템플릿 자식 ${d.templateChild}${unitT ? ` (${unitT.assetId}@${unitT.version})` : ''}` : ''}</div>
     </div>
     <div className="tabs">{[['props', '속성'], ['signals', `신호 ${sigs.length}`], ['positions', `포지션 ${poss.length}`], ['actions', `Action ${acts.length}`], ['check', '정의 체크']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     {tab === 'props' && <div className="section">
       {def.properties.map((pd) => { const qv = d.properties[pd.key]; return qv ? <div key={pd.key} className="row" data-jump={`prop:${d.id}:${pd.key}`}><label>{pd.label}{pd.requiredForRun ? ' *' : ''}</label><QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} /></div> : null; })}
-      <div className="muted" style={{ fontSize: 11 }}>* 실행/수용 판정에 필요 (비우면 미정 축 사양 Gap). 빈 값 = 미정, 0과 다름.</div>
-      <div className="danger-row" style={{ marginTop: 8 }}><button type="button" className="danger" disabled={locked} onClick={() => props.onDelete(d.id)}>Device 삭제(영향 확인)</button></div>
+      <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>* 실행/수용 판정에 필요 (비우면 미정 축 사양 Gap). 빈 값 = 미정, 0과 다름.</div>
+      <div className="danger-row" style={{ marginTop: 'var(--sp-2)' }}><button type="button" className="danger" disabled={locked} onClick={() => props.onDelete(d.id)}>Device 삭제(영향 확인)</button></div>
     </div>}
     {tab === 'signals' && <div className="section">
-      {sigs.map((s) => <div key={s.id} style={{ borderBottom: '1px solid var(--border)', padding: '4px 0' }}>
+      {sigs.map((s) => <div key={s.id} style={{ borderBottom: '1px solid var(--border)', padding: 'var(--sp-1) 0' }}>
         <div className="row"><TextInput value={s.name} disabled={locked} width={160} onCommit={(v) => edit(C.renameObject(p, s.id, v), 'Signal 이름')} />
           <Badge kind={s.direction === 'in' ? 'acc' : undefined}>{s.direction === 'in' ? '입력 in' : '출력 out'}</Badge><Badge>{s.role}</Badge></div>
         <div className="row danger-row"><label>실제 주소</label><TextInput value={s.address ?? ''} width={90} disabled={locked} onCommit={(v) => edit(C.updateSignal(p, s.id, { address: v }), 'Signal 주소')} />
@@ -200,12 +200,12 @@ export function Inspector(props: Props) {
           {signalUsage(p, s.id) && <span className="danger-note" data-delete-impact>{signalUsage(p, s.id)}</span>}
           <button type="button" className="small danger" disabled={locked} onClick={() => props.confirmDelete(`${s.name} 삭제`, signalDeleteDetail(p, s.id), () => edit(C.deleteSignal(p, s.id), 'Signal 삭제'))}>삭제</button></div>
       </div>)}
-      <div className="row" style={{ marginTop: 6 }}>
+      <div className="row" style={{ marginTop: 'var(--sp-1)' }}>
         <button className="small" disabled={locked} onClick={() => edit(C.addSignal(p, d.id, 'out', 'complete'), 'Signal 추가')}>+ 출력(완료)</button>
         <button className="small" disabled={locked} onClick={() => edit(C.addSignal(p, d.id, 'in', 'command'), 'Signal 추가')}>+ 입력(명령)</button>
         <button className="small" disabled={locked} onClick={() => edit(C.addSignal(p, d.id, 'out', 'sensor'), 'Signal 추가')}>+ 센서</button>
       </div>
-      <div className="muted" style={{ fontSize: 11 }}>실제 I/O 주소가 없어도 역할 기반 개념 신호로 설계 가능 (주소 = 미정 유지).</div>
+      <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>실제 I/O 주소가 없어도 역할 기반 개념 신호로 설계 가능 (주소 = 미정 유지).</div>
     </div>}
     {tab === 'positions' && <div className="section">
       {poss.map((x) => <div key={x.id} className="row danger-row"><TextInput value={x.name} width={120} disabled={locked} onCommit={(v) => edit(C.renameObject(p, x.id, v), 'Position 이름')} />
@@ -213,7 +213,7 @@ export function Inspector(props: Props) {
         {positionUsage(p, x.id) && <span className="danger-note" data-delete-impact>{positionUsage(p, x.id)}</span>}
         <button type="button" className="small danger" disabled={locked} onClick={() => props.confirmDelete(`${x.name} 삭제`, positionDeleteDetail(p, x.id), () => edit(C.deletePosition(p, x.id), 'Position 삭제'))}>삭제</button></div>)}
       <button className="small" disabled={locked} onClick={() => edit(C.addPosition(p, d.id), 'Position 추가')}>+ Position</button>
-      <div className="muted" style={{ fontSize: 11 }}>가정값은 가정 표시와 함께 저장됩니다. 실측 교체(역매핑)는 미구현.</div>
+      <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>가정값은 가정 표시와 함께 저장됩니다. 실측 교체(역매핑)는 미구현.</div>
     </div>}
     {tab === 'actions' && <div>
       {acts.map((a) => <ActionEditor key={a.id} p={p} a={a} locked={locked} edit={edit} onAddStep={props.onAddStep} confirmDelete={props.confirmDelete} />)}
@@ -260,7 +260,7 @@ function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked:
       setRule({ form: 'mutex', actionId: nextId, otherActionId: other }, 'Interlock 대상');
     }
   };
-  return <div style={{ borderBottom: '1px solid var(--border)', padding: '6px 0', fontSize: 12 }} data-jump={`interlock:${k.id}`} data-interlock={k.id}>
+  return <div style={{ borderBottom: '1px solid var(--border)', padding: 'var(--sp-1) 0', fontSize: 'var(--fs-sm)' }} data-jump={`interlock:${k.id}`} data-interlock={k.id}>
     <div className="row">
       <b className="mono">{k.id}</b>
       <TextInput value={k.description} width={280} disabled={locked} onCommit={(v) => edit(C.setConstraintDescription(p, k.id, v), 'Interlock 설명')} />
@@ -297,7 +297,7 @@ function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked:
       </label>}
     </div>
     {usable?.form === 'allow' && <ConditionEditor p={p} list={usable.conditions} disabled={locked} onChange={(list) => setRule({ form: 'allow', actionId: usable.actionId, conditions: list }, 'Interlock 조건')} />}
-    <div className="muted" style={{ fontSize: 10 }}>로컬 표시용 확인 — 법적 안전 승인 아님. 자동 안전 승인은 없습니다.</div>
+    <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>로컬 표시용 확인 — 법적 안전 승인 아님. 자동 안전 승인은 없습니다.</div>
   </div>;
 }
 
@@ -327,11 +327,11 @@ function DefinitionCheck({ p, deviceId }: { p: Project; deviceId: string }) {
   }
   const d = p.devices.find((x) => x.id === deviceId)!;
   for (const pd of (findAsset(d.kind)?.properties ?? []).filter((x) => x.requiredForRun)) items.push({ ok: d.properties[pd.key]?.value !== null, text: `사양 ${pd.label}` });
-  return <div>{items.map((it, i) => <div key={i} className="row" style={{ minHeight: 20, fontSize: 12 }}>{it.ok ? <StatusMark status="done" word="OK" /> : <StatusMark status="undetermined" />}{it.assumption && <StatusMark status="assumption" />}{it.text}</div>)}
+  return <div>{items.map((it, i) => <div key={i} className="row" style={{ minHeight: 20, fontSize: 'var(--fs-sm)' }}>{it.ok ? <StatusMark status="done" word="OK" /> : <StatusMark status="undetermined" />}{it.assumption && <StatusMark status="assumption" />}{it.text}</div>)}
     {items.length === 0 && <div className="muted">Action 없음 (센서 등)</div>}</div>;
 }
 
 function GapList({ gaps }: { gaps: Gap[] }) {
   if (!gaps.length) return null;
-  return <div className="section"><h4>관련 Gap</h4>{gaps.map((g) => <div key={g.id} style={{ fontSize: 11, marginBottom: 4 }}><Badge kind={g.judgement === 'shortfall' ? 'err' : 'warn'}>{g.kind}</Badge> {g.title}</div>)}</div>;
+  return <div className="section"><h4>관련 Gap</h4>{gaps.map((g) => <div key={g.id} style={{ fontSize: 'var(--fs-xs)', marginBottom: 'var(--sp-1)' }}><Badge kind={g.judgement === 'shortfall' ? 'err' : 'warn'}>{g.kind}</Badge> {g.title}</div>)}</div>;
 }

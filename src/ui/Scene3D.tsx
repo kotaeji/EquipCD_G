@@ -8,7 +8,7 @@ import { applyCameraKey, fitToPoints, gestureMode, orbitCamera, panCamera, zoomC
 import { framePoints, type PartDelta, type SceneDescription } from '../scene/describe';
 import { shouldRedraw } from '../scene/motion';
 import { emWidth, floorNameAxes, floorNameYaw, type FloorName } from '../scene/floorLabel';
-import { anchorLabels, cullOverlappingLabels, visibleFloorNames, type ScreenLabel } from '../scene/labels';
+import { anchorLabels, placeLabels, sceneLabelInRange, visibleFloorNames, type ScreenLabel } from '../scene/labels';
 import type { LocalPart } from '../scene/shapes';
 import { floorNameColors, materialFor, photoPartsFor, photoZoneColors, renderStyle, type StyledPart, type VisualStyleId } from '../scene/style';
 import { BootGate } from './EmptyState';
@@ -377,7 +377,7 @@ function floorNameScreenBox(name: FloorName, cameraYaw: number, project: (x: num
   return { id: `u:${name.id}`, kind: 'unit', text: name.text, x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
 }
 
-function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneDescription, showNames: boolean, emphasize: boolean, cameraYaw: number) {
+function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneDescription, showNames: boolean, emphasize: boolean, cameraYaw: number, selectedId: string | null) {
   const w = layer.clientWidth || 1;
   const h = layer.clientHeight || 1;
   const project = (x: number, y: number, z: number) => {
@@ -393,35 +393,45 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
       if (box) boxes.push(box);
     }
   }
+  const cam = camera.position;
   for (const label of anchorLabels(scene, showNames, emphasize)) {
+    const distance = Math.hypot(cam.x - label.x, cam.y - label.y, cam.z - label.z);
+    const alert = label.kind === 'marker' && (label.text.includes('일시정지') || label.text.includes('오류'));
+    const selected = label.kind === 'device' && selectedId != null && label.id === `d:${selectedId}`;
+    if (!sceneLabelInRange({ showNames, kind: label.kind, alert, distance, selected })) continue;
     const at = project(label.x, label.y, label.z);
     if (!at) continue;
     const size = rough(label.text, label.px);
     const y = label.kind === 'material' ? at.y + 6 : at.y - size.h - (label.kind === 'marker' ? 36 : 18);
-    boxes.push({ id: label.id, kind: label.kind, x: at.x - size.w / 2, y, w: size.w, h: size.h, text: label.text });
+    boxes.push({
+      id: label.id, kind: label.kind, x: at.x - size.w / 2, y, w: size.w, h: size.h, text: label.text,
+      fullText: label.text, selected, alert,
+    });
   }
-  const kept = cullOverlappingLabels(boxes).filter((label) => label.kind !== 'unit');
+  const kept = placeLabels(boxes).filter((label) => label.kind !== 'unit');
   layer.replaceChildren(...kept.map((label) => {
     const el = document.createElement('div');
     const marker = label.kind === 'marker'
       ? (label.text.includes('일시정지') ? ' paused' : label.text.includes(markerText('fault')) || label.text.includes('오류') ? ' fault' : ' active')
       : '';
     const waiting = label.kind === 'material' && label.text.startsWith(`${waitingLead()}`);
-    el.className = `scene3d-label ${label.kind}${marker}${waiting ? ' waiting' : ''}`;
-    el.textContent = label.text;
+    el.className = `scene3d-label ${label.kind}${marker}${waiting ? ' waiting' : ''}${label.hidden ? ' is-culled' : ''}`;
+    el.textContent = label.hidden ? '' : label.text;
+    el.title = label.title;
     el.style.left = `${label.x + label.w / 2}px`;
     el.style.top = `${label.y + label.h}px`;
     return el;
   }));
 }
 
-function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, onCamera, onSelect, onView, onReady }: {
+function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, selectedId, onCamera, onSelect, onView, onReady }: {
   scene: SceneDescription;
   palette: ScenePalette;
   cam: CameraState;
   showNames: boolean;
   emphasize: boolean;
   visualMode: VisualStyleId;
+  selectedId: string | null;
   onCamera: (fn: (cam: CameraState) => CameraState) => void;
   onSelect: (id: string | null) => void;
   onView: (width: number, height: number) => void;
@@ -433,13 +443,13 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, on
   viewSink.current = onView;
   const readySink = useRef(onReady);
   readySink.current = onReady;
-  const viewProps = useRef({ scene, showNames, emphasize, yaw: cam.yaw });
-  viewProps.current = { scene, showNames, emphasize, yaw: cam.yaw };
+  const viewProps = useRef({ scene, showNames, emphasize, yaw: cam.yaw, selectedId });
+  viewProps.current = { scene, showNames, emphasize, yaw: cam.yaw, selectedId };
   const paintLabels = () => {
     const view = api.current;
     if (!view || !labelRef.current) return;
     const current = viewProps.current;
-    syncLabels(labelRef.current, view.camera, current.scene, current.showNames, current.emphasize, current.yaw);
+    syncLabels(labelRef.current, view.camera, current.scene, current.showNames, current.emphasize, current.yaw, current.selectedId);
   };
   const paintSink = useRef(paintLabels);
   paintSink.current = paintLabels;
@@ -459,8 +469,8 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, on
     render: () => void;
   } | null>(null);
   const drag = useRef<{ x: number; y: number; button: number; shift: boolean; moved: boolean } | null>(null);
-  const props = useRef({ scene, palette, showNames, emphasize, visualMode, onSelect });
-  props.current = { scene, palette, showNames, emphasize, visualMode, onSelect };
+  const props = useRef({ scene, palette, showNames, emphasize, visualMode, selectedId, onSelect });
+  props.current = { scene, palette, showNames, emphasize, visualMode, selectedId, onSelect };
   const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
@@ -531,7 +541,7 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, on
   buildRef.current = () => {
     const view = api.current;
     if (!view) return;
-    const { scene, palette, showNames, emphasize, visualMode } = props.current;
+    const { scene, palette, showNames, emphasize, visualMode, selectedId } = props.current;
     const look = renderStyle(visualMode);
     view.renderer.shadowMap.enabled = look.shadows;
     view.renderer.toneMapping = visualMode === 'photo' ? ACESFilmicToneMapping : NoToneMapping;
@@ -572,7 +582,7 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, on
     view.camera.aspect = Math.max(0.2, view.renderer.domElement.clientWidth / Math.max(1, view.renderer.domElement.clientHeight));
     view.camera.updateProjectionMatrix();
     view.render();
-    if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize, yawRef.current);
+    if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize, yawRef.current, selectedId);
   };
 
   useEffect(() => {
@@ -587,8 +597,8 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, on
     view.camera.updateProjectionMatrix();
     applyFloorYaw(view.root, cam.yaw);
     view.render();
-    if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize, cam.yaw);
-  }, [cam, scene, showNames, emphasize]);
+    if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize, cam.yaw, selectedId);
+  }, [cam, scene, showNames, emphasize, selectedId]);
 
   const pick = (ev: PointerEvent): string | null => {
     const view = api.current;
@@ -719,7 +729,7 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
       {visualMode === 'photo' && <p className="scene3d-photo-note">{PHOTO_NOTE}</p>}
       {gl
         ? <BootGate ready={booted} label={LOADING_3D}>
-          <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize} visualMode={visualMode}
+          <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize} visualMode={visualMode} selectedId={selectedId}
             onCamera={onCamera} onSelect={onSelect} onView={onView} onReady={() => setBooted(true)} />
         </BootGate>
         : <div className="scene3d-fallback" role="status">

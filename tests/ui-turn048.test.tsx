@@ -228,13 +228,12 @@ describe('TURN-048 edge emphasis', () => {
     const sig = u.el.querySelector('.run-canvas .react-flow__edge[data-id="SIGC-1"]')!;
     await act(async () => { sig.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
     const label = u.el.querySelector('.rf-edge-label')!;
-    const mark = u.el.querySelector('.run-canvas .rf-run-mark')!;
     expect(label.textContent).toBe(captionFor('SIGC-1'));
-    expect(mark.textContent).toContain('진행 중');
     expect(label.getAttribute('hidden')).toBeNull();
-    expect(mark.getAttribute('hidden')).toBeNull();
     expect(getComputedStyle(label).opacity).not.toBe('0');
-    expect(getComputedStyle(mark).opacity).not.toBe('0');
+    // TURN-054: the status word is drawn from 120%. This session stays at 100%.
+    expect(u.el.querySelector('.run-canvas .rf-host')?.getAttribute('data-label-tier')).toBe('mid');
+    expect(u.el.querySelector('.run-canvas .rf-run-mark')).toBeNull();
     expect(snap()).toEqual(before);
   });
 
@@ -275,8 +274,8 @@ describe('TURN-048 screen room', () => {
     expect(narrow.clipped).toBe(true);
     expect(narrow.palette).toBeLessThan(PALETTE_NATURAL.w1280);
     expect(stage2OverlayClears(narrow.diagram)).toBe(true);
-    expect(css).toMatch(/\.app \.ws-canvas > \.stage\.layout-stage \{[^}]*padding:\s*2px 16px/);
-    expect(css).toMatch(/\.app \.ws-canvas > \.stage\.layout-stage \{[^}]*gap:\s*4px/);
+    expect(css).toMatch(/\.app \.ws-canvas > \.stage\.layout-stage \{[^}]*padding:\s*2px var\(--sp-4\)/);
+    expect(css).toMatch(/\.app \.ws-canvas > \.stage\.layout-stage \{[^}]*gap:\s*var\(--sp-1\)/);
     expect(css).toMatch(/\.layout-stage \.layout-tabs \.diagram-canvas \{[^}]*min-height:\s*320px/);
     expect(css).not.toMatch(/\.layout-stage \.palette-fold \.palette \{[^}]*max-height:\s*40px/);
     expect(css).toMatch(/\.layout-stage \.palette-fold \.palette \{[^}]*overflow-y:\s*auto/);

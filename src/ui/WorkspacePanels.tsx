@@ -71,7 +71,7 @@ export function NameDialog({ title, initial, hint, validate, submitLabel, onSubm
         onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} /></label>
     <div id="name-err" className={`name-note ${err ? 'err-text' : 'muted'}`} role={err ? 'alert' : undefined}>
       {err ?? (unchanged ? '이름이 바뀌지 않았습니다' : `앞뒤 공백은 지워집니다 · ${NAME_MAX}자 이하 · 같은 범위에서 중복 금지(대소문자 무시)`)}</div>
-    <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12, gap: 6 }}>
+    <div className="row" style={{ justifyContent: 'flex-end', marginTop: 'var(--sp-3)', gap: 'var(--sp-1)' }}>
       <button onClick={onCancel}>취소</button>
       <button className="primary" disabled={!!err || unchanged} onClick={submit}>{submitLabel}</button></div>
   </Overlay>;
