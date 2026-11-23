@@ -14,7 +14,7 @@
 
 ## 한 일
 
-- 물류 손잡이와 미리보기, 메뉴 위치 계산은 `src/ui/Canvas.tsx`, `src/ui/contextMenu.ts`, `src/ui/ContextMenu.tsx` 다. 연결은 기존 `addConnection` 만 쓴다.
+- 물류 손잡이와 미리보기, 메뉴 위치 계산은 `src/ui/Canvas.tsx`, `src/ui/contextMenuModel.ts`, `src/ui/ContextMenu.tsx` 다. 모델 파일 이름은 컴포넌트와 대소문자만 다르지 않게 두었다. 연결은 기존 `addConnection` 만 쓴다.
 - 도면 · 카드 보드 · 탐색기 트리가 같은 메뉴를 연다. 복사 · 붙여넣기 · 복제 · 정렬 · 자동 정렬 · 크기 맞춤 · 삭제는 도구 줄과 같은 함수다.
 - Unit 위에 그려진 Device 위에 놓으면 그 Device의 Unit으로 잇는다. 자재 표식처럼 Unit도 Device도 아닌 곳은 거절한다.
 
@@ -48,4 +48,4 @@ S1 손잡이에서 S3 위로 끄는 중이다. S2는 이미 S1→S2가 있어 �
 
 ## 테스트
 
-로컬 `npm test` 74파일 756개 통과. `tests/ui-turn050.test.tsx` 와 `tests/context-menu.test.ts` 가 AC1–AC13을 본다. 신호 포트 끌기 · 크기 손잡이 · 복사 붙여넣기 기존 테스트도 같은 실행에서 통과했다. 이 숫자는 이 문서 작성 시점의 로컬 실행이다. 통과 판정은 CI를 따른다.
+`tests/ui-turn050.test.tsx` 와 `tests/context-menu.test.ts` 가 AC1–AC13을 본다. `tests/path-case.test.ts` 는 `git ls-files` 를 소문자로 맞춰, 대소문자만 다른 추적 경로가 있으면 실패한다. 통과 판정은 CI를 따른다. CI 확인 대기 — 루카가 Actions로 확인.

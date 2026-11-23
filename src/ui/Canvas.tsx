@@ -47,7 +47,7 @@ import {
   type EdgeTone,
 } from './edgeFocus';
 import { pointerSelection, SELECT_HINT } from './selectAll';
-import { EDIT_LOCKED as EDIT_LOCKED_MSG, FLOW_UNIT_ONLY, isTextField, type ContextRequest } from './contextMenu';
+import { EDIT_LOCKED as EDIT_LOCKED_MSG, FLOW_UNIT_ONLY, isTextField, type ContextRequest } from './contextMenuModel';
 import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
 import './canvas-select.css';
 

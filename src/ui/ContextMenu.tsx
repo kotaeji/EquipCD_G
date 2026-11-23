@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { clampMenu, MENU_WIDTH, menuHeight, type MenuAction, type MenuItem, type MenuKind } from './contextMenu';
+import { clampMenu, MENU_WIDTH, menuHeight, type MenuAction, type MenuItem, type MenuKind } from './contextMenuModel';
 
 interface Props {
   x: number;

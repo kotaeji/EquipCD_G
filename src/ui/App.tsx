@@ -19,7 +19,7 @@ import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDra
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
 import { ContextMenu } from './ContextMenu';
-import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenu';
+import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
 import { selectAll, SELECT_HINT } from './selectAll';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector, InterlockPanel, type ConfirmDelete } from './Inspector';

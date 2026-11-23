@@ -5,7 +5,7 @@ import { nextDeviceSlot } from '../model/unitLayout';
 import type { AssetKind, Project } from '../model/types';
 import type { Mode } from './Canvas';
 import { cardSelection } from './selectAll';
-import { isTextField, type ContextRequest } from './contextMenu';
+import { isTextField, type ContextRequest } from './contextMenuModel';
 
 interface Props {
   project: Project;

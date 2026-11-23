@@ -9,7 +9,7 @@ import {
   menuHeight,
   pasteBlockReason,
   planContext,
-} from '../src/ui/contextMenu';
+} from '../src/ui/contextMenuModel';
 
 const base = {
   locked: false,

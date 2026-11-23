@@ -8,7 +8,7 @@ import type { Project } from '../src/model/types';
 import { PASTE_EMPTY } from '../src/model/copyPaste';
 import { ARRANGE_NEED_3 } from '../src/model/commands';
 import { App } from '../src/ui/App';
-import { MENU_WIDTH, menuHeight } from '../src/ui/contextMenu';
+import { MENU_WIDTH, menuHeight } from '../src/ui/contextMenuModel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

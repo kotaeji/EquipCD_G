@@ -11,7 +11,7 @@ import chevronFolded from './slots/e5f85.svg?url';
 import { devName } from './labels';
 import { StatusMark } from './StatusMark';
 import type { StatusKey } from './status';
-import { isTextField, type ContextRequest } from './contextMenu';
+import { isTextField, type ContextRequest } from './contextMenuModel';
 
 export interface ProjectTreeProps {
   p: Project;
