@@ -231,9 +231,10 @@ describe('TURN-048 edge emphasis', () => {
     expect(label.textContent).toBe(captionFor('SIGC-1'));
     expect(label.getAttribute('hidden')).toBeNull();
     expect(getComputedStyle(label).opacity).not.toBe('0');
-    // TURN-054: the status word is drawn from 120%. This session stays at 100%.
+    // TURN-054: names and ports still wait for 120%. This session stays at 100% (mid).
+    // TURN-078: the run symbol stays at that tier, so the state is not color alone.
     expect(u.el.querySelector('.run-canvas .rf-host')?.getAttribute('data-label-tier')).toBe('mid');
-    expect(u.el.querySelector('.run-canvas .rf-run-mark')).toBeNull();
+    expect(u.el.querySelector('.run-canvas .rf-run-mark [data-status="active"]')).not.toBeNull();
     expect(snap()).toEqual(before);
   });
 

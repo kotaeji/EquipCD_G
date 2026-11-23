@@ -6,7 +6,7 @@
 // Tie rule (prototype assumption): completion at exactly the timeout instant counts as success.
 // This is NOT equipment control and NOT physics simulation.
 import type { Action, Condition, FlowNode, Project } from '../model/types';
-import { collectStepIds, conditionText, flowUsesSignal, hasFlow, stepOrder, walk } from '../model/flow';
+import { armLabel, branchArms, collectStepIds, conditionText, flowUsesSignal, hasFlow, stepOrder, walk } from '../model/flow';
 import { RUNTIME_RULES_VERSION } from '../model/types';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
 import { judgeInterlock, type InterlockBlockRecord, type InterlockHit } from './interlock';
@@ -841,11 +841,22 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
   frame.index += 1;
   const tag = pieceTag(s);
   if (node.kind === 'branch') {
-    const verdict = evalCond(node.cond, s, p);
-    const takeThen = verdict.ok;
-    logAt(s, 'info', 'BRANCH_TAKEN', `${tag}${node.name} ${takeThen ? '참' : '거짓'} — ${verdict.why}`, node.id);
-    skipTree(s, takeThen ? node.else : node.then);
-    fiber.stack.push({ role: 'seq', nodes: takeThen ? node.then : node.else, index: 0 });
+    const arms = branchArms(node);
+    let taken = arms.length - 1;
+    let why = '';
+    const failed: string[] = [];
+    for (let i = 0; i < arms.length - 1; i++) {
+      const verdict = evalCond(arms[i].cond!, s, p);
+      if (verdict.ok) { taken = i; why = verdict.why; break; }
+      failed.push(verdict.why);
+    }
+    if (taken === arms.length - 1) {
+      why = failed.length === 1 ? failed[0] : `앞 갈래가 모두 거짓 — ${failed.map((w, i) => `${i + 1} ${w}`).join('; ')}`;
+    }
+    const label = armLabel(arms.length, taken);
+    logAt(s, 'info', 'BRANCH_TAKEN', `${tag}${node.name} 갈래 ${taken + 1} ${label} — ${why}`, node.id);
+    arms.forEach((arm, i) => { if (i !== taken) skipTree(s, arm.body); });
+    fiber.stack.push({ role: 'seq', nodes: arms[taken].body, index: 0 });
     return 'go';
   }
   if (node.kind === 'loop') {

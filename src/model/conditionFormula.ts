@@ -1,5 +1,5 @@
 // One line for a condition, shared by the screens. The runtime log keeps flow.conditionText.
-import { findById } from './flow';
+import { branchArms, findById } from './flow';
 import type { Condition, Project, SequenceStep } from './types';
 
 export function stepById(p: Project, id: string): SequenceStep | undefined {
@@ -67,8 +67,12 @@ export function undefinedFormula(p: Project, objectId: string): string {
   }
   const hit = p.sequence.flow ? findById(p.sequence.flow, objectId) : null;
   const node = hit?.node;
-  const cond = node?.kind === 'branch' || node?.kind === 'wait' ? node.cond : node?.kind === 'retry' ? node.until : null;
-  if (cond?.kind === 'undefined') bits.push(cond);
+  if (node?.kind === 'branch') {
+    for (const arm of branchArms(node)) if (arm.cond?.kind === 'undefined') bits.push(arm.cond);
+  } else {
+    const cond = node?.kind === 'wait' ? node.cond : node?.kind === 'retry' ? node.until : null;
+    if (cond?.kind === 'undefined') bits.push(cond);
+  }
   return conditionsFormula(p, bits);
 }
 

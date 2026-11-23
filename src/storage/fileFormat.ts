@@ -1,5 +1,6 @@
 // Project file (JSON) serialize / parse with version & reference integrity checks (C05, D02~D04).
 import { ASSET_LIBRARY, getAssetById } from '../assets/library';
+import { normalizeProjectConfirmation, projectForFile } from '../model/confirmationLog';
 import type { Project, ProjectFile } from '../model/types';
 import { APP_VERSION, FILE_FORMAT_ID, FILE_FORMAT_VERSION } from '../model/types';
 import { validateProject, type Diagnostic } from '../model/validate';
@@ -10,7 +11,7 @@ export function toProjectFile(p: Project): ProjectFile {
   return {
     format: FILE_FORMAT_ID, formatVersion: FILE_FORMAT_VERSION, appVersion: APP_VERSION,
     assetDefinitions: [...used.entries()].map(([id, version]) => ({ id, version })),
-    project: p,
+    project: projectForFile(p),
   };
 }
 
@@ -61,7 +62,7 @@ export function parseProjectFile(raw: string): ParseResult {
   const p0 = data.project as Project;
   if (!p0 || typeof p0 !== 'object' || typeof p0.id !== 'string') return { ok: false, raw, errors: [d('SHAPE', 'project', 'project 없음')] };
   const mig = migrateProject(p0, String(data.formatVersion));
-  const p = mig.project;
+  const p = normalizeProjectConfirmation(mig.project);
   const diags = validateProject(p);
   const errors = diags.filter((x) => x.severity === 'error');
   if (errors.length) return { ok: false, raw, errors };

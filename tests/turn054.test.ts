@@ -16,7 +16,7 @@ import {
   type DiagramLabel,
 } from '../src/scene/labels';
 
-const CSS_FILES = ['src/ui/styles.css', 'src/ui/run3d.css', 'src/ui/run-summary.css', 'src/ui/sparse-extra.css'];
+const CSS_FILES = ['src/ui/styles.css', 'src/ui/run3d.css', 'src/ui/run-summary.css', 'src/ui/sparse-extra.css', 'src/ui/bulk-edit.css'];
 /** Face files, not UI type. Every other stylesheet under src/ui is checked. */
 const FONT_CSS_SKIP = new Set(['fonts.css']);
 const FONT_CSS = readdirSync('src/ui', { recursive: true })
