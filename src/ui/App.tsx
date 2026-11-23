@@ -9,7 +9,7 @@ import { readTemplates, saveTemplate } from '../storage/userTemplates';
 import { emptyProject } from '../model/factory';
 import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { analyzeRunGaps } from '../model/runGaps';
-import { applyEdit, initHistory, redo, undo, type History } from '../model/history';
+import { applyEdit, initHistory, jumpHistory, redo, redoTooltip, undo, undoTooltip, type History } from '../model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
@@ -25,6 +25,7 @@ import { Canvas, type Mode } from './Canvas';
 import { BackgroundTools } from './BackgroundTools';
 import { UnitLockTools } from './UnitLock';
 import { CommandPaletteDialog, PALETTE_LABEL, ShortcutSheet } from './CommandPalette';
+import { HistoryMenu } from './HistoryList';
 import type { ObjectEntry } from './objectFind';
 import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
 import { ContextMenu } from './ContextMenu';
@@ -180,6 +181,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [flowPicked, setFlowPicked] = useState<string[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutOpen, setShortcutOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   /** App-held copy of Units or Devices. Shared by every project tab. Not the OS clipboard. */
   const [clip, setClip] = useState<Clipboard | null>(null);
   const [tplTick, setTplTick] = useState(0);
@@ -420,6 +422,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const doUndo = () => { const o = undo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
   const doRedo = () => { const o = redo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
+  const doJump = (index: number) => {
+    const o = jumpHistory(tab.history, index, locked);
+    if (o.error) { say(o.error, true); return; }
+    if (o.history === tab.history) return;
+    updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null }));
+  };
 
   const reanalyze = () => {
     const gaps = analyzeGaps(p);
@@ -1544,6 +1552,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     newProject,
     undo: doUndo,
     redo: doRedo,
+    openHistory: () => setHistoryOpen(true),
     copy: requestCopy,
     paste: requestPaste,
     duplicate: requestDuplicate,
@@ -1621,8 +1630,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <button className="btn-main secondary" onClick={() => setViewOpen(true)}><IconLabel id="view-settings">보기 설정</IconLabel></button>
         <button type="button" className="btn-main secondary" data-help-toggle aria-expanded={view.helpOpen} aria-label="도움말" onClick={(e) => { helpReturn.current = e.currentTarget; setView((v) => ({ ...v, helpOpen: !v.helpOpen })); }}><IconLabel id="help">도움말</IconLabel></button>
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
-        <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title="실행 취소 (Ctrl/Cmd+Z)" aria-label="실행 취소"><HistoryIcon dir="undo" /></button>
-        <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title="다시 실행 (Ctrl/Cmd+Shift+Z)" aria-label="다시 실행"><HistoryIcon dir="redo" /></button>
+        <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title={undoTooltip(tab.history)} aria-label="실행 취소"><HistoryIcon dir="undo" /></button>
+        <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title={redoTooltip(tab.history)} aria-label="다시 실행"><HistoryIcon dir="redo" /></button>
+        <HistoryMenu history={tab.history} locked={locked} open={historyOpen} onOpenChange={setHistoryOpen} onJump={doJump} />
       </header>
       <div className="workbar" aria-label="현재 작업">
         <button type="button" className="work-crumb" onClick={() => openExplorerTab('workspace')}><Terms text="Workspace" /> {curWs.name}</button>
