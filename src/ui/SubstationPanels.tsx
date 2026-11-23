@@ -17,6 +17,7 @@ import { Terms } from './Term';
 import { StatusMark } from './StatusMark';
 import { laneShape } from './status';
 import { Badge, TextInput } from './widgets';
+import { Clip, ECD_TABLE } from './dataTable';
 
 export const STATION = 'Station';
 export const SUBSTATION = 'Substation';
@@ -62,12 +63,12 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
             {subSequenceDeleteDetail(p, q.id) && <span className="danger-note" data-delete-impact>{subSequenceDeleteDetail(p, q.id)}</span>}
             <button type="button" className="small danger" disabled={locked} onClick={() => { const detail = subSequenceDeleteDetail(p, q.id); const run = () => edit(C.deleteSubSequence(p, q.id), '시퀀스 삭제'); if (detail && confirmDelete) confirmDelete(`${q.name} 삭제`, detail, run); else run(); }} aria-label={`${q.name} 삭제`}>삭제</button>
           </header>
-          <table className="grid"><thead><tr><th>#</th><th>단계</th><th><Terms text="Device" /></th><th><Terms text="완료 Signal" /></th><th>시간</th><th></th></tr></thead><tbody>
+          <table className={`grid ${ECD_TABLE}`}><thead><tr><th className="ecd-num">#</th><th>단계</th><th><Terms text="Device" /></th><th><Terms text="완료 Signal" /></th><th className="ecd-num">시간</th><th></th></tr></thead><tbody>
             {q.steps.map((s, i) => { const a = p.actions.find((x) => x.id === s.actionId); const rec = lane?.steps[i]; return (
               <tr key={s.id} data-jump={`step:${s.id}`} className={rec?.status === 'active' ? 'active' : rec?.status === 'error' ? 'err' : ''}>
-                <td className="mono">{i + 1}</td><td>{s.name}</td><td>{a ? devName(p, a.deviceId) : <Badge kind="err">Action 없음</Badge>}</td>
+                <td className="mono ecd-num">{i + 1}</td><td><Clip text={s.name} /></td><td>{a ? devName(p, a.deviceId) : <Badge kind="err">Action 없음</Badge>}</td>
                 <td style={{ fontSize: 'var(--fs-xs)' }}>{a?.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
-                <td className="mono">{a?.duration.value ?? <StatusMark status="undetermined" />}s{a?.duration.assumption ? <> <StatusMark status="assumption" /></> : null}</td>
+                <td className="mono ecd-num">{a?.duration.value ?? <StatusMark status="undetermined" />}s{a?.duration.assumption ? <> <StatusMark status="assumption" /></> : null}</td>
                 <td className="danger-row">
                   <button className="small" disabled={locked || i === 0} onClick={() => edit(C.moveSubStep(p, q.id, i, i - 1), '단계 위로')} aria-label="위로">↑</button>
                   <button className="small" disabled={locked || i === q.steps.length - 1} onClick={() => edit(C.moveSubStep(p, q.id, i, i + 1), '단계 아래로')} aria-label="아래로">↓</button>

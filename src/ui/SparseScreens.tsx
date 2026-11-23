@@ -23,6 +23,7 @@ import type { ConfirmationEntry } from '../model/types';
 import { ConfirmationLog } from './ConfirmationLog';
 import { devName, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
+import { Clip, ECD_TABLE } from './dataTable';
 
 export { BundleSheet } from './BundleScreen';
 
@@ -307,9 +308,9 @@ export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml,
         </tbody>
       </table>
       <h2>진단 내역</h2>
-      <table className="grid plain"><thead><tr><th>진단</th><th>상태</th><th>수정 위치</th></tr></thead>
-        <tbody>{diags.slice(0, 8).map((d) => <tr key={d.id}><td>{d.message}</td><td>{d.severity === 'error' ? '차단' : '경고'}</td><td>{d.objectId}</td></tr>)}
-          {diags.length === 0 && <tr><td>참조 오류 없음</td><td>정보</td><td>현재 모델</td></tr>}</tbody></table>
+      <table className={`grid plain ${ECD_TABLE}`}><thead><tr><th>진단</th><th>상태</th><th>수정 위치</th></tr></thead>
+        <tbody>{diags.slice(0, 8).map((d) => <tr key={d.id}><td><Clip text={d.message} /></td><td>{d.severity === 'error' ? '차단' : '경고'}</td><td><Clip text={d.objectId} /></td></tr>)}
+          {diags.length === 0 && <tr><td><Clip text="참조 오류 없음" /></td><td>정보</td><td><Clip text="현재 모델" /></td></tr>}</tbody></table>
       <button type="button" className="btn-main primary" onClick={onAml}>AML 검사 결과</button>
     </section>
     <aside className="sheet">

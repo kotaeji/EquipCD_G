@@ -80,6 +80,9 @@ import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
 import { EmptyState, LoadingPlaceholder } from './EmptyState';
 import { StarterHome } from './StarterHome';
 import { Problem } from './Problem';
+import { Clip, ECD_TABLE } from './dataTable';
+import { NoticeLog, NoticeStack } from './Notices';
+import { noticeKind, useNotices } from './noticeModel';
 import { EMPTY, LARGE_IMPORT_BYTES, LOADING_FILE, RUN_LOCK, draftProblem, importRejectProblem, refusal, runErrorProblem, saveProblem, type ProblemCopy } from './problemCopy';
 import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';
@@ -173,7 +176,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [draftBoot] = useState(() => bootDrafts(kv));
   const [qlist, setQlist] = useState<QuarantineEntry[]>(() => draftBoot.quarantine);
   const [drafts, setDrafts] = useState<DraftMeta[]>(() => draftBoot.drafts);
-  const [toast, setToast] = useState<{ msg?: string; err?: boolean; problem?: ProblemCopy; full?: boolean } | null>(null);
+  const notices = useNotices();
   const [importBusy, setImportBusy] = useState(false);
   const [modal, setModal] = useState<Modal | null>(null);
   // TURN-002: workspaces (browser-local management unit). Non-destructive migration on start; memory-only without storage.
@@ -325,7 +328,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       ? ts.map((t) => (t.key === activeKey ? t : { ...t, runtime: t.runtime && t.runtime.state.status === 'running' ? pause(t.runtime) : t.runtime }))
       : ts);
   }, [activeKey]);
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.err ? 6000 : 3000); return () => clearTimeout(t); }, [toast]);
   useEffect(() => {
     if (!arrangeOpen) return;
     const close = (e: PointerEvent) => {
@@ -335,8 +337,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     window.addEventListener('pointerdown', close);
     return () => window.removeEventListener('pointerdown', close);
   }, [arrangeOpen]);
-  const say = (msg: string, err = false) => setToast({ msg, err });
-  const sayProblem = (problem: ProblemCopy, full = false) => setToast({ problem, err: true, full });
+  const say = (msg: string, err = false) => notices.push({ kind: noticeKind(err, msg), text: msg });
+  const sayProblem = (problem: ProblemCopy, full = false) => notices.push({ kind: 'reject', text: problem.what, problem, full });
 
   const updTab = useCallback((key: string, f: (t: Tab) => Tab) => setTabs((ts) => ts.map((t) => (t.key === key ? f(t) : t))), []);
   const tabsRef = useRef(tabs); tabsRef.current = tabs;
@@ -2121,9 +2123,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
             <h2 data-jump="check-gaps"><Terms text={`Gap 목록 · 기준 모델 rev ${tab.analyzedRevision ?? p.revision}`} /></h2>
             <RunGapSection gaps={runGaps} ran={!!runRecord} stale={runStale} onGo={goGap} />
-            <table className="grid plain">
+            <table className={`grid plain ${ECD_TABLE}`}>
               <thead><tr><th>종류와 판정</th><th>근거</th><th>관련 대상</th><th>다음 행동</th></tr></thead>
-              <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id} data-jump={`gap:${g.id}`}><td>{g.title} <StatusMark status={gapJudgementMark(g.judgement).status} word={gapJudgementMark(g.judgement).word} /></td><td>{g.evidence}</td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}
+              <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id} data-jump={`gap:${g.id}`}><td><Clip text={g.title} /> <StatusMark status={gapJudgementMark(g.judgement).status} word={gapJudgementMark(g.judgement).word} /></td><td><Clip text={g.evidence} /></td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}
                 {tab.gaps.length === 0 && <tr><td colSpan={4}><EmptyState symbol="✓" line={EMPTY.gaps} actions={[{ label: '재분석', onClick: reanalyze }]} /></td></tr>}
                 {tab.gaps.length > 0 && tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).length === 0 && <tr><td colSpan={4}>이 보기에 해당하는 항목이 없습니다.</td></tr>}</tbody>
             </table>
@@ -2198,6 +2200,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span>rev {p.revision}</span><span>Undo {tab.history.past.length}</span>
         <span>{runStatusBar(rt?.status)}</span>
         {locked && <span>실행 중 편집 잠금</span>}
+        <button type="button" className="small" data-notice-button="" aria-expanded={notices.open} onClick={() => notices.setOpen((v) => !v)}>알림</button>
         <span className="grow" />
         {!view.home && <>
           <button className="small" data-items-toggle onClick={() => toggleItems(step)}>남은 항목 {curEval.items.length}</button>
@@ -2212,7 +2215,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>
 
       {importBusy && <div className="import-hold"><LoadingPlaceholder label={LOADING_FILE} /></div>}
-      {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.problem ? <Problem copy={toast.problem} compact={!toast.full} /> : toast.msg}</div>}
+      <NoticeStack items={notices.live} onDismiss={notices.dismiss} />
+      {notices.open && <NoticeLog items={notices.log} onClose={() => notices.setOpen(false)} />}
       {confirmPending && <ConfirmerDialog onCancel={() => setConfirmPending(null)} onSubmit={(name) => {
         const by = normalizeConfirmerName(name);
         if (!by) return;
