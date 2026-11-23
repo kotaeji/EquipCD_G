@@ -38,7 +38,7 @@ async function mount() {
 describe('TURN-052 condition text on the screens', () => {
   it('AC2 AC9 the action summary, the flow table, the Interlock line, and a step row share the formula', async () => {
     const u = await mount();
-    await u.click(u.btn('흐름 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="flow"]')!);
     await u.click(u.el.querySelector('.stepper [data-stepid="attributes"]'));
     await u.click(u.btn('Action 편집'));
     const summary = u.el.querySelector('[data-cond-formula]')!;

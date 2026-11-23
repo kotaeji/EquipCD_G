@@ -23,7 +23,10 @@ interface Props {
   paletteShortcut: string;
   onPalette: () => void;
   onSave: () => void;
+  exportOpen: boolean;
+  onToggleExport: () => void;
   onExport: () => void;
+  onPrint: () => void;
   onViewSettings: () => void;
   onHelp: (opener: HTMLElement) => void;
   fileRef: RefObject<HTMLInputElement>;
@@ -32,7 +35,7 @@ interface Props {
 
 export function HeaderBar({
   viewportWidth, dirty, helpOpen, undo, redo, history,
-  paletteLabel, paletteShortcut, onPalette, onSave, onExport, onViewSettings, onHelp,
+  paletteLabel, paletteShortcut, onPalette, onSave, exportOpen, onToggleExport, onExport, onPrint, onViewSettings, onHelp,
   fileRef, onImportFile,
 }: Props) {
   const headerRef = useRef<HTMLElement>(null);
@@ -65,14 +68,16 @@ export function HeaderBar({
   const run = (id: string, opener: HTMLElement) => {
     closeMenu();
     if (id === 'export-json') onExport();
+    else if (id === 'print-view') onPrint();
     else if (id === 'view-settings') onViewSettings();
     else if (id === 'help') onHelp(opener);
     else headerRef.current?.querySelector<HTMLButtonElement>(`[data-overflow="${id}"]`)?.click();
   };
-  const menuItems = collapsed.map((id) => {
+  const menuItems = collapsed.flatMap((id) => {
+    if (id === 'export-json') return [{ id: 'export-json', label: 'JSON 내보내기' }, { id: 'print-view', label: '인쇄용 보기' }];
     const button = headerRef.current?.querySelector<HTMLButtonElement>(`[data-overflow="${id}"]`);
     const label = button?.getAttribute('aria-label') || button?.textContent?.replace(/\s+/g, ' ').trim() || id;
-    return { id, label };
+    return [{ id, label }];
   });
 
   return (
@@ -84,7 +89,13 @@ export function HeaderBar({
         <IconLabel id="palette">{paletteLabel}</IconLabel><span className="cmd-key">{paletteShortcut}</span>
       </button>
       <button className="btn-main primary" data-jump="save" onClick={onSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}><IconLabel id="save">저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</IconLabel></button>
-      <button className={cls('btn-main secondary', 'export-json')} data-overflow="export-json" onClick={onExport}><IconLabel id="export-json">내보내기</IconLabel></button>
+      <div className="export-anchor">
+        <button type="button" className={cls('btn-main secondary', 'export-json')} data-overflow="export-json" aria-haspopup="menu" aria-expanded={exportOpen} aria-controls="export-menu" onClick={onToggleExport}><IconLabel id="export-json">내보내기</IconLabel></button>
+        {exportOpen && <div id="export-menu" className="export-pop" role="menu" aria-label="내보내기">
+          <button type="button" role="menuitem" onClick={onExport}><IconLabel id="export-json">JSON 내보내기</IconLabel></button>
+          <button type="button" role="menuitem" onClick={onPrint}><IconLabel id="print-view">인쇄용 보기</IconLabel></button>
+        </div>}
+      </div>
       <button className={cls('btn-main secondary', 'view-settings')} data-overflow="view-settings" onClick={onViewSettings}><IconLabel id="view-settings">보기 설정</IconLabel></button>
       <button type="button" className={cls('btn-main secondary', 'help')} data-overflow="help" data-help-toggle aria-expanded={helpOpen} aria-label="도움말" onClick={(e) => onHelp(e.currentTarget)}><IconLabel id="help">도움말</IconLabel></button>
       {isValidElement(history) ? cloneElement(history as ReactElement<{ overflowHidden?: boolean }>, { overflowHidden: hidden('undo-history') }) : history}

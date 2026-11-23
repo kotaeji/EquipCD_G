@@ -168,7 +168,7 @@ body { font-size: var(--fs-md); line-height: 1.4; -webkit-font-smoothing: antial
 .header .title { font-size: var(--fs-md); font-weight: 650; letter-spacing: .1px; }
 .header .crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--text); }
 /* focus & interaction */
-:where(button, a, select, input, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: var(--r-sm); }
+:where(button, a, select, input, textarea, [tabindex]):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm); }
 button { transition: border-color var(--dur-1) var(--ease-enter); }
 button.icon { width: 24px; padding: 0; }
 .small-text { font-size: var(--fs-xs); }
@@ -212,7 +212,7 @@ button.icon { width: 24px; padding: 0; }
 .seg button + button { border-left: 1px solid var(--border); }
 /* cards, visuals */
 .card { transition: border-color var(--dur-1) var(--ease-enter); }
-.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .vis { position: relative; background: #eceef1; border-radius: var(--r-sm); overflow: hidden; }
 .app[data-theme=B] .vis { background: #1b2a3e; }
 .aichip { position: absolute; right: 4px; top: 4px; font-size: var(--fs-xs); font-weight: 700; padding: 1px var(--sp-1); border-radius: 8px; background: rgba(15,23,42,.78); color: #fff; letter-spacing: .3px; }
@@ -249,11 +249,11 @@ details.history summary { cursor: pointer; color: var(--muted); font-size: var(-
 .tree .twisty:hover { color: var(--accent); }
 .tree .twisty-pad { display: inline-block; width: 18px; }
 .tree .selmark { margin-left: var(--sp-1); font-size: var(--fs-xs); color: var(--accent); }
-.tree [role=treeitem]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tree [role=treeitem]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* rev 4: parent treeitems wrap their row + child group → outline only the row */
 .tree .titem { padding: 0; }
 .tree .titem:focus-visible { outline: none; }
-.tree .titem:focus-visible > .tnode { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tree .titem:focus-visible > .tnode { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Aurora shell — Figma 1280×800. Nav stays 224. Type and controls do not scale at 1920. */
 .app {
@@ -416,6 +416,7 @@ table.grid.plain td, table.grid.plain th { font-size: var(--fs-md); height: 46px
 
 /* TURN-004: 헤더만 브랜드색. 라이트, 다크, 저장값 C가 같은 토큰을 쓴다. 헤더 밖 버튼은 이 블록에 없다. */
 .app > .header {
+  --focus: #FFFFFF;
   background: var(--header-bg);
   color: var(--header-fg);
   border-bottom: 1px solid #7A0027;
@@ -477,7 +478,7 @@ table.grid.plain td, table.grid.plain th { font-size: var(--fs-md); height: 46px
   border-color: transparent;
 }
 .header :focus-visible {
-  outline: 2px solid #FFFFFF;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -717,8 +718,8 @@ table.grid.plain td, table.grid.plain th { font-size: var(--fs-md); height: 46px
   border: none;
   text-align: left;
 }
-.ctx-menu button:hover:not(:disabled),
-.ctx-menu button:focus-visible { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); outline: none; }
+.ctx-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); }
+.ctx-menu button:focus-visible { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); outline: 2px solid var(--focus); outline-offset: 2px; }
 .ctx-menu .ctx-key { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
 .run-prop-peek {
   border: 1px solid var(--border);

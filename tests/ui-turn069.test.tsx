@@ -87,15 +87,15 @@ describe('TURN-069 header', () => {
     const menu = document.querySelector('[role="menu"][data-ctx-kind="header"]') as HTMLElement;
     expect(menu.getAttribute('aria-label')).toBe('더 보기');
     const items = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
-    expect(items.map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim())).toEqual(['내보내기', '보기 설정', '도움말', '실행 취소 이력']);
-    expect(items.map((b) => b.querySelector('.ecd-icon')?.getAttribute('data-icon'))).toEqual([icons['export-json'], icons['view-settings'], icons.help, icons['undo-history']]);
+    expect(items.map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim())).toEqual(['JSON 내보내기', '인쇄용 보기', '보기 설정', '도움말', '실행 취소 이력']);
+    expect(items.map((b) => b.querySelector('.ecd-icon')?.getAttribute('data-icon'))).toEqual([icons['export-json'], 'Printer', icons['view-settings'], icons.help, icons['undo-history']]);
     const blobs: string[] = [];
     const origCreate = URL.createObjectURL;
     const origRevoke = URL.revokeObjectURL;
     URL.createObjectURL = () => { blobs.push('blob'); return 'blob:turn069'; };
     URL.revokeObjectURL = () => {};
     try {
-      await u.click(items[0]);
+      await u.click(items.find((b) => b.getAttribute('data-action') === 'export-json')!);
       expect(blobs.length).toBe(1);
       expect(document.querySelector('[role="menu"]')).toBeNull();
     } finally {
@@ -123,8 +123,11 @@ describe('TURN-069 header', () => {
     await u.click(more);
     const item = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
     expect(document.activeElement).toBe(item()[0]);
-    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); });
-    expect(document.activeElement).toBe(item()[1]);
+    const viewItem = () => item().find((b) => b.getAttribute('data-action') === 'view-settings');
+    for (let n = 0; n < 6 && document.activeElement !== viewItem(); n += 1) {
+      await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); });
+    }
+    expect(document.activeElement).toBe(viewItem());
     await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
     expect(document.querySelector('[role="menu"]')).toBeNull();
     const viewDlg = document.querySelector('[aria-label="보기 설정"]') as HTMLElement;

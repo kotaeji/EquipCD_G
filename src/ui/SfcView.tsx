@@ -183,7 +183,7 @@ export function SfcView({ p, rt }: { p: Project; rt: RuntimeState | null }) {
   const laid = layoutSeq(p, flow, tone);
   const h = Math.max(80, laid.h + 40);
   const w = Math.max(BOX_W + 48, laid.w + 48);
-  return <svg width={w} height={h} role="img" aria-label="SFC 미리보기">
+  return <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label="SFC 미리보기">
     <text x={16} y={18} fontSize={FONT} fill="var(--muted)">초기</text>
     {laid.body(24, 28)}
   </svg>;
