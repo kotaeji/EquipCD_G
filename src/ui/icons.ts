@@ -33,6 +33,7 @@ export const COMMAND_ICONS = {
 
   save: 'Save',
   'export-json': 'Download',
+  'print-view': 'Printer',
   'import-json': 'Upload',
   'new-project': 'FilePlus',
   sample: 'BookOpen',
