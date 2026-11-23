@@ -163,7 +163,7 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold, onPause
           <ul className="run3d-bars run-steps-scroll" ref={listRef}>
             {info.bars.map((bar) => {
               const mark = barMark(bar, rt);
-              const canToggle = rt?.status === 'running' && bar.substationNodeId && bar.status === 'active';
+              const canToggle = !!onPauseSubstation && rt?.status === 'running' && bar.substationNodeId && bar.status === 'active';
               return (
               <li key={bar.key} className={`${stepLiveClass(bar.substationPaused ? 'stopped' : bar.status)}${bar.longest ? ' is-longest' : ''}${bar.wait ? ' is-wait' : ''}`} data-step-id={bar.stepId} data-step-key={bar.key} data-elapsed={bar.timeText} data-wait={bar.wait ? 'true' : undefined} data-substation={bar.substationNodeId}>
                 <span className="run3d-bar-name" title={bar.name}>{bar.name}</span>

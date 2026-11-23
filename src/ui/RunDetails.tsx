@@ -18,18 +18,29 @@ import { Tabs } from './Tabs';
 import type { RunDetailsTab } from './viewSettings';
 import { Terms } from './Term';
 
-function RunLog({ rt, onRun, runDisabled, runReason }: { rt: RuntimeState | null; onRun?: () => void; runDisabled?: boolean; runReason?: string }) {
+function RunLog({ rt, scrubMs, onRun, runDisabled, runReason }: {
+  rt: RuntimeState | null;
+  scrubMs?: number | null;
+  onRun?: () => void;
+  runDisabled?: boolean;
+  runReason?: string;
+}) {
   const rows = [...(rt?.log ?? [])].reverse();
+  const scrubbing = scrubMs != null;
   return (
     <div className="log-list" aria-label="실행 로그">
       <table className="grid">
         <thead><tr><th>가상 시각</th><th>코드</th><th>내용</th></tr></thead>
         <tbody>
-          {rows.map((line, i) => <tr key={i} className={line.level === 'error' ? 'err' : ''}>
-            <td className="mono">{fmtTime(line.t)}</td>
-            <td className="mono">{line.code}</td>
-            <td>{line.message}</td>
-          </tr>)}
+          {rows.map((line, i) => {
+            const live = !scrubbing || line.t <= scrubMs;
+            const weight = scrubbing ? (live ? 'is-scrub-now' : 'is-scrub-later') : '';
+            return <tr key={i} className={`${line.level === 'error' ? 'err' : ''} ${weight}`.trim()} data-log-t={line.t} data-log-weight={scrubbing ? (live ? 'bold' : 'dim') : undefined}>
+              <td className="mono">{fmtTime(line.t)}</td>
+              <td className="mono">{line.code}</td>
+              <td>{line.message}</td>
+            </tr>;
+          })}
           {rows.length === 0 && <tr><td colSpan={3}><EmptyState symbol="○" line={EMPTY.log} actions={[{ label: '실행', onClick: onRun, disabled: runDisabled, reason: runReason }]} /></td></tr>}
         </tbody>
       </table>
@@ -98,7 +109,7 @@ function RunSignals({ p, rt }: { p: Project; rt: RuntimeState | null }) {
 }
 
 /** Collapsed by default under the canvas. Summary, the full log, and signal state. */
-export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock, onRun, runDisabled, runReason, onJumpError }: {
+export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock, onRun, runDisabled, runReason, onJumpError, logRt, scrubMs, chartRt }: {
   p: Project;
   rt: RuntimeState | null;
   open: boolean;
@@ -110,11 +121,20 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
   runDisabled?: boolean;
   runReason?: string;
   onJumpError?: () => void;
+  /** Full finished log while scrubbing. Absent means `rt` is the log. */
+  logRt?: RuntimeState | null;
+  /** Set while looking at an earlier instant. Log rows at or before this time are bold. */
+  scrubMs?: number | null;
+  /** Finished run for the timing chart, so later bars stay put and only the now line moves. */
+  chartRt?: RuntimeState | null;
 }) {
   const [chartPick, setChartPick] = useState<number | null>(null);
   const started = !!rt?.steps.some((rec) => rec.startMs != null && rec.status !== 'skipped' && rec.status !== 'pending');
   useEffect(() => { if (!started) setChartPick(null); }, [started]);
-  const last = rt?.log?.length ? rt.log[rt.log.length - 1] : null;
+  const logState = logRt ?? rt;
+  const last = scrubMs == null
+    ? (logState?.log?.length ? logState.log[logState.log.length - 1] : null)
+    : [...(logState?.log ?? [])].reverse().find((line) => line.t <= scrubMs) ?? null;
   const lastLine = last ? `${fmtTime(last.t)} ${last.code} ${last.message}` : '로그 없음';
   return (
     <section className={`run-details${open ? ' is-open' : ''}${open && tab === 'timing' ? ' is-timing' : ''}`} aria-label="자세히">
@@ -132,8 +152,8 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
         <PieceTable rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
           { id: 'summary', label: '실행 결과 요약', icon: 'run-summary', panel: <><RunReportMenu p={p} rt={rt} /><RunSummary p={p} rt={rt} embedded chartPick={started ? chartPick : null} /></> },
-          { id: 'timing', label: '타이밍 차트', icon: 'run-timing', panel: <TimingChart p={p} rt={rt} onPick={(index) => { setChartPick(index); onTab('summary'); }} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
-          { id: 'log', label: '실행 로그', icon: 'run-log', panel: <RunLog rt={rt} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
+          { id: 'timing', label: '타이밍 차트', icon: 'run-timing', panel: <TimingChart p={p} rt={chartRt ?? rt} nowMs={scrubMs == null ? undefined : scrubMs} onPick={(index) => { setChartPick(index); onTab('summary'); }} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
+          { id: 'log', label: '실행 로그', icon: 'run-log', panel: <RunLog rt={logState} scrubMs={scrubMs} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
           { id: 'signals', label: '신호', icon: 'run-signals', panel: <RunSignals p={p} rt={rt} /> },
         ]} />
       </div>}

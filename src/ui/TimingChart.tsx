@@ -52,9 +52,11 @@ function rowTops(rows: TimingRow[]): Map<string, number> {
 }
 
 /** SVG timing chart. One bar is one step execution. Grouping is Unit, Device, or piece. */
-export function TimingChart({ p, rt, onPick, onRun, runDisabled, runReason }: {
+export function TimingChart({ p, rt, nowMs, onPick, onRun, runDisabled, runReason }: {
   p: Project;
   rt: RuntimeState | null;
+  /** Overrides the live cursor. Scrubbing passes the finished chart plus this instant. */
+  nowMs?: number | null;
   onPick: (summaryIndex: number) => void;
   onRun?: () => void;
   runDisabled?: boolean;
@@ -77,6 +79,7 @@ export function TimingChart({ p, rt, onPick, onRun, runDisabled, runReason }: {
   const tops = rowTops(model.rows);
   const plotH = model.rows.reduce((sum, row) => sum + row.sublanes * BAR + ROW_GAP, 0);
   const xOf = (ms: number) => ((ms - model.originMs) / model.spanMs) * plotW;
+  const cursor = nowMs === undefined ? model.nowMs : nowMs;
   const zoomDown = () => setZoom((z) => (z === 4 ? 2 : 1));
   const zoomUp = () => setZoom((z) => (z === 1 ? 2 : 4));
   return (
@@ -134,10 +137,10 @@ export function TimingChart({ p, rt, onPick, onRun, runDisabled, runReason }: {
                 </g>
               );
             })}
-            {model.nowMs != null && (
-              <g data-timing-now="" data-now-ms={model.nowMs}>
-                <line className="timing-now" x1={xOf(model.nowMs)} x2={xOf(model.nowMs)} y1={0} y2={plotH} />
-                <text x={xOf(model.nowMs) + 2} y={10}>지금</text>
+            {cursor != null && (
+              <g data-timing-now="" data-now-ms={cursor}>
+                <line className="timing-now" x1={xOf(cursor)} x2={xOf(cursor)} y1={0} y2={plotH} />
+                <text x={xOf(cursor) + 2} y={10}>지금</text>
               </g>
             )}
             {model.bars.map((bar) => {
