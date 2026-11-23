@@ -54,7 +54,7 @@ describe('TURN-018 run summary UI', () => {
     expect(u.el.querySelector('#run-detail-tab-summary')!.textContent).toBe('실행 결과 요약');
     expect(box.querySelector('.run-summary-empty')!.textContent).toBe('실행하면 단계별 시간이 여기에 나옵니다');
     expect(box.querySelector('table')).toBeNull();
-    expect(logTable(u.el).textContent).toContain('로그 없음');
+    expect(logTable(u.el).textContent).toContain('실행 로그가 없습니다');
 
     const raf = globalThis.requestAnimationFrame;
     globalThis.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame;
@@ -69,7 +69,7 @@ describe('TURN-018 run summary UI', () => {
     const again = summaryOf(u.el);
     expect(again.querySelector('.run-summary-empty')!.textContent).toBe('실행하면 단계별 시간이 여기에 나옵니다');
     expect(again.querySelector('table')).toBeNull();
-    expect(logTable(u.el).textContent).toContain('로그 없음');
+    expect(logTable(u.el).textContent).toContain('실행 로그가 없습니다');
   });
 
   it('AC4 a log line that is not a step still shows only the empty note', async () => {

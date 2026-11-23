@@ -194,7 +194,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
             </td>
           </tr>;
         })}
-        {rows.length === 0 && <tr><td colSpan={5}>단계가 없습니다.</td></tr>}
+        {rows.length === 0 && <tr><td colSpan={5}>시퀀스 단계가 없습니다.</td></tr>}
       </tbody>
     </table>
   </div>;

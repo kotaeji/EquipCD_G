@@ -11,7 +11,10 @@ import { checkRunReadiness, validateProject, type Diagnostic } from '../model/va
 import type { QuarantineEntry } from '../storage/localStore';
 import { xsdStatus, AmlLoadStatus } from './Library';
 import { Fold } from './Fold';
-import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
+import { type BlockerGuide } from './blockerTarget';
+import { EmptyState } from './EmptyState';
+import { BlockerCards, BlockerList, Problem } from './Problem';
+import { EMPTY, SCREEN, exportBlockedProblem } from './problemCopy';
 import { devName, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
 
@@ -41,9 +44,9 @@ export function AmlResultSheet({ onCandidates }: { onCandidates: () => void }) {
   </section>;
 }
 
-export function ExtractSheet() {
+export function ExtractSheet({ onInstead }: { onInstead?: () => void } = {}) {
   return <div className="sparse-stack">
-    <NotReadyBanner hint="입력 후보표의 직접 입력과 AML 라이브러리를 쓰세요" />
+    <NotReadyBanner hint="입력 후보표의 직접 입력과 AML 라이브러리를 쓰세요" purpose={SCREEN.extract.purpose} instead={SCREEN.extract.instead} onInstead={onInstead} />
     <div className="sparse-split">
     <section className="sheet">
       <h2>자료 접수 · 후속 설계</h2>
@@ -65,9 +68,9 @@ export function ExtractSheet() {
   </div>;
 }
 
-export function BundleSheet({ wsName, projectCount, assetCount, assumptionCount }: { wsName: string; projectCount: number; assetCount: number; assumptionCount: number }) {
+export function BundleSheet({ wsName, projectCount, assetCount, assumptionCount, onInstead }: { wsName: string; projectCount: number; assetCount: number; assumptionCount: number; onInstead?: () => void }) {
   return <div className="sparse-page">
-    <NotReadyBanner hint="프로젝트별 JSON 내보내기를 쓰세요" />
+    <NotReadyBanner hint="프로젝트별 JSON 내보내기를 쓰세요" purpose={SCREEN.bundle.purpose} instead={SCREEN.bundle.instead} onInstead={onInstead} />
     <h1 className="stage-title">Workspace 파일 묶음</h1>
     <p className="muted">묶음 가져오기와 내보내기는 미구현입니다. 아래 수는 이 브라우저의 현재 Workspace이며, 묶음 파일 내용이 아닙니다.</p>
     <div className="sparse-split">
@@ -92,7 +95,7 @@ export function BundleSheet({ wsName, projectCount, assetCount, assumptionCount 
   </div>;
 }
 
-export function FilesSheet({ entries, onImport, onExport, onOpen }: { entries: { id: string; name: string; revision: number }[]; onImport: () => void; onExport: () => void; onOpen: (id: string) => void }) {
+export function FilesSheet({ entries, onImport, onExport, onOpen, onNew, onSample }: { entries: { id: string; name: string; revision: number }[]; onImport: () => void; onExport: () => void; onOpen: (id: string) => void; onNew?: () => void; onSample?: () => void }) {
   return <div className="sparse-page">
     <h1 className="stage-title">프로젝트 파일</h1>
     <p className="muted">JSON 가져오기는 원본을 덮어쓰지 않고 새 탭으로 엽니다. 거부된 원본은 격리합니다.</p>
@@ -100,7 +103,10 @@ export function FilesSheet({ entries, onImport, onExport, onOpen }: { entries: {
       <h2>이 Workspace에 저장된 파일</h2>
       <table className="grid plain"><thead><tr><th>이름</th><th>rev</th><th></th></tr></thead>
         <tbody>{entries.map((e) => <tr key={e.id}><td>{e.name}</td><td>{e.revision}</td><td><button type="button" onClick={() => onOpen(e.id)}>열기</button></td></tr>)}
-          {entries.length === 0 && <tr><td colSpan={3}>저장된 프로젝트가 없습니다.</td></tr>}</tbody></table>
+          {entries.length === 0 && <tr><td colSpan={3}><EmptyState symbol="○" line={EMPTY.projects} actions={[
+            { label: '새 프로젝트', onClick: onNew },
+            { label: '예제', onClick: onSample },
+          ]} /></td></tr>}</tbody></table>
       <div className="tool-pills">
         <button type="button" className="on" onClick={onImport}>JSON 가져오기</button>
         <button type="button" onClick={onExport}>현재 탭 JSON 내보내기</button>
@@ -149,10 +155,7 @@ export function SearchSheet({ tabs, tree, onTab, onPick, onFold, onCanvas }: {
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
         {found.active && <p className="search-count">{found.count}개 찾음</p>}
-        {found.active && found.count === 0 && <div className="search-empty">
-          <p>찾는 이름이 없습니다</p>
-          <button type="button" onClick={() => setQuery('')}>지우기</button>
-        </div>}
+        {found.active && found.count === 0 && <EmptyState symbol="?" line={EMPTY.search} actions={[{ label: '지우기', onClick: () => setQuery('') }]} />}
         <div className="tree-list">{found.nodes.map((n) => <button key={n.id} type="button" className="tree-link" style={{ paddingLeft: 12 + n.depth * 16 }} onClick={() => onPick(n.id)}>{n.label}</button>)}</div>
         <div className="tool-pills"><button type="button" onClick={onFold}>트리 접힘 예시</button></div>
       </section>
@@ -170,9 +173,9 @@ export function SearchSheet({ tabs, tree, onTab, onPick, onFold, onCanvas }: {
   </div>;
 }
 
-export function LabSheet({ revision }: { revision: number }) {
+export function LabSheet({ revision, onInstead }: { revision: number; onInstead?: () => void }) {
   return <div className="sparse-stack">
-    <NotReadyBanner hint="Gap 목록의 가정 시간 합계를 쓰세요" />
+    <NotReadyBanner hint="Gap 목록의 가정 시간 합계를 쓰세요" purpose={SCREEN.lab.purpose} instead={SCREEN.lab.instead} onInstead={onInstead} />
     <div className="sparse-split">
     <section className="sheet">
       <h2>F7 변형 범위와 안전 한도</h2>
@@ -289,16 +292,8 @@ export function ExportSheet({ p, onDownload, onGuide }: {
       <h2>초안 형식 파일</h2>
       <p className="notice warn" data-export-draft>{AURORA_EXPORT_DRAFT_NOTICE}</p>
       {!ready.ok && <div data-export-blocked>
-        <p className="warn-note">실행 전 검사를 통과하지 못했습니다. 파일을 만들 수 없습니다. 차단 {ready.blockers.length}건</p>
-        {ready.blockers.map((b) => {
-          const g = resolveBlocker(p, b, ready.blockers);
-          const copy = guideCopy(b.code, g);
-          return <div key={b.id} className="blocker-card" data-export-blocker={b.code}>
-            <p>{b.message}</p>
-            {copy.lead && <p className="muted">{copy.lead}</p>}
-            {copy.button && <button type="button" onClick={() => onGuide(b, g)}>{copy.button}</button>}
-          </div>;
-        })}
+        <Problem copy={exportBlockedProblem(ready.blockers.length)} />
+        <BlockerCards p={p} blockers={ready.blockers} onGuide={onGuide} />
       </div>}
       {ready.ok && needsAck && <div data-export-flags data-export-undetermined={flags.undetermined.length} data-export-assumption={flags.assumption.length}>
         <p><StatusMark status="undetermined" /> {flags.undetermined.length} · <StatusMark status="assumption" /> {flags.assumption.length}. 값은 파일에 그대로 적히고, 미정은 null 입니다.</p>
@@ -372,16 +367,7 @@ export function BlockerSheet({ p, title, timeLabel, blockers, onGuide, onRecheck
   return <section className="sheet wide">
     <h2>{title}</h2>
     <p className="warn-note">실행 전 검사 · 차단 {blockers.length}건 · 가상 시간 {timeLabel}</p>
-    {blockers.map((b) => {
-      const g = resolveBlocker(p, b, blockers);
-      const copy = guideCopy(b.code, g);
-      return <div key={b.id} className="blocker-card">
-        <b>{b.code}</b>
-        <p>{b.message}</p>
-        <p className="muted">{copy.lead}</p>
-        {copy.button && <button type="button" className="btn-main primary" onClick={() => onGuide(b, g)}>{copy.button}</button>}
-      </div>;
-    })}
+    <BlockerList p={p} blockers={blockers} onGuide={onGuide} />
     <button type="button" onClick={onRecheck}>다시 검사</button>
   </section>;
 }

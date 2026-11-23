@@ -5,6 +5,8 @@ import * as C from '../model/commands';
 import type { Gap } from '../model/gaps';
 import { interlockSummary } from '../model/interlock';
 import type { Action, Condition, InterlockRule, Project } from '../model/types';
+import { EmptyState } from './EmptyState';
+import { EMPTY, RUN_LOCK } from './problemCopy';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
 import { actionDeleteDetail, actionUsage, positionDeleteDetail, positionUsage, signalDeleteDetail, signalUsage } from '../model/deleteImpact';
@@ -306,8 +308,9 @@ export function InterlockPanel({ p, locked, edit }: { p: Project; locked: boolea
       <h2>Interlock</h2>
       <p className="warn-note">확인한 규칙만 실행을 막습니다. 자동 안전 승인은 없습니다.</p>
       {p.constraints.map((k) => <InterlockRow key={k.id} p={p} id={k.id} locked={locked} edit={edit} />)}
-      {p.constraints.length === 0 && <p className="muted">Interlock 없음. 추가한 뒤 막을 Action과 꼴을 고르세요.</p>}
-      <button type="button" disabled={locked} onClick={() => edit(C.addConstraint(p), 'Interlock 추가')}>Interlock 추가</button>
+      {p.constraints.length === 0
+        ? <EmptyState symbol="○" line={EMPTY.interlocks} actions={[{ label: 'Interlock 추가', disabled: locked, reason: locked ? RUN_LOCK : undefined, onClick: () => edit(C.addConstraint(p), 'Interlock 추가') }]} />
+        : <button type="button" disabled={locked} onClick={() => edit(C.addConstraint(p), 'Interlock 추가')}>Interlock 추가</button>}
     </section>
   );
 }
