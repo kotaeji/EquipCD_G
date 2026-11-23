@@ -13,6 +13,7 @@ function readFileBytes(file: Blob): Promise<Uint8Array> {
 
 import { assessBackground, normalizeImageMime, pixelDistance, type AssessedImage, type BackgroundReject } from '../model/background';
 import type { DiagramBackground } from '../model/types';
+import { IconLabel } from './Icon';
 import { Problem } from './Problem';
 import { backgroundRejectProblem, type ProblemCopy } from './problemCopy';
 import './background-tools.css';
@@ -77,7 +78,7 @@ export function BackgroundTools(props: Props) {
 
   return (
     <div className="bg-tools">
-      <button type="button" className={open ? 'on' : ''} aria-expanded={open} aria-controls="bg-panel" onClick={() => setOpen((v) => !v)}>배경 도면</button>
+      <button type="button" className={open ? 'on' : ''} aria-expanded={open} aria-controls="bg-panel" onClick={() => setOpen((v) => !v)}><IconLabel id="background">배경 도면</IconLabel></button>
       <input
         ref={fileRef}
         type="file"

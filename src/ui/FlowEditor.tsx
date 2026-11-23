@@ -13,6 +13,7 @@ import { conditionFormula } from '../model/conditionFormula';
 import { ConditionMark } from './conditionMark';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
 import { Terms } from './Term';
+import { IconLabel } from './Icon';
 
 type Arm = 'then' | 'else' | 'body' | number;
 
@@ -157,15 +158,15 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
   };
   return <div>
     <div className="row wrap" style={{ gap: 'var(--sp-1)', marginBottom: 'var(--sp-1)' }}>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('branch', '분기로 묶기')}>분기로 묶기</button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('parallel', '병렬로 묶기')}>병렬로 묶기</button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('loop', '반복으로 묶기')}>반복으로 묶기</button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('retry', '재시도로 묶기')}>재시도로 묶기</button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('branch', '분기로 묶기')}><IconLabel id="wrap-branch">분기로 묶기</IconLabel></button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('parallel', '병렬로 묶기')}><IconLabel id="wrap-parallel">병렬로 묶기</IconLabel></button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('loop', '반복으로 묶기')}><IconLabel id="wrap-loop">반복으로 묶기</IconLabel></button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('retry', '재시도로 묶기')}><IconLabel id="wrap-retry">재시도로 묶기</IconLabel></button>
       <select aria-label="Substation" disabled={locked} value={unitId} onChange={(e) => setUnitId(e.target.value)}>
         {p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
       </select>
-      <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}><Terms text="Substation 시퀀스 넣기" /></button>
-      <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}>신호 기다림 추가</button>
+      <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}><IconLabel id="add-substation"><Terms text="Substation 시퀀스 넣기" /></IconLabel></button>
+      <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}><IconLabel id="add-wait">신호 기다림 추가</IconLabel></button>
     </div>
     <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
     <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>병렬로 묶으면 고른 줄이 갈래마다 하나씩 나뉩니다.</p>
@@ -217,7 +218,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowNode(p, id, 1), row.kind === 'step' ? '단계 아래로' : '블록 아래로')}>아래로</button>
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowOut(p, id), '블록 밖으로')}>밖으로</button>
               </>}
-              {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && row.kind !== 'wait' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}>블록 풀기</button>}
+              {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && row.kind !== 'wait' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}><IconLabel id="unwrap">블록 풀기</IconLabel></button>}
               {row.kind === 'wait' && row.blockId && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '신호 기다림 삭제')}>삭제</button>}
               {row.kind === 'arm' && row.arm != null && selected.length > 0 && <button type="button" className="small" disabled={locked} onClick={() => { if (edit(C.moveFlowInto(p, selected[0], row.blockId!, row.arm as Arm), '갈래로 옮기기')) setPicked(selected.slice(1)); }}>선택 넣기</button>}
             </td>

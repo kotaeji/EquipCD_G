@@ -7,6 +7,7 @@ import { faultDeviceIds, activeDeviceIds } from '../scene/describe';
 import { describeRunInfo, type RunInfoBar } from '../scene/runInfo';
 import { stepStatusLabel } from '../runtime/runSummary';
 import { stepLiveClass } from './RunSummary';
+import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 import { phaseShape, piecePhaseStatus, stationShape, type StatusKey } from './status';
 
@@ -98,7 +99,7 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
         <span className="run-strip-fixed">가상 시간 <b className="mono" data-run-time="">{info.timeText}</b></span>
         <span className="run-strip-running">실행 중 <b data-running-count={info.running.length} title={full || undefined}>{info.running.length === 0 ? '없음' : shown}{extra > 0 ? ` 외 ${extra}` : ''}</b></span>
         {!folded && <span className="run-strip-fixed" data-material="" data-fed={info.fedCount} data-exited={info.exitCount} data-feed-total={info.feedTotal}>자재 {info.materialText}</span>}
-        <button type="button" className="small run-strip-fold" aria-label={folded ? '요약 펼치기' : '요약 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
+        <button type="button" className="small run-strip-fold" aria-label={folded ? '요약 펼치기' : '요약 접기'} onClick={onToggleFold}><IconLabel id={folded ? 'unfold' : 'fold'}>{folded ? '펼치기' : '접기'}</IconLabel></button>
       </div>
       {!folded && <div className="run-strip-row metrics">
         <span className="run-strip-fixed">사이클 <b className="mono" data-cycle-time="" aria-label="사이클 시간">{info.cycleText}</b>{info.metricBasis && <span data-metric-basis="">{info.metricBasis}</span>}</span>
@@ -142,7 +143,7 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold, onPause
     <aside className={`run-steps ${folded ? 'is-folded' : ''}`} aria-label="단계">
       <div className="run3d-head">
         <h2>단계</h2>
-        <button type="button" className="small" aria-label={folded ? '단계 펼치기' : '단계 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
+        <button type="button" className="small" aria-label={folded ? '단계 펼치기' : '단계 접기'} onClick={onToggleFold}><IconLabel id={folded ? 'unfold' : 'fold'}>{folded ? '펼치기' : '접기'}</IconLabel></button>
       </div>
       {!folded && <>
         <section className="run-steps-main" aria-label="단계별 시간">

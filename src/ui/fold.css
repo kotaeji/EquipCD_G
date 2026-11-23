@@ -1,0 +1,3 @@
+/* TURN-061. The set's chevron is the disclosure mark. The browser triangle stays hidden. */
+details.ecd-fold > summary { list-style: none; }
+details.ecd-fold > summary::-webkit-details-marker { display: none; }

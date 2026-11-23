@@ -5,6 +5,7 @@ import { GLOSSARY, GLOSSARY_ORDER } from './glossary';
 import type { HelpTopic } from './helpCopy';
 import { TOUR_AGAIN } from './tour';
 import { dialogOpen } from './WorkspacePanels';
+import { IconLabel } from './Icon';
 import './help-panel.css';
 
 export function HelpPanel({ topic, onClose, onTour, onShortcuts }: {
@@ -38,7 +39,7 @@ export function HelpPanel({ topic, onClose, onTour, onShortcuts }: {
     >
       <div className="help-head">
         <h2 id="help-title">{topic.title}</h2>
-        <button type="button" className="btn-main secondary" data-help-close onClick={onClose}>닫기</button>
+        <button type="button" className="btn-main secondary" data-help-close onClick={onClose}><IconLabel id="close">닫기</IconLabel></button>
       </div>
       <section>
         <h3>이 화면에서 하는 일</h3>

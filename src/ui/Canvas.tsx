@@ -30,6 +30,7 @@ import {
 import '@xyflow/react/dist/base.css';
 import { findAsset } from '../assets/library';
 import { AI_BADGE, resolveGenerated } from '../assets/visuals';
+import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 import { STATUS, waitingLead } from './status';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
@@ -1284,7 +1285,7 @@ function FlowCanvas(props: Props) {
             aria-pressed={minimapOpen}
             aria-label={minimapOpen ? '미니맵 접기' : '미니맵 펼치기'}
             onClick={() => propsRef.current.onMinimapChange?.(frame, !minimapOpen)}
-          >{minimapOpen ? '접기' : '미니맵'}</button>
+          >{minimapOpen ? <IconLabel id="fold">접기</IconLabel> : <IconLabel id="minimap">미니맵</IconLabel>}</button>
         </Panel>
         {props.connectNote && <Panel position="top-left" className="notice rf-connect-note nopan" style={{ position: 'absolute', top: 48, pointerEvents: 'none' }}>{props.connectNote}</Panel>}
         <Panel position="top-left" className="rf-legend nopan" title={`배경: 격자 · 배경 도면은 있으면 레이어와 함께 · 배경 없이도 동작 · Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>

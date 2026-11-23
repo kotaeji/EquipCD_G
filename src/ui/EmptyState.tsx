@@ -1,4 +1,5 @@
 import { useEffect, useState, type ButtonHTMLAttributes } from 'react';
+import { EmptyMark } from './Icon';
 
 type ButtonExtra = ButtonHTMLAttributes<HTMLButtonElement> & Record<`data-${string}`, string | undefined>;
 
@@ -19,7 +20,7 @@ export function EmptyState({ symbol = '○', line, actions = [], attrs }: {
 }) {
   return (
     <div className="empty-state" data-empty="" role="status" {...attrs}>
-      <span className="empty-mark" aria-hidden="true">{symbol}</span>
+      <EmptyMark symbol={symbol} />
       <p className="empty-line">{line}</p>
       {actions.length > 0 && (
         <div className="empty-actions">
