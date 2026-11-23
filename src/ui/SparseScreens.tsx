@@ -15,8 +15,11 @@ import { type BlockerGuide } from './blockerTarget';
 import { EmptyState } from './EmptyState';
 import { BlockerCards, BlockerList, Problem } from './Problem';
 import { EMPTY, SCREEN, exportBlockedProblem } from './problemCopy';
+import { checkConditions, type ConditionFinding } from '../model/conditionCheck';
 import { devName, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
+
+export { BundleSheet } from './BundleScreen';
 
 export function AmlResultSheet({ onCandidates }: { onCandidates: () => void }) {
   const lib = LOADED_LIBRARIES[0];
@@ -64,33 +67,6 @@ export function ExtractSheet({ onInstead }: { onInstead?: () => void } = {}) {
       <button type="button" disabled>자료 제거 확인</button>
       <p className="muted">지금 넣을 수 있는 것은 입력 후보표의 직접 입력과 AML 라이브러리 파일입니다.</p>
     </aside>
-    </div>
-  </div>;
-}
-
-export function BundleSheet({ wsName, projectCount, assetCount, assumptionCount, onInstead }: { wsName: string; projectCount: number; assetCount: number; assumptionCount: number; onInstead?: () => void }) {
-  return <div className="sparse-page">
-    <NotReadyBanner hint="프로젝트별 JSON 내보내기를 쓰세요" purpose={SCREEN.bundle.purpose} instead={SCREEN.bundle.instead} onInstead={onInstead} />
-    <h1 className="stage-title">Workspace 파일 묶음</h1>
-    <p className="muted">묶음 가져오기와 내보내기는 미구현입니다. 아래 수는 이 브라우저의 현재 Workspace이며, 묶음 파일 내용이 아닙니다.</p>
-    <div className="sparse-split">
-      <section className="sheet">
-        <h2>묶음 구성</h2>
-        <p className="field-ro">{wsName}</p>
-        <table className="grid plain"><thead><tr><th>포함 항목</th><th>수</th><th>선택</th></tr></thead><tbody>
-          <tr><td>프로젝트</td><td>{projectCount}</td><td>포함 예정 · 파일 없음</td></tr>
-          <tr><td>공통 에셋 정의</td><td>{assetCount}</td><td>포함 예정 · 파일 없음</td></tr>
-          <tr><td>출처와 가정</td><td>{assumptionCount}</td><td>포함 예정 · 파일 없음</td></tr>
-        </tbody></table>
-        <button type="button" disabled title="묶음 파일을 검사하지 않습니다">묶음 검사</button>
-      </section>
-      <aside className="sheet">
-        <h2>가져오기 충돌 정책</h2>
-        <p>같은 ID, 다른 Workspace로 이동, 원본 삭제는 동작하지 않습니다.</p>
-        <button type="button" disabled>묶음 가져오기 미리보기</button>
-        <button type="button" disabled>묶음 내보내기</button>
-        <p className="warn-note">미구현입니다. 파일 생성과 공유를 하지 않습니다.</p>
-      </aside>
     </div>
   </div>;
 }
@@ -339,12 +315,30 @@ export function ExportSheet({ p, onDownload, onGuide }: {
   </div>;
 }
 
-export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml }: {
+const COND_WORD = { error: '오류', undetermined: '미정', info: '안내' } as const;
+
+export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml, onJumpCondition }: {
   p: Project; storageReason: string | null; quarantineList: QuarantineEntry[]; onDownload: (name: string, text: string) => void; onAml: () => void;
+  onJumpCondition: (f: ConditionFinding) => void;
 }) {
   const diags = validateProject(p);
+  const conditions = checkConditions(p);
   return <div className="sparse-split">
     <section className="sheet">
+      <h2>조건</h2>
+      <table className="grid plain cond-table" aria-label="조건">
+        <thead><tr><th>수준</th><th>어디</th><th>식</th><th>까닭</th><th></th></tr></thead>
+        <tbody>
+          {conditions.map((f) => <tr key={f.id} data-cond-finding={f.kind} data-cond-level={f.level}>
+            <td><StatusMark status={f.level === 'error' ? 'error' : f.level === 'undetermined' ? 'undetermined' : 'assumption'} word={COND_WORD[f.level]} /></td>
+            <td>{f.where}</td>
+            <td className="cond-formula" data-cond-formula="">{f.formula}</td>
+            <td>{f.reason}</td>
+            <td><button type="button" className="small" onClick={() => onJumpCondition(f)}>이동</button></td>
+          </tr>)}
+          {conditions.length === 0 && <tr><td colSpan={5}>조건 오류 없음</td></tr>}
+        </tbody>
+      </table>
       <h2>진단 내역</h2>
       <table className="grid plain"><thead><tr><th>진단</th><th>상태</th><th>수정 위치</th></tr></thead>
         <tbody>{diags.slice(0, 8).map((d) => <tr key={d.id}><td>{d.message}</td><td>{d.severity === 'error' ? '차단' : '경고'}</td><td>{d.objectId}</td></tr>)}

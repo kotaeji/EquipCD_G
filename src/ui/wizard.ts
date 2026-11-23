@@ -3,6 +3,7 @@
 // Step confirmation stores a fingerprint of the data the step depends on; if that data changes later the
 // step shows "재확인 필요" (C10-07). View-only state (photo/schematic, theme, layers) is not part of any fingerprint.
 // TURN-038 adds kind + jump on each item. level, ready, and fingerprint are unchanged.
+import { checkConditions } from '../model/conditionCheck';
 import type { Gap } from '../model/gaps';
 import type { Project } from '../model/types';
 import { checkRunReadiness } from '../model/validate';
@@ -29,7 +30,7 @@ export const ITEM_KINDS = [
   'no-unit', 'unit-empty', 'unit-no-flow',
   'prop-unset', 'assumptions', 'action-complete', 'action-timeout', 'action-pre', 'interlock',
   'no-material', 'material-location', 'material-state', 'material-route', 'no-steps', 'sequence-unresolved',
-  'run-blocker', 'gap-human', 'gap',
+  'run-blocker', 'gap-human', 'gap', 'condition',
   'run-not-ready', 'not-run', 'unsaved',
 ] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
@@ -59,6 +60,8 @@ export interface StepEval { id: StepId; ready: boolean; items: StepItem[]; finge
 
 const fp = (o: unknown) => { const s = JSON.stringify(o); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 
+const mkReady = (items: StepItem[], ready?: boolean) => ready ?? !items.some((i) => i.level === 'missing');
+
 export interface EvalContext { gaps: Gap[]; rt: RuntimeState | null; saved: boolean; photoMissingKinds: string[] }
 
 const CHECK: ItemJump = { step: 'check', sub: 'gap', field: 'check-gaps' };
@@ -87,7 +90,7 @@ function locate(p: Project, objectId: string | undefined, fallback: ItemJump = C
 
 export function evaluateSteps(p: Project, ctx: EvalContext): Record<StepId, StepEval> {
   const out = {} as Record<StepId, StepEval>;
-  const mk = (id: StepId, items: StepItem[], basis: unknown) => { out[id] = { id, ready: !items.some((i) => i.level === 'missing'), items, fingerprint: fp(basis) }; };
+  const mk = (id: StepId, items: StepItem[], basis: unknown, ready?: boolean) => { out[id] = { id, ready: mkReady(items, ready), items, fingerprint: fp(basis) }; };
 
   // 1 library / input
   const s1: StepItem[] = [];
@@ -152,7 +155,19 @@ export function evaluateSteps(p: Project, ctx: EvalContext): Record<StepId, Step
   for (const b of rd.blockers) s5.push({ level: 'missing', kind: 'run-blocker', text: `실행 차단: ${b.message}`, targetId: b.objectId, jump: locate(p, b.objectId) });
   for (const g of ctx.gaps.filter((g) => g.safety || g.judgement === 'candidate')) s5.push({ level: 'human', kind: 'gap-human', text: `Gap(사람 확인): ${g.title}`, targetId: g.target.objectId, jump: { step: 'check', sub: 'gap', field: `gap:${g.id}`, gapFilter: 'human' } });
   for (const g of ctx.gaps.filter((g) => !g.safety && g.judgement !== 'candidate')) s5.push({ level: g.judgement === 'shortfall' ? 'assumption' : 'undetermined', kind: 'gap', text: `Gap: ${g.title}`, targetId: g.target.objectId, jump: { step: 'check', sub: 'gap', field: `gap:${g.id}`, gapFilter: 'all' } });
-  mk('check', s5, { b: rd.blockers.map((b) => b.code + b.objectId), g: ctx.gaps.map((g) => g.id), r: p.revision });
+  const condFindings = checkConditions(p);
+  for (const f of condFindings) {
+    if (f.level === 'info') continue;
+    s5.push({
+      level: f.level === 'error' ? 'missing' : 'undetermined',
+      kind: 'condition',
+      text: `${f.level === 'error' ? '조건 오류' : '조건 미정'} — ${f.where} — ${f.reason}`,
+      jump: f.jump,
+    });
+  }
+  // Condition errors are counted, and they do not add a run block. Step readiness stays the run gate.
+  const checkReady = !s5.some((i) => i.level === 'missing' && i.kind !== 'condition');
+  mk('check', s5, { b: rd.blockers.map((b) => b.code + b.objectId), g: ctx.gaps.map((g) => g.id), r: p.revision, c: condFindings.map((f) => `${f.id}:${f.level}`) }, checkReady);
 
   // 6 run / save
   const s6: StepItem[] = [];

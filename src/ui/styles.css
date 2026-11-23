@@ -1094,6 +1094,14 @@ button.danger::before { content: "✕ "; font-weight: 700; }
 .qty-error { flex: 1 0 100%; color: var(--danger); font-size: var(--fs-sm); line-height: 1.3; }
 .qty-assume { width: auto; display: inline-flex; gap: 2px; align-items: center; font-size: var(--fs-xs); }
 
+/* TURN-052: condition formula and the diagnosis rows. Appended so other TURNs can edit earlier rules. */
+.cond-head { display: inline-flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
+.cond-formula { font-family: var(--mono); }
+.cond-table td { vertical-align: top; }
+.cond-table td:last-child { white-space: nowrap; }
+.form-grid .cond-line { height: auto; min-height: 40px; white-space: normal; line-height: 1.35; padding-top: var(--sp-1); padding-bottom: var(--sp-1); }
+.run3d-bar-where { overflow-wrap: anywhere; }
+
 /* TURN-053: command palette and shortcut sheet. Tokens only; no earlier rule changes. */
 .cmd-bg { align-items: flex-start; padding-top: 12vh; }
 .cmd-panel,

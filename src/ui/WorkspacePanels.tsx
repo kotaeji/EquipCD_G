@@ -106,12 +106,11 @@ export function WorkspaceManager({ workspaces, activeId, counts, deleteBlock, on
       <button type="button" className="small" onClick={onSearch}>공통 탐색</button>
       <button type="button" className="small" onClick={onHome}>작업 시작 화면</button>
     </div>
-    <p className="muted ex-note">Workspace는 <b>이 브라우저 저장소 안의 프로젝트 묶음</b>입니다. 파일 폴더가 아니며 다른 PC·브라우저와 공유되지 않습니다(옮기려면 프로젝트별 JSON 내보내기). 공유 에셋·파일 묶음·협업은 지원하지 않습니다.</p>
+    <p className="muted ex-note">Workspace는 <b>이 브라우저 저장소 안의 프로젝트 묶음</b>입니다. 파일 폴더가 아니며 다른 PC·브라우저와 자동으로 공유되지 않습니다. 다른 PC로 옮기려면 「파일 묶음」을 쓰세요. 공유 에셋·협업은 지원하지 않습니다.</p>
     <p className="muted ex-note">삭제는 저장 프로젝트가 없는 Workspace만 가능합니다(마지막·현재 Workspace 제외). 프로젝트를 함께 지우지 않습니다.</p>
     <div className="notice" data-screen-note="S04">
-      <b>Workspace 파일 묶음 — 미구현</b>
-      <p>작업 공간 공통 라이브러리와 묶음 파일 입출력은 없습니다. 프로젝트는 이 브라우저에 개별 JSON으로만 저장되며 다른 PC와 자동으로 공유되지 않습니다.</p>
-      <button type="button" className="small" disabled title="미구현: 작업 공간 묶음 파일을 만들 수 없습니다">묶음 내보내기</button>
+      <b>Workspace 파일 묶음</b>
+      <p>이 Workspace에 저장된 프로젝트를 파일 하나로 내보내고 가져옵니다. 위의 「파일 묶음」에서 엽니다.</p>
     </div>
   </div>;
 }
