@@ -1,11 +1,13 @@
-// S14 — read one XLSX in the browser and turn rows into candidates. PDF, DWG, and USD stay unimplemented.
+// S14 — read one XLSX, one CSV, or a pasted table in the browser and turn rows into candidates.
 import { useState } from 'react';
 import { addImportCandidates, buildImportCandidates } from '../import/candidatesFromSheet';
+import { readCsv, readCsvText, type CsvReadResult } from '../import/csvRead';
 import { COLUMN_ROLES, guessColumns, type ColumnMapping, type ColumnRole } from '../import/columnMap';
-import { readXlsx, XLSX_PREVIEW_ROWS, type XlsxBook } from '../import/xlsxRead';
+import { readXlsx, XLSX_PREVIEW_ROWS, type XlsxBook, type XlsxReadResult } from '../import/xlsxRead';
 import type { Project } from '../model/types';
 import { Problem } from './Problem';
-import { xlsxReadProblem } from './problemCopy';
+import { sheetReadProblem } from './problemCopy';
+import './csv-intake.css';
 import './xlsx-intake.css';
 
 export interface XlsxIntakeProps {
@@ -19,8 +21,11 @@ const FORMATS: [string, string][] = [
   ['PDF', '추출 미구현'],
   ['DWG', '추출 미구현'],
   ['XLSX', '지원(IO 리스트 · 사양표)'],
+  ['CSV', '지원(IO 리스트 · 사양표)'],
   ['USD', '추출 미구현'],
 ];
+
+type Source = 'xlsx' | 'csv';
 
 function fileBytes(file: File): Promise<Uint8Array> {
   const read = (file as Blob & { arrayBuffer?: () => Promise<ArrayBuffer> }).arrayBuffer;
@@ -31,6 +36,11 @@ function fileBytes(file: File): Promise<Uint8Array> {
     reader.onerror = () => reject(reader.error ?? new Error('read'));
     reader.readAsArrayBuffer(file);
   });
+}
+
+function isCsvFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return name.endsWith('.csv') || file.type === 'text/csv' || file.type === 'text/tab-separated-values';
 }
 
 function colLetter(index: number): string {
@@ -52,32 +62,50 @@ function headersFor(rows: string[][], headerRow: number): string[] {
 }
 
 export function XlsxIntake({ p, locked, onCandidates, onOpenCandidates }: XlsxIntakeProps) {
-  const [error, setError] = useState<ReturnType<typeof xlsxReadProblem> | null>(null);
+  const [error, setError] = useState<ReturnType<typeof sheetReadProblem> | null>(null);
   const [book, setBook] = useState<XlsxBook | null>(null);
+  const [source, setSource] = useState<Source>('xlsx');
   const [fileName, setFileName] = useState('');
   const [sheetIndex, setSheetIndex] = useState(0);
   const [headerRow, setHeaderRow] = useState(1);
   const [columns, setColumns] = useState<ColumnMapping[]>([]);
   const [notice, setNotice] = useState('');
+  const [draft, setDraft] = useState('');
   const sheet = book?.sheets[sheetIndex];
   const hasDevice = columns.some((c) => c.role === 'deviceName');
 
-  async function load(file: File) {
-    setNotice('');
-    const bytes = await fileBytes(file);
-    const result = readXlsx(bytes);
+  function show(name: string, kind: Source, result: XlsxReadResult | CsvReadResult) {
     if (!result.ok) {
       setBook(null);
       setColumns([]);
-      setError(xlsxReadProblem(result.code, result.why));
+      setError(sheetReadProblem(result.code, result.why, kind));
       return;
     }
     setError(null);
-    setFileName(file.name);
+    setSource(kind);
+    setFileName(name);
     setBook(result.book);
     setSheetIndex(0);
     setHeaderRow(1);
     setColumns(guessColumns(headersFor(result.book.sheets[0]?.rows ?? [], 1)));
+  }
+
+  async function load(file: File) {
+    setNotice('');
+    const bytes = await fileBytes(file);
+    if (isCsvFile(file)) show(file.name, 'csv', readCsv(bytes, 'CSV'));
+    else show(file.name, 'xlsx', readXlsx(bytes));
+  }
+
+  function loadPasted(text: string) {
+    setNotice('');
+    if (!text.trim()) {
+      setBook(null);
+      setColumns([]);
+      setError({ tone: 'error', what: '붙여 넣은 표가 비어 있습니다', why: '표로 읽을 줄이 없습니다.', how: '엑셀에서 표를 복사해 이 칸에 붙여 넣으세요. 모델과 후보표는 바꾸지 않았습니다.' });
+      return;
+    }
+    show('붙여넣기.csv', 'csv', readCsvText(text, '붙여넣기'));
   }
 
   function chooseSheet(index: number) {
@@ -117,16 +145,33 @@ export function XlsxIntake({ p, locked, onCandidates, onOpenCandidates }: XlsxIn
   }
 
   const preview = sheet ? sheet.rows.slice(0, XLSX_PREVIEW_ROWS) : [];
-  return <div className="xlsx-intake" data-xlsx-intake="">
-    <p className="xlsx-lead">자료에서 장비와 신호를 후보로 올리는 화면입니다. XLSX(IO 리스트 · 사양표)만 이 브라우저에서 읽습니다. 업로드와 외부 전송은 없습니다.</p>
+  const note = source === 'xlsx'
+    ? `앞 ${preview.length}줄입니다. 이 시트는 ${sheet?.rows.length.toLocaleString('ko-KR') ?? 0}줄입니다. 수식은 저장된 값만 읽고, 병합은 첫 칸만, 매크로와 그림은 무시합니다.`
+    : `앞 ${preview.length}줄입니다. 이 표는 ${sheet?.rows.length.toLocaleString('ko-KR') ?? 0}줄입니다. 쉼표 · 세미콜론 · 탭을 구분하고, 따옴표 안의 쉼표와 줄바꿈은 한 칸입니다.`;
+  return <div className="xlsx-intake" data-xlsx-intake="" data-intake-source={book ? source : undefined}>
+    <p className="xlsx-lead">자료에서 장비와 신호를 후보로 올리는 화면입니다. XLSX와 CSV(IO 리스트 · 사양표), 그리고 엑셀에서 복사한 표를 이 브라우저에서 읽습니다. 업로드와 외부 전송은 없습니다.</p>
     <table className="grid plain" data-format-table=""><thead><tr><th>형식</th><th>지원 상태</th></tr></thead><tbody>
       {FORMATS.map(([name, status]) => <tr key={name} data-format={name}><td>{name}</td><td>{status}</td></tr>)}
     </tbody></table>
     <div className="xlsx-tools">
-      <label>XLSX 파일
-        <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="XLSX 파일" disabled={locked}
+      <label>XLSX · CSV 파일
+        <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" aria-label="XLSX 또는 CSV 파일" disabled={locked}
           onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void load(file); }} />
       </label>
+    </div>
+    <div className="csv-paste">
+      <label htmlFor="csv-paste">표 붙여넣기</label>
+      <textarea id="csv-paste" aria-label="표 붙여넣기" rows={4} disabled={locked} value={draft}
+        placeholder="엑셀에서 복사한 표를 붙여 넣으세요. 탭으로 구분된 줄입니다."
+        onChange={(e) => setDraft(e.target.value)}
+        onPaste={(e) => {
+          const text = e.clipboardData?.getData('text/plain') ?? '';
+          if (!text) return;
+          e.preventDefault();
+          setDraft(text);
+          loadPasted(text);
+        }} />
+      <button type="button" disabled={locked} onClick={() => loadPasted(draft)}>표 읽기</button>
     </div>
     {error && <Problem copy={error} />}
     {sheet && book && <>
@@ -136,7 +181,7 @@ export function XlsxIntake({ p, locked, onCandidates, onOpenCandidates }: XlsxIn
       <label className="xlsx-tools">머리 줄
         <input type="number" min={1} aria-label="머리 줄" value={headerRow} onChange={(e) => chooseHeader(Number(e.target.value))} />
       </label>
-      <p className="xlsx-note">앞 {preview.length}줄입니다. 이 시트는 {sheet.rows.length.toLocaleString('ko-KR')}줄입니다. 수식은 저장된 값만 읽고, 병합은 첫 칸만, 매크로와 그림은 무시합니다.</p>
+      <p className="xlsx-note">{note}</p>
       <div className="xlsx-scroll" data-xlsx-preview="">
         <table className="grid plain"><thead><tr><th>줄</th>{(preview[0] ?? []).map((_, i) => <th key={i}>{colLetter(i)}</th>)}</tr></thead>
           <tbody>{preview.map((row, i) => <tr key={i} className={i + 1 === headerRow ? 'is-header' : ''} data-sheet-row={i + 1}>
