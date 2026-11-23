@@ -1,12 +1,12 @@
 // TURN-061. Named imports so the single-file build keeps only the icons we draw.
 import {
   Activity, AlignHorizontalSpaceBetween, AlignLeft, AlignStartVertical, AlignVerticalSpaceBetween,
-  ArrowRight, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
+  ArrowDown, ArrowRight, ArrowUp, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
   ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleHelp,
-  CirclePlay, ClipboardCheck, ClipboardPaste, ClockPlus, Columns2, Compass, Copy, CopyPlus, Cpu, Download,
+  CirclePlay, ClipboardCheck, ClipboardPaste, ClockPlus, Columns2, Compass, Copy, CopyPlus, CornerDownRight, CornerUpLeft, Cpu, Download,
   DraftingCompass, Ellipsis, Expand, Eye, EyeOff, FileCode, FileCode2, FileInput, FileOutput, FilePlus,
   FileSpreadsheet, FileText, FlaskConical, Folder,
-  Folders, GalleryHorizontalEnd, Gauge, GitFork, Hourglass, Image, ImagePlus, Keyboard, Layers,
+  Folders, GalleryHorizontalEnd, Gauge, GitFork, GripVertical, Hourglass, Image, ImagePlus, Keyboard, Layers,
   LayoutDashboard, LayoutGrid, LayoutTemplate, Library, List, ListChecks, ListOrdered, ListPlus, ListTree,
   Lock, LockKeyhole, LockKeyholeOpen, LockOpen, Map, MapPin, Moon, MousePointer2, MoveHorizontal, MoveRight,
   Network, OctagonAlert, Package, Package2, PanelLeft, PanelRightOpen, Pause, PenTool, Pencil, Play, Plus, Puzzle,
@@ -22,12 +22,12 @@ import './icons.css';
 
 export const ICONS = {
   Activity, AlignHorizontalSpaceBetween, AlignLeft, AlignStartVertical, AlignVerticalSpaceBetween,
-  ArrowRight, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
+  ArrowDown, ArrowRight, ArrowUp, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
   ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleHelp,
-  CirclePlay, ClipboardCheck, ClipboardPaste, ClockPlus, Columns2, Compass, Copy, CopyPlus, Cpu, Download,
+  CirclePlay, ClipboardCheck, ClipboardPaste, ClockPlus, Columns2, Compass, Copy, CopyPlus, CornerDownRight, CornerUpLeft, Cpu, Download,
   DraftingCompass, Ellipsis, Expand, Eye, EyeOff, FileCode, FileCode2, FileInput, FileOutput, FilePlus,
   FileSpreadsheet, FileText, FlaskConical, Folder,
-  Folders, GalleryHorizontalEnd, Gauge, GitFork, Hourglass, Image, ImagePlus, Keyboard, Layers,
+  Folders, GalleryHorizontalEnd, Gauge, GitFork, GripVertical, Hourglass, Image, ImagePlus, Keyboard, Layers,
   LayoutDashboard, LayoutGrid, LayoutTemplate, Library, List, ListChecks, ListOrdered, ListPlus, ListTree,
   Lock, LockKeyhole, LockKeyholeOpen, LockOpen, Map, MapPin, Moon, MousePointer2, MoveHorizontal, MoveRight,
   Network, OctagonAlert, Package, Package2, PanelLeft, PanelRightOpen, Pause, PenTool, Pencil, Play, Plus, Puzzle,

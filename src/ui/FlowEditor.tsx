@@ -1,68 +1,28 @@
-// Station sequence flow editor (TURN-022, names and moves in TURN-023). Blocks are indented and named in words, not by color alone.
-import { useEffect, useState } from 'react';
+// Station sequence flow editor (TURN-022, names and moves in TURN-023).
+// TURN-073 adds the row menu and the grip drag. Both call the existing flow commands.
+import { useEffect, useRef, useState } from 'react';
 import * as C from '../model/commands';
-import type { Condition, FlowNode, Project } from '../model/types';
+import { stepDeleteDetail } from '../model/deleteImpact';
+import type { Condition, Project } from '../model/types';
 import { DEFAULT_MAX_RETRIES } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus } from '../runtime/runSummary';
 import { StatusMark } from './StatusMark';
 import { phaseShape } from './status';
-import type { EditFn } from './Inspector';
+import type { ConfirmDelete, EditFn } from './Inspector';
 import { stepLiveClass } from './RunSummary';
 import { conditionFormula } from '../model/conditionFormula';
 import { ConditionMark } from './conditionMark';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
 import { Terms } from './Term';
+import { ContextMenu } from './ContextMenu';
+import { EDIT_LOCKED, isTextField } from './contextMenuModel';
 import { IconLabel } from './Icon';
+import { buildFlowMenu, flattenFlowRows, flowMenuKind, planFlowPick, type FlowMenuAction, type FlowMenuItem, type FlowRow } from './flowMenuModel';
+import { dragIds, dropSlots, edgeScrollDelta, nearestSlot, readMeasuredRow, relocateFlow, scrollParent, type DropSlot } from './flowDrag';
+import './flow-table.css';
 
 type Arm = 'then' | 'else' | 'body' | number;
-
-interface Row {
-  key: string;
-  depth: number;
-  kind: 'step' | 'branch' | 'parallel' | 'loop' | 'retry' | 'wait' | 'substation' | 'arm';
-  title: string;
-  stepId?: string;
-  blockId?: string;
-  arm?: Arm;
-  node?: FlowNode;
-}
-
-function flatten(p: Project, nodes: FlowNode[], depth: number): Row[] {
-  const out: Row[] = [];
-  for (const n of nodes) {
-    if (n.kind === 'step') {
-      const step = p.sequence.steps.find((s) => s.id === n.stepId);
-      out.push({ key: n.stepId, depth, kind: 'step', title: step?.name ?? n.stepId, stepId: n.stepId });
-      continue;
-    }
-    if (n.kind === 'branch') {
-      out.push({ key: n.id, depth, kind: 'branch', title: flowBlockWord('branch'), blockId: n.id, node: n });
-      out.push({ key: `${n.id}:then`, depth: depth + 1, kind: 'arm', title: '참', blockId: n.id, arm: 'then' });
-      out.push(...flatten(p, n.then, depth + 2));
-      out.push({ key: `${n.id}:else`, depth: depth + 1, kind: 'arm', title: '거짓', blockId: n.id, arm: 'else' });
-      out.push(...flatten(p, n.else, depth + 2));
-    } else if (n.kind === 'parallel') {
-      out.push({ key: n.id, depth, kind: 'parallel', title: flowBlockWord('parallel'), blockId: n.id, node: n });
-      n.lanes.forEach((lane, i) => {
-        out.push({ key: `${n.id}:lane${i}`, depth: depth + 1, kind: 'arm', title: `갈래 ${i + 1}`, blockId: n.id, arm: i });
-        out.push(...flatten(p, lane, depth + 2));
-      });
-    } else if (n.kind === 'loop') {
-      out.push({ key: n.id, depth, kind: 'loop', title: flowBlockWord('loop'), blockId: n.id, node: n });
-      out.push(...flatten(p, n.body, depth + 1));
-    } else if (n.kind === 'retry') {
-      out.push({ key: n.id, depth, kind: 'retry', title: flowBlockWord('retry'), blockId: n.id, node: n });
-      out.push(...flatten(p, n.body, depth + 1));
-    } else if (n.kind === 'wait') {
-      out.push({ key: n.id, depth, kind: 'wait', title: flowBlockWord('wait'), blockId: n.id, node: n });
-    } else {
-      const unit = p.units.find((u) => u.id === n.unitId);
-      out.push({ key: n.id, depth, kind: 'substation', title: `Substation ${unit?.name ?? n.unitId}`, blockId: n.id, node: n });
-    }
-  }
-  return out;
-}
 
 function condValue(c: Condition): string {
   if (c.kind === 'signal') return `sig:${c.signalId}:${c.equals ? '1' : '0'}`;
@@ -92,14 +52,8 @@ function CondSelect({ p, cond, disabled, onChange }: { p: Project; cond: Conditi
   </select>;
 }
 
-function isBlockKind(kind: Row['kind']): kind is FlowBlockKind {
+function isBlockKind(kind: FlowRow['kind']): kind is FlowBlockKind {
   return kind === 'branch' || kind === 'parallel' || kind === 'loop' || kind === 'retry' || kind === 'wait';
-}
-
-function nodeIdOf(row: Row): string | null {
-  if (row.kind === 'arm') return null;
-  if (row.kind === 'step') return row.stepId ?? null;
-  return row.blockId ?? null;
 }
 
 function BlockName({ name, word, disabled, onCommit }: { name: string; word: string; disabled: boolean; onCommit: (v: string) => boolean }) {
@@ -119,7 +73,17 @@ function statusOf(rt: RuntimeState | null, stepId: string) {
   return aggregateStepStatus(rt?.steps.filter((r) => r.stepId === stepId) ?? []);
 }
 
-export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
+interface MenuState {
+  x: number;
+  y: number;
+  kind: string;
+  focus: HTMLElement | null;
+  rowKey: string;
+  items: FlowMenuItem[];
+  ordered: string[];
+}
+
+export function FlowEditor({ p, rt, locked, edit, picked, onPicked, confirmDelete, onOpenAction }: {
   p: Project;
   rt: RuntimeState | null;
   locked: boolean;
@@ -127,6 +91,9 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
   /** Controlled row checkboxes. Omit to keep the selection inside this table. */
   picked?: string[];
   onPicked?: (ids: string[]) => void;
+  confirmDelete?: ConfirmDelete;
+  /** Open the step's Action on stage 3. Navigation only — it does not edit the model. */
+  onOpenAction?: (actionId: string) => void;
 }) {
   const [innerPicked, setInnerPicked] = useState<string[]>([]);
   const pickedIds = picked ?? innerPicked;
@@ -136,19 +103,191 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
     else setInnerPicked(value);
   };
   const [unitId, setUnitId] = useState(p.units[0]?.id ?? '');
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [drop, setDrop] = useState<DropSlot | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const dragRef = useRef<{ pointerId: number; ids: string[]; x: number; y: number; slot: DropSlot | null } | null>(null);
+  const edgeRef = useRef(0);
+  const live = useRef({ p, locked, edit, pickedIds });
+  live.current = { p, locked, edit, pickedIds };
   const nodes = p.sequence.flow ?? p.sequence.steps.map((s) => ({ kind: 'step' as const, stepId: s.id }));
-  const rows = flatten(p, nodes, 0);
+  const rows = flattenFlowRows(p, nodes, 0);
+  const orderedOf = (ids: string[]) => rows.map((r) => r.id).filter((id): id is string => !!id && ids.includes(id));
   const toggle = (id: string) => setPicked((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
-  const selected = rows.map(nodeIdOf).filter((id): id is string => !!id && pickedIds.includes(id));
+  const selected = orderedOf(pickedIds);
   const wrap = (kind: C.WrapKind, label: string) => {
     if (edit(C.wrapFlow(p, selected, kind), label)) setPicked([]);
   };
-  const onKey = (e: React.KeyboardEvent<HTMLTableRowElement>, row: Row) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-    const id = nodeIdOf(row);
+
+  const slotAt = (clientX: number, clientY: number, ids: string[]): DropSlot | null => {
+    const table = tableRef.current;
+    const flow = live.current.p.sequence.flow;
+    if (!table || !flow) return null;
+    const measured = [...table.querySelectorAll<HTMLTableRowElement>('tbody tr')].map(readMeasuredRow);
+    const box = table.getBoundingClientRect();
+    return nearestSlot(dropSlots(measured, flow, ids), clientX, clientY, box.top, box.bottom);
+  };
+  const slotAtRef = useRef(slotAt);
+  slotAtRef.current = slotAt;
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d || e.pointerId !== d.pointerId) return;
+      d.x = e.clientX;
+      d.y = e.clientY;
+      const scroller = scrollParent(tableRef.current);
+      if (scroller) {
+        const box = scroller.getBoundingClientRect();
+        edgeRef.current = edgeScrollDelta(e.clientY, box.top, box.bottom);
+        if (edgeRef.current) scroller.scrollTop += edgeRef.current;
+      } else edgeRef.current = 0;
+      d.slot = slotAtRef.current(e.clientX, e.clientY, d.ids);
+      setDrop(d.slot);
+    };
+    const finish = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d || e.pointerId !== d.pointerId) return;
+      const slot = slotAtRef.current(e.clientX, e.clientY, d.ids);
+      dragRef.current = null;
+      edgeRef.current = 0;
+      setDragging(false);
+      setDrop(null);
+      const cur = live.current;
+      if (!slot || slot.noop) return;
+      if (!slot.valid) {
+        cur.edit({ ok: false, reason: slot.reason ?? '이동 불가' }, '흐름 옮기기');
+        return;
+      }
+      const moved = relocateFlow(cur.p, d.ids, slot.listKey, slot.index);
+      if (moved) cur.edit(moved, '흐름 옮기기');
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !dragRef.current) return;
+      dragRef.current = null;
+      edgeRef.current = 0;
+      setDragging(false);
+      setDrop(null);
+    };
+    const timer = window.setInterval(() => {
+      const d = dragRef.current;
+      if (!d || !edgeRef.current) return;
+      const scroller = scrollParent(tableRef.current);
+      if (scroller) scroller.scrollTop += edgeRef.current;
+      d.slot = slotAtRef.current(d.x, d.y, d.ids);
+      setDrop(d.slot);
+    }, 50);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  const openMenu = (row: FlowRow, x: number, y: number, focus: HTMLElement | null) => {
+    const next = planFlowPick(pickedIds, row.id);
+    if (next !== pickedIds && (next.length !== pickedIds.length || next.some((id, i) => id !== pickedIds[i]))) setPicked(next);
+    const ordered = orderedOf(next);
+    setMenu({
+      x, y, focus, rowKey: row.key, kind: flowMenuKind(row), ordered,
+      items: buildFlowMenu({ p, row, ordered, locked }),
+    });
+  };
+
+  const runMenu = (action: FlowMenuAction) => {
+    const state = menu;
+    setMenu(null);
+    if (!state) return;
+    const row = rows.find((r) => r.key === state.rowKey);
+    if (!row) return;
+    const ordered = state.ordered;
+    const what = row.kind === 'step' ? '단계' : '블록';
+    if (action === 'up' && row.id) { edit(C.moveFlowNode(p, row.id, -1), `${what} 위로`); return; }
+    if (action === 'down' && row.id) { edit(C.moveFlowNode(p, row.id, 1), `${what} 아래로`); return; }
+    if (action === 'out' && row.id) { edit(C.moveFlowOut(p, row.id), '블록 밖으로'); return; }
+    if (action === 'into' && row.blockId && row.arm != null && ordered[0]) {
+      if (edit(C.moveFlowInto(p, ordered[0], row.blockId, row.arm), '갈래로 옮기기')) setPicked(ordered.slice(1));
+      return;
+    }
+    if (action === 'wrapBranch' || action === 'wrapParallel' || action === 'wrapLoop' || action === 'wrapRetry') {
+      const kind = action === 'wrapBranch' ? 'branch' : action === 'wrapParallel' ? 'parallel' : action === 'wrapLoop' ? 'loop' : 'retry';
+      const label = kind === 'branch' ? '분기로 묶기' : kind === 'parallel' ? '병렬로 묶기' : kind === 'loop' ? '반복으로 묶기' : '재시도로 묶기';
+      if (edit(C.wrapFlow(p, ordered, kind), label)) setPicked([]);
+      return;
+    }
+    if (action === 'unwrap' && row.blockId) { edit(C.unwrapFlow(p, row.blockId), '블록 풀기'); return; }
+    if (action === 'rename') {
+      const key = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(row.key) : row.key;
+      const input = tableRef.current?.querySelector<HTMLInputElement>(`tr[data-row-key="${key}"] input[aria-label$="이름"]`);
+      input?.focus();
+      input?.select();
+      return;
+    }
+    if (action === 'openAction' && row.stepId) {
+      const step = p.sequence.steps.find((s) => s.id === row.stepId);
+      if (step) onOpenAction?.(step.actionId);
+      return;
+    }
+    if (action === 'delete' && row.kind === 'step' && row.stepId) {
+      const step = p.sequence.steps.find((s) => s.id === row.stepId);
+      const detail = stepDeleteDetail(p, row.stepId);
+      const run = () => edit(C.removeStep(p, row.stepId!), '단계 삭제');
+      if (detail && confirmDelete) confirmDelete(`${step?.name ?? row.title} 삭제`, detail, run);
+      else run();
+      return;
+    }
+    if (action === 'delete' && row.kind === 'wait' && row.blockId) { edit(C.unwrapFlow(p, row.blockId), '신호 기다림 삭제'); return; }
+    if (action === 'delete' && row.kind === 'arm' && typeof row.arm === 'number' && row.blockId) {
+      edit(C.removeParallelLane(p, row.blockId, row.arm), '갈래 삭제');
+    }
+  };
+
+  const onGripDown = (e: React.PointerEvent<HTMLButtonElement>, row: FlowRow) => {
+    if (e.button !== 0 || e.pointerType === 'touch' || !row.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const cur = live.current;
+    if (cur.locked) {
+      cur.edit({ ok: false, reason: EDIT_LOCKED }, '흐름 옮기기');
+      return;
+    }
+    const flow = cur.p.sequence.flow;
+    if (!flow) {
+      cur.edit({ ok: false, reason: '흐름 없음' }, '흐름 옮기기');
+      return;
+    }
+    const moving = dragIds(flow, cur.pickedIds, row.id);
+    if ('reason' in moving) {
+      cur.edit({ ok: false, reason: moving.reason }, '흐름 옮기기');
+      return;
+    }
+    setMenu(null);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* jsdom has no capture */ }
+    dragRef.current = { pointerId: e.pointerId, ids: moving.ids, x: e.clientX, y: e.clientY, slot: null };
+    edgeRef.current = 0;
+    setDragging(true);
+    setDrop(null);
+  };
+
+  const onKey = (e: React.KeyboardEvent<HTMLTableRowElement>, row: FlowRow) => {
+    if (isTextField(e.target as Element)) return;
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = e.currentTarget.getBoundingClientRect();
+      openMenu(row, rect.left, rect.bottom, e.currentTarget);
+      return;
+    }
+    const id = row.id;
     if (!id) return;
-    if (e.key === ' ' && tag !== 'BUTTON' && !locked) { e.preventDefault(); toggle(id); }
+    if (e.key === ' ' && (e.target as HTMLElement).tagName !== 'BUTTON' && !locked) { e.preventDefault(); toggle(id); }
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && p.sequence.flow) {
       e.preventDefault();
       const up = e.key === 'ArrowUp';
@@ -156,33 +295,51 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
       edit(C.moveFlowNode(p, id, up ? -1 : 1), up ? `${what} 위로` : `${what} 아래로`);
     }
   };
+  const showLine = dragging && drop && drop.valid && !drop.noop;
+  const showReason = dragging && drop && !drop.valid && drop.reason;
   return <div>
     <div className="row wrap" style={{ gap: 'var(--sp-1)', marginBottom: 'var(--sp-1)' }}>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('branch', '분기로 묶기')}><IconLabel id="wrap-branch">분기로 묶기</IconLabel></button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('parallel', '병렬로 묶기')}><IconLabel id="wrap-parallel">병렬로 묶기</IconLabel></button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('loop', '반복으로 묶기')}><IconLabel id="wrap-loop">반복으로 묶기</IconLabel></button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('retry', '재시도로 묶기')}><IconLabel id="wrap-retry">재시도로 묶기</IconLabel></button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('branch', '분기로 묶기')}>분기로 묶기</button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('parallel', '병렬로 묶기')}>병렬로 묶기</button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('loop', '반복으로 묶기')}>반복으로 묶기</button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('retry', '재시도로 묶기')}>재시도로 묶기</button>
       <select aria-label="Substation" disabled={locked} value={unitId} onChange={(e) => setUnitId(e.target.value)}>
         {p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
       </select>
-      <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}><IconLabel id="add-substation"><Terms text="Substation 시퀀스 넣기" /></IconLabel></button>
-      <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}><IconLabel id="add-wait">신호 기다림 추가</IconLabel></button>
+      <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}><Terms text="Substation 시퀀스 넣기" /></button>
+      <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}>신호 기다림 추가</button>
     </div>
-    <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
+    <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 줄을 우클릭하면 명령이 열리고, 왼쪽 손잡이를 끌어 다른 자리로 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
     <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>병렬로 묶으면 고른 줄이 갈래마다 하나씩 나뉩니다.</p>
-    <table className="grid" aria-label="Station 흐름">
+    {showReason && <p className="flow-drag-reason" role="status">{drop?.reason}</p>}
+    <table ref={tableRef} className="grid flow-table" aria-label="Station 흐름" data-flow-drag={dragging ? '1' : '0'}>
       <thead><tr><th></th><th>흐름</th><th>조건 · 횟수 · 갈래</th><th>상태</th><th></th></tr></thead>
       <tbody>
         {rows.map((row) => {
-          const id = nodeIdOf(row);
+          const id = row.id;
           const step = row.stepId ? p.sequence.steps.find((s) => s.id === row.stepId) : undefined;
           const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
           const blockName = row.node && 'name' in row.node ? row.node.name : '';
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
-          const live = row.stepId ? statusOf(rt, row.stepId) : null;
-          const jump = row.stepId ? `step:${row.stepId}` : row.blockId && row.kind !== 'arm' ? `flow:${row.blockId}` : undefined;
-          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
-            <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />}</td>
+          const liveRow = row.stepId ? statusOf(rt, row.stepId) : null;
+          const jump = (row.kind === 'wait' || row.kind === 'branch' || row.kind === 'retry') && row.blockId ? `flow:${row.blockId}` : row.stepId ? `step:${row.stepId}` : undefined;
+          return <tr key={row.key} className={row.stepId ? stepLiveClass(liveRow?.phase ?? 'pending') : undefined}
+            data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-node-id={id ?? ''} data-list-key={row.listKey}
+            data-flow-index={row.index} data-depth={row.depth} data-row-key={row.key} data-jump={jump} tabIndex={0}
+            onKeyDown={(e) => onKey(e, row)}
+            onContextMenu={(e) => {
+              if (isTextField(e.target as Element)) return;
+              e.preventDefault();
+              openMenu(row, e.clientX, e.clientY, e.currentTarget);
+            }}>
+            <td className="flow-mark">{id && <>
+              <button type="button" className="small flow-grip" aria-label={`${selectLabel} 옮기기`} data-flow-grip={id}
+                aria-disabled={locked || !p.sequence.flow ? true : undefined}
+                title={locked ? EDIT_LOCKED : !p.sequence.flow ? '흐름 없음' : '끌어 옮기기'}
+                onPointerDown={(e) => onGripDown(e, row)}
+              ><IconLabel id="flow-grip" glyph="⋮⋮" /></button>
+              <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />
+            </>}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
               {isBlockKind(row.kind) && <BlockName name={blockName} word={flowBlockWord(row.kind)} disabled={locked} onCommit={(v) => edit(C.renameFlowBlock(p, row.blockId!, v), '블록 이름')} />}
@@ -211,14 +368,14 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
               </span>}
               {row.kind === 'arm' && typeof row.arm === 'number' && <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeParallelLane(p, row.blockId!, row.arm as number), '갈래 삭제')}>이 갈래 삭제</button>}
             </td>
-            <td>{live ? <StatusMark status={phaseShape(live.phase).status} word={live.label} /> : ''}</td>
+            <td>{liveRow ? <StatusMark status={phaseShape(liveRow.phase).status} word={liveRow.label} /> : ''}</td>
             <td style={{ whiteSpace: 'nowrap' }}>
               {id && <>
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowNode(p, id, -1), row.kind === 'step' ? '단계 위로' : '블록 위로')}>위로</button>
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowNode(p, id, 1), row.kind === 'step' ? '단계 아래로' : '블록 아래로')}>아래로</button>
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowOut(p, id), '블록 밖으로')}>밖으로</button>
               </>}
-              {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && row.kind !== 'wait' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}><IconLabel id="unwrap">블록 풀기</IconLabel></button>}
+              {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && row.kind !== 'wait' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}>블록 풀기</button>}
               {row.kind === 'wait' && row.blockId && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '신호 기다림 삭제')}>삭제</button>}
               {row.kind === 'arm' && row.arm != null && selected.length > 0 && <button type="button" className="small" disabled={locked} onClick={() => { if (edit(C.moveFlowInto(p, selected[0], row.blockId!, row.arm as Arm), '갈래로 옮기기')) setPicked(selected.slice(1)); }}>선택 넣기</button>}
             </td>
@@ -227,5 +384,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
         {rows.length === 0 && <tr><td colSpan={5}>시퀀스 단계가 없습니다.</td></tr>}
       </tbody>
     </table>
+    {showLine && drop && <div className="flow-drop-line" data-testid="flow-drop-line" data-drop-list={drop.listKey} data-drop-index={drop.index} style={{ top: drop.y, left: drop.left + drop.depth * 16, width: Math.max(drop.width - drop.depth * 16, 48) }} />}
+    {menu && <ContextMenu x={menu.x} y={menu.y} kind={menu.kind} items={menu.items} returnFocus={menu.focus} onRun={runMenu} onClose={() => setMenu(null)} />}
   </div>;
 }
