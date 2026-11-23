@@ -1,0 +1,90 @@
+/* TURN-077. Press size and the shared focus ring for rows the shell does not already style.
+   Loaded from App. Selectors start at .app so they win over the base rules in styles.css. */
+
+.app button.small.icon {
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+
+.app .ptab .x,
+.app .exitem .x,
+.app button.x {
+  box-sizing: border-box;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.app .tree .twisty {
+  position: relative;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+}
+
+.app .tree .twisty::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+
+.app input[type="checkbox"] {
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  margin: 0;
+  vertical-align: middle;
+  flex: none;
+}
+
+/* A flow-table check stays 16px in the row. The label's extra box is the press area. */
+.app label.check-hit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+.app label.check-hit input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+}
+
+.app label.check-hit::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+
+.app tr[tabindex]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.app .vsplit:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.app .vsplit:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

@@ -95,7 +95,7 @@
 .scene3d-label.material { color: var(--warning); border-color: var(--warning); font-weight: 700; }
 .scene3d-label.material.waiting { color: var(--status-pending); border-color: var(--status-pending); }
 .scene3d-fallback { flex: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--sp-3); padding: var(--sp-5); }
-.run-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.run-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* TURN-054: the run column heads use the same step as the explorer head. */
 .run3d-head,
