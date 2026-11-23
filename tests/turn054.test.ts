@@ -16,8 +16,8 @@ import {
   type DiagramLabel,
 } from '../src/scene/labels';
 
-const CSS_FILES = ['src/ui/styles.css', 'src/ui/run3d.css', 'src/ui/run-summary.css', 'src/ui/sparse-extra.css', 'src/ui/timing-chart.css'];
-const FONT_CSS = [...CSS_FILES, 'src/ui/help-panel.css', 'src/ui/term.css', 'src/ui/lab.css', 'src/ui/bundle-screen.css', 'src/ui/user-templates.css', 'src/ui/xlsx-intake.css', 'src/ui/background-tools.css', 'src/ui/diagram-background.css', 'src/ui/unit-lock.css'];
+const CSS_FILES = ['src/ui/styles.css', 'src/ui/run3d.css', 'src/ui/run-summary.css', 'src/ui/sparse-extra.css'];
+const FONT_CSS = [...CSS_FILES, 'src/ui/help-panel.css', 'src/ui/term.css', 'src/ui/lab.css', 'src/ui/bundle-screen.css', 'src/ui/user-templates.css', 'src/ui/xlsx-intake.css', 'src/ui/background-tools.css', 'src/ui/diagram-background.css', 'src/ui/unit-lock.css', 'src/ui/problem.css'];
 
 /** Diagram glyphs that scale with the drawing, plus the 16px close mark locked by TURN-007. */
 const FONT_PX_OK = [
