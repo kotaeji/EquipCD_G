@@ -7,7 +7,7 @@ import type { RuntimeState } from '../runtime/engine';
 import { floorNameForZone, type FloorName } from './floorLabel';
 import { partsFor, shapeForKind, type LocalPart, type ShapeId } from './shapes';
 
-export type HighlightReason = 'active' | 'fault';
+export type HighlightReason = 'active' | 'fault' | 'paused';
 
 export interface SceneZone {
   id: string;
@@ -16,6 +16,8 @@ export interface SceneZone {
   z: number;
   w: number;
   d: number;
+  /** The Substation on this floor is held still. */
+  paused?: boolean;
 }
 
 export interface SceneDraw {
@@ -152,7 +154,7 @@ export function activeDeviceIds(p: Project, rt: RuntimeState | null): string[] {
     }
   } else if (rt.flowRun) {
     for (const fiber of fibers) {
-      if (!fiber.active) continue;
+      if (!fiber.active || fiber.frozen) continue;
       const id = deviceOfStep(p, fiber.active.stepId);
       if (id) ids.push(id);
     }
@@ -162,6 +164,23 @@ export function activeDeviceIds(p: Project, rt: RuntimeState | null): string[] {
     if (action) ids.push(action.deviceId);
   }
   return [...new Set(ids)];
+}
+
+/** Devices whose Action is held because their Substation step is paused. */
+export function pausedDeviceIds(p: Project, rt: RuntimeState | null): string[] {
+  if (!rt?.flowRun) return [];
+  const ids: string[] = [];
+  for (const fiber of rt.flowRun.fibers) {
+    if (!fiber.frozen || !fiber.active) continue;
+    const id = deviceOfStep(p, fiber.active.stepId);
+    if (id) ids.push(id);
+  }
+  return [...new Set(ids)];
+}
+
+/** Units whose Substation step is paused. */
+export function pausedUnitIds(rt: RuntimeState | null): string[] {
+  return [...new Set((rt?.pausedSubstations ?? []).map((row) => row.unitId))];
 }
 
 /** Devices whose step stopped on an error. */
@@ -255,14 +274,18 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
   const faults = new Set(faultDeviceIds(p, rt));
   const interlocks = new Set(interlockFaultDeviceIds(p, rt));
   const active = new Set(activeDeviceIds(p, rt));
+  const paused = new Set(pausedDeviceIds(p, rt));
+  const pausedUnits = new Set(pausedUnitIds(rt));
   const highlights: SceneHighlight[] = [
     ...[...faults].map((deviceId) => ({ deviceId, reason: 'fault' as const, ...(interlocks.has(deviceId) ? { interlock: true } : {}) })),
-    ...[...active].filter((id) => !faults.has(id)).map((deviceId) => ({ deviceId, reason: 'active' as const })),
+    ...[...paused].filter((id) => !faults.has(id)).map((deviceId) => ({ deviceId, reason: 'paused' as const })),
+    ...[...active].filter((id) => !faults.has(id) && !paused.has(id)).map((deviceId) => ({ deviceId, reason: 'active' as const })),
   ];
-  const reasonOf = (id: string): SceneSolid['highlight'] => (faults.has(id) ? 'fault' : active.has(id) ? 'active' : 'none');
+  const reasonOf = (id: string): SceneSolid['highlight'] => (faults.has(id) ? 'fault' : paused.has(id) ? 'paused' : active.has(id) ? 'active' : 'none');
 
   const zones: SceneZone[] = p.units.map((u) => ({
     id: u.id, name: u.name, x: u.layout.x, z: u.layout.y, w: u.layout.w, d: u.layout.h,
+    ...(pausedUnits.has(u.id) ? { paused: true } : {}),
   }));
   const floorNames = zones.map((zone) => floorNameForZone(zone));
 

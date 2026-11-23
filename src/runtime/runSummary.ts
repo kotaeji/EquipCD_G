@@ -20,6 +20,9 @@ export interface RunStepSummary {
   pass?: number;
   /** Parallel lane or Substation sequence name. */
   lane?: string;
+  /** Signal-wait row. The name is 「신호 기다림」 and `condText` is the condition. */
+  wait?: boolean;
+  condText?: string;
 }
 
 export interface LongestStep {
@@ -91,7 +94,8 @@ function phaseOf(status: StepRecord['status'] | undefined): RunStepPhase {
   return status && (PHASES as readonly string[]).includes(status) ? status : 'pending';
 }
 
-function stepName(p: Project, stepId: string): string {
+function stepName(p: Project, stepId: string, wait: boolean): string {
+  if (wait) return '신호 기다림';
   return p.sequence.steps.find((s) => s.id === stepId)?.name
     ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === stepId)?.name
     ?? stepId;
@@ -103,7 +107,13 @@ function rowOf(rec: StepRecord | undefined, stepId: string, name: string): RunSt
   const ended = status === 'done' || status === 'error' || status === 'stopped';
   const endMs = ended && rec?.endMs !== undefined ? rec.endMs : null;
   const elapsedMs = startMs !== null && endMs !== null ? endMs - startMs : null;
-  return { stepId, name, status, startMs, endMs, elapsedMs, ...(rec?.pass != null ? { pass: rec.pass } : {}), ...(rec?.lane ? { lane: rec.lane } : {}) };
+  const wait = !!rec?.waitBlockId;
+  return {
+    stepId, name, status, startMs, endMs, elapsedMs,
+    ...(rec?.pass != null ? { pass: rec.pass } : {}),
+    ...(rec?.lane ? { lane: rec.lane } : {}),
+    ...(wait ? { wait: true, condText: rec?.condText } : {}),
+  };
 }
 
 function laneRank(lane?: string): number {
@@ -161,7 +171,7 @@ function occurrenceMode(p: Project, state: RuntimeState | null): boolean {
 /** Summarize one Station sequence run. `state` null means the run has not started. */
 export function summarizeRun(p: Project, state: RuntimeState | null): RunSummary {
   const raw: RunStepSummary[] = occurrenceMode(p, state) && state
-    ? state.steps.map((rec) => rowOf(rec, rec.stepId, stepName(p, rec.stepId)))
+    ? state.steps.map((rec) => rowOf(rec, rec.stepId, stepName(p, rec.stepId, !!rec.waitBlockId)))
     : linearRows(p, state);
   const steps = occurrenceMode(p, state) ? orderRunRecords(p, raw) : raw;
 

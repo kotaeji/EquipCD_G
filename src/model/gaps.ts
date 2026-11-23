@@ -16,6 +16,7 @@ export type RunGapFix =
   | { to: 'unit'; unitId: string }
   | { to: 'interval'; materialId: string }
   | { to: 'step'; stepId: string }
+  | { to: 'flow'; blockId: string }
   | { to: 'interlock'; interlockId: string };
 
 export interface Gap {

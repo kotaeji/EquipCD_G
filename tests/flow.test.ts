@@ -347,9 +347,10 @@ describe('TURN-023 flow edit polish', () => {
     expect(added.ok).toBe(true);
     if (!added.ok) return;
     const nested = C.moveFlowInto(added.project, 'FLW-SUB', 'FLW-PAR', 0);
-    expect(nested.ok).toBe(false);
-    if (nested.ok) return;
-    expect(nested.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    expect(nested.ok).toBe(true);
+    if (!nested.ok) return;
+    const lane = findById(nested.project.sequence.flow!, 'FLW-PAR')!.node;
+    expect(lane.kind === 'parallel' && lane.lanes[0].some((n) => n.kind === 'substation' && n.id === 'FLW-SUB')).toBe(true);
     const parked = C.moveFlowInto(added.project, 'FLW-SUB', 'FLW-LOOP', 'body');
     expect(parked.ok).toBe(true);
 
@@ -364,7 +365,7 @@ describe('TURN-023 flow edit polish', () => {
     const clash = C.moveFlowInto(second.project, 'P2', 'P1', 0);
     expect(clash.ok).toBe(false);
     if (clash.ok) return;
-    expect(clash.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    expect(clash.reason).toBe('병렬 갈래 안에는 병렬을 넣지 않습니다');
   });
 
   it('AC5 wraps a mixed consecutive run and keeps the parallel-lane rule', () => {
@@ -384,7 +385,7 @@ describe('TURN-023 flow edit polish', () => {
     const parallel = C.wrapFlow(p0, ['FLW-RETRY', 'FLW-BRANCH'], 'parallel');
     expect(parallel.ok).toBe(false);
     if (parallel.ok) return;
-    expect(parallel.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    expect(parallel.reason).toBe('병렬 갈래 안에는 병렬을 넣지 않습니다');
     const gap = C.wrapFlow(p0, [p0.sequence.flow![0].kind === 'step' ? p0.sequence.flow![0].stepId : '', 'FLW-RETRY'], 'loop');
     expect(gap.ok).toBe(false);
     if (gap.ok) return;
@@ -402,7 +403,7 @@ describe('TURN-023 flow edit polish', () => {
     const nested = C.wrapFlow(same.project, ids, 'parallel');
     expect(nested.ok).toBe(false);
     if (nested.ok) return;
-    expect(nested.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    expect(nested.reason).toBe('병렬 갈래 안에는 병렬을 넣지 않습니다');
     expect(C.wrapFlow(same.project, ids, 'loop').ok).toBe(true);
 
     const sample = buildSampleProject();
@@ -412,9 +413,10 @@ describe('TURN-023 flow edit polish', () => {
     const prev = sub.project.sequence.flow![sub.project.sequence.flow!.length - 2];
     const prevId = prev.kind === 'step' ? prev.stepId : prev.id;
     const withSub = C.wrapFlow(sub.project, [prevId, 'FLW-SUB'], 'parallel');
-    expect(withSub.ok).toBe(false);
-    if (withSub.ok) return;
-    expect(withSub.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    expect(withSub.ok).toBe(true);
+    if (!withSub.ok) return;
+    const wrapped = findById(withSub.project.sequence.flow!, withSub.note!)!.node;
+    expect(wrapped.kind === 'parallel' && wrapped.lanes.some((lane) => lane.some((n) => n.kind === 'substation'))).toBe(true);
     const around = C.wrapFlow(sub.project, [prevId, 'FLW-SUB'], 'loop', () => 'WITH-SUB');
     expect(around.ok).toBe(true);
     if (!around.ok) return;
@@ -425,7 +427,7 @@ describe('TURN-023 flow edit polish', () => {
 
   it('AC7 samples keep their times and the file and runtime versions stay put', () => {
     expect(FILE_FORMAT_VERSION).toBe('0.3.0');
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.5.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.6.0');
     expect(runToEnd(createRuntime(buildFlowSampleProject())).state.timeMs).toBe(13100);
     expect(runToEnd(createRuntime(buildParallelSampleProject())).state.timeMs).toBe(2500);
     expect(runToEnd(createRuntime(buildSampleProject())).state.timeMs).toBe(11100);

@@ -77,7 +77,7 @@ describe('TURN-034 parallel wrap lanes', () => {
     const nested = C.wrapFlow(together.project, split.ids, 'parallel');
     expect(nested.ok).toBe(false);
     if (nested.ok) return;
-    expect(nested.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    expect(nested.reason).toBe('병렬 갈래 안에는 병렬을 넣지 않습니다');
     expect(C.wrapFlow(together.project, split.ids, 'loop').ok).toBe(true);
 
     const gap = C.wrapFlow(p0, [p0.sequence.steps[0].id, p0.sequence.steps[2].id], 'parallel');
@@ -91,9 +91,7 @@ describe('TURN-034 parallel wrap lanes', () => {
     const prev = sub.project.sequence.flow![sub.project.sequence.flow!.length - 2];
     const prevId = prev.kind === 'step' ? prev.stepId : prev.id;
     const withSub = C.wrapFlow(sub.project, [prevId, 'FLW-SUB'], 'parallel');
-    expect(withSub.ok).toBe(false);
-    if (withSub.ok) return;
-    expect(withSub.reason).toBe('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    expect(withSub.ok).toBe(true);
   });
 
   it('AC6 two steps on different devices pass the pre-run check and run to the end', () => {
@@ -123,7 +121,7 @@ describe('TURN-034 parallel wrap lanes', () => {
   it('AC7 sample times and version constants stay put', () => {
     expect(FILE_FORMAT_VERSION).toBe('0.3.0');
     expect(APP_VERSION).toBe('0.3.0-prototype');
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.5.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.6.0');
     expect(runToEnd(createRuntime(buildFlowSampleProject())).state.timeMs).toBe(13100);
     expect(runToEnd(createRuntime(buildParallelSampleProject())).state.timeMs).toBe(2500);
     expect(runToEnd(createRuntime(buildSampleProject())).state.timeMs).toBe(11100);

@@ -97,7 +97,8 @@ export type ExportFlowNode =
   | { kind: 'parallel'; id: string; name: string; lanes: ExportFlowNode[][] }
   | { kind: 'loop'; id: string; name: string; count: number; body: ExportFlowNode[] }
   | { kind: 'retry'; id: string; name: string; until: Condition; maxRetries: number; body: ExportFlowNode[] }
-  | { kind: 'substation'; id: string; unitId: string };
+  | { kind: 'substation'; id: string; unitId: string }
+  | { kind: 'wait'; id: string; name: string; cond: Condition; timeout: ExportQuantity };
 
 export interface ExportSequence {
   id: string;
@@ -165,6 +166,7 @@ function exportFlow(nodes: FlowNode[]): ExportFlowNode[] {
     if (n.kind === 'parallel') return { kind: 'parallel', id: n.id, name: n.name, lanes: n.lanes.map(exportFlow) };
     if (n.kind === 'loop') return { kind: 'loop', id: n.id, name: n.name, count: n.count, body: exportFlow(n.body) };
     if (n.kind === 'retry') return { kind: 'retry', id: n.id, name: n.name, until: structuredClone(n.until), maxRetries: n.maxRetries, body: exportFlow(n.body) };
+    if (n.kind === 'wait') return { kind: 'wait', id: n.id, name: n.name, cond: structuredClone(n.cond), timeout: exportQuantity(n.timeout) };
     return { kind: 'substation', id: n.id, unitId: n.unitId };
   });
 }
@@ -339,6 +341,7 @@ function flowFields(n: ExportFlowNode): Record<string, string> | null {
   if (n.kind === 'parallel') return { 이름: n.name, 갈래: n.lanes.map((lane) => childKeys(lane)).join(' || ') };
   if (n.kind === 'loop') return { 이름: n.name, 횟수: String(n.count), 본문: childKeys(n.body) };
   if (n.kind === 'retry') return { 이름: n.name, 조건: stableStringify(n.until, 0), 최대: String(n.maxRetries), 본문: childKeys(n.body) };
+  if (n.kind === 'wait') return { 이름: n.name, 조건: stableStringify(n.cond, 0), 타임아웃: qtyText(n.timeout) };
   return { 유닛: n.unitId };
 }
 

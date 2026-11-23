@@ -1,5 +1,5 @@
 import { getAssetById } from '../assets/library';
-import { flowIntegrity, flowShapeBlockers, hasFlow, laneSteps, stepOrder, walk } from './flow';
+import { flowIntegrity, flowShapeBlockers, hasFlow, laneWorkSteps, stepOrder, waitAdvisories, walk } from './flow';
 import { interlockNotices } from './interlock';
 import { checkLanes } from './laneCheck';
 import { feedCountOf, type Condition, type FlowNode, type Project } from './types';
@@ -129,6 +129,7 @@ export function checkRunReadiness(p: Project): Readiness {
   const blockers = diags.filter((d) => d.severity === 'error');
   const warnings = diags.filter((d) => d.severity === 'warning');
   for (const n of interlockNotices(p)) warnings.push(n);
+  for (const n of waitAdvisories(p)) warnings.push(n);
   const b = (code: string, objectId: string, message: string) => blockers.push({ id: `${code}:${objectId}:${blockers.length}`, severity: 'error', code, objectId, message });
   if (blockers.length) return { ok: false, blockers, warnings };
   const ix = indexProject(p);
@@ -144,7 +145,7 @@ export function checkRunReadiness(p: Project): Readiness {
     if (m.feedCount != null && (!Number.isInteger(m.feedCount) || m.feedCount < 1)) b('FEED_COUNT', m.id, '투입 개수는 1 이상의 정수여야 합니다');
     const n = feedCountOf(m);
     if (n >= 2 && m.feedInterval.value === null) b('FEED_INTERVAL', m.id, '투입 개수가 2 이상이면 투입 간격을 정해야 합니다');
-    if (n >= 2 && hasFlow(p) && stepOrder(p) === null) b('MULTI_FLOW', p.sequence.id, '투입 개수 2 이상은 순차 시퀀스만 실행합니다. 분기·병렬·반복·재시도·Substation 흐름은 막습니다.');
+    if (n >= 2 && hasFlow(p) && stepOrder(p) === null) b('MULTI_FLOW', p.sequence.id, '투입 개수 2 이상은 순차 시퀀스만 실행합니다. 분기·병렬·반복·재시도·신호 기다림·Substation 흐름은 막습니다.');
   }
   for (const s of p.sequence.steps) {
     const a = ix.action.get(s.actionId)!;
@@ -167,8 +168,8 @@ export function checkRunReadiness(p: Project): Readiness {
     walk(flow, (n) => { if (n.kind === 'parallel') parallels.push(n); if (n.kind === 'substation') subs.push(n); });
     for (const n of parallels) {
       if (n.kind !== 'parallel') continue;
-      const lanes = n.lanes.map((lane, i) => ({ id: `${n.id}:${i}`, name: `${n.name} 갈래 ${i + 1}`, steps: laneSteps(p, lane) }));
-      for (const d of checkLanes(p, lanes).blockers) blockers.push(d);
+      const lanes = n.lanes.map((lane, i) => ({ id: `${n.id}:${i}`, name: `${n.name} 갈래 ${i + 1}`, steps: laneWorkSteps(p, lane) })).filter((lane) => lane.steps.length > 0);
+      if (lanes.length) for (const d of checkLanes(p, lanes).blockers) blockers.push(d);
     }
     for (const n of subs) {
       if (n.kind !== 'substation') continue;

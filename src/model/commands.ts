@@ -4,7 +4,7 @@ import { instantiateDevice, makeUnit, newId } from './factory';
 import { devicesOfRule, releaseBrokenInterlocks } from './interlock';
 import type { Action, AssetKind, Condition, Connection, Device, FlowNode, InterlockRule, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { DEFAULT_MAX_RETRIES, q } from './types';
-import { containsList, containsParallelOrSubstation, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
+import { containsList, containsParallel, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
 import { arrangeUnitDevices } from './deviceArrange';
 import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, rectsOverlap, tightUnitLayout, unitMinSize } from './unitLayout';
 
@@ -912,8 +912,8 @@ export function wrapFlow(p0: Project, ids: string[], kind: WrapKind, idOf: (s: s
   const spot = findConsecutive(flow, ids);
   if (!spot) return no('같은 갈래에서 연속된 단계만 묶을 수 있습니다');
   const inner = spot.list.slice(spot.index, spot.index + ids.length);
-  if (kind === 'parallel' && (listInsideParallel(flow, spot.list) || inner.some(containsParallelOrSubstation))) {
-    return no('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+  if (kind === 'parallel' && (listInsideParallel(flow, spot.list) || inner.some(containsParallel))) {
+    return no('병렬 갈래 안에는 병렬을 넣지 않습니다');
   }
   const id = idOf('flow');
   let block: FlowNode;
@@ -980,6 +980,7 @@ export function setFlowCondition(p0: Project, blockId: string, cond: Condition):
   if (!hit) return no('블록 없음');
   if (hit.node.kind === 'branch') hit.node.cond = cond;
   else if (hit.node.kind === 'retry') hit.node.until = cond;
+  else if (hit.node.kind === 'wait') hit.node.cond = cond;
   else return no('조건을 두는 블록이 아닙니다');
   return ok(p);
 }
@@ -990,6 +991,26 @@ export function renameFlowBlock(p0: Project, blockId: string, name: string): Cmd
   const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
   if (!hit || hit.node.kind === 'step' || hit.node.kind === 'substation') return no('블록 없음');
   hit.node.name = name.trim();
+  return ok(p);
+}
+
+/** Append a signal-wait block. Timeout starts undetermined so a run cannot begin until it is set. */
+export function addWaitNode(p0: Project, idOf: (s: string) => string = newId): CmdResult {
+  const p = clone(p0);
+  const id = idOf('flow');
+  flowOf(p).push({
+    kind: 'wait', id, name: '신호 기다림', cond: resultCond(p),
+    timeout: { value: null, unit: 's', assumption: true },
+  });
+  return ok(p, id);
+}
+
+export function setWaitTimeout(p0: Project, blockId: string, seconds: number | null): CmdResult {
+  if (seconds !== null && (!Number.isFinite(seconds) || seconds < 0)) return no('타임아웃은 0 이상');
+  const p = clone(p0);
+  const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
+  if (!hit || hit.node.kind !== 'wait') return no('신호 기다림 블록 없음');
+  hit.node.timeout = { ...hit.node.timeout, value: seconds };
   return ok(p);
 }
 
@@ -1026,7 +1047,7 @@ export function moveFlowInto(p0: Project, id: string, blockId: string, arm: 'the
   const moving = findById(flow, id);
   if (!moving) return no('노드 없음');
   if (moving.node.kind !== 'step' && containsList(moving.node, target)) return no('블록을 자기 자신 안에 넣을 수 없습니다');
-  if (listInsideParallel(flow, target) && containsParallelOrSubstation(moving.node)) return no('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+  if (listInsideParallel(flow, target) && containsParallel(moving.node)) return no('병렬 갈래 안에는 병렬을 넣지 않습니다');
   const next = moveNodeTo(flow, id, target, target.length);
   if (!next) return no('옮길 수 없습니다');
   p.sequence.flow = next;

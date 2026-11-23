@@ -173,7 +173,8 @@ describe('TURN-023 flow editor UI', () => {
     await u.click(check('substation'));
     const lane = [...u.flowTable().querySelectorAll('tr[data-flow-kind="arm"]')].find((r) => (r.textContent ?? '').includes('갈래 1'))!;
     await u.click([...lane.querySelectorAll('button')].find((b) => b.textContent === '선택 넣기'));
-    expect(u.el.querySelector('.toast.err')!.textContent).toContain('병렬 갈래 안에는 병렬과 Substation 단계를 넣지 않습니다');
+    const parked = findById(u.history().present.sequence.flow!, 'FLW-PAR')!.node;
+    expect(parked.kind === 'parallel' && parked.lanes[0].some((n) => n.kind === 'substation')).toBe(true);
 
     await act(async () => { root!.unmount(); });
     root = null;

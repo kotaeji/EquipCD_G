@@ -35,6 +35,12 @@ export interface RunInfoBar {
   lane?: string;
   pass?: number;
   unitId: string | null;
+  /** Signal-wait row. */
+  wait?: boolean;
+  condText?: string;
+  /** In-progress Substation step this row belongs to. */
+  substationNodeId?: string;
+  substationPaused?: boolean;
 }
 
 export interface RunInfo {
@@ -157,7 +163,8 @@ function runningNow(p: Project, rt: RuntimeState | null): { name: string; lane?:
   }
   if (rt.flowRun) {
     return rt.flowRun.fibers.flatMap((fiber) => {
-      if (!fiber.active) return [];
+      if (fiber.holding && !fiber.frozen) return [{ name: '신호 기다림', ...(fiber.lane ? { lane: fiber.lane } : {}) }];
+      if (!fiber.active || fiber.frozen) return [];
       const step = p.sequence.steps.find((s) => s.id === fiber.active!.stepId)
         ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === fiber.active!.stepId);
       return [{ name: step?.name ?? fiber.active.stepId, ...(fiber.lane ? { lane: fiber.lane } : {}) }];
@@ -190,14 +197,20 @@ export function describeRunInfo(p: Project, rt: RuntimeState | null): RunInfo {
     const unitId = unitOfDevice(p, deviceOfStep(p, row.stepId));
     const widthMs = assumed ? assumedMs(p, row.stepId) : (row.elapsedMs ?? 0);
     const timeText = assumed ? formatMs(widthMs) : (row.elapsedMs === null ? '-' : formatMs(row.elapsedMs));
+    const owner = !assumed && rt?.flowRun
+      ? rt.flowRun.fibers.find((fiber) => fiber.owner && fiber.active?.stepId === row.stepId && (row.lane ? fiber.lane === row.lane : true))
+      : undefined;
+    const paused = !!owner?.owner && (rt?.pausedSubstations ?? []).some((item) => item.nodeId === owner.owner!.nodeId);
     return {
       key: `${row.stepId}:${i}`,
       stepId: row.stepId,
       name: row.name,
       status: row.status,
-      statusLabel: assumed ? '가정' : stepStatusLabel(row.status),
+      statusLabel: assumed ? '가정' : paused ? '일시정지' : row.wait && row.status === 'active' ? '대기' : stepStatusLabel(row.status),
       widthMs,
       timeText,
+      ...(row.wait ? { wait: true, condText: row.condText } : {}),
+      ...(owner?.owner ? { substationNodeId: owner.owner.nodeId, substationPaused: paused } : {}),
       longest: false,
       ...(row.lane ? { lane: row.lane } : {}),
       ...(row.pass != null ? { pass: row.pass } : {}),
