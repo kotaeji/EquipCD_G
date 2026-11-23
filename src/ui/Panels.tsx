@@ -367,7 +367,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
   return (
     <div className="cols">
       <div style={{ width: 300, borderRight: '1px solid var(--border)', paddingRight: 8, overflow: 'auto' }}>
-        <div className="row"><Badge kind="ok">경로 A 직접 입력</Badge><Badge>경로 B 문서(PDF/DWG/XLSX) 미구현</Badge></div>
+        <div className="row"><Badge kind="ok">경로 A 직접 입력</Badge><Badge>경로 B XLSX는 자료 입력</Badge></div>
         <div className="row"><Badge>경로 C VC/USD 미구현</Badge><Badge>유사 장비 템플릿: 5공정 예제만</Badge></div>
         <div className="row"><label>대상</label><select value={targetKind} onChange={(e) => setTargetKind(e.target.value as 'unit' | 'device')}><option value="device">Device</option><option value="unit">Unit</option></select></div>
         <div className="row"><label>이름</label><input data-jump="candidate-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="예) SEN-02" /></div>
@@ -381,9 +381,18 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
         <table className="grid"><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th><Terms text="소속 Unit" /></th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
-          <tbody>{p.candidates.map((c) => <tr key={c.id} data-jump={`candidate:${c.id}`}>
-            <td className="mono" style={{ fontSize: 10 }}>{c.id}</td><td>{c.targetKind}</td><td>{c.name}</td><td>{c.deviceKind ?? '-'}</td>
-            <td>{c.targetKind === 'device' ? <select disabled={locked || !!c.appliedObjectId} value={c.assignedUnitId ?? ''} onChange={(e) => setCand(c.id, { assignedUnitId: e.target.value || null })}><option value="">(미배정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select> : '-'}</td>
+          <tbody>{p.candidates.map((c) => <tr key={c.id} data-jump={`candidate:${c.id}`} data-candidate-kind={c.targetKind} data-already={c.alreadyExists ? 'true' : 'false'}>
+            <td className="mono" style={{ fontSize: 10 }}>{c.id}</td><td>{c.targetKind}</td>
+            <td>{c.name}{c.alreadyExists ? <> <Badge kind="warn">이미 있음</Badge></> : null}</td>
+            <td>{c.targetKind === 'device' && !c.deviceKind && !c.appliedObjectId
+              ? <select aria-label={`${c.name} 종류`} disabled={locked} value="" onChange={(e) => {
+                const deviceKind = e.target.value || null;
+                const patch: Partial<Project['candidates'][number]> = { deviceKind };
+                if (deviceKind) patch.confidence = c.confidence.basis.includes('추측') ? { level: 'low', basis: '추측 매핑' } : { level: 'medium', basis: '사람이 종류를 지정' };
+                setCand(c.id, patch);
+              }}><option value="">종류 미지정</option>{ASSET_LIBRARY.filter((a) => !a.template).map((a) => <option key={a.kind} value={a.kind}>{a.name}</option>)}</select>
+              : c.targetKind === 'signal' ? `${c.signalDirection === 'out' ? '출력' : c.signalDirection === 'in' ? '입력' : '방향 없음'}${c.signalAddress ? ` · ${c.signalAddress}` : ''}` : (c.deviceKind ?? (c.targetKind === 'device' ? '종류 미지정' : '-'))}</td>
+            <td>{c.targetKind === 'device' ? <><select aria-label={`${c.name} 소속`} disabled={locked || !!c.appliedObjectId} value={c.assignedUnitId ?? ''} onChange={(e) => setCand(c.id, { assignedUnitId: e.target.value || null })}><option value="">(미배정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>{c.assignedUnitName && !c.assignedUnitId ? <span>후보 Unit {c.assignedUnitName}</span> : null}</> : c.targetKind === 'signal' ? (c.signalDeviceName ?? '-') : '-'}</td>
             <td style={{ fontSize: 11 }}>{c.sourceRefs.map((s) => s.note ?? s.method).join(', ')}</td>
             <td style={{ fontSize: 11 }}>{c.confidence.level} · {c.confidence.basis}</td>
             <td style={{ whiteSpace: 'nowrap' }}><Badge kind={c.confirmation === 'confirmed' ? 'ok' : c.confirmation === 'rejected' ? 'err' : 'warn'}>{c.confirmation}</Badge>
@@ -436,10 +445,9 @@ export function LabPanel() {
 /** S14 — document intake that this product does not perform. */
 export function ExtractPanel() {
   return <div className="notice" data-screen-note="S14">
-    <b>자료 입력 — 미구현</b>
-    <p>PDF, DWG, XLSX, USD에서 장비·수치를 뽑는 기능은 없습니다. 파일을 올려도 모델은 바뀌지 않으며, 예시 표를 추출 성공으로 보여 주지 않습니다.</p>
-    <p>지금 넣을 수 있는 것은 입력 후보표의 직접 입력과 AML 라이브러리 파일입니다.</p>
-    <button type="button" disabled title="미구현: 문서 추출을 하지 않습니다">문서에서 가져오기</button>
+    <b>자료 입력</b>
+    <p>XLSX(IO 리스트 · 사양표)는 이 화면에서 읽어 후보로 올립니다. PDF, DWG, USD는 추출하지 않습니다.</p>
+    <p>파일은 이 브라우저 안에서만 읽습니다. 업로드와 외부 전송은 없습니다. 확인한 후보만 모델에 반영됩니다.</p>
   </div>;
 }
 
