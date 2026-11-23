@@ -1,5 +1,6 @@
 // Read-only SFC. Drawn 1:1 (11px text). The page scrolls when the chart is taller than the screen.
 import type { ReactNode } from 'react';
+import { armLabel, branchArms } from '../model/flow';
 import type { FlowNode, Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus } from '../runtime/runSummary';
@@ -58,32 +59,43 @@ function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey): B
     return { w: BOX_W, h: BOX_H, body: (x, y) => box(n.stepId, stepName(p, n.stepId), x, y, tone(n.stepId)) };
   }
   if (n.kind === 'branch') {
-    const thenB = layoutSeq(p, n.then, tone);
-    const elseB = layoutSeq(p, n.else, tone);
+    const arms = branchArms(n);
     const gap = 36;
-    const w = Math.max(BOX_W, thenB.w + elseB.w + gap);
-    const h = 40 + Math.max(thenB.h, elseB.h) + 20;
-    const thenLabel = `참 ${condLabel(p, n.cond)}`;
-    const elseLabel = `거짓 ${condLabel(p, n.cond.kind === 'signal' ? { ...n.cond, equals: !n.cond.equals } : n.cond)}`;
+    const laid = arms.map((arm, i) => arm.body.length
+      ? layoutSeq(p, arm.body, tone)
+      : { w: BOX_W, h: BOX_H, body: (x: number, y: number) => box(`empty-${n.id}-${i}`, '(빈 갈래)', x, y, 'pending') });
+    const w = Math.max(BOX_W, laid.reduce((sum, b) => sum + b.w, 0) + gap * Math.max(0, laid.length - 1));
+    const h = 40 + Math.max(...laid.map((b) => b.h), BOX_H) + 20;
+    const labels = arms.length === 2
+      ? [
+          `참 ${condLabel(p, n.cond)}`,
+          `거짓 ${condLabel(p, n.cond.kind === 'signal' ? { ...n.cond, equals: !n.cond.equals } : n.cond)}`,
+        ]
+      : arms.map((arm, i) => arm.cond ? `${armLabel(arms.length, i)} ${condLabel(p, arm.cond)}` : '그 밖');
     return {
       w, h, body: (x, y) => {
-        const thenCx = x + thenB.w / 2;
-        const elseCx = x + thenB.w + gap + elseB.w / 2;
         const splitY = y + 28;
         const bodyY = splitY + 14;
         const joinY = y + h - 2;
-        return <g>
+        let cursor = x;
+        const cols = laid.map((b) => {
+          const left = cursor;
+          const cx = left + b.w / 2;
+          cursor += b.w + gap;
+          return { left, cx, b };
+        });
+        const first = cols[0];
+        const last = cols[cols.length - 1];
+        return <g data-sfc-kind="branch" data-sfc-arms={arms.length} data-sfc-branch={n.id}>
           <text x={x} y={y + 14} fontSize={FONT} fill="var(--text)">{flowBlockTitle('branch', n.name)}</text>
-          <text x={x} y={splitY - 2} fontSize={FONT} fill="var(--text)">{thenLabel}</text>
-          <text x={x + thenB.w + gap} y={splitY - 2} fontSize={FONT} fill="var(--text)">{elseLabel}</text>
-          <line x1={thenCx} y1={splitY} x2={elseCx} y2={splitY} stroke="var(--text)" />
-          <line x1={thenCx} y1={splitY} x2={thenCx} y2={bodyY} stroke="var(--text)" />
-          <line x1={elseCx} y1={splitY} x2={elseCx} y2={bodyY} stroke="var(--text)" />
-          {thenB.body(x, bodyY)}
-          {elseB.body(x + thenB.w + gap, bodyY)}
-          <line x1={thenCx} y1={bodyY + thenB.h} x2={thenCx} y2={joinY} stroke="var(--text)" />
-          <line x1={elseCx} y1={bodyY + elseB.h} x2={elseCx} y2={joinY} stroke="var(--text)" />
-          <line x1={thenCx} y1={joinY} x2={elseCx} y2={joinY} stroke="var(--text)" />
+          {cols.map((col, i) => <text key={`l${i}`} x={col.left} y={splitY - 2} fontSize={FONT} fill="var(--text)" data-sfc-arm={i}>{labels[i]}</text>)}
+          {first && last && <line x1={first.cx} y1={splitY} x2={last.cx} y2={splitY} stroke="var(--text)" />}
+          {cols.map((col, i) => <g key={i}>
+            <line x1={col.cx} y1={splitY} x2={col.cx} y2={bodyY} stroke="var(--text)" />
+            {col.b.body(col.left, bodyY)}
+            <line x1={col.cx} y1={bodyY + col.b.h} x2={col.cx} y2={joinY} stroke="var(--text)" />
+          </g>)}
+          {first && last && <line x1={first.cx} y1={joinY} x2={last.cx} y2={joinY} stroke="var(--text)" />}
         </g>;
       },
     };

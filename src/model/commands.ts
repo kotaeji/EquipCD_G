@@ -4,7 +4,7 @@ import { instantiateDevice, makeUnit, newId } from './factory';
 import { devicesOfRule, releaseBrokenInterlocks } from './interlock';
 import type { Action, AssetKind, Condition, Connection, Device, FlowNode, InterlockRule, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { DEFAULT_MAX_RETRIES, q } from './types';
-import { containsList, containsParallel, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
+import { armLists, branchArms, branchFromArms, containsList, containsParallel, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, MAX_BRANCH_ARMS, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes, type BranchArm } from './flow';
 import { arrangeUnitDevices } from './deviceArrange';
 import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, rectsOverlap, tightUnitLayout, unitMinSize } from './unitLayout';
 
@@ -1013,6 +1013,79 @@ export function unwrapFlow(p0: Project, blockId: string): CmdResult {
   return ok(p);
 }
 
+function branchAt(p: Project, blockId: string) {
+  const flow = p.sequence.flow;
+  if (!flow) return null;
+  const hit = findById(flow, blockId);
+  if (!hit || hit.node.kind !== 'branch') return null;
+  return hit;
+}
+
+/** Insert one conditional arm before 「그 밖」. Five arms are rejected. The new arm starts empty and undetermined. */
+export function addBranchArm(p0: Project, blockId: string): CmdResult {
+  const p = clone(p0);
+  const hit = branchAt(p, blockId);
+  if (!hit || hit.node.kind !== 'branch') return no('분기 블록 없음');
+  const arms = branchArms(hit.node);
+  if (arms.length >= MAX_BRANCH_ARMS) return no('갈래는 4개까지입니다');
+  const created: BranchArm = { cond: { kind: 'undefined', note: '조건 없음' }, body: [] };
+  const next = [...arms.slice(0, -1), created, arms[arms.length - 1]];
+  hit.list[hit.index] = branchFromArms(hit.node, next);
+  return ok(p);
+}
+
+/** Drop one arm. Its lines move to the sibling list after the branch, same as a parallel lane. */
+export function removeBranchArm(p0: Project, blockId: string, armIndex: number): CmdResult {
+  const p = clone(p0);
+  const hit = branchAt(p, blockId);
+  if (!hit || hit.node.kind !== 'branch') return no('분기 블록 없음');
+  const arms = branchArms(hit.node);
+  if (arms.length <= 2) return no('갈래는 2개 이상이어야 합니다');
+  if (armIndex < 0 || armIndex >= arms.length) return no('갈래 없음');
+  const removed = arms[armIndex];
+  const next = arms.filter((_, i) => i !== armIndex);
+  hit.list[hit.index] = branchFromArms(hit.node, next);
+  hit.list.splice(hit.index + 1, 0, ...removed.body);
+  return ok(p);
+}
+
+/**
+ * Swap an arm with its neighbor. A condition stays on its conditional slot when one side is 「그 밖」,
+ * so moving the last arm and moving it back restores the same condition.
+ */
+export function moveBranchArm(p0: Project, blockId: string, armIndex: number, delta: number): CmdResult {
+  if (delta !== -1 && delta !== 1) return no('이동 불가');
+  const p = clone(p0);
+  const hit = branchAt(p, blockId);
+  if (!hit || hit.node.kind !== 'branch') return no('분기 블록 없음');
+  const arms = branchArms(hit.node);
+  const j = armIndex + delta;
+  if (armIndex < 0 || j < 0 || armIndex >= arms.length || j >= arms.length) return no('이동 불가');
+  const a = arms[armIndex];
+  const b = arms[j];
+  if (a.cond && b.cond) {
+    arms[armIndex] = b;
+    arms[j] = a;
+  } else {
+    arms[armIndex] = { ...a, body: b.body };
+    arms[j] = { ...b, body: a.body };
+  }
+  hit.list[hit.index] = branchFromArms(hit.node, arms);
+  return ok(p);
+}
+
+/** Set the condition of one conditional arm. The last arm has no condition. */
+export function setBranchArmCondition(p0: Project, blockId: string, armIndex: number, cond: Condition): CmdResult {
+  const p = clone(p0);
+  const hit = branchAt(p, blockId);
+  if (!hit || hit.node.kind !== 'branch') return no('분기 블록 없음');
+  const arms = branchArms(hit.node);
+  if (armIndex < 0 || armIndex >= arms.length - 1) return no('조건을 두는 갈래가 아닙니다');
+  arms[armIndex] = { ...arms[armIndex], cond };
+  hit.list[hit.index] = branchFromArms(hit.node, arms);
+  return ok(p);
+}
+
 export function addParallelLane(p0: Project, blockId: string): CmdResult {
   const p = clone(p0);
   const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
@@ -1116,9 +1189,12 @@ export function moveFlowInto(p0: Project, id: string, blockId: string, arm: 'the
   const block = findById(flow, blockId);
   if (!block) return no('블록 없음');
   let target: FlowNode[] | null = null;
-  if (block.node.kind === 'branch' && arm === 'then') target = block.node.then;
-  else if (block.node.kind === 'branch' && arm === 'else') target = block.node.else;
-  else if ((block.node.kind === 'loop' || block.node.kind === 'retry') && (arm === 'body' || arm === 'then')) target = block.node.body;
+  if (block.node.kind === 'branch') {
+    const lists = armLists(block.node);
+    if (arm === 'then') target = lists[0] ?? null;
+    else if (arm === 'else') target = lists[lists.length - 1] ?? null;
+    else if (typeof arm === 'number') target = lists[arm] ?? null;
+  } else if ((block.node.kind === 'loop' || block.node.kind === 'retry') && (arm === 'body' || arm === 'then')) target = block.node.body;
   else if (block.node.kind === 'parallel' && typeof arm === 'number') target = block.node.lanes[arm] ?? null;
   if (!target) return no('갈래 없음');
   const moving = findById(flow, id);

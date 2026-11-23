@@ -1,11 +1,11 @@
 // Condition diagnosis (TURN-052). Reads the model only. Does not block a run.
 // The same model returns the same findings in the same order.
-import { walk } from './flow';
+import { armLabel, armLists, branchArms, walk } from './flow';
 import { conditionFormula, conditionsFormula, signalHead, stepById } from './conditionFormula';
 import type { Condition, FlowNode, Project, SequenceStep } from './types';
 
 export type ConditionLevel = 'error' | 'undetermined' | 'info';
-export type ConditionKind = 'broken' | 'alwaysFalse' | 'overlap' | 'undetermined' | 'opposite';
+export type ConditionKind = 'broken' | 'alwaysFalse' | 'overlap' | 'undetermined' | 'opposite' | 'unreachable';
 
 export interface ConditionJump {
   step: 'attributes' | 'sequence';
@@ -73,6 +73,8 @@ interface Site {
   where: string;
   list: Condition[];
   jump: ConditionJump;
+  /** Marks also look here. Defaults to `[key]`. */
+  sites?: string[];
 }
 
 function actionJump(p: Project, actionId: string, field: string): ConditionJump {
@@ -110,7 +112,21 @@ function sitesOf(p: Project): Site[] {
   const flow = p.sequence.flow;
   if (flow) {
     walk(flow, (n) => {
-      if (n.kind === 'branch') out.push({ key: `flow:${n.id}`, where: `분기 ${n.name}`, list: [n.cond], jump: flowJump(n.id) });
+      if (n.kind === 'branch') {
+        const arms = branchArms(n);
+        arms.forEach((arm, index) => {
+          if (!arm.cond) return;
+          const multi = arms.length > 2;
+          const key = index === 0 ? `flow:${n.id}` : `flow:${n.id}:arm:${index}`;
+          out.push({
+            key,
+            where: multi ? `분기 ${n.name} ${armLabel(arms.length, index)}` : `분기 ${n.name}`,
+            list: [arm.cond],
+            jump: multi ? { step: 'sequence', sub: 'sequence', field: `flow:${n.id}:arm:${index}` } : flowJump(n.id),
+            sites: !multi ? undefined : index === 0 ? [`flow:${n.id}`, `flow:${n.id}:arm:0`] : [`flow:${n.id}:arm:${index}`],
+          });
+        });
+      }
       else if (n.kind === 'retry') out.push({ key: `flow:${n.id}`, where: `재시도 ${n.name}`, list: [n.until], jump: flowJump(n.id) });
       else if (n.kind === 'wait') out.push({ key: `flow:${n.id}`, where: `신호 기다림 ${n.name}`, list: [n.cond], jump: flowJump(n.id) });
     });
@@ -132,7 +148,7 @@ function bundleFindings(p: Project, site: Site, states: Set<string>): ConditionF
   const out: ConditionFinding[] = [];
   const formula = conditionsFormula(p, site.list);
   const push = (kind: ConditionKind, level: ConditionLevel, id: string, reason: string) => {
-    out.push({ id, level, kind, site: site.key, sites: [site.key], where: site.where, formula, reason, jump: site.jump });
+    out.push({ id, level, kind, site: site.key, sites: site.sites ?? [site.key], where: site.where, formula, reason, jump: site.jump });
   };
   site.list.forEach((c, i) => {
     if (c.kind === 'signal' && !p.signals.some((s) => s.id === c.signalId)) {
@@ -201,7 +217,7 @@ function stepsUnder(p: Project, nodes: FlowNode[]): SequenceStep[] {
       if (n.kind === 'step') {
         const step = stepById(p, n.stepId);
         if (step) out.push(step);
-      } else if (n.kind === 'branch') { rec(n.then); rec(n.else); }
+      } else if (n.kind === 'branch') armLists(n).forEach(rec);
       else if (n.kind === 'parallel') n.lanes.forEach(rec);
       else if (n.kind === 'loop' || n.kind === 'retry') rec(n.body);
     }
@@ -261,11 +277,44 @@ function oppositeFindings(p: Project): ConditionFinding[] {
   return out;
 }
 
-/** Every condition site, then opposite lanes. Order is file order. */
+/** A later arm repeats an earlier arm's condition, so the first true arm always wins. */
+function unreachableFindings(p: Project): ConditionFinding[] {
+  const flow = p.sequence.flow;
+  if (!flow) return [];
+  const out: ConditionFinding[] = [];
+  walk(flow, (n) => {
+    if (n.kind !== 'branch') return;
+    const arms = branchArms(n);
+    if (arms.length < 3) return;
+    const prior = new Map<string, number>();
+    arms.forEach((arm, index) => {
+      if (!arm.cond || arm.cond.kind === 'undefined') return;
+      const key = condKey(arm.cond);
+      const first = prior.get(key);
+      if (first === undefined) { prior.set(key, index); return; }
+      const site = `flow:${n.id}:arm:${index}`;
+      out.push({
+        id: `unreachable:${n.id}:${index}`,
+        level: 'info',
+        kind: 'unreachable',
+        site,
+        sites: [site],
+        where: `분기 ${n.name} ${armLabel(arms.length, index)}`,
+        formula: conditionFormula(p, arm.cond),
+        reason: `도달하지 않음 — ${armLabel(arms.length, first)} 과 같은 조건이라 앞에서 먼저 갈라집니다`,
+        jump: { step: 'sequence', sub: 'sequence', field: site },
+      });
+    });
+  });
+  return out;
+}
+
+/** Every condition site, then opposite lanes, then a later arm that repeats an earlier condition. Order is file order. */
 export function checkConditions(p: Project): ConditionFinding[] {
   const states = knownStates(p);
   const out: ConditionFinding[] = [];
   for (const site of sitesOf(p)) out.push(...bundleFindings(p, site, states));
   out.push(...oppositeFindings(p));
+  out.push(...unreachableFindings(p));
   return out;
 }

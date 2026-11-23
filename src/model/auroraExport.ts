@@ -93,7 +93,7 @@ export interface ExportStep {
 
 export type ExportFlowNode =
   | { kind: 'step'; stepId: string }
-  | { kind: 'branch'; id: string; name: string; cond: Condition; then: ExportFlowNode[]; else: ExportFlowNode[] }
+  | { kind: 'branch'; id: string; name: string; cond: Condition; then: ExportFlowNode[]; else: ExportFlowNode[]; cases?: { cond: Condition; body: ExportFlowNode[] }[] }
   | { kind: 'parallel'; id: string; name: string; lanes: ExportFlowNode[][] }
   | { kind: 'loop'; id: string; name: string; count: number; body: ExportFlowNode[] }
   | { kind: 'retry'; id: string; name: string; until: Condition; maxRetries: number; body: ExportFlowNode[] }
@@ -162,7 +162,15 @@ export function exportQuantity(q: Quantity): ExportQuantity {
 function exportFlow(nodes: FlowNode[]): ExportFlowNode[] {
   return nodes.map((n) => {
     if (n.kind === 'step') return { kind: 'step', stepId: n.stepId };
-    if (n.kind === 'branch') return { kind: 'branch', id: n.id, name: n.name, cond: structuredClone(n.cond), then: exportFlow(n.then), else: exportFlow(n.else) };
+    if (n.kind === 'branch') {
+      const then = exportFlow(n.then);
+      const elseArm = exportFlow(n.else);
+      if (!n.cases?.length) return { kind: 'branch', id: n.id, name: n.name, cond: structuredClone(n.cond), then, else: elseArm };
+      return {
+        kind: 'branch', id: n.id, name: n.name, cond: structuredClone(n.cond), then, else: elseArm,
+        cases: n.cases.map((c) => ({ cond: structuredClone(c.cond), body: exportFlow(c.body) })),
+      };
+    }
     if (n.kind === 'parallel') return { kind: 'parallel', id: n.id, name: n.name, lanes: n.lanes.map(exportFlow) };
     if (n.kind === 'loop') return { kind: 'loop', id: n.id, name: n.name, count: n.count, body: exportFlow(n.body) };
     if (n.kind === 'retry') return { kind: 'retry', id: n.id, name: n.name, until: structuredClone(n.until), maxRetries: n.maxRetries, body: exportFlow(n.body) };
@@ -337,7 +345,11 @@ function childKeys(list: ExportFlowNode[] | undefined): string {
 
 function flowFields(n: ExportFlowNode): Record<string, string> | null {
   if (n.kind === 'step') return null;
-  if (n.kind === 'branch') return { 이름: n.name, 조건: stableStringify(n.cond, 0), 참: childKeys(n.then), 거짓: childKeys(n.else) };
+  if (n.kind === 'branch') {
+    const fields: Record<string, string> = { 이름: n.name, 조건: stableStringify(n.cond, 0), 참: childKeys(n.then), 거짓: childKeys(n.else) };
+    if (n.cases?.length) fields['사이'] = n.cases.map((c) => `${stableStringify(c.cond, 0)}:${childKeys(c.body)}`).join(' || ');
+    return fields;
+  }
   if (n.kind === 'parallel') return { 이름: n.name, 갈래: n.lanes.map((lane) => childKeys(lane)).join(' || ') };
   if (n.kind === 'loop') return { 이름: n.name, 횟수: String(n.count), 본문: childKeys(n.body) };
   if (n.kind === 'retry') return { 이름: n.name, 조건: stableStringify(n.until, 0), 최대: String(n.maxRetries), 본문: childKeys(n.body) };
@@ -356,7 +368,7 @@ function addFlowRows(rows: Row[], nodes: ExportFlowNode[] | null | undefined) {
     for (const n of list ?? []) {
       const fields = flowFields(n);
       if (fields && n.kind !== 'step') rows.push({ kind: 'flow', id: n.id, name: flowName(n), fields });
-      if (n.kind === 'branch') { rec(n.then); rec(n.else); }
+      if (n.kind === 'branch') { rec(n.then); for (const c of n.cases ?? []) rec(c.body); rec(n.else); }
       else if (n.kind === 'parallel') n.lanes.forEach(rec);
       else if (n.kind === 'loop' || n.kind === 'retry') rec(n.body);
     }

@@ -1,11 +1,72 @@
 // Station sequence flow tree (TURN-022). Flat `steps` stay the action list; `flow` is the control structure.
 // Parallel-inside-parallel is rejected. A Substation step may sit in a parallel lane (TURN-049) so one
 // Substation can be paused while another keeps the virtual clock moving. Other nesting is allowed.
-import type { Condition, FlowNode, Project, SequenceStep } from './types';
+import type { BranchCase, Condition, FlowNode, Project, SequenceStep } from './types';
 import { DEFAULT_MAX_RETRIES } from './types';
 import type { Diagnostic } from './validate';
 
 export { DEFAULT_MAX_RETRIES };
+
+/** A branch has at least two arms and at most four (TURN-063). */
+export const MAX_BRANCH_ARMS = 4;
+
+export type BranchNode = Extract<FlowNode, { kind: 'branch' }>;
+
+export interface BranchArm {
+  /** Null on the last arm. Two arms call that arm 「거짓」; three or four call it 「그 밖」. */
+  cond: Condition | null;
+  body: FlowNode[];
+}
+
+export function branchArms(n: BranchNode): BranchArm[] {
+  const mid = n.cases ?? [];
+  return [
+    { cond: n.cond, body: n.then },
+    ...mid.map((c) => ({ cond: c.cond, body: c.body })),
+    { cond: null, body: n.else },
+  ];
+}
+
+export function armLists(n: BranchNode): FlowNode[][] {
+  return branchArms(n).map((arm) => arm.body);
+}
+
+/** Two arms keep 「참」「거짓」. More arms are 「갈래 N」 plus a final 「그 밖」. */
+export function armLabel(count: number, index: number): string {
+  if (count <= 2) return index === 0 ? '참' : '거짓';
+  return index === count - 1 ? '그 밖' : `갈래 ${index + 1}`;
+}
+
+/** Rebuild a branch. Omits `cases` when only two arms remain, so a two-arm save stays the old shape. */
+export function branchFromArms(n: BranchNode, arms: BranchArm[]): BranchNode {
+  const head = arms[0];
+  const tail = arms[arms.length - 1];
+  const mid = arms.slice(1, -1);
+  const next: BranchNode = {
+    kind: 'branch',
+    id: n.id,
+    name: n.name,
+    cond: head?.cond ?? { kind: 'undefined', note: '조건 없음' },
+    then: head?.body ?? [],
+    else: tail?.body ?? [],
+  };
+  if (mid.length) {
+    const cases: BranchCase[] = mid.map((arm) => ({
+      cond: arm.cond ?? { kind: 'undefined', note: '조건 없음' },
+      body: arm.body,
+    }));
+    next.cases = cases;
+  }
+  return next;
+}
+
+function mapBranch(n: BranchNode, mapList: (list: FlowNode[]) => FlowNode[], mapCond: (c: Condition) => Condition = (c) => c): BranchNode {
+  const arms = branchArms(n).map((arm) => ({
+    cond: arm.cond ? mapCond(arm.cond) : null,
+    body: mapList(arm.body),
+  }));
+  return branchFromArms(n, arms);
+}
 
 export function hasFlow(p: Project): boolean {
   return Array.isArray(p.sequence.flow);
@@ -44,7 +105,7 @@ export function walk(nodes: FlowNode[], fn: (n: FlowNode, list: FlowNode[], inde
   const rec = (list: FlowNode[]) => {
     list.forEach((n, i) => {
       fn(n, list, i);
-      if (n.kind === 'branch') { rec(n.then); rec(n.else); }
+      if (n.kind === 'branch') armLists(n).forEach(rec);
       else if (n.kind === 'parallel') n.lanes.forEach(rec);
       else if (n.kind === 'loop' || n.kind === 'retry') rec(n.body);
     });
@@ -74,7 +135,7 @@ export function findOwner(nodes: FlowNode[], list: FlowNode[]): NodeHit | null {
   walk(nodes, (n, owner, index) => {
     if (hit) return;
     const lists: FlowNode[][] = [];
-    if (n.kind === 'branch') lists.push(n.then, n.else);
+    if (n.kind === 'branch') lists.push(...armLists(n));
     else if (n.kind === 'parallel') lists.push(...n.lanes);
     else if (n.kind === 'loop' || n.kind === 'retry') lists.push(n.body);
     if (lists.includes(list)) hit = { list: owner, index, node: n };
@@ -87,7 +148,7 @@ export function listInsideParallel(nodes: FlowNode[], list: FlowNode[]): boolean
   const rec = (cur: FlowNode[], par: boolean) => {
     if (cur === list && par) inside = true;
     for (const n of cur) {
-      if (n.kind === 'branch') { rec(n.then, par); rec(n.else, par); }
+      if (n.kind === 'branch') armLists(n).forEach((body) => rec(body, par));
       else if (n.kind === 'parallel') n.lanes.forEach((lane) => rec(lane, true));
       else if (n.kind === 'loop' || n.kind === 'retry') rec(n.body, par);
     }
@@ -99,14 +160,14 @@ export function listInsideParallel(nodes: FlowNode[], list: FlowNode[]): boolean
 /** True when the node is a parallel block or contains one. A wait or a Substation step does not count. */
 export function containsParallel(n: FlowNode): boolean {
   if (n.kind === 'parallel') return true;
-  if (n.kind === 'branch') return [...n.then, ...n.else].some(containsParallel);
+  if (n.kind === 'branch') return armLists(n).some((body) => body.some(containsParallel));
   if (n.kind === 'loop' || n.kind === 'retry') return n.body.some(containsParallel);
   return false;
 }
 
 /** True when `id` is a block that contains `list` (moving into itself). */
 export function containsList(node: FlowNode, list: FlowNode[]): boolean {
-  if (node.kind === 'branch') return node.then === list || node.else === list || node.then.some((n) => containsList(n, list)) || node.else.some((n) => containsList(n, list));
+  if (node.kind === 'branch') return armLists(node).some((body) => body === list || body.some((n) => containsList(n, list)));
   if (node.kind === 'parallel') return node.lanes.some((lane) => lane === list || lane.some((n) => containsList(n, list)));
   if (node.kind === 'loop' || node.kind === 'retry') return node.body === list || node.body.some((n) => containsList(n, list));
   return false;
@@ -123,7 +184,7 @@ export function scrubFlow(nodes: FlowNode[], removedSteps: Set<string>, removedU
     for (const n of list) {
       if (n.kind === 'step') { if (!removedSteps.has(n.stepId)) out.push(n); continue; }
       if (n.kind === 'substation') { if (!removedUnits.has(n.unitId)) out.push({ ...n }); continue; }
-      if (n.kind === 'branch') out.push({ ...n, cond: fixCond(n.cond), then: rec(n.then), else: rec(n.else) });
+      if (n.kind === 'branch') out.push(mapBranch(n, rec, fixCond));
       else if (n.kind === 'parallel') out.push({ ...n, lanes: n.lanes.map(rec) });
       else if (n.kind === 'loop') out.push({ ...n, body: rec(n.body) });
       else if (n.kind === 'wait') out.push({ ...n, cond: fixCond(n.cond) });
@@ -186,7 +247,7 @@ export function wrapStepNodes(nodes: FlowNode[], ids: string[], block: FlowNode)
     }
     return list.map((n) => {
       if (placed || n.kind === 'step' || n.kind === 'substation' || n.kind === 'wait') return n;
-      if (n.kind === 'branch') return { ...n, then: rec(n.then), else: rec(n.else) };
+      if (n.kind === 'branch') return mapBranch(n, rec);
       if (n.kind === 'parallel') return { ...n, lanes: n.lanes.map(rec) };
       return { ...n, body: rec(n.body) };
     });
@@ -198,14 +259,14 @@ export function wrapStepNodes(nodes: FlowNode[], ids: string[], block: FlowNode)
 export function unwrapBlock(nodes: FlowNode[], blockId: string): FlowNode[] | null {
   let placed = false;
   const flat = (n: FlowNode): FlowNode[] => {
-    if (n.kind === 'branch') return [...n.then, ...n.else];
+    if (n.kind === 'branch') return armLists(n).flat();
     if (n.kind === 'parallel') return n.lanes.flat();
     if (n.kind === 'loop' || n.kind === 'retry') return [...n.body];
     return [];
   };
   const rec = (list: FlowNode[]): FlowNode[] => list.flatMap((n) => {
     if (n.kind !== 'step' && n.id === blockId) { placed = true; return flat(n); }
-    if (n.kind === 'branch') return [{ ...n, then: rec(n.then), else: rec(n.else) }];
+    if (n.kind === 'branch') return [mapBranch(n, rec)];
     if (n.kind === 'parallel') return [{ ...n, lanes: n.lanes.map(rec) }];
     if (n.kind === 'loop' || n.kind === 'retry') return [{ ...n, body: rec(n.body) }];
     return [n];
@@ -248,7 +309,7 @@ const insideParallel = (nodes: FlowNode[], pred: (n: FlowNode) => boolean): bool
   const rec = (list: FlowNode[], par: boolean) => {
     for (const n of list) {
       if (par && pred(n)) bad = true;
-      if (n.kind === 'branch') { rec(n.then, par); rec(n.else, par); }
+      if (n.kind === 'branch') armLists(n).forEach((body) => rec(body, par));
       else if (n.kind === 'parallel') n.lanes.forEach((lane) => rec(lane, true));
       else if (n.kind === 'loop' || n.kind === 'retry') rec(n.body, par);
     }
@@ -285,7 +346,14 @@ export function flowIntegrity(p: Project): Diagnostic[] {
     if (!n.id) err('ID_INVALID', n.kind, '흐름 블록 ID 없음');
     else if (seenBlock.has(n.id)) err('ID_DUPLICATE', n.id, `흐름 블록 ID 중복: ${n.id}`);
     else seenBlock.add(n.id);
-    if (n.kind === 'branch') cond(n.cond, n.id, `분기 ${n.name}`);
+    if (n.kind === 'branch') {
+      const arms = branchArms(n);
+      arms.forEach((arm, i) => {
+        if (!arm.cond) return;
+        const place = arms.length > 2 ? `분기 ${n.name} ${armLabel(arms.length, i)}` : `분기 ${n.name}`;
+        cond(arm.cond, n.id, place);
+      });
+    }
     if (n.kind === 'retry') cond(n.until, n.id, `재시도 ${n.name}`);
     if (n.kind === 'wait') cond(n.cond, n.id, `신호 기다림 ${n.name}`);
     if (n.kind === 'substation' && !p.units.some((u) => u.id === n.unitId)) err('REF_MISSING_UNIT', n.id, `Substation 단계 ${n.id}: Unit ${n.unitId} 없음`);
@@ -303,7 +371,15 @@ export function flowShapeBlockers(p: Project): Diagnostic[] {
     if (c.kind === 'undefined') err('CONDITION_UNDEFINED', owner, `${label}: 미정 조건 "${c.note}" — 임의 true 처리 안 함`);
   };
   walk(flow, (n) => {
-    if (n.kind === 'branch') cond(n.cond, n.id, `분기 ${n.name}`);
+    if (n.kind === 'branch') {
+      const arms = branchArms(n);
+      if (arms.length < 2 || arms.length > MAX_BRANCH_ARMS) err('LANE_RANGE', n.id, `분기 ${n.name}: 갈래는 2~${MAX_BRANCH_ARMS}개 (현재 ${arms.length})`);
+      arms.forEach((arm, i) => {
+        const place = arms.length > 2 ? `분기 ${n.name} ${armLabel(arms.length, i)}` : `분기 ${n.name}`;
+        if (arm.cond) cond(arm.cond, n.id, place);
+        if (arm.body.length === 0) err('EMPTY_LANE', n.id, `분기 ${n.name}: 갈래 ${i + 1} 이 비어 있음`);
+      });
+    }
     if (n.kind === 'wait') {
       cond(n.cond, n.id, `신호 기다림 ${n.name}`);
       if (n.timeout.value === null || Number.isNaN(n.timeout.value)) err('WAIT_TIMEOUT_UNDEFINED', n.id, `신호 기다림 ${n.name}: 타임아웃 미정`);
@@ -334,7 +410,7 @@ export function flowUsesSignal(nodes: FlowNode[], signalId: string): boolean {
   let used = false;
   const see = (c: Condition) => { if (c.kind === 'signal' && c.signalId === signalId) used = true; };
   walk(nodes, (n) => {
-    if (n.kind === 'branch') see(n.cond);
+    if (n.kind === 'branch') for (const arm of branchArms(n)) if (arm.cond) see(arm.cond);
     if (n.kind === 'retry') see(n.until);
     if (n.kind === 'wait') see(n.cond);
   });
@@ -365,7 +441,7 @@ export function assumedCycleSeconds(p: Project, nodes: FlowNode[]): number {
     let t = 0;
     for (const n of list) {
       if (n.kind === 'step') t += stepDur(n.stepId);
-      else if (n.kind === 'branch') t += Math.max(rec(n.then), rec(n.else));
+      else if (n.kind === 'branch') t += Math.max(...armLists(n).map(rec));
       else if (n.kind === 'parallel') t += n.lanes.reduce((m, lane) => Math.max(m, rec(lane)), 0);
       else if (n.kind === 'loop') t += n.count * rec(n.body);
       else if (n.kind === 'retry') t += rec(n.body);
@@ -405,9 +481,9 @@ export function assumedSecondsByUnit(p: Project, nodes: FlowNode[]): Map<string,
     for (const n of list) {
       if (n.kind === 'step') { const u = stepUnit(n.stepId); if (u) add(u.unitId, u.sec); }
       else if (n.kind === 'branch') {
-        const a = unitMap(p, n.then), b = unitMap(p, n.else);
-        const keys = new Set([...a.keys(), ...b.keys()]);
-        for (const k of keys) add(k, Math.max(a.get(k) ?? 0, b.get(k) ?? 0));
+        const maps = armLists(n).map((body) => unitMap(p, body));
+        const keys = new Set(maps.flatMap((m) => [...m.keys()]));
+        for (const k of keys) add(k, Math.max(...maps.map((m) => m.get(k) ?? 0)));
       } else if (n.kind === 'parallel') {
         const maps = n.lanes.map((lane) => unitMap(p, lane));
         const keys = new Set(maps.flatMap((m) => [...m.keys()]));
@@ -508,7 +584,7 @@ export function stepCanSatisfy(p: Project, stepId: string, cond: Condition, when
 }
 
 function listsOf(n: FlowNode): FlowNode[][] {
-  if (n.kind === 'branch') return [n.then, n.else];
+  if (n.kind === 'branch') return armLists(n);
   if (n.kind === 'parallel') return n.lanes;
   if (n.kind === 'loop' || n.kind === 'retry') return [n.body];
   return [];
@@ -548,8 +624,8 @@ function classifyWait(p: Project, list: FlowNode[], waitId: string, cond: Condit
         else noteSteps(p, lane, cond, 'parallel', flags);
       });
     } else if (n.kind === 'branch') {
-      const arm = treeHasWait(n.then, waitId) ? n.then : n.else;
-      classifyWait(p, arm, waitId, cond, flags);
+      const arm = armLists(n).find((body) => treeHasWait(body, waitId));
+      if (arm) classifyWait(p, arm, waitId, cond, flags);
     } else if (n.kind === 'loop' || n.kind === 'retry') {
       classifyWait(p, n.body, waitId, cond, flags);
     }
