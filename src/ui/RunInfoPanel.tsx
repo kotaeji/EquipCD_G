@@ -7,7 +7,7 @@ import { describeRunInfo, type RunInfoBar } from '../scene/runInfo';
 import { stepStatusLabel } from '../runtime/runSummary';
 import { stepLiveClass } from './RunSummary';
 import { StatusMark } from './StatusMark';
-import { phaseShape, stationShape, type StatusKey } from './status';
+import { phaseShape, piecePhaseStatus, stationShape, type StatusKey } from './status';
 
 /** How many running names stay on the strip before 「외 N」. */
 const RUNNING_SHOWN = 2;
@@ -92,11 +92,11 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
         <span className="run-strip-fixed">실행 상태 <StatusMark status={station.status} word={station.word} wordAttrs={{ 'data-run-status': info.status }} /></span>
         <span className="run-strip-fixed">가상 시간 <b className="mono" data-run-time="">{info.timeText}</b></span>
         <span className="run-strip-running">실행 중 <b data-running-count={info.running.length} title={full || undefined}>{info.running.length === 0 ? '없음' : shown}{extra > 0 ? ` 외 ${extra}` : ''}</b></span>
-        {!folded && <span className="run-strip-fixed" data-material="">자재 {info.material ? `${info.material.where} · ${info.material.state || '상태 없음'}` : '없음'}</span>}
+        {!folded && <span className="run-strip-fixed" data-material="" data-fed={info.fedCount} data-exited={info.exitCount} data-feed-total={info.feedTotal}>자재 {info.materialText}</span>}
         <button type="button" className="small run-strip-fold" aria-label={folded ? '요약 펼치기' : '요약 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
       </div>
       {!folded && <div className="run-strip-row metrics">
-        <span className="run-strip-fixed">사이클 <b className="mono" data-cycle-time="" aria-label="사이클 시간">{info.cycleText}</b></span>
+        <span className="run-strip-fixed">사이클 <b className="mono" data-cycle-time="" aria-label="사이클 시간">{info.cycleText}</b>{info.metricBasis && <span data-metric-basis="">{info.metricBasis}</span>}</span>
         <span className="run-strip-fixed" title={info.throughputNote}>시간당 <b className="mono" data-throughput="" aria-label="시간당 생산량">{info.throughputText}</b> <span className="run-strip-tip" title={info.throughputNote}>ⓘ</span></span>
         {info.bottleneck
           ? <span className="run-strip-fixed" data-bottleneck={info.bottleneck.unitId} aria-label="병목 Unit">병목 {info.bottleneck.name} {info.bottleneck.timeText}</span>
@@ -140,6 +140,16 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold }: {
         <section className="run-steps-main" aria-label="단계별 시간">
           <h3>단계별 시간</h3>
           {info.longestText && <p className="run3d-longest" data-longest="">{info.longestText}</p>}
+          {info.pieceRows && info.pieceRows.length > 1 && <ul className="run3d-bars" aria-label="개체">
+            {info.pieceRows.map((row) => (
+              <li key={row.instanceId} className={row.phase === 'active' ? 'step-row is-running' : 'step-row'} data-piece={row.instanceId} data-piece-phase={row.phase}>
+                <span className="run3d-bar-name">개체 {row.index}</span>
+                <span className="run3d-bar-where">{row.stepName}</span>
+                <span className="run3d-bar-status"><StatusMark status={piecePhaseStatus(row.phase)} word={row.statusLabel} wordAttrs={{ 'data-piece-status': '' }} /></span>
+                <span className="run3d-bar-time">{row.note}</span>
+              </li>
+            ))}
+          </ul>}
           <ul className="run3d-bars run-steps-scroll" ref={listRef}>
             {info.bars.map((bar) => (
               <li key={bar.key} className={`${stepLiveClass(bar.status)}${bar.longest ? ' is-longest' : ''}`} data-step-id={bar.stepId} data-step-key={bar.key} data-elapsed={bar.timeText}>

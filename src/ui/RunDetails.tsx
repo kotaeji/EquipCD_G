@@ -1,7 +1,10 @@
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
+import { formatMs } from '../scene/runInfo';
 import { fmtTime } from './Panels';
 import { RunSummary } from './RunSummary';
+import { StatusMark } from './StatusMark';
+import { piecePhaseStatus } from './status';
 import { Tabs } from './Tabs';
 import type { RunDetailsTab } from './viewSettings';
 
@@ -21,6 +24,31 @@ function RunLog({ rt }: { rt: RuntimeState | null }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function PieceTable({ rt }: { rt: RuntimeState | null }) {
+  const rows = rt?.pieces ?? [];
+  if (rows.length < 2) return null;
+  const now = rt?.timeMs ?? 0;
+  return (
+    <table className="grid" aria-label="개체별 시간">
+      <thead><tr><th>개체</th><th>투입 시각</th><th>배출 시각</th><th>기다린 시간</th><th>상태</th></tr></thead>
+      <tbody>
+        {rows.map((pc) => {
+          const open = pc.wait ? Math.max(0, now - pc.wait.sinceMs) : 0;
+          return (
+            <tr key={pc.instanceId} data-piece-row={pc.instanceId}>
+              <td>개체 {pc.index}</td>
+              <td className="mono">{pc.fedAtMs == null ? '-' : formatMs(pc.fedAtMs)}</td>
+              <td className="mono">{pc.exitedAtMs == null ? '-' : formatMs(pc.exitedAtMs)}</td>
+              <td className="mono" data-piece-wait="">{formatMs(pc.waitMs + open)}</td>
+              <td><StatusMark status={piecePhaseStatus(pc.phase)} />{pc.wait ? ` · ${pc.wait.note}` : ''}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -57,6 +85,7 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab }: {
         {!open && <span className="run-details-last" title={lastLine}>{lastLine}</span>}
       </div>
       {open && <div className="run-details-body">
+        <PieceTable rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
           { id: 'summary', label: '실행 결과 요약', panel: <RunSummary p={p} rt={rt} embedded /> },
           { id: 'log', label: '실행 로그', panel: <RunLog rt={rt} /> },

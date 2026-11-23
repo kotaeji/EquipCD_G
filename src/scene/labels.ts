@@ -2,7 +2,7 @@
 // Unit names are floor strips, not screen tags. Overlap keeps markers, then the material, then device names.
 
 import type { SceneDescription } from './describe';
-import { markerText } from '../ui/status';
+import { markerText, waitingLead } from '../ui/status';
 
 export type LabelKind = 'unit' | 'device' | 'marker' | 'material';
 
@@ -49,7 +49,7 @@ export function anchorLabels(scene: SceneDescription, showNames: boolean, emphas
   for (const mat of scene.materials) {
     out.push({
       id: `mat:${mat.id}`, kind: 'material', px: 12,
-      text: `${mat.name} · ${mat.state || '상태 없음'}`,
+      text: `${mat.waiting ? `${waitingLead()} · ` : ''}${mat.name} · ${mat.state || '상태 없음'}`,
       x: mat.x, y: 20, z: mat.z,
     });
   }

@@ -733,6 +733,14 @@ export function updateStep(p0: Project, stepId: string, patch: Partial<Pick<Sequ
 }
 
 // ---- material (F4) ----
+export function setFeedCount(p0: Project, id: string, count: number): CmdResult {
+  if (!Number.isInteger(count) || count < 1) return no('투입 개수는 1 이상의 정수입니다');
+  const p = clone(p0);
+  const m = p.materials.find((x) => x.id === id); if (!m) return no('자재 없음');
+  m.feedCount = count;
+  return ok(p);
+}
+
 export function updateMaterial(p0: Project, id: string, patch: Partial<Pick<Material, 'name' | 'kind' | 'handling' | 'states' | 'initialState' | 'initialLocation' | 'route'>>): CmdResult {
   const p = clone(p0); const m = p.materials.find((x) => x.id === id); if (!m) return no('자재 없음');
   if (patch.route) for (const r of patch.route) if (!p.units.some((u) => u.id === r)) return no(`경로의 Unit ${r} 없음`);

@@ -74,6 +74,8 @@ export interface SceneMaterial {
   z: number;
   /** True when the material has left the line (`EXIT`). */
   exited: boolean;
+  /** Standing still for a device or a full unit. */
+  waiting?: boolean;
 }
 
 export interface SceneHighlight {
@@ -137,7 +139,14 @@ export function activeDeviceIds(p: Project, rt: RuntimeState | null): string[] {
   if (!rt) return [];
   const ids: string[] = [];
   const fibers = rt.flowRun?.fibers ?? [];
-  if (rt.flowRun) {
+  if (rt.pieces && rt.pieces.length > 1) {
+    for (const pc of rt.pieces) {
+      if (!pc.active) continue;
+      const step = p.sequence.steps[pc.active.stepIndex];
+      const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
+      if (action) ids.push(action.deviceId);
+    }
+  } else if (rt.flowRun) {
     for (const fiber of fibers) {
       if (!fiber.active) continue;
       const id = deviceOfStep(p, fiber.active.stepId);
@@ -274,7 +283,33 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
   const materials: SceneMaterial[] = [];
   const live = rt?.material;
   const def = p.materials[0];
-  if (live) {
+  const crowd = rt?.pieces && rt.pieces.length > 1 ? rt.pieces.filter((pc) => pc.phase !== 'queued' && pc.material.location !== 'EXIT' && pc.material.location !== '') : null;
+  if (crowd) {
+    const byUnit = new Map<string, typeof crowd>();
+    for (const pc of crowd) {
+      const list = byUnit.get(pc.material.location) ?? [];
+      list.push(pc);
+      byUnit.set(pc.material.location, list);
+    }
+    for (const [unitId, list] of byUnit) {
+      const u = p.units.find((unit) => unit.id === unitId);
+      const c = u ? unitCenter(u) : { x: 0, z: 0 };
+      list.forEach((pc, i) => {
+        const span = Math.max(1, list.length - 1);
+        const dx = list.length > 1 ? (i - span / 2) * 52 : 0;
+        materials.push({
+          id: pc.instanceId,
+          name: `개체 ${pc.index}`,
+          unitId,
+          state: pc.material.state,
+          x: c.x + dx,
+          z: c.z,
+          exited: false,
+          waiting: pc.phase === 'waiting',
+        });
+      });
+    }
+  } else if (live) {
     if (live.location === 'EXIT') {
       const last = p.units[p.units.length - 1];
       materials.push({

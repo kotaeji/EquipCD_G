@@ -1,7 +1,7 @@
 // F6 basic gap analysis — prototype rules (설계 제안). Thresholds/severity are NOT confirmed product rules.
 import { getAssetById } from '../assets/library';
 import { assumedCycleSeconds, assumedSecondsByUnit, collectStepIds } from './flow';
-import type { GapReviewEntry, Project } from './types';
+import { feedCountOf, type GapReviewEntry, type Project } from './types';
 import { indexProject } from './validate';
 
 export type GapKind = 'io' | 'unit' | 'axisSpec' | 'interference' | 'timing';
@@ -110,6 +110,8 @@ export function analyzeGaps(p: Project): Gap[] {
     const ranked = [...perUnit.entries()].sort((x, y) => y[1] - x[1]);
     const [topUnit, topT] = ranked[0] ?? ['', 0];
     const assumptions = [useFlow ? `자재 ${p.materials.length}개, 흐름 가정(병렬=긴 갈래, 반복=×횟수, 분기=긴 쪽, 재시도=1회)` : `자재 ${p.materials.length}개, 순차 실행(병렬 미지원)`, anyAssumed ? '동작 시간 가정값 포함' : '동작 시간 입력값', `투입 간격 ${m.feedInterval.value ?? '미정'} s${m.feedInterval.assumption ? ' (가정)' : ''}`];
+    const fed = feedCountOf(m);
+    if (fed > 1) assumptions.push(`투입 개수 ${fed} (이 비교는 자재 1개의 순차 합)`);
     if (m.feedInterval.value === null || anyUnknown)
       add({ id: `timing:undetermined:${m.id}`, kind: 'timing', judgement: 'undetermined', title: '타이밍 판정 불가', evidence: m.feedInterval.value === null ? '투입 간격 미정' : '동작 시간이 미정인 단계 존재', stepIds: [], objectIds: [m.id], suggestion: '투입 간격/동작 시간 입력', target: { panel: 'material', objectId: m.id }, safety: false, assumptions });
     else if (total > m.feedInterval.value)

@@ -131,6 +131,18 @@ export function laneShape(status: string): { status: StatusKey; word: string } {
   return phaseShape(status);
 }
 
+/** A piece that is waiting uses the 대기 mark and word, then the rest of its label. */
+export function waitingLead(): string {
+  return `${STATUS.pending.mark} ${STATUS.pending.word}`;
+}
+
+/** Piece phase on the step list and the details table. queued and waiting stay 대기. */
+export function piecePhaseStatus(phase: string): StatusKey {
+  if (phase === 'done') return 'done';
+  if (phase === 'active') return 'active';
+  return 'pending';
+}
+
 /** Diagram and 3D marker text. Same words and marks as the status chip. */
 export function markerText(highlight: 'active' | 'fault'): string {
   const key: StatusKey = highlight === 'fault' ? 'error' : 'active';

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { Action, Project } from '../model/types';
+import * as C from '../model/commands';
+import { feedCountOf, type Action, type Project } from '../model/types';
 import { NeverTrueFaults, ReadFailFaults, RunReadiness } from './Panels';
 import type { Diagnostic } from '../model/validate';
 import type { BlockerGuide } from './blockerTarget';
@@ -82,7 +83,51 @@ function ActionTimes({ action, disabled, onDuration, onTimeout }: {
   );
 }
 
+export const FEED_LOCK = '실행 중 · 일시정지 중에는 투입 개수와 투입 간격을 바꿀 수 없습니다. 초기화한 뒤 편집하세요.';
 export const VIEW_3D_ONLY = '3D 보기에서 쓰는 옵션입니다';
+
+function FeedCountInput({ value, disabled, onCommit }: { value: number; disabled: boolean; onCommit: (n: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => { setDraft(null); }, [value]);
+  const shown = draft ?? String(value);
+  const commit = (raw: string) => {
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1) { setDraft(null); return; }
+    if (n !== value) onCommit(n);
+    setDraft(null);
+  };
+  return (
+    <label className="run3d-field">투입 개수
+      <input type="number" aria-label="투입 개수" min={1} step={1} disabled={disabled} value={shown}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+    </label>
+  );
+}
+
+function FeedIntervalInput({ value, disabled, onCommit }: { value: number | null; disabled: boolean; onCommit: (n: number | null) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => { setDraft(null); }, [value]);
+  const shown = draft ?? (value === null ? '' : String(value));
+  const commit = (raw: string) => {
+    if (raw.trim() === '') { if (value !== null) onCommit(null); setDraft(null); return; }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) { setDraft(null); return; }
+    const rounded = Math.round(n * 1000) / 1000;
+    if (rounded !== value) onCommit(rounded);
+    setDraft(null);
+  };
+  return (
+    <label className="run3d-field">투입 간격
+      <input type="number" aria-label="투입 간격" min={0} step={0.1} disabled={disabled} value={shown} placeholder="미정"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+      <span className="muted">s</span>
+    </label>
+  );
+}
 
 function SceneOption({ label, checked, enabled, onChange }: { label: string; checked: boolean; enabled: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -128,6 +173,12 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
           {SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}
         </select>
       </label>
+      {p.materials[0] && <>
+        <h3>투입</h3>
+        {locked && <p className="run3d-lock" data-feed-locked="true">{FEED_LOCK}</p>}
+        <FeedCountInput value={feedCountOf(p.materials[0])} disabled={locked} onCommit={(n) => edit(C.setFeedCount(p, p.materials[0].id, n), '투입 개수')} />
+        <FeedIntervalInput value={p.materials[0].feedInterval.value} disabled={locked} onCommit={(n) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, n, p.materials[0].feedInterval.assumption), '투입 간격')} />
+      </>}
       <h3>표시 옵션</h3>
       <SceneOption label="이름 표시" checked={showNames} enabled={sceneOptions} onChange={setShowNames} />
       <SceneOption label="동작 강조" checked={emphasize} enabled={sceneOptions} onChange={setEmphasize} />

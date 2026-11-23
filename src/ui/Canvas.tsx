@@ -29,7 +29,7 @@ import '@xyflow/react/dist/base.css';
 import { findAsset } from '../assets/library';
 import { AI_BADGE, resolveGenerated } from '../assets/visuals';
 import { StatusMark } from './StatusMark';
-import { STATUS } from './status';
+import { STATUS, waitingLead } from './status';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { Symbol } from './Symbols';
@@ -166,7 +166,7 @@ type DeviceData = {
   signals: Signal[]; onIds: string[]; positions: { id: string; name: string; assumption: boolean; current: boolean }[];
   showPositions: boolean; mode: Mode; link: SignalLink | null; api: DragApi;
 };
-type MatData = { label: string };
+type MatData = { label: string; waiting?: boolean; pieceId?: string };
 type SigEdgeData = { on: boolean };
 
 const nodeTypes = { unit: UnitNode, device: DeviceNode, material: MaterialNode };
@@ -292,7 +292,7 @@ function DeviceNode({ data }: NodeProps) {
 function MaterialNode({ data }: NodeProps) {
   const d = data as MatData;
   return (
-    <div className="rf-mat nopan">
+    <div className={`rf-mat nopan${d.waiting ? ' is-waiting' : ''}`} data-waiting={d.waiting ? 'true' : 'false'} data-piece={d.pieceId ?? ''}>
       <div className="rf-mat-box" />
       <div className="rf-mat-label">{d.label}</div>
     </div>
@@ -489,6 +489,12 @@ function FlowCanvas(props: Props) {
   };
 
   const activeDevice = rt?.active ? p.actions.find((a) => a.id === p.sequence.steps[rt.active!.stepIndex]?.actionId)?.deviceId : undefined;
+  const pieceDevices = new Set((rt?.pieces ?? []).flatMap((pc) => {
+    if (!pc.active) return [];
+    const step = p.sequence.steps[pc.active.stepIndex];
+    const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
+    return action ? [action.deviceId] : [];
+  }));
   const sigOn = (deviceId: string, port: string) => {
     const s = p.signals.find((x) => x.deviceId === deviceId && x.portKey === port);
     return !!(s && rt?.signals?.[s.id]);
@@ -544,13 +550,15 @@ function FlowCanvas(props: Props) {
       className: 'nopan',
       data: {
         device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked,
-        active: activeDevice === d.id || !!props.activeDeviceIds?.includes(d.id),
+        active: activeDevice === d.id || pieceDevices.has(d.id) || !!props.activeDeviceIds?.includes(d.id),
         fault: !!props.faultDeviceIds?.includes(d.id),
         extended: d.kind === 'cylinder' ? sigOn(d.id, 'cmdFwd') || sigOn(d.id, 'fwdDone')
           : d.kind === 'pusher' ? sigOn(d.id, 'cmdPush') || sigOn(d.id, 'pushDone')
           : d.kind === 'gantry' ? (rt?.devicePositions?.[d.id] ?? null) !== null || sigOn(d.id, 'cmdMove') : false,
         raised: d.kind === 'stopper' && (sigOn(d.id, 'upDone') || sigOn(d.id, 'cmdUp')),
-        holding: rt?.material?.holder === d.id,
+        holding: rt?.pieces && rt.pieces.length > 1
+          ? rt.pieces.some((pc) => pc.material.holder === d.id)
+          : rt?.material?.holder === d.id,
         photo: view.visualMode === 'photo',
         signals: p.signals.filter((s) => s.deviceId === d.id), onIds, positions, showPositions: L.positions,
         mode, link, api,
@@ -558,16 +566,16 @@ function FlowCanvas(props: Props) {
     });
   }
 
-  const mat = materialMarker(p, rt, off);
-  if (mat && L.flow) {
+  for (const mat of materialMarkers(p, rt, off)) {
+    if (!L.flow) break;
     nodes.push({
-      id: 'runtime-material', type: 'material', zIndex: 8,
+      id: mat.id, type: 'material', zIndex: 8,
       position: { x: mat.x - 11, y: mat.y - 11 },
       width: 22, height: 22, measured: { width: 22, height: 22 },
       draggable: false, selectable: false, connectable: false, deletable: false, focusable: false,
       className: 'nopan',
       style: { pointerEvents: 'none' },
-      data: { label: mat.label } satisfies MatData,
+      data: { label: mat.label, waiting: mat.waiting, pieceId: mat.pieceId } satisfies MatData,
     });
   }
 
@@ -848,6 +856,64 @@ function FlowCanvas(props: Props) {
   );
 }
 
+function materialMarkers(p: Project, rt: RuntimeState | null, off: (id: string, unitId?: string) => { dx: number; dy: number }): { id: string; x: number; y: number; label: string; waiting: boolean; pieceId?: string }[] {
+  if (rt?.pieces && rt.pieces.length > 1) {
+    const live = rt.pieces.filter((pc) => pc.phase !== 'queued' && pc.material.location !== 'EXIT' && pc.material.location !== '');
+    const byUnit = new Map<string, typeof live>();
+    for (const pc of live) {
+      const list = byUnit.get(pc.material.location) ?? [];
+      list.push(pc);
+      byUnit.set(pc.material.location, list);
+    }
+    const out: { id: string; x: number; y: number; label: string; waiting: boolean; pieceId?: string }[] = [];
+    for (const pc of live) {
+      const mates = byUnit.get(pc.material.location) ?? [pc];
+      const i = mates.indexOf(pc);
+      const span = Math.max(1, mates.length - 1);
+      const shift = mates.length > 1 ? (i - span / 2) * 26 : 0;
+      let pos = unitAnchor(p, off, pc.material.location as string | 'EXIT');
+      if (pc.material.holder) {
+        const d = p.devices.find((x) => x.id === pc.material.holder);
+        if (d) { const o = off(d.id, d.unitId); pos = { x: d.layout.x + o.dx + d.layout.w / 2, y: d.layout.y + o.dy + d.layout.h + 10 }; }
+      }
+      if (pc.active && !pc.active.hold && pc.active.completeAtMs !== null) {
+        const step = p.sequence.steps[pc.active.stepIndex];
+        const a = p.actions.find((x) => x.id === step?.actionId);
+        if (a?.effect.moveTo && a.duration.value && pos) {
+          const to = a.effect.moveTo === 'EXIT' ? unitAnchor(p, off, 'EXIT') : unitAnchor(p, off, a.effect.moveTo);
+          const f = Math.min(1, Math.max(0, (rt.timeMs - pc.active.startMs) / (a.duration.value * 1000)));
+          if (to) pos = { x: pos.x + (to.x - pos.x) * f, y: pos.y + (to.y - pos.y) * f };
+        }
+      }
+      if (!pos) continue;
+      pos = { x: pos.x + shift, y: pos.y };
+      out.push({
+        id: pc.index === 1 ? 'runtime-material' : `runtime-material-${pc.instanceId}`,
+        x: pos.x, y: pos.y,
+        label: `${pc.phase === 'waiting' ? `${waitingLead()} · ` : ''}개체 ${pc.index} · ${pc.material.state}`,
+        waiting: pc.phase === 'waiting',
+        pieceId: pc.instanceId,
+      });
+    }
+    return out;
+  }
+  const one = materialMarker(p, rt, off);
+  return one ? [{ id: 'runtime-material', x: one.x, y: one.y, label: one.label, waiting: false }] : [];
+}
+
+function unitAnchor(p: Project, off: (id: string, unitId?: string) => { dx: number; dy: number }, uid: string | 'EXIT') {
+  if (uid === 'EXIT') {
+    const last = p.units[p.units.length - 1];
+    if (!last) return { x: 20, y: 20 };
+    const o = off(last.id);
+    return { x: last.layout.x + o.dx + last.layout.w + 40, y: last.layout.y + o.dy + last.layout.h - 34 };
+  }
+  const u = p.units.find((x) => x.id === uid);
+  if (!u) return null;
+  const o = off(u.id);
+  return { x: u.layout.x + o.dx + u.layout.w / 2, y: u.layout.y + o.dy + u.layout.h - 34 };
+}
+
 function materialMarker(p: Project, rt: RuntimeState | null, off: (id: string, unitId?: string) => { dx: number; dy: number }) {
   const m0 = p.materials[0];
   const mi = rt?.material ?? (m0 && m0.initialLocation ? { location: m0.initialLocation, state: m0.initialState ?? '', holder: null as string | null, instanceId: `${m0.id}#1` } : null);
@@ -888,8 +954,7 @@ export function runEquipmentBoxes(project: Project, rt: RuntimeState | null): Pl
     ...project.units.map((u) => ({ x: u.layout.x, y: u.layout.y, w: u.layout.w, h: u.layout.h })),
     ...project.devices.map((d) => ({ x: d.layout.x, y: d.layout.y, w: d.layout.w, h: d.layout.h })),
   ];
-  const mat = materialMarker(project, rt, () => ({ dx: 0, dy: 0 }));
-  if (mat) boxes.push({ x: mat.x - 11, y: mat.y - 11, w: 22, h: 22 });
+  for (const mat of materialMarkers(project, rt, () => ({ dx: 0, dy: 0 }))) boxes.push({ x: mat.x - 11, y: mat.y - 11, w: 22, h: 22 });
   return boxes;
 }
 
