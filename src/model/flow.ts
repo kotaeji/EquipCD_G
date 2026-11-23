@@ -14,6 +14,24 @@ export function linearFlow(steps: SequenceStep[]): FlowNode[] {
   return steps.map((s) => ({ kind: 'step', stepId: s.id }));
 }
 
+/**
+ * Indices into `sequence.steps` when the run is a flat list.
+ * No `flow` uses the step array. A flow of only `step` nodes uses that order.
+ * A branch, parallel, loop, retry, or substation step returns null.
+ */
+export function stepOrder(p: Project): number[] | null {
+  const flow = p.sequence.flow;
+  if (!flow) return p.sequence.steps.map((_, i) => i);
+  const order: number[] = [];
+  for (const n of flow) {
+    if (n.kind !== 'step') return null;
+    const i = p.sequence.steps.findIndex((s) => s.id === n.stepId);
+    if (i < 0) return null;
+    order.push(i);
+  }
+  return order;
+}
+
 /** Depth-first step ids, each node once (loops are not unrolled). */
 export function collectStepIds(nodes: FlowNode[]): string[] {
   const out: string[] = [];

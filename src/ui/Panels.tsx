@@ -6,7 +6,7 @@ import * as C from '../model/commands';
 import { buildExportPreview } from '../model/exportPreview';
 import { GAP_KIND_LABEL, type Gap, type GapKind } from '../model/gaps';
 import { parseStructuredSequence, type ParsedLine } from '../model/structuredText';
-import type { AssetKind, Project } from '../model/types';
+import { feedCountOf, type AssetKind, type Project } from '../model/types';
 import { flowUsesSignal, hasFlow } from '../model/flow';
 import { checkRunReadiness, validateProject, type Diagnostic } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
@@ -291,11 +291,12 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
         {(['w', 'l', 'h'] as const).map((k) => <div key={k} className="row"><label style={{ textAlign: 'right' }}>{k.toUpperCase()}</label><QtyInput q={m.size[k]} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: k }, v, as), '자재 크기')} /></div>)}
         <div className="row"><label>무게</label><QtyInput q={m.weight} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: 'weight' }, v, as), '자재 무게')} /></div>
         <div className="row"><label>취급 조건</label><TextInput value={m.handling} disabled={locked} onCommit={(v) => edit(C.updateMaterial(p, m.id, { handling: v }), '취급 조건')} /></div>
+        <div className="row"><label>투입 개수</label><input key={feedCountOf(m)} type="number" aria-label="자재 투입 개수" className="num" min={1} step={1} disabled={locked} defaultValue={feedCountOf(m)} onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== feedCountOf(m)) edit(C.setFeedCount(p, m.id, n), '투입 개수'); else e.target.value = String(feedCountOf(m)); }} /></div>
         <div className="row"><label>투입 간격</label><QtyInput q={m.feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: 'feedInterval' }, v, as), '투입 간격')} /></div>
         <div className="row"><label>상태집합</label><TextInput value={m.states.join(', ')} width={210} disabled={locked} onCommit={(v) => edit(C.updateMaterial(p, m.id, { states: v.split(',').map((x) => x.trim()).filter(Boolean) }), '상태집합')} /></div>
         <div className="row" data-jump="material-state"><label>초기 상태</label><select disabled={locked} value={m.initialState ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialState: e.target.value || null }), '초기 상태')}><option value="">(미정)</option>{m.states.map((s) => <option key={s}>{s}</option>)}</select></div>
         <div className="row" data-jump="material-location"><label>초기 위치</label><select disabled={locked} value={m.initialLocation ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialLocation: e.target.value || null }), '초기 위치')}><option value="">(미정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-        <div className="muted" style={{ fontSize: 11 }}>설계 정의(Material)와 실행 중 개체(M#1)는 분리됩니다. 이번 시제품 실행은 자재 1개만 지원.</div>
+        <div className="muted" style={{ fontSize: 11 }}>자재 정의는 하나이고, 실행은 그 정의를 투입 개수만큼 이어서 넣습니다. 정의가 여러 종류이거나 캐리어에 싣는 것은 없습니다.</div>
       </div>
       <div style={{ width: 300, overflow: 'auto', borderRight: '1px solid var(--border)', paddingRight: 8 }}>
         <b style={{ fontSize: 12 }} data-jump="material-route">Unit 경로 (순서)</b>

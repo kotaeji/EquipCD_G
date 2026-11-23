@@ -425,7 +425,7 @@ describe('TURN-023 flow edit polish', () => {
 
   it('AC7 samples keep their times and the file and runtime versions stay put', () => {
     expect(FILE_FORMAT_VERSION).toBe('0.3.0');
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.3.1');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.4.0');
     expect(runToEnd(createRuntime(buildFlowSampleProject())).state.timeMs).toBe(13100);
     expect(runToEnd(createRuntime(buildParallelSampleProject())).state.timeMs).toBe(2500);
     expect(runToEnd(createRuntime(buildSampleProject())).state.timeMs).toBe(11100);

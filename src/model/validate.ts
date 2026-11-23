@@ -1,7 +1,7 @@
 import { getAssetById } from '../assets/library';
-import { flowIntegrity, flowShapeBlockers, laneSteps, walk } from './flow';
+import { flowIntegrity, flowShapeBlockers, hasFlow, laneSteps, stepOrder, walk } from './flow';
 import { checkLanes } from './laneCheck';
-import type { Condition, FlowNode, Project } from './types';
+import { feedCountOf, type Condition, type FlowNode, type Project } from './types';
 
 export interface Diagnostic {
   id: string;
@@ -139,6 +139,10 @@ export function checkRunReadiness(p: Project): Readiness {
   if (m) {
     if (!m.initialLocation) b('MAT_NO_LOCATION', m.id, '자재 초기 위치 미정');
     if (!m.initialState) b('MAT_NO_STATE', m.id, '자재 초기 상태 미정');
+    if (m.feedCount != null && (!Number.isInteger(m.feedCount) || m.feedCount < 1)) b('FEED_COUNT', m.id, '투입 개수는 1 이상의 정수여야 합니다');
+    const n = feedCountOf(m);
+    if (n >= 2 && m.feedInterval.value === null) b('FEED_INTERVAL', m.id, '투입 개수가 2 이상이면 투입 간격을 정해야 합니다');
+    if (n >= 2 && hasFlow(p) && stepOrder(p) === null) b('MULTI_FLOW', p.sequence.id, '투입 개수 2 이상은 순차 시퀀스만 실행합니다. 분기·병렬·반복·재시도·Substation 흐름은 막습니다.');
   }
   for (const s of p.sequence.steps) {
     const a = ix.action.get(s.actionId)!;

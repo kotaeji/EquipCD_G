@@ -123,7 +123,7 @@ describe('TURN-034 parallel wrap lanes', () => {
   it('AC7 sample times and version constants stay put', () => {
     expect(FILE_FORMAT_VERSION).toBe('0.3.0');
     expect(APP_VERSION).toBe('0.3.0-prototype');
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.3.1');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.4.0');
     expect(runToEnd(createRuntime(buildFlowSampleProject())).state.timeMs).toBe(13100);
     expect(runToEnd(createRuntime(buildParallelSampleProject())).state.timeMs).toBe(2500);
     expect(runToEnd(createRuntime(buildSampleProject())).state.timeMs).toBe(11100);

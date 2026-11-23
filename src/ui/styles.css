@@ -629,6 +629,10 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   border: 2px solid var(--warning);
   background: color-mix(in srgb, var(--warning) 20%, transparent);
 }
+.rf-mat.is-waiting .rf-mat-box {
+  border-style: dashed;
+  background: transparent;
+}
 .rf-mat-label {
   position: absolute;
   left: 50%;
