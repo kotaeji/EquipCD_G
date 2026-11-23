@@ -8,7 +8,7 @@ import type { EditFn } from './Inspector';
 import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 
-const SPEEDS = [0.25, 0.5, 1, 2, 4];
+export const RUN_SPEEDS = [0.25, 0.5, 1, 2, 4, 16];
 
 export const TIMEOUT_WARN = '타임아웃이 동작 시간보다 짧습니다 — 실행하면 TIMEOUT';
 export const TIMEOUT_EQUAL = '타임아웃이 동작 시간과 같습니다 — 여유가 없습니다';
@@ -173,7 +173,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
       {!folded && <>
       <label className="run3d-field">배속
         <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-          {SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}
+          {RUN_SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}
         </select>
       </label>
       {p.materials[0] && <>
