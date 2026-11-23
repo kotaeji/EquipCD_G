@@ -179,7 +179,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
           const blockName = row.node && 'name' in row.node ? row.node.name : '';
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
           const live = row.stepId ? statusOf(rt, row.stepId) : null;
-          const jump = (row.kind === 'wait' || row.kind === 'branch' || row.kind === 'retry') && row.blockId ? `flow:${row.blockId}` : row.stepId ? `step:${row.stepId}` : undefined;
+          const jump = row.stepId ? `step:${row.stepId}` : row.blockId && row.kind !== 'arm' ? `flow:${row.blockId}` : undefined;
           return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
             <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>

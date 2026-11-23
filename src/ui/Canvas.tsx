@@ -368,6 +368,7 @@ function UnitNode({ data }: NodeProps) {
   }, []);
   return (
     <div
+      data-jump={`unit:${d.unitId}`}
       className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.flowFrom ? ' is-flow-from' : ''}${d.flowTarget ? ' is-flow-target' : ''}${d.paused ? ' is-paused' : ''}${d.tone}`}
       style={{ width: d.w, height: d.h }}
       onPointerDown={(e) => {
@@ -410,6 +411,7 @@ function DeviceNode({ data }: NodeProps) {
   const photo = d.photo ? resolveGenerated(dev.kind) : null;
   return (
     <div
+      data-jump={`device:${dev.id}`}
       className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.paused ? ' is-paused' : d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}${d.tone}`}
       style={{ width: dev.layout.w, height: dev.layout.h }}
       onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
