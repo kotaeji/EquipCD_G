@@ -348,7 +348,7 @@ describe('TURN-024 stopped is a word on the run screen (AC3)', () => {
       await act(async () => { node.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     };
     const btn = (label: string) => [...el.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === label)!;
-    await click(btn('병렬 예제'));
+    await click(el.querySelector('[data-sample-open="parallel"]')!);
     await click(el.querySelector('.stepper [data-stepid="run"]')!);
     const fault = [...el.querySelectorAll('select')].find((s) => (s.textContent ?? '').includes('완료 신호 미발생')) as HTMLSelectElement;
     const opt = [...fault.options].find((o) => (o.textContent ?? '').includes('A 클램프 상승'))!;

@@ -11,6 +11,7 @@ import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { analyzeRunGaps } from '../model/runGaps';
 import { applyEdit, initHistory, redo, undo, type History } from '../model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
+import { buildStarter, STARTER_NEXT, type StarterSpec } from '../model/starter';
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { applyLabVariant, type LabReport, type LabVariant } from '../model/lab';
@@ -66,6 +67,7 @@ import { RunConditions } from './RunConditions';
 import { RunDetails } from './RunDetails';
 import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
 import { EmptyState, LoadingPlaceholder } from './EmptyState';
+import { StarterHome } from './StarterHome';
 import { Problem } from './Problem';
 import { EMPTY, LARGE_IMPORT_BYTES, LOADING_FILE, RUN_LOCK, draftProblem, importRejectProblem, refusal, runErrorProblem, saveProblem, type ProblemCopy } from './problemCopy';
 import { Scene3D } from './Scene3D';
@@ -224,6 +226,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [bgPoints, setBgPoints] = useState<{ x: number; y: number }[] | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [tourIndex, setTourIndex] = useState<number | null>(null);
+  const [starterHintId, setStarterHintId] = useState<string | null>(null);
   const tourReturn = useRef<HTMLElement | null>(null);
   const tourIndexRef = useRef<number | null>(null);
   useEffect(() => {
@@ -1069,6 +1072,17 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const t = makeTab(proj); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
     setView((v) => ({ ...v, home: false }));
   };
+  const openStarter = (spec: StarterSpec): boolean => {
+    const built = buildStarter(spec);
+    if (!built.ok) { say(built.reason, true); return false; }
+    const proj = { ...built.project, name: W.uniqueName(built.project.name, projectNames()) };
+    const t = makeTab(proj);
+    setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
+    setStarterHintId(proj.id);
+    setHelpScope('main');
+    setView((v) => ({ ...v, home: false, step: 'canvas', layoutTab: 'board' }));
+    return true;
+  };
   const restoreTourFocus = () => {
     const back = tourReturn.current;
     if (back?.isConnected) { back.focus(); return; }
@@ -1681,20 +1695,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             data-tour-start data-tour-offer={savedList.length === 0 && !view.tourSeen ? 'primary' : view.tourSeen ? 'again' : 'quiet'}
             onClick={(e) => beginTour(e.currentTarget)}>{view.tourSeen ? TOUR_AGAIN : TOUR_BUTTON}</button>
         </div>
-        <div className="home-cards">
-          <section className="home-card">
-            <h2>새 설계 시작</h2>
-            <p>자료가 없어도 시작할 수 있습니다.<br />에셋 선택부터 단계별로 안내합니다.</p>
-            <button className="btn-main primary" onClick={() => newProject('blank')}>빈 프로젝트 만들기</button>
-          </section>
-          <section className="home-card">
-            <h2>예제로 익히기</h2>
-            <p>5공정 조립 라인 · 병렬 시퀀스 · 분기와 반복<br />실제 장비가 아닌 논리 실행 예제입니다.</p>
-            <div className="row"><button className="btn-main primary" onClick={() => newProject('sample')}>예제 열기</button>
-              <button className="btn-main secondary" onClick={() => newProject('parallel')}>병렬 예제</button>
-              <button className="btn-main secondary" onClick={() => newProject('flow')}>흐름 예제</button></div>
-          </section>
-        </div>
+        <StarterHome templates={templates} onBlank={() => newProject('blank')} onOpenSample={newProject} onCreate={openStarter} />
         {unsavedDrafts.length > 0 && <h2>저장 안 된 작업</h2>}
         {unsavedDrafts.map((d) => <div key={d.id} className="home-recent" data-unsaved-draft={d.id}>
           <div><b>{d.name}</b><div className="muted">rev {d.revision} · 임시 저장 {formatClock(d.savedAt)}</div></div>
@@ -1744,6 +1745,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
+          {starterHintId === p.id && <div className="starter-next"><EmptyState symbol="→" line={STARTER_NEXT} attrs={{ 'data-starter-next': 'canvas' }} /></div>}
           <Fold className="palette-fold" open={view.paletteOpen} onToggle={(open) => setView((v) => (v.paletteOpen === open ? v : { ...v, paletteOpen: open }))} summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span>{paletteHidden > 0 && <span className="palette-more" data-palette-more={paletteHidden}>+{paletteHidden}개 더</span>}</>}>
             <div className="palette" ref={paletteRef}>
               <div className="pi" data-jump="palette-unit" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
