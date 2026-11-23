@@ -352,7 +352,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked, confirmDelet
                 title={locked ? EDIT_LOCKED : !p.sequence.flow ? '흐름 없음' : '끌어 옮기기'}
                 onPointerDown={(e) => onGripDown(e, row)}
               ><IconLabel id="flow-grip" glyph="⋮⋮" /></button>
-              <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />
+              <label className="check-hit"><input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} /></label>
             </>}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>

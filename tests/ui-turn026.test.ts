@@ -15,14 +15,14 @@ const chroma = (hex: string) => {
   return Math.max(...rgb) - Math.min(...rgb);
 };
 
-const LIGHT_KEYS = ['bg', 'panel', 'canvas', 'border', 'text', 'muted', 'accent', 'selected', 'grid', 'on-accent', 'theme-light-bg', 'theme-light-fg', 'theme-dark-bg', 'theme-dark-fg'] as const;
+const LIGHT_KEYS = ['bg', 'panel', 'canvas', 'border', 'text', 'muted', 'accent', 'focus', 'selected', 'grid', 'on-accent', 'theme-light-bg', 'theme-light-fg', 'theme-dark-bg', 'theme-dark-fg'] as const;
 const BANNED = ['#245bce', '#e5edff', '#17283f', '#f2f5fa', '#cbd5e2', '#d5deea', '#53647b'];
 
 const DARK = {
-  bg: '#101b2a', panel: '#19283a', canvas: '#101b2a', border: '#5c8496', text: '#eff5fd', muted: '#b3c4d9', accent: '#42d6cc', selected: '#203d4c', success: '#88dfb1', warning: '#ffd18a', danger: '#ff9fab', grid: '#5c8496', rowh: '32px', pad: '12px', scheme: 'dark', 'on-accent': '#102c2d', 'theme-light-bg': '#19283a', 'theme-light-fg': '#eff5fd', 'theme-dark-bg': '#42d6cc', 'theme-dark-fg': '#102c2d', 'header-bg': '#A20034', 'header-fg': '#FFFFFF', 'header-muted': '#F5D6DE', 'header-border': '#FFFFFF',
+  bg: '#101b2a', panel: '#19283a', canvas: '#101b2a', border: '#5c8496', text: '#eff5fd', muted: '#b3c4d9', accent: '#42d6cc', focus: '#42d6cc', selected: '#203d4c', success: '#88dfb1', warning: '#ffd18a', danger: '#ff9fab', grid: '#5c8496', rowh: '32px', pad: '12px', scheme: 'dark', 'on-accent': '#102c2d', 'theme-light-bg': '#19283a', 'theme-light-fg': '#eff5fd', 'theme-dark-bg': '#42d6cc', 'theme-dark-fg': '#102c2d', 'header-bg': '#A20034', 'header-fg': '#FFFFFF', 'header-muted': '#F5D6DE', 'header-border': '#FFFFFF',
 };
 const ARCHIVED = {
-  bg: '#F1F0EB', panel: '#FCFBF7', canvas: '#F7F6F1', border: '#D9DDD5', text: '#283D3B', muted: '#73807B', accent: '#3E807A', selected: '#DFECE6', success: '#487D5E', warning: '#9E7B43', danger: '#A4473A', grid: '#E7E9E1', rowh: '36px', pad: '14px', scheme: 'light', 'on-accent': '#FFFFFF', 'header-bg': '#A20034', 'header-fg': '#FFFFFF', 'header-muted': '#F5D6DE', 'header-border': '#FFFFFF',
+  bg: '#F1F0EB', panel: '#FCFBF7', canvas: '#F7F6F1', border: '#D9DDD5', text: '#283D3B', muted: '#73807B', accent: '#3E807A', focus: '#283D3B', selected: '#DFECE6', success: '#487D5E', warning: '#9E7B43', danger: '#A4473A', grid: '#E7E9E1', rowh: '36px', pad: '14px', scheme: 'light', 'on-accent': '#FFFFFF', 'header-bg': '#A20034', 'header-fg': '#FFFFFF', 'header-muted': '#F5D6DE', 'header-border': '#FFFFFF',
 };
 
 function srcFiles(dir: string): string[] {

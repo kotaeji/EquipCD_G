@@ -144,7 +144,7 @@ describe('TURN-034 flow editor headings', () => {
       await act(async () => { (node as HTMLElement).click(); });
     };
     const btn = (label: string, scope: ParentNode = el) => [...scope.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === label);
-    await click(btn('흐름 예제'));
+    await click(el.querySelector('[data-sample-open="flow"]')!);
     await click(el.querySelector('.stepper [data-stepid="sequence"]')!);
     const flow = el.querySelector('table[aria-label="Station 흐름"]') as HTMLTableElement;
     const row = (kind: string) => flow.querySelector(`tr[data-flow-kind="${kind}"]`) as HTMLTableRowElement;

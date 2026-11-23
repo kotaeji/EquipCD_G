@@ -1,7 +1,18 @@
 // Header guesses and asset-kind matching for an IO list / specification sheet.
 import { ASSET_LIBRARY } from '../assets/library';
 
-export type ColumnRole = 'unitName' | 'deviceName' | 'deviceKind' | 'signalName' | 'signalDirection' | 'address' | 'memo' | 'ignore';
+export type ColumnRole =
+  | 'unitName'
+  | 'deviceCode'
+  | 'deviceName'
+  | 'deviceKind'
+  | 'signalName'
+  | 'signalDirection'
+  | 'signalRole'
+  | 'address'
+  | 'addressStatus'
+  | 'memo'
+  | 'ignore';
 
 export interface ColumnMapping {
   index: number;
@@ -13,11 +24,14 @@ export interface ColumnMapping {
 
 export const COLUMN_ROLES: { role: ColumnRole; label: string }[] = [
   { role: 'unitName', label: 'Unit 이름' },
+  { role: 'deviceCode', label: 'Device 코드' },
   { role: 'deviceName', label: 'Device 이름' },
   { role: 'deviceKind', label: 'Device 종류' },
   { role: 'signalName', label: '신호 이름' },
   { role: 'signalDirection', label: '신호 방향' },
+  { role: 'signalRole', label: '신호 역할' },
   { role: 'address', label: '주소' },
+  { role: 'addressStatus', label: '주소 상태' },
   { role: 'memo', label: '메모' },
   { role: 'ignore', label: '쓰지 않음' },
 ];
@@ -25,11 +39,15 @@ export const COLUMN_ROLES: { role: ColumnRole; label: string }[] = [
 interface Rule { role: ColumnRole; exact: string[]; words: string[]; includes: string[] }
 
 const RULES: Rule[] = [
+  // Exact names that contain a shorter role's word are listed first, so "주소 상태" is not read as 주소.
+  { role: 'addressStatus', exact: ['주소 상태', '주소상태', 'address status', 'addressstatus'], words: [], includes: [] },
   { role: 'signalDirection', exact: ['di', 'do', 'in', 'out', 'in/out', 'inout', 'in-out', 'direction', '방향', '입력', '출력'], words: [], includes: ['direction', '방향'] },
   { role: 'address', exact: ['address', 'addr', '주소'], words: [], includes: ['address', '주소'] },
   { role: 'memo', exact: ['memo', 'note', 'comment', '메모', '비고'], words: [], includes: ['memo', '메모', '비고'] },
   { role: 'deviceKind', exact: ['type', '종류', '타입', '형식'], words: ['type'], includes: ['종류', '타입'] },
+  { role: 'signalRole', exact: ['역할', 'role', 'signal role'], words: [], includes: [] },
   { role: 'signalName', exact: ['signal', '신호', 'io'], words: [], includes: ['signal', '신호'] },
+  { role: 'deviceCode', exact: ['코드', 'code', 'device code', 'devicecode'], words: [], includes: [] },
   { role: 'deviceName', exact: ['tag', 'device', '장치', '디바이스', '태그', '기기'], words: [], includes: ['device', '장치', '디바이스', '태그'] },
   { role: 'unitName', exact: ['unit', 'station', '공정', '유닛', '단위'], words: [], includes: ['unit', 'station', '공정', '유닛'] },
 ];

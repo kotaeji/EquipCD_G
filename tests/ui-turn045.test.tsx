@@ -102,6 +102,64 @@ describe('TURN-045 contrast pairs', () => {
   });
 });
 
+describe('TURN-077 diagram ink added to the TURN-045 contrast check', () => {
+  const slotCss = readFileSync('src/ui/slot-theme.css', 'utf8');
+  const canvas = readFileSync('src/ui/Canvas.tsx', 'utf8');
+  const symbols = readFileSync('src/ui/Symbols.tsx', 'utf8');
+  const sfc = readFileSync('src/ui/SfcView.tsx', 'utf8');
+  const lightKept = {
+    bg: '#f3f3f3', panel: '#ffffff', canvas: '#f6f6f6', border: '#8c8c8c', text: '#1c1c1c', muted: '#5c5c5c',
+    accent: '#1a1a1a', selected: '#e6e6e6', success: '#176642', warning: '#8b4800', danger: '#b42336', grid: '#8c8c8c',
+  };
+  const darkKept = {
+    bg: '#101b2a', panel: '#19283a', canvas: '#101b2a', border: '#5c8496', text: '#eff5fd', muted: '#b3c4d9',
+    accent: '#42d6cc', selected: '#203d4c', success: '#88dfb1', warning: '#ffd18a', danger: '#ff9fab', grid: '#5c8496',
+  };
+
+  it('AC1 AC2 device, flow, signal, port, position, and SFC inks clear 3:1, and light values stay', () => {
+    for (const [key, value] of Object.entries(lightKept)) expect(THEMES.A.vars[key], key).toBe(value);
+    for (const [key, value] of Object.entries(darkKept)) expect(THEMES.B.vars[key], key).toBe(value);
+    expect(THEMES.A.vars.focus).toBe('#1a1a1a');
+    expect(THEMES.B.vars.focus).toBe('#42d6cc');
+    expect(slotCss).toContain('stroke: #8FB4FF');
+    expect(slotCss).toContain('fill: #243448');
+    expect(readFileSync('src/ui/slots/gantry.svg', 'utf8')).toContain('stroke="#2C2C2C"');
+    expect(readFileSync('src/ui/slots/gantry.svg', 'utf8')).toContain('fill="#E6E6E6"');
+    expect(symbols).toContain("const s = 'var(--text)'");
+    expect(symbols).toContain("'var(--muted)'");
+    expect(canvas).toContain("edgePaint('flow', tone, !!selected, 'var(--text)')");
+    expect(canvas).toContain("on ? 'var(--success)' : 'var(--muted)'");
+    expect(canvas).toContain("stroke={ps.assumption ? 'var(--status-assumption)' : 'var(--text)'}");
+    expect(sfc).toContain('stroke="var(--text)"');
+    expect(sfc).not.toMatch(/timing-chart|TimingChart/);
+
+    const surfaces = (t: 'A' | 'B') => [THEMES[t].vars.bg, THEMES[t].vars.panel, THEMES[t].vars.canvas];
+    for (const t of ['A', 'B'] as const) {
+      const v = THEMES[t].vars;
+      for (const bg of surfaces(t)) {
+        expect(ratio(v.text, bg), `${t} device and flow and SFC line`).toBeGreaterThanOrEqual(3);
+        expect(ratio(v.muted, bg), `${t} signal line`).toBeGreaterThanOrEqual(3);
+        expect(ratio(v.accent, bg), `${t} port ring`).toBeGreaterThanOrEqual(3);
+        expect(ratio(v.success, bg), `${t} live signal`).toBeGreaterThanOrEqual(3);
+        expect(ratio(v.warning, bg), `${t} position legend`).toBeGreaterThanOrEqual(3);
+        expect(ratio(v.text, bg), `${t} diagram text`).toBeGreaterThanOrEqual(4.5);
+        expect(ratio(v.muted, bg), `${t} muted diagram text`).toBeGreaterThanOrEqual(4.5);
+      }
+      for (const key of ['active', 'done', 'error', 'pending', 'undetermined', 'assumption'] as const) {
+        for (const bg of surfaces(t)) {
+          expect(ratio(STATUS_COLOR[t === 'B' ? 'dark' : 'light'][key], bg), `${t} ${key}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+    for (const bg of ['#19283a', '#101b2a', '#203d4c', '#243448']) {
+      expect(ratio('#8FB4FF', bg), `dark card stroke on ${bg}`).toBeGreaterThanOrEqual(3);
+    }
+    for (const bg of ['#ffffff', '#f6f6f6', '#e6e6e6', '#E6E6E6']) {
+      expect(ratio('#2C2C2C', bg), `light card stroke on ${bg}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
 describe('TURN-045 danger buttons and quantities', () => {
   it('AC1 AC2 delete buttons share the danger class and sit at the right end; run reset does not', async () => {
     const u = await mount();
@@ -223,7 +281,7 @@ describe('TURN-045 danger buttons and quantities', () => {
 
   it('AC4 a step that sits in the flow shows the count and waits for confirm', async () => {
     const u = await mount();
-    await u.click(u.btn('흐름 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="flow"]')!);
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]')!);
     const seq = foldOf(u.el, '단계 편집');
     const note = seq.querySelector('[data-delete-impact]')!;

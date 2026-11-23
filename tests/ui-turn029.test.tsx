@@ -37,8 +37,8 @@ async function mount(keepStorage = false) {
 
 async function open3d(kind?: 'flow' | 'parallel') {
   const u = await mount();
-  if (kind === 'flow') await u.click(u.btn('흐름 예제'));
-  else if (kind === 'parallel') await u.click(u.btn('병렬 예제'));
+  if (kind === 'flow') await u.click(u.el.querySelector('[data-sample-open="flow"]')!);
+  else if (kind === 'parallel') await u.click(u.el.querySelector('[data-sample-open="parallel"]')!);
   else await u.click(u.btn('시작하기'));
   await u.click(u.el.querySelector('.stepper [data-stepid="run"]')!);
   await u.click(u.btn('3D'));
