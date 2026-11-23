@@ -31,6 +31,11 @@ export function hashText(s: string): string {
   return `${s.length}:${h.toString(16)}`;
 }
 const HASH_RE = /^\d{1,10}:[0-9a-f]{1,8}$/;
+/**
+ * One journal may touch this many data keys. A workspace bundle is one transaction
+ * (saved index + workspace list + one key per project), so the cap is above the old 16.
+ */
+export const TXN_OP_LIMIT = 128;
 /** the only keys a journal may touch. Draft keys are TURN-047 and never share a transaction with the saved body. */
 export const isDataKey = (k: string) => k === 'ecd.v1.index' || k === 'ecd.v1.workspaces' || k === 'ecd.v1.drafts'
   || /^ecd\.v1\.project\.[^\s]{1,200}$/.test(k) || /^ecd\.v1\.draft\.[^\s]{1,200}$/.test(k);
@@ -57,7 +62,7 @@ export function parseJournal(raw: string): Journal | null {
   if (!j || typeof j !== 'object' || Array.isArray(j) || !exactKeys(j, ['v', 'at', 'label', 'ops', 'sum'])) return null;
   const J = j as Journal;
   if (J.v !== 1 || typeof J.at !== 'string' || typeof J.label !== 'string' || J.label.length > 200 || typeof J.sum !== 'string') return null;
-  if (!Array.isArray(J.ops) || J.ops.length < 1 || J.ops.length > 16) return null;
+  if (!Array.isArray(J.ops) || J.ops.length < 1 || J.ops.length > TXN_OP_LIMIT) return null;
   const seen = new Set<string>();
   for (const o of J.ops as unknown[]) {
     if (!o || typeof o !== 'object' || Array.isArray(o) || !exactKeys(o, ['key', 'before', 'beforeHash', 'after'])) return null;
@@ -103,6 +108,7 @@ export function applyAtomic(kv: KV, label: string, plan: TxnPlan | (() => PlanRe
     const { ops, guards = [] } = p;
     const keys = new Set<string>();
     for (const o of ops) { if (!isDataKey(o.key) || keys.has(o.key)) return { ok: false, reason: `잘못된 쓰기 대상 ${o.key}`, restored: true }; keys.add(o.key); }
+    if (ops.length > TXN_OP_LIMIT) return { ok: false, reason: `한 번에 바꿀 수 있는 항목은 ${TXN_OP_LIMIT}개까지입니다 — 변경하지 않았습니다`, restored: true };
     for (const g of guards) {
       const r = read(kv, g.key); if (!r.ok) return { ok: false, reason: `${r.reason} — 변경하지 않았습니다`, restored: true };
       if (r.v !== g.expect) return { ok: false, reason: '저장소 내용이 이 화면이 알고 있는 상태와 다릅니다(읽기 실패 후이거나 다른 탭에서 변경됨) — 변경하지 않았습니다. 페이지를 새로 고친 뒤 다시 시도하세요', restored: true };

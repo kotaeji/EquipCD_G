@@ -11,6 +11,7 @@ import { StatusMark } from './StatusMark';
 import { piecePhaseStatus } from './status';
 import { Tabs } from './Tabs';
 import type { RunDetailsTab } from './viewSettings';
+import { Terms } from './Term';
 
 function RunLog({ rt, onRun, runDisabled, runReason }: { rt: RuntimeState | null; onRun?: () => void; runDisabled?: boolean; runReason?: string }) {
   const rows = [...(rt?.log ?? [])].reverse();
@@ -60,7 +61,7 @@ function InterlockHistory({ rows, onJump }: { rows: InterlockBlockRecord[]; onJu
   if (!rows.length) return null;
   return (
     <table className="grid" aria-label="Interlock 차단 이력">
-      <thead><tr><th>가상 시각</th><th>Interlock</th><th>단계</th><th>까닭</th><th></th></tr></thead>
+      <thead><tr><th>가상 시각</th><th><Terms text="Interlock" /></th><th>단계</th><th>까닭</th><th></th></tr></thead>
       <tbody>
         {rows.map((row, i) => (
           <tr key={`${row.interlockId}:${row.t}:${i}`} data-interlock-block={row.interlockId}>
@@ -79,7 +80,7 @@ function InterlockHistory({ rows, onJump }: { rows: InterlockBlockRecord[]; onJu
 function RunSignals({ p, rt }: { p: Project; rt: RuntimeState | null }) {
   return (
     <table className="grid" aria-label="신호 상태">
-      <thead><tr><th>신호</th><th>상태</th></tr></thead>
+      <thead><tr><th><Terms text="신호" /></th><th>상태</th></tr></thead>
       <tbody>
         {p.signals.map((signal) => <tr key={signal.id} data-signal={signal.id}>
           <td>{signal.name}</td>

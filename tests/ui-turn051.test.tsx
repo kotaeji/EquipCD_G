@@ -10,7 +10,7 @@ import { App } from '../src/ui/App';
 import { BootGate, LOADING_DELAY_MS } from '../src/ui/EmptyState';
 import { BlockerList, Problem } from '../src/ui/Problem';
 import { resolveBlocker } from '../src/ui/blockerTarget';
-import { BundleSheet, ExtractSheet, FilesSheet, LabSheet, SearchSheet } from '../src/ui/SparseScreens';
+import { ExtractSheet, FilesSheet, SearchSheet } from '../src/ui/SparseScreens';
 import { LOADING_3D, runErrorProblem, saveProblem } from '../src/ui/problemCopy';
 import { checkRunReadiness } from '../src/model/validate';
 
@@ -239,11 +239,9 @@ describe('TURN-051 empty and not-ready screens', () => {
     expect(u.el.textContent).toContain('입력 후보가 없습니다');
   });
 
-  it('AC9 the three unfinished screens keep 준비 중 and offer a place to work instead', async () => {
+  it('AC9 the unfinished screens keep 준비 중 and offer a place to work instead', async () => {
     const jumped: string[] = [];
     const cases: [string, ReactNode][] = [
-      ['lab', <LabSheet revision={1} onInstead={() => jumped.push('lab')} />],
-      ['bundle', <BundleSheet wsName="작업" projectCount={0} assetCount={0} assumptionCount={0} onInstead={() => jumped.push('bundle')} />],
       ['extract', <ExtractSheet onInstead={() => jumped.push('extract')} />],
     ];
     for (const [name, node] of cases) {

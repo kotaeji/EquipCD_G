@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { serializeProject } from '../src/storage/fileFormat';
 import { App } from '../src/ui/App';
-import { BundleSheet, ExtendSheet, ExtractSheet, LabSheet, SearchSheet } from '../src/ui/SparseScreens';
+import { ExtendSheet, ExtractSheet, SearchSheet } from '../src/ui/SparseScreens';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -109,11 +109,9 @@ describe('TURN-020 common search', () => {
 describe('TURN-020 not-ready banners', () => {
   const lead = '준비 중 — 이 화면은 아직 동작하지 않습니다';
 
-  it('AC4 puts the same note at the top of the four guide screens', async () => {
+  it('AC4 puts the same note at the top of the guide screens that are still not ready', async () => {
     const cases: [string, ReactNode, string, string][] = [
       ['extract', <ExtractSheet />, '입력 후보표의 직접 입력과 AML 라이브러리를 쓰세요', '자료 선택 예시'],
-      ['bundle', <BundleSheet wsName="작업" projectCount={1} assetCount={2} assumptionCount={3} />, '프로젝트별 JSON 내보내기를 쓰세요', '묶음 내보내기'],
-      ['lab', <LabSheet revision={4} />, 'Gap 목록의 가정 시간 합계를 쓰세요', '변형 차이 검토 예시'],
       ['extend', <ExtendSheet />, 'Station 단계 시간은 4단계 Station 시퀀스에서 편집하세요', '편집 반영 미리보기'],
     ];
     for (const [name, node, hint, kept] of cases) {

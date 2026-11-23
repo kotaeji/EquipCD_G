@@ -11,6 +11,7 @@ import { applyEdit, initHistory, redo, undo, type History } from '../model/histo
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
+import { applyLabVariant, type LabReport, type LabVariant } from '../model/lab';
 import { advance, createRuntime, pause, pauseSubstation, reset, resume, resumeSubstation, runToEnd, start, type Runtime } from '../runtime/engine';
 import { activeDeviceIds as sceneActiveIds, faultDeviceIds, interlockFaultDeviceIds } from '../scene/describe';
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
@@ -21,6 +22,8 @@ import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type
 import { Canvas, type Mode } from './Canvas';
 import { BackgroundTools } from './BackgroundTools';
 import { UnitLockTools } from './UnitLock';
+import { CommandPaletteDialog, ShortcutSheet } from './CommandPalette';
+import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
 import { ContextMenu } from './ContextMenu';
 import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
 import { selectAll, SELECT_HINT } from './selectAll';
@@ -28,16 +31,19 @@ import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector, InterlockPanel, type ConfirmDelete } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { focusJump, jumpCaption, jumpTarget, runGapJump } from './itemJump';
+import { ConditionMark } from './conditionMark';
 import { StatusMark } from './StatusMark';
 import { deviceDisplayStatus, gapJudgementMark, ITEM_LEVEL_STATUS, statusCssVars, WIZARD_BADGE_STATUS } from './status';
 import { BADGE_MARK, BADGE_WORD, evaluateSteps, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
 import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
-import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RunGapSection, SequencePanel, SfcPanel } from './Panels';
+import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, MaterialPanel, RunGapSection, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { SubSequencePanel } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
-import type { Diagnostic } from '../model/validate';
+import { checkRunReadiness, type Diagnostic } from '../model/validate';
+import { conditionsFormula, runBlockFormula } from '../model/conditionFormula';
+import type { ConditionFinding } from '../model/conditionCheck';
 import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type RunDetailsTab, type UserView } from './viewSettings';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
@@ -58,6 +64,9 @@ import { Problem } from './Problem';
 import { EMPTY, LARGE_IMPORT_BYTES, LOADING_FILE, RUN_LOCK, draftProblem, importRejectProblem, refusal, runErrorProblem, saveProblem, type ProblemCopy } from './problemCopy';
 import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';
+import { HelpPanel } from './HelpPanel';
+import { helpTopic, resolveHelpId } from './helpCopy';
+import { TermHintsProvider, Terms } from './Term';
 
 interface Tab {
   key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; runRecord: Runtime | null; gaps: Gap[]; analyzedRevision: number | null;
@@ -71,6 +80,9 @@ interface Tab {
   draftError: boolean;
   /** True only after this session's timer wrote a draft. Opening an existing draft does not set it. */
   sessionDraft: boolean;
+  /** Evolution Lab variants. Not written into the project file. */
+  labVariants: LabVariant[];
+  labResult: LabReport | null;
 }
 
 /** Keep a finished run for Gap after a later model edit. Reset clears it. A new finish replaces it. */
@@ -96,6 +108,7 @@ function makeTab(p: Project, saved: { rev: number; at: string } | null = null, d
   return {
     key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, runRecord: null, gaps, analyzedRevision: p.revision,
     baselineRevision: saved?.rev ?? p.revision, draftAt: draft?.at ?? null, draftedRevision: draft?.revision ?? null, draftTriedRevision: draft?.revision ?? null, draftError: false, sessionDraft: false,
+    labVariants: [], labResult: null,
   };
 }
 const runBusy = (t: Tab) => t.runtime?.state.status === 'running' || t.runtime?.state.status === 'paused';
@@ -167,7 +180,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   });
   const [nameDlg, setNameDlg] = useState<NameDlg | null>(null);
   const [activeKey, setActiveKey] = useState(() => tabs[0].key);
+  useEffect(() => { setFlowPicked([]); }, [activeKey]);
   const [selection, setSelection] = useState<string[]>([]);
+  /** Station flow checkboxes. Kept here so a command from another step still sees them. */
+  const [flowPicked, setFlowPicked] = useState<string[]>([]);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutOpen, setShortcutOpen] = useState(false);
   /** App-held copy of Units or Devices. Shared by every project tab. Not the OS clipboard. */
   const [clip, setClip] = useState<Clipboard | null>(null);
   const [mode, setMode] = useState<Mode>('select');
@@ -183,7 +201,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [jumpTick, setJumpTick] = useState(0);
   const jumpRef = useRef<StepItem['jump']>(null);
   const step = view.step;
-  const goStep = (s: StepId, sub?: string) => { setView((v) => ({ ...v, step: s, home: false })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsStep(null); };
+  const [helpScope, setHelpScope] = useState<'main' | 'explorer'>('main');
+  const helpReturn = useRef<HTMLElement | null>(null);
+  const helpWas = useRef(false);
+  const goStep = (s: StepId, sub?: string) => { setHelpScope('main'); setView((v) => ({ ...v, step: s, home: false })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsStep(null); };
+  const pickRight = (k: string) => { setHelpScope('main'); setRightTab(k); };
   const toggleItems = (s: StepId) => setItemsStep((cur) => (cur === s ? null : s));
   const chooseTheme = (mode: 'light' | 'dark') => { const next = mode === 'dark' ? 'B' as const : 'A' as const; setView((v) => (v.theme === next ? v : { ...v, theme: next })); };
   const setBottomTab = (k: string) => {
@@ -197,6 +219,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [tourIndex, setTourIndex] = useState<number | null>(null);
   const tourReturn = useRef<HTMLElement | null>(null);
   const tourIndexRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (helpWas.current && !view.helpOpen) {
+      const back = helpReturn.current;
+      if (back?.isConnected) back.focus();
+      else document.querySelector<HTMLElement>('[data-help-toggle]')?.focus();
+    }
+    helpWas.current = view.helpOpen;
+  }, [view.helpOpen]);
   const [speed, setSpeed] = useState(1);
   const [showNames, setShowNames] = useState(true);
   const [emphasizeMotion, setEmphasizeMotion] = useState(true);
@@ -401,7 +431,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         const unitId = p.units.some((u) => u.id === j.selectId) ? j.selectId : p.devices.find((d) => d.id === j.selectId)?.unitId;
         if (unitId) setSubUnitPref(unitId);
       }
-      if (j.rightTab) setRightTab(j.rightTab);
+      if (j.rightTab) pickRight(j.rightTab);
       if (j.actionId) setActionFocus(j.actionId);
       if (j.step === 'canvas') setView((v) => (v.layoutTab === 'board' ? v : { ...v, layoutTab: 'board' }));
       jumpRef.current = j;
@@ -412,7 +442,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const id = g.target.objectId;
     if (g.target.panel === 'material') setBottomTab('material');
     else if (g.target.panel === 'sequence') setBottomTab('sequence');
-    else { setSelection(id ? [id] : []); goStep(g.target.panel === 'canvas' ? 'canvas' : 'attributes'); setRightTab(g.target.panel === 'configurator' && p.devices.some((d) => d.id === id) ? (g.kind === 'axisSpec' ? 'props' : 'actions') : 'props'); }
+    else { setSelection(id ? [id] : []); goStep(g.target.panel === 'canvas' ? 'canvas' : 'attributes'); pickRight(g.target.panel === 'configurator' && p.devices.some((d) => d.id === id) ? (g.kind === 'axisSpec' ? 'props' : 'actions') : 'props'); }
   };
 
   // ---------- canvas handlers ----------
@@ -423,7 +453,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (def?.template) { const r2 = C.addUnitFromTemplate(p, kind, { x: Math.round(at.x - 108), y: Math.round(at.y - 20) }); if (edit(r2, `${def.name} 배치`) && r2.ok) setSelection([r2.note!]); return; }
     const pt = unitId ? { x: Math.round(at.x), y: Math.round(at.y) } : { x: Math.round(at.x - 25), y: Math.round(at.y - 20) };
     const r = C.addDevice(p, kind, pt, undefined, undefined, unitId);
-    if (edit(r, `${def?.name ?? kind} 배치`) && r.ok) { setSelection([r.note!]); setRightTab('props'); }
+    if (edit(r, `${def?.name ?? kind} 배치`) && r.ok) { setSelection([r.note!]); pickRight('props'); }
   };
   const onResizeCommit = (unitId: string, w: number, h: number) => { edit(C.resizeUnit(p, unitId, w, h), 'Unit 크기'); };
   const fitSelectedUnit = () => {
@@ -637,7 +667,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (id === 'props') {
       setPropPeek(false);
       setPropsFold(true);
-      setRightTab('props');
+      pickRight('props');
       if (step !== 'canvas' && step !== 'attributes') goStep('canvas');
       return;
     }
@@ -690,20 +720,39 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   // ---------- keyboard ----------
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      const tag = (e.target as HTMLElement)?.tagName;
-      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-      // Bookmark (Ctrl/Cmd+D) is always swallowed. Duplicate itself still follows the dialog / input rule.
-      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'd') {
+      const target = e.target instanceof Element ? e.target : null;
+      const tag = target?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || isTextField(target);
+      const cmd = commandForEvent(e);
+      const blocked = dialogOpen() || tourIndex !== null;
+      // Ctrl/Cmd+K opens the palette from an input too. It does not open over a dialog or the tour.
+      if (cmd?.id === 'palette') {
         e.preventDefault();
-        if (dialogOpen() || typing) return;
+        if (paletteOpen) { setPaletteOpen(false); return; }
+        if (blocked) return;
+        setCtx(null);
+        setPaletteOpen(true);
+        return;
+      }
+      // `?` is a character while a field is focused. The sheet is not a model edit.
+      if (cmd?.id === 'shortcuts') {
+        if (typing) return;
+        if (blocked || paletteOpen) return;
+        e.preventDefault();
+        setShortcutOpen(true);
+        return;
+      }
+      // Bookmark (Ctrl/Cmd+D) is always swallowed. Duplicate itself still follows the dialog / input rule.
+      if (cmd?.id === 'duplicate') {
+        e.preventDefault();
+        if (blocked || typing) return;
         if (step === 'canvas' || step === 'attributes') requestDuplicate();
         return;
       }
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
-      if (dialogOpen()) return;
+      if (blocked) return;
       if (typing) return;
-      if (!mod && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      if (!(e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         const el = e.target as HTMLElement | null;
         if (el?.closest?.('.rf-host') && !el.closest('button, input, textarea, select, a') && !view.home && !guide && step === 'canvas') {
           const stepPx = 10;
@@ -742,14 +791,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       // TURN-044. Step 2, and the explorer tree. An input already returned, so text copy stays native.
       const inTree = !!(e.target as HTMLElement | null)?.closest?.('.tree');
       const onCanvas = !view.home && !guide && step === 'canvas';
-      if (mod && !e.shiftKey && !e.altKey && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'v') && (onCanvas || inTree)) {
+      if ((cmd?.id === 'copy' || cmd?.id === 'paste') && (onCanvas || inTree)) {
         e.preventDefault();
-        if (e.key.toLowerCase() === 'c') requestCopy();
+        if (cmd.id === 'copy') requestCopy();
         else requestPaste();
         return;
       }
       // TURN-027. Step 2 only. Inputs and dialogs already returned, so the browser keeps its own Ctrl+A.
-      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+      if (cmd?.id === 'select-all') {
         if (view.home || guide || step !== 'canvas') return;
         e.preventDefault();
         const hit = selectAll(p, selection);
@@ -757,9 +806,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         else setSelection(hit.ids);
         return;
       }
-      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
-      else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); doRedo(); }
-      else if ((e.key === 'Delete' || e.key === 'Backspace') && (step === 'canvas' || step === 'attributes')) {
+      if (cmd?.id === 'undo') { e.preventDefault(); doUndo(); }
+      else if (cmd?.id === 'redo') { e.preventDefault(); doRedo(); }
+      else if (cmd?.id === 'delete' && (step === 'canvas' || step === 'attributes')) {
         if (selectedNodeIds.length >= 2) { e.preventDefault(); requestDeleteMany(selectedNodeIds); }
         else if (selection.length === 1) { e.preventDefault(); requestDelete(selection[0]); }
       }
@@ -935,6 +984,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     else if (r.warnings.length) say(`경고 ${r.warnings.length}: ${r.warnings[0].message}`);
   };
   const openExplorerTab = (id: ExplorerTab) => {
+    setHelpScope('explorer');
     setView((v) => (v.explorerTab === id && v.explorerOpen ? v : { ...v, explorerTab: id, explorerOpen: true }));
   };
   const toggleExplorer = () => setView((v) => ({ ...v, explorerOpen: !v.explorerOpen }));
@@ -942,6 +992,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const setRunDetailsTab = (id: RunDetailsTab) => setView((v) => (v.runDetailsTab === id ? v : { ...v, runDetailsTab: id }));
   const toggleRunStrip = () => setView((v) => ({ ...v, runStripFolded: !v.runStripFolded }));
   const openLayoutTab = (id: LayoutTab) => {
+    setHelpScope('main');
     setView((v) => (v.layoutTab === id ? v : { ...v, layoutTab: id }));
   };
   const showOpen = () => {
@@ -972,12 +1023,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!spec) { endTour(); return; }
     tourIndexRef.current = index;
     setTourIndex(index);
+    setHelpScope('main');
     setLibDetail(false);
     setItemsStep(null);
     setGuide(null);
     setView((v) => ({ ...v, home: false, step: spec.step, ...(spec.step === 'canvas' ? { layoutTab: 'board' as const } : {}) }));
     if (spec.sub) setSubTab((t) => ({ ...t, [spec.step]: spec.sub! }));
-    if (spec.step === 'attributes') setRightTab('props');
+    if (spec.step === 'attributes') pickRight('props');
   };
   const beginTour = (opener: HTMLElement | null) => {
     tourReturn.current = opener;
@@ -1057,7 +1109,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       const unitId = p.units.find((u) => u.id === j.selectId)?.id ?? p.devices.find((d) => d.id === j.selectId)?.unitId;
       if (unitId) setSubUnitPref(unitId);
     }
-    if (j.rightTab) setRightTab(j.rightTab);
+    if (j.rightTab) pickRight(j.rightTab);
     if (j.actionId) setActionFocus(j.actionId);
     if (j.gapFilter) setGapFilter(j.gapFilter);
     jumpRef.current = j;
@@ -1075,7 +1127,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       const unitId = p.devices.find((d) => d.id === dev)?.unitId;
       if (unitId) setSubUnitPref(unitId);
     }
-    setRightTab('check');
+    pickRight('check');
     jumpRef.current = { step: 'attributes', selectId: dev, rightTab: 'check', field: `interlock:${id}` };
     setJumpTick((n) => n + 1);
     goStep('attributes');
@@ -1083,7 +1135,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const goBlocker = (_b: Diagnostic, g: BlockerGuide) => {
     if (!g.dest) return;
     if (subUnitId) setSubUnitPref(subUnitId);
-    if (g.focus) { setSelection([g.focus.id]); setRightTab(g.focus.kind === 'device' ? 'actions' : 'props'); }
+    if (g.focus) { setSelection([g.focus.id]); pickRight(g.focus.kind === 'device' ? 'actions' : 'props'); }
     if (g.actionId) setActionFocus(g.actionId);
     if (g.field) {
       jumpRef.current = {
@@ -1157,7 +1209,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     run();
   };
   const sub = subTab[step];
-  const Sub = ({ items }: { items: [string, string][] }) => <div className="tabs subtabs">{items.map(([k, l]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => setSubTab((t) => ({ ...t, [step]: k }))}>{l}</button>)}</div>;
+  const Sub = ({ items }: { items: [string, string][] }) => <div className="tabs subtabs">{items.map(([k, l]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, [step]: k })); }}><Terms text={l} /></button>)}</div>;
   const subCount = (uid: string) => (p.substationSequences ?? []).filter((q) => q.unitId === uid).length;
   const pick = (id: string) => { setSelection([id]); const u = p.units.find((x) => x.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; if (u) setSubUnitPref(u); };
   const collapsed = view.treeCollapsed[p.id] ?? [];
@@ -1330,7 +1382,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button onClick={doToEnd} disabled={!running} title="실행 중(▶ 실행 후)에만 활성 — 남은 단계를 즉시 계산">끝까지</button>
     <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{[0.25, 0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}x</option>)}</select>
     <span className="mono" style={{ minWidth: 80 }}>{fmtTime(rt?.timeMs ?? 0)}</span></>;
-  const setRunView = (runView: 'diagram' | '3d') => setView((v) => (v.runView === runView ? v : { ...v, runView }));
+  const setRunView = (runView: 'diagram' | '3d') => { setHelpScope('main'); setView((v) => (v.runView === runView ? v : { ...v, runView })); };
   const runSession = `${tab.key}:${step}`;
   if (step === 'run') {
     if (!durationBaseline.current || durationBaseline.current.sessionKey !== runSession) {
@@ -1385,39 +1437,124 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     unitLocked: p.units.find((u) => u.id === selection[0])?.positionLocked === true,
   }) : [];
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
-    onDelete={requestDelete} confirmDelete={confirmDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
+    onDelete={requestDelete} confirmDelete={confirmDelete} onReparent={requestReparent} tab={rightTab} setTab={pickRight} visualMode={view.visualMode} />;
 
   const screen = screenOf({ home: !!view.home, step, sub, rightTab, runMode, groupBlocked: false, stationError: rt?.status === 'error' || (rt?.blockers.length ?? 0) > 0, libDetail, guide });
   const onThemeKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); chooseTheme('dark'); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); chooseTheme('light'); }
   };
+  const macShortcut = usesMacShortcut();
+  const commandState: CommandState = {
+    step, home: !!view.home, locked, running, paused: rt?.status === 'paused',
+    idle: !rt || rt.status === 'idle', hasRuntime: !!tab.runtime,
+    canUndo: tab.history.past.length > 0, canRedo: tab.history.future.length > 0,
+    project: p, selection, hasClip: !!clip, flowPicked,
+    appearance, showNames, explorerOpen, minimapLayout: view.minimap.layout, minimapRun: view.minimap.run,
+    tourSeen: view.tourSeen,
+  };
+  const commandActions: CommandActions = {
+    goStep,
+    setLayoutTab: openLayoutTab,
+    setRunView,
+    save: doSave,
+    exportJson: () => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)),
+    importJson: () => fileRef.current?.click(),
+    newProject,
+    undo: doUndo,
+    redo: doRedo,
+    copy: requestCopy,
+    paste: requestPaste,
+    duplicate: requestDuplicate,
+    deleteSelection: () => {
+      if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds);
+      else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]);
+      else if (selection.length === 1) requestDelete(selection[0]);
+    },
+    selectAll: () => {
+      const hit = selectAll(p, selection);
+      if ('keep' in hit) say(hit.message, true);
+      else setSelection(hit.ids);
+    },
+    align: (mode) => { edit(C.alignNodes(p, selection, mode), mode === 'left' ? '왼쪽 정렬' : '위 정렬'); },
+    distribute: (axis) => runArrange(C.distributeUnits(p, selection, axis), axis === 'x' ? '가로 간격 같게' : '세로 간격 같게'),
+    matchSize: (axis) => runArrange(C.matchUnitSize(p, selection, axis), axis === 'w' ? '너비 같게' : '높이 같게'),
+    spread: () => runArrange(C.spreadUnits(p, selection, C.UNIT_SPREAD_GAP), '겹침 풀기'),
+    arrangeDevices: arrangeSelectedDevices,
+    fitUnit: fitSelectedUnit,
+    connectMode: (next) => { setMode(next); setConnectFrom(null); if (next === 'signal') openLayoutTab('diagram'); },
+    wrapFlow: (kind) => {
+      const label = kind === 'branch' ? '분기로 묶기' : kind === 'parallel' ? '병렬로 묶기' : kind === 'loop' ? '반복으로 묶기' : '재시도로 묶기';
+      if (edit(C.wrapFlow(p, flowPicked, kind), label)) setFlowPicked([]);
+    },
+    unwrapFlow: () => { const id = flowPicked[0]; if (id) edit(C.unwrapFlow(p, id), '블록 풀기'); },
+    addWait: () => { edit(C.addWaitNode(p), '신호 기다림 추가'); },
+    addSubstation: () => {
+      const unitId = p.units.find((u) => selection.includes(u.id))?.id ?? p.units[0]?.id;
+      if (unitId) edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기');
+    },
+    run: doRun,
+    pause: doPause,
+    resume: doResume,
+    stepTime: doStep,
+    reset: doReset,
+    toEnd: doToEnd,
+    fitView: () => setFitToken((n) => n + 1),
+    theme: chooseTheme,
+    toggleNames: () => setShowNames((v) => !v),
+    toggleMinimap: () => {
+      const frame = step === 'run' ? 'run' : 'layout';
+      onMinimapChange(frame, !view.minimap[frame]);
+    },
+    toggleExplorer,
+    openViewSettings: () => setViewOpen(true),
+    startTour: () => beginTour(document.querySelector<HTMLElement>('[aria-label="명령 찾기"]')),
+    openShortcuts: () => setShortcutOpen(true),
+    openPalette: () => setPaletteOpen(true),
+  };
+  const runCommand = (id: string) => {
+    const cmd = commandById(id);
+    if (!cmd || !cmd.available(commandState).ok) return;
+    setPaletteOpen(false);
+    setShortcutOpen(false);
+    cmd.run(commandActions, commandState);
+  };
 
+  const helpId = resolveHelpId({
+    scope: helpScope, home: !!view.home, explorer: view.explorerTab, step, sub, layout: view.layoutTab,
+    right: rightTab, runView: view.runView, runBlocked: screen === 'S62', libDetail,
+  });
+  const closeHelp = () => setView((v) => (v.helpOpen ? { ...v, helpOpen: false } : v));
   return (
-    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen}>
+    <TermHintsProvider value={view.termHints}>
+    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen}>
       <header className="header">
         <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><BrandMark /><span className="title">{PRODUCT_NAME}</span></span>
         <span className="subtitle">논리 시뮬레이션</span>
         <span className="grow" />
+        <button type="button" className="btn-main secondary cmd-open" aria-label="명령 찾기" onClick={() => setPaletteOpen(true)}>
+          명령 찾기<span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
+        </button>
         <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}>저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</button>
         <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}>내보내기</button>
         <button className="btn-main secondary" onClick={() => setViewOpen(true)}>보기 설정</button>
+        <button type="button" className="btn-main secondary" data-help-toggle aria-expanded={view.helpOpen} aria-label="도움말" onClick={(e) => { helpReturn.current = e.currentTarget; setView((v) => ({ ...v, helpOpen: !v.helpOpen })); }}><span className="help-mark" aria-hidden="true">?</span>도움말</button>
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
         <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title="실행 취소 (Ctrl/Cmd+Z)" aria-label="실행 취소"><HistoryIcon dir="undo" /></button>
         <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title="다시 실행 (Ctrl/Cmd+Shift+Z)" aria-label="다시 실행"><HistoryIcon dir="redo" /></button>
       </header>
       <div className="workbar" aria-label="현재 작업">
-        <button type="button" className="work-crumb" onClick={() => openExplorerTab('workspace')}>Workspace {curWs.name}</button>
+        <button type="button" className="work-crumb" onClick={() => openExplorerTab('workspace')}><Terms text="Workspace" /> {curWs.name}</button>
         <span className="work-sep" aria-hidden="true">›</span>
         <button type="button" className="work-crumb" onClick={() => openExplorerTab('project')}>Project {p.name}</button>
-        <span className="work-rev">rev {p.revision}</span>
+        <span className="work-rev"><Terms text="rev" /> {p.revision}</span>
         <span className={dirty ? 'save-chip dirty' : 'save-chip saved'}>{dirty ? '● 저장 안 됨' : '저장됨'}</span>
         {workTimes && <span className="work-times">{workTimes}</span>}
       </div>
       <div className="stepper" role="navigation" aria-label="단계" data-tour="stepbar">
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
           <div key={s.id} className={`st ${on ? 'on' : ''}`} data-stepid={s.id} onClick={(e) => { if ((e.target as HTMLElement).closest('[data-step-badge]')) return; goStep(s.id); }}>
-            <button type="button" className="st-go" aria-current={on ? 'step' : undefined}>{s.no} {s.label}</button>
+            <button type="button" className="st-go" aria-current={on ? 'step' : undefined}>{s.no} <Terms text={s.label} /></button>
             <button type="button" className={`badge st-badge status-${WIZARD_BADGE_STATUS[b]}`} data-step-badge={s.id} data-status={WIZARD_BADGE_STATUS[b]} aria-haspopup="dialog" aria-expanded={itemsStep === s.id}
               aria-label={`${s.no} ${s.label} ${BADGE_WORD[b]}, 남은 항목 ${n}`}
               onClick={(e) => { e.stopPropagation(); toggleItems(s.id); }}
@@ -1447,7 +1584,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {guide === 'files' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><FilesSheet entries={savedList.map((e) => ({ id: e.id, name: e.name, revision: e.revision }))} onImport={() => fileRef.current?.click()} onExport={() => download(`${p.name}.json`, serializeProject(p))} onOpen={(id) => { setGuide(null); openSaved(id); }} onNew={() => { setGuide(null); newProject('blank'); }} onSample={() => { setGuide(null); newProject('sample'); }} /></div></div>}
-      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><BundleSheet wsName={curWs.name} projectCount={savedCount(reg.activeId)} assetCount={ASSET_LIBRARY.length} assumptionCount={p.assumptionsNote.length} onInstead={() => setGuide('files')} /></div></div>}
+      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><BundleSheet kv={kv} reg={reg} dirtyNames={tabs.filter((t) => t.savedRevision !== t.history.present.revision).map((t) => t.history.present.name)} openIds={[...openIds]} storageReason={kv ? null : storage.reason ?? '저장소 없음'} onDownload={(name, text) => download(name, text)} onCommitted={(r) => { setReg(r.reg); if (r.quarantine.length) setQlist((list) => r.quarantine.reduce((acc, entry) => quarantine(kv, entry, acc), list)); }} onSwitch={requestSwitch} /></div></div>}
       {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button>
         <SearchSheet tabs={tabs.map((t) => ({ key: t.key, name: t.history.present.name, active: t.key === tab.key }))}
           tree={p.units.flatMap((u) => [{ id: u.id, label: u.name, depth: 0 }, ...u.deviceIds.map((id) => ({ id, label: devName(p, id), depth: 1 }))])}
@@ -1490,14 +1627,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <button className="btn-main secondary" onClick={showOpen}>프로젝트 관리</button>
           <button className="btn-main primary" onClick={() => openSaved(e.id)}>계속하기</button>
         </div>)}
-        <p className="muted">JSON 가져오기: 원본은 덮어쓰지 않고 새 탭으로 엽니다. Workspace 묶음 파일은 미구현입니다.</p>
+        <p className="muted">JSON 가져오기: 원본은 덮어쓰지 않고 새 탭으로 엽니다. Workspace 묶음은 「파일 묶음」에서 가져옵니다.</p>
       </div>}
 
       {!guide && !view.home && step === 'library' && <div className="workspace ws-full">
         <Sub items={[['cards', '에셋 라이브러리'], ['input', '입력 후보표 (F1)'], ['aml', 'AML 입출력'], ['extract', '자료 입력']]} />
-        {sub === 'input' ? <div className="bbody sparse-page"><h1 className="stage-title">입력 후보표</h1><p className="muted">후보는 확인 전에 모델에 들어가지 않습니다.</p><section className="sheet wide"><InputHubPanel p={p} locked={locked} edit={edit} /></section></div>
-          : sub === 'aml' ? <div className="bbody sparse-page"><h1 className="stage-title">AML 입출력 결과</h1><AmlResultSheet onCandidates={() => setSubTab((t) => ({ ...t, library: 'input' }))} /></div>
-          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title">자료 입력</h1><ExtractSheet onInstead={() => setSubTab((t) => ({ ...t, library: 'input' }))} /><Fold className="fold-panel" summary="기존 안내"><ExtractPanel /></Fold></div>
+        {sub === 'input' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="입력 후보표" /></h1><p className="muted">후보는 확인 전에 모델에 들어가지 않습니다.</p><section className="sheet wide"><InputHubPanel p={p} locked={locked} edit={edit} /></section></div>
+          : sub === 'aml' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="AML 입출력 결과" /></h1><AmlResultSheet onCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /></div>
+          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="자료 입력" /></h1><ExtractSheet onInstead={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /><Fold className="fold-panel" summary="기존 안내"><ExtractPanel /></Fold></div>
           : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion} detail={libDetail} setDetail={setLibDetail}
             detailWidth={view.panels.library} onDetailWidth={(n) => setPanel('library', n)}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}
@@ -1508,11 +1645,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
         <div className="stage layout-stage">
           <div className="stage-head">
-            <h1 className="stage-title"><span data-tour="canvas">배치·연결</span></h1>
+            <h1 className="stage-title"><span data-tour="canvas"><Terms text="배치·연결" /></span></h1>
             <div className="tool-pills">
               <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
-              <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결">물류 연결</button>
-              <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트를 입력 포트로 끌어 연결합니다. 이 모드에서는 두 번 눌러서도 됩니다. 포트는 도면 도식 탭에 있습니다">신호 연결</button>
+              <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결"><Terms text="물류 연결" /></button>
+              <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트를 입력 포트로 끌어 연결합니다. 이 모드에서는 두 번 눌러서도 됩니다. 포트는 도면 도식 탭에 있습니다"><Terms text="신호 연결" /></button>
               <div className="layerbox"><button className={layerOpen ? 'on' : ''} onClick={() => setLayerOpen(!layerOpen)}>레이어</button>
                 {layerOpen && <div className="layerpop">{([['background', '배경'], ['units', 'Substation'], ['axis', '축·이송'], ['io', '포트·신호선'], ['positions', '포지션'], ['flow', '물류·자재']] as [LayerId, string][]).map(([k, l]) =>
                   <label key={k}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
@@ -1606,7 +1743,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             {!d && host && <button type="button" className="btn-main secondary" onClick={fitSelectedUnit}>크기 맞춤</button>}
             {missingComplete && <p className="warn-note"><StatusMark status="undetermined" /> 완료 신호 · 실행 차단<br />필수 값은 임의로 채우지 않습니다.</p>}
             <div className="prop-actions">
-              <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); setRightTab('actions'); goStep('attributes'); }}>Action 편집</button>
+              <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); pickRight('actions'); goStep('attributes'); }}>Action 편집</button>
               <button type="button" className="danger" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}>삭제 영향 확인</button>
             </div>
             <Fold className="prop-more" summary="속성 자세히" open={propsFold} onToggle={setPropsFold}>{inspectorEl}</Fold>
@@ -1616,7 +1753,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
       {!guide && !view.home && step === 'attributes' && <div className="workspace ws-full ws-noTabs">
         <div className="bbody sparse-page">
-          <h1 className="stage-title"><span data-tour="attributes">{rightTab === 'signals' || rightTab === 'positions' ? '신호와 포지션' : rightTab === 'actions' || rightTab === 'check' ? 'Action 정의' : '장치 속성'}</span></h1>
+          <h1 className="stage-title"><span data-tour="attributes"><Terms text={rightTab === 'signals' || rightTab === 'positions' ? '신호와 포지션' : rightTab === 'actions' || rightTab === 'check' ? 'Action 정의' : '장치 속성'} /></span></h1>
           <p className="muted">기본 화면은 성긴 폼입니다. 신호·Action·정의 체크의 나머지 입력은 아래 접는 칸에 있습니다.</p>
           {(() => {
             const d = p.devices.find((x) => x.id === selectedId) ?? p.devices[0];
@@ -1635,7 +1772,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <tbody>{sigs.map((s) => <tr key={s.id}><td>{s.name}</td><td>{s.direction === 'in' ? '입력' : '출력'}</td><td>{signalRole(s.role)}</td></tr>)}
                     {sigs.length === 0 && <tr><td colSpan={3}>신호 없음</td></tr>}</tbody></table>
                 <p className="field-ro">{sigs.find((s) => s.address)?.address ?? <><StatusMark status="undetermined" /> 실제 장비 주소 아님</>}</p>
-                <button type="button" onClick={() => setRightTab('actions')}>Action으로 복귀</button>
+                <button type="button" onClick={() => pickRight('actions')}>Action으로 복귀</button>
               </section>
               <aside className="sheet">
                 <h2>포지션 정의</h2>
@@ -1649,13 +1786,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <h2>{act ? `${host?.code ?? ''} ${act.name}`.trim() : `${d.name} · Action 없음`}</h2>
                 {act ? <div className="form-grid">
                   <label data-jump={`duration:${act.id}`}>동작 시간<QtyInput q={act.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'duration' }, v, as), '동작 시간')} /></label>
-                  <label data-jump={`timeout:${act.id}`}>타임아웃<QtyInput q={act.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as), '타임아웃')} /></label>
+                  <label data-jump={`timeout:${act.id}`}><Terms text="타임아웃" /><QtyInput q={act.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as), '타임아웃')} /></label>
                   <label>명령 신호<span className="field-ro">{signalCaption(p, act.commandSignalId)}</span></label>
                   <label>완료 신호<span className="field-ro">{signalCaption(p, act.completeSignalId)}</span></label>
+                  <label>사전 조건<span className="field-ro cond-line" data-jump={`pre:${act.id}`} data-cond-formula="">{conditionsFormula(p, act.pre) || '없음'}<ConditionMark p={p} site={`action:${act.id}:pre`} /></span></label>
+                  <label>완료 후 조건<span className="field-ro cond-line" data-jump={`post:${act.id}`} data-cond-formula="">{conditionsFormula(p, act.post) || '없음'}<ConditionMark p={p} site={`action:${act.id}:post`} /></span></label>
                 </div> : <p>이 Device에 Action이 없습니다. 아래 접는 칸에서 추가합니다.</p>}
                 <div className="tool-pills">
                   <button type="button" className="on" disabled={!act || locked} onClick={() => act && edit(C.addStep(p, act.id), '단계 추가')}>시퀀스 끝에 추가</button>
-                  <button type="button" onClick={() => setRightTab('props')}>속성으로</button>
+                  <button type="button" onClick={() => pickRight('props')}>속성으로</button>
                 </div>
               </section>
               <aside className="sheet">
@@ -1688,8 +1827,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <label>정의 버전<span className="field-ro">{d.definitionRef.assetId}@{d.definitionRef.version}</span></label>
                 </div>
                 <div className="tool-pills">
-                  <button type="button" className="on" onClick={() => setRightTab('actions')}>Action 편집</button>
-                  <button type="button" onClick={() => setRightTab('signals')}>신호·포지션</button>
+                  <button type="button" className="on" onClick={() => pickRight('actions')}>Action 편집</button>
+                  <button type="button" onClick={() => pickRight('signals')}>신호·포지션</button>
                   <button type="button" className="danger" disabled={locked} onClick={() => requestDelete(d.id)}>삭제 영향 확인</button>
                 </div>
               </section>
@@ -1698,7 +1837,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <p>{host ? `${host.code} ${host.name}` : '소속 없음'} / {d.name}</p>
                 <p className="muted">제공 Action</p>
                 <ul className="check-list">{p.actions.filter((a) => a.deviceId === d.id).slice(0, 4).map((a) => <li key={a.id}>{a.name}</li>)}</ul>
-                <button type="button" onClick={() => setRightTab('check')}>정의 체크</button>
+                <button type="button" onClick={() => pickRight('check')}>정의 체크</button>
                 <p className="muted">능력 표 전체는 아래 접는 칸에 있습니다.</p>
               </aside>
             </div>;
@@ -1711,21 +1850,21 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!guide && !view.home && step === 'sequence' && <div className="workspace ws-full">
-        <h1 className="stage-title"><span data-tour="sequence">{sub === 'material' ? '자재와 흐름' : sub === 'subseq' ? 'Substation 시퀀스' : sub === 'sfc' ? 'SFC 미리보기' : sub === 'extend' ? '누락 편집 확장' : 'Station 시퀀스'}</span></h1>
+        <h1 className="stage-title"><span data-tour="sequence"><Terms text={sub === 'material' ? '자재와 흐름' : sub === 'subseq' ? 'Substation 시퀀스' : sub === 'sfc' ? 'SFC 미리보기' : sub === 'extend' ? '누락 편집 확장' : 'Station 시퀀스'} /></span></h1>
         <Sub items={[['sequence', 'Station 시퀀스 Draft (F5)'], ['subseq', `Substation 시퀀스 (${(p.substationSequences ?? []).length})`], ['material', '자재·Flow (F4)'], ['sfc', 'SFC 미리보기'], ['extend', '누락 편집 확장']]} />
         <div className="bbody sparse-page">
           {sub === 'sequence' && <section className="sheet wide">
             <div className="tool-pills">
-              <button type="button" className="on" data-jump="sequence-add" onClick={() => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); }}>Action 추가</button>
-              <button type="button" onClick={() => setSubTab((t) => ({ ...t, sequence: 'sfc' }))}>SFC 미리보기</button>
-              <button type="button" onClick={() => setSubTab((t) => ({ ...t, sequence: 'subseq' }))}>Substation 시퀀스</button>
+              <button type="button" className="on" data-jump="sequence-add" onClick={() => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); }}><Terms text="Action 추가" /></button>
+              <button type="button" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'sfc' })); }}><Terms text="SFC 미리보기" /></button>
+              <button type="button" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'subseq' })); }}><Terms text="Substation 시퀀스" /></button>
             </div>
-            <h2 data-jump="sequence-steps">Station 시퀀스 Draft</h2>
+            <h2 data-jump="sequence-steps"><Terms text="Station 시퀀스 Draft" /></h2>
             {p.sequence.steps.length === 0 && <EmptyState symbol="○" line={EMPTY.steps} actions={[{ label: '단계 추가', disabled: locked || !p.actions[0], reason: locked ? RUN_LOCK : !p.actions[0] ? 'Action이 없습니다. 3단계 Action을 먼저 만드세요.' : undefined, onClick: () => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); } }]} />}
             {p.sequence.unresolved.length > 0 && <p className="warn-note" data-jump="sequence-unresolved">미해결: {p.sequence.unresolved.join(' · ')}</p>}
-            <FlowEditor p={p} rt={rt} locked={locked} edit={edit} />
+            <FlowEditor p={p} rt={rt} locked={locked} edit={edit} picked={flowPicked} onPicked={setFlowPicked} />
             <Fold className="fold-panel" summary="단계 편집, 구조화 문장, 순서 변경">
-              <SequencePanel p={p} rt={rt} locked={locked} edit={edit} confirmDelete={confirmDelete} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />
+              <SequencePanel p={p} rt={rt} locked={locked} edit={edit} confirmDelete={confirmDelete} onSelect={(id) => { setSelection([id]); pickRight('actions'); goStep('attributes'); }} />
             </Fold>
           </section>}
           {sub === 'material' && <div className="sparse-split">
@@ -1741,11 +1880,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <label>무게<span className="field-ro">{p.materials[0].weight.value ?? '미정'} {p.materials[0].weight.unit}{p.materials[0].weight.assumption ? ' · 가정' : ''}</span></label>
                 <label>Unit 경로<span className="field-ro">{routeText(p)}</span></label>
               </div> : <EmptyState symbol="○" line={EMPTY.materials} actions={[{ label: '자재 추가', disabled: locked, reason: locked ? RUN_LOCK : undefined, onClick: () => edit(C.addMaterial(p), '자재 추가'), attrs: { 'data-jump': 'material-add' } }]} />}
-              <button type="button" className="btn-main primary" onClick={() => setSubTab((t) => ({ ...t, sequence: 'sequence' }))}>Station 시퀀스 작성</button>
+              <button type="button" className="btn-main primary" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'sequence' })); }}><Terms text="Station 시퀀스 작성" /></button>
             </section>
             <aside className="sheet">
               <h2>상태 전이</h2>
-              <table className="grid plain"><thead><tr><th>상태</th><th>완료 Action</th></tr></thead>
+              <table className="grid plain"><thead><tr><th>상태</th><th><Terms text="완료 Action" /></th></tr></thead>
                 <tbody>{p.actions.filter((a) => a.effect.setState || a.effect.moveTo).slice(0, 6).map((a) => <tr key={a.id}><td>{a.effect.setState ?? (a.effect.moveTo === 'EXIT' ? '배출' : a.effect.moveTo ? unitName(p, a.effect.moveTo) : a.name)}</td><td>{a.name}</td></tr>)}
                   {p.actions.every((a) => !a.effect.setState && !a.effect.moveTo) && <tr><td colSpan={2}>자재 변화가 있는 Action이 없습니다.</td></tr>}</tbody></table>
               <p className="warn-note">실행은 자재 정의 하나를 투입 개수만큼 이어서 넣습니다. 정의가 여러 종류이거나 캐리어에 싣는 것은 없습니다.</p>
@@ -1753,16 +1892,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <Fold className="fold-panel" summary="자재 값과 경로 편집"><MaterialPanel p={p} locked={locked} edit={edit} /></Fold>
           </div>}
           {sub === 'subseq' && <section className="sheet wide">
-            <h2>Substation 시퀀스</h2>
+            <h2><Terms text="Substation 시퀀스" /></h2>
             <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} confirmDelete={confirmDelete} gs={null} />
           </section>}
-          {sub === 'sfc' && <section className="sheet wide"><h2>SFC 미리보기</h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · 신호 기다림 · Substation 단계를 읽기 전용으로 그립니다.</p><SfcPanel p={p} rt={rt} /></section>}
+          {sub === 'sfc' && <section className="sheet wide"><h2><Terms text="SFC 미리보기" /></h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · 신호 기다림 · Substation 단계를 읽기 전용으로 그립니다.</p><SfcPanel p={p} rt={rt} /></section>}
           {sub === 'extend' && <><ExtendSheet /><Fold className="fold-panel" summary="미구현 안내"><ExtendPanel /></Fold></>}
         </div>
       </div>}
 
       {!guide && !view.home && step === 'check' && <div className="workspace ws-full">
-        <h1 className="stage-title"><span data-tour="check">{sub === 'diag' ? '진단과 저장' : sub === 'export' ? 'Export 미리보기' : sub === 'lab' ? 'Evolution Lab' : 'Gap 점검'}</span></h1>
+        <h1 className="stage-title"><span data-tour="check"><Terms text={sub === 'diag' ? '진단과 저장' : sub === 'export' ? 'Export 미리보기' : sub === 'lab' ? 'Evolution Lab' : 'Gap 점검'} /></span></h1>
         <Sub items={[['gap', `Gap (F6) ${tab.gaps.length + runGaps.length}`], ['diag', '진단·저장·AML'], ['export', 'Export 미리보기 (F8)'], ['lab', 'Evolution Lab (F7)']]} />
         <div className="bbody sparse-page">
           {sub === 'gap' && <section className="sheet wide">
@@ -1772,7 +1911,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <button type="button" className={gapFilter === 'human' ? 'on' : ''} onClick={() => setGapFilter('human')}>사람 확인 필요</button>
               <button type="button" className={gapFilter === 'hidden' ? 'on' : ''} onClick={() => setGapFilter('hidden')}>숨긴 항목</button>
             </div>
-            <h2 data-jump="check-gaps">Gap 목록 · 기준 모델 rev {tab.analyzedRevision ?? p.revision}</h2>
+            <h2 data-jump="check-gaps"><Terms text={`Gap 목록 · 기준 모델 rev ${tab.analyzedRevision ?? p.revision}`} /></h2>
             <RunGapSection gaps={runGaps} ran={!!runRecord} stale={runStale} onGo={goGap} />
             <table className="grid plain">
               <thead><tr><th>종류와 판정</th><th>근거</th><th>관련 대상</th><th>다음 행동</th></tr></thead>
@@ -1785,25 +1924,32 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />
             </Fold>
           </section>}
-          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
+          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
           {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
-          {sub === 'lab' && <><LabSheet revision={p.revision} onInstead={() => goStep('run')} /><Fold className="fold-panel" summary="미구현 안내"><LabPanel /></Fold></>}
+          {sub === 'lab' && <LabSheet project={p} locked={locked} variants={tab.labVariants} result={tab.labResult}
+            onChangeVariants={(variants) => updTab(tab.key, (t) => ({ ...t, labVariants: variants }))}
+            onResult={(result) => updTab(tab.key, (t) => ({ ...t, labResult: result }))}
+            onApply={(variant) => edit(applyLabVariant(p, variant), `Evolution Lab ${variant.name}`)} />}
         </div>
       </div>}
 
       {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${foldSteps ? 'fold-steps' : ''} ${foldCond ? 'fold-cond' : ''} ${view.runStripFolded ? 'fold-strip' : ''}`} data-run-view={view.runView}>
-        <h1 className="stage-title run-title">{screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'}</h1>
+        <h1 className="stage-title run-title"><Terms text={screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'} /></h1>
         <div className="toolbar tool-pills">
           {runControls}<div className="sep" />{runViewToggle}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
-          <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
+          <span className="badge">실행 전 검사 {checkRunReadiness(p).ok ? '통과' : '미통과'}</span></div>
         <RunStepsPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} onPauseSubstation={doPauseSub} onResumeSubstation={doResumeSub} />
         <div className="run-center">
           <RunSummaryStrip p={p} rt={rt} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
           {rt?.error && (() => {
             const named = rt.error.message.match(/^\[([^\]]+)\]/)?.[1] ?? null;
-            const copy = runErrorProblem(rt.error.code, rt.error.message, named);
+            const interlockId = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
+            const rule = p.constraints.find((k) => k.id === interlockId)?.rule;
+            const phrase = runBlockFormula(p, rt.error.code, rt.error.stepId, rule?.form === 'allow' ? rule.conditions : undefined);
+            const base = runErrorProblem(rt.error.code, rt.error.message, named);
+            const copy = base && phrase ? { ...base, why: `${base.why} ${phrase}` } : base;
             if (!copy) return null;
             const jump = rt.error.code === 'INTERLOCK_BLOCK'
               ? () => {
@@ -1847,7 +1993,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </>}
         {view.home && <>
           <button className="btn-main secondary" onClick={() => fileRef.current?.click()}>JSON 가져오기</button>
-          <button className="btn-main primary" onClick={() => setView((v) => ({ ...v, home: false }))}>시작하기</button>
+          <button className="btn-main primary" onClick={() => { setHelpScope('main'); setView((v) => ({ ...v, home: false })); }}>시작하기</button>
         </>}
         <span className="muted">형식 {FILE_FORMAT_VERSION} · 규칙 {RUNTIME_RULES_VERSION}</span>
       </div>
@@ -1858,6 +2004,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <p className="muted">보기만 바꿉니다. 모델, rev, 실행, 선택, 입력은 그대로입니다. 보관된 이전 팔레트는 고를 수 없습니다.</p>
         <label className="draft-toggle"><input type="checkbox" checked={view.autoDraft} onChange={(e) => setView((v) => ({ ...v, autoDraft: e.target.checked }))} />자동 임시 저장</label>
         <p className="muted">켜 두면 마지막 편집 후 5초 뒤에 이 브라우저에만 임시 저장합니다. 「저장」한 내용과 저장 목록은 바꾸지 않습니다.</p>
+        <label className="draft-toggle"><input type="checkbox" data-term-hints checked={view.termHints} onChange={(e) => setView((v) => ({ ...v, termHints: e.target.checked }))} />용어 밑줄</label>
+        <p className="muted">켜 두면 제목, 탭, 단계 바, 표 머리에 용어 풀이가 붙습니다. 끄면 밑줄과 풀이가 사라집니다. 모델은 바뀌지 않습니다.</p>
         <div className="row" style={{ gap: 8 }}>{visualToggle}</div>
         <div className="row" style={{ gap: 8 }}>
           <button type="button" className="btn-main secondary" onClick={() => {
@@ -1874,7 +2022,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {modal.body}
         <div className="modal-actions">{modal.actions.map((a) => <button key={a.label} type="button" autoFocus={a.focus} ref={a.focus ? (el) => { el?.focus(); } : undefined} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
       </StaticModalFrame>}
+      {view.helpOpen && <HelpPanel topic={helpTopic(helpId)} onClose={closeHelp} onTour={(el) => beginTour(el)} onShortcuts={() => setShortcutOpen(true)} />}
       {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
+      {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onClose={() => setPaletteOpen(false)} />}
+      {shortcutOpen && <ShortcutSheet state={commandState} mac={macShortcut} onClose={() => setShortcutOpen(false)} />}
     </div>
+    </TermHintsProvider>
   );
 }

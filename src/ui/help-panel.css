@@ -1,0 +1,95 @@
+/* TURN-056 help dock. Sits in the app grid so 1280×800 does not grow the document. */
+.app.help-open {
+  grid-template-columns: var(--exw, 224px) minmax(0, 1fr) 320px;
+}
+.help-panel {
+  grid-row: 4;
+  grid-column: 3;
+  box-sizing: border-box;
+  width: 320px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--panel);
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.help-panel:focus {
+  outline: none;
+}
+.help-panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.help-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.help-head h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  line-height: 1.4;
+}
+.help-panel h3 {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md);
+}
+.help-panel p,
+.help-panel ol,
+.help-panel ul,
+.help-panel dl {
+  margin: 0;
+}
+.help-panel ol,
+.help-panel ul {
+  padding-left: 1.2em;
+}
+.help-panel li + li,
+.help-gloss div + div {
+  margin-top: var(--sp-1);
+}
+.help-manual {
+  color: var(--muted);
+}
+.help-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.help-panel .btn-main {
+  height: 36px;
+  align-self: flex-start;
+}
+.help-gloss > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: var(--fs-md);
+}
+.help-gloss dt {
+  font-weight: 700;
+}
+.help-gloss dd {
+  margin: 0;
+  color: var(--text);
+}
+.help-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: var(--sp-2);
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: var(--fs-sm);
+  line-height: 1;
+}

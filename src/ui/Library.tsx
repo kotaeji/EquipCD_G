@@ -22,6 +22,7 @@ import './slot-theme.css';
 import { Symbol } from './Symbols';
 import { Badge } from './widgets';
 import { Fold } from './Fold';
+import { Terms } from './Term';
 import { PanelSplit } from './PanelSplit';
 
 const SLOT_RAW = import.meta.glob('./slots/*.svg', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>;
@@ -141,7 +142,7 @@ export function LibraryWorkspace(props: Props) {
   return <div className="libws">
     <div className="libmain">
       {props.detail && def ? <AssetDetailSheet def={def} onBack={() => props.setDetail(false)} onAdd={() => props.onAdd(def, def.template ? null : target)} locked={props.locked} unitOk={!!def.template || p.units.some((u) => u.id === target)} /> : <>
-      <h1 className="stage-title"><span data-tour="library">에셋 라이브러리</span></h1>
+      <h1 className="stage-title"><span data-tour="library"><Terms text="에셋 라이브러리" /></span></h1>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <input placeholder="검색 (이름/키/ID)" value={filter.q} onChange={(e) => props.setFilter({ ...filter, q: e.target.value })} style={{ width: 200 }} />
         <select value={filter.category} onChange={(e) => props.setFilter({ ...filter, category: e.target.value })}><option value="">모든 분류</option>{Object.entries(CAT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
@@ -186,7 +187,7 @@ function AssetDetailSheet({ def, onBack, onAdd, locked, unitOk }: { def: AssetDe
   const x = xsdStatus(def);
   return <div className="sparse-page">
     <div className="tool-pills"><button type="button" onClick={onBack}>목록으로</button></div>
-    <h1 className="stage-title">에셋 카드 상세</h1>
+    <h1 className="stage-title"><Terms text="에셋 카드 상세" /></h1>
     <div className="sparse-split">
       <section className="sheet">
         <h2>{def.name}</h2>
@@ -195,7 +196,7 @@ function AssetDetailSheet({ def, onBack, onAdd, locked, unitOk }: { def: AssetDe
           <tr><th>분류</th><td>{CAT_LABEL[def.category] ?? def.category}</td></tr>
           <tr><th>명령 포트</th><td>{def.ports.filter((pt) => pt.direction === 'in').map((pt) => pt.label).join(' · ') || '없음'}</td></tr>
           <tr><th>완료 포트</th><td>{def.ports.filter((pt) => pt.direction === 'out').map((pt) => pt.label).join(' · ') || '없음'}</td></tr>
-          <tr><th>Action</th><td>{def.actions.map((a) => a.label).join(' · ') || '없음'}</td></tr>
+          <tr><th><Terms text="Action" /></th><td>{def.actions.map((a) => a.label).join(' · ') || '없음'}</td></tr>
         </tbody></table>
         <button type="button" className="btn-main primary" disabled={locked || !unitOk} onClick={onAdd}>선택 에셋 추가</button>
       </section>
