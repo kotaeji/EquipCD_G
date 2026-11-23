@@ -377,6 +377,35 @@ export interface SimSettings {
   speed: number; // wall-clock multiplier, does not affect logic results
 }
 
+/**
+ * One fault row inside a saved run scenario.
+ * A row with `stepId` is dropped when that step is gone.
+ * Action duration and timeout are not stored here.
+ */
+export interface ScenarioInjection {
+  /** Station or Substation step this row was saved from. Absent when the fault is not on a step. */
+  stepId?: string;
+  /** Action the fault was aimed at. When `stepId` is set, the step must still use this action. */
+  actionId?: string;
+  /** Read action fails. */
+  readFail?: boolean;
+  /** With `readFail`: fail only the first N executions. Omit to fail every time. */
+  readFailFirstN?: number;
+  /** Complete signal that never becomes true (timeout injection). */
+  neverTrueSignalId?: string;
+}
+
+/** Named feed, fault injection, and playback speed. Not Action times. */
+export interface RunScenario {
+  id: string;
+  name: string;
+  feedCount: number;
+  /** Null is 미정. */
+  feedInterval: number | null;
+  speed: number;
+  injections: ScenarioInjection[];
+}
+
 export interface GapReviewEntry {
   status: 'open' | 'resolved' | 'hidden' | 'needsHuman' | 'humanConfirmed';
   firstSeenRevision: number;
@@ -413,6 +442,12 @@ export interface Project {
    * Empty lists are omitted on write so the three samples stay byte-identical.
    */
   confirmationLog?: ConfirmationEntry[];
+  /**
+   * Named run conditions (feed, fault injection, playback speed).
+   * Absent when there are none, so older files and the three samples stay unchanged.
+   * Format version stays 0.3.0.
+   */
+  runScenarios?: RunScenario[];
 }
 
 export interface ProjectFile {
