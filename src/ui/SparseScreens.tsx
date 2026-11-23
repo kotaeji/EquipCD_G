@@ -1,12 +1,13 @@
 // Design-shaped centers. Values come from the live project. Unimplemented screens stay disabled and do not invent example rows.
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ASSET_LIBRARY, LOADED_LIBRARIES } from '../assets/library';
 import { NotReadyBanner } from './NotReadyBanner';
 import './sparse-extra.css';
+import { AURORA_EXPORT_DRAFT_NOTICE, auroraExportFileName, buildAuroraExport, collectExportFlags, compareAuroraExport, parseAuroraExport, serializeAuroraExport, type ExportChange, type RoundTripReport } from '../model/auroraExport';
 import { buildExportPreview } from '../model/exportPreview';
 import type { Gap } from '../model/gaps';
 import type { Project } from '../model/types';
-import { validateProject, type Diagnostic } from '../model/validate';
+import { checkRunReadiness, validateProject, type Diagnostic } from '../model/validate';
 import type { QuarantineEntry } from '../storage/localStore';
 import { xsdStatus, AmlLoadStatus } from './Library';
 import { Fold } from './Fold';
@@ -215,12 +216,116 @@ export function ExtendSheet() {
   </div>;
 }
 
-export function ExportSheet({ p }: { p: Project }) {
+const CHANGE_LABEL: Record<ExportChange, string> = { added: '추가', removed: '삭제', changed: '변경' };
+
+function readTextFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(reader.error ?? new Error('read'));
+    reader.readAsText(file);
+  });
+}
+
+function ExportReport({ report }: { report: RoundTripReport }) {
+  const diffs = [...report.missing, ...report.removed, ...report.changed];
+  return <div>
+    <p data-roundtrip-summary>빠진 것 {report.missing.length} · 다른 것 {report.changed.length}</p>
+    <p className="muted">삭제 {report.removed.length}. 빠진 것은 모델에만 있고, 삭제는 파일에만 있습니다. 모델을 바꾸지 않습니다.</p>
+    <table className="grid plain"><thead><tr><th>종류</th><th>모델</th><th>파일</th></tr></thead>
+      <tbody>{report.counts.map((c) => <tr key={c.kind} data-count-kind={c.kind}><td>{c.label}</td><td>{c.model}</td><td>{c.file}</td></tr>)}</tbody></table>
+    {diffs.length > 0 && <table className="grid export-diff"><thead><tr><th>차이</th><th>종류</th><th>ID</th><th>이름</th><th>항목</th><th>파일 값</th><th>모델 값</th></tr></thead>
+      <tbody>{diffs.map((d, i) => <tr key={`${d.change}:${d.kind}:${d.id}:${d.field}:${i}`} data-diff={d.change} data-diff-kind={d.kind} data-diff-id={d.id} data-diff-field={d.field}>
+        <td>{CHANGE_LABEL[d.change]}</td><td>{d.kindLabel}</td><td className="mono">{d.id}</td><td>{d.name}</td><td>{d.field || '—'}</td><td>{d.fileValue || '—'}</td><td>{d.modelValue || '—'}</td>
+      </tr>)}</tbody></table>}
+  </div>;
+}
+
+export function ExportSheet({ p, onDownload, onGuide }: {
+  p: Project;
+  onDownload: (name: string, text: string) => void;
+  onGuide: (b: Diagnostic, g: BlockerGuide) => void;
+}) {
   const rows = buildExportPreview(p);
   const counts = new Map<string, number>();
   for (const r of rows) counts.set(r.category, (counts.get(r.category) ?? 0) + 1);
+  const doc = useMemo(() => buildAuroraExport(p), [p]);
+  const flags = useMemo(() => collectExportFlags(doc), [doc]);
+  const ready = useMemo(() => checkRunReadiness(p), [p]);
+  const flagSig = `${ready.ok}:${flags.undetermined.length}:${flags.assumption.length}`;
+  const [ackFor, setAckFor] = useState<string | null>(null);
+  const [createdText, setCreatedText] = useState<string | null>(null);
+  const [inspect, setInspect] = useState<RoundTripReport | null>(null);
+  const [inspectError, setInspectError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const needsAck = flags.undetermined.length + flags.assumption.length > 0;
+  const acked = ackFor === flagSig;
+  const createDisabled = !ready.ok || (needsAck && !acked);
+  const createdFile = useMemo(() => {
+    if (!createdText) return null;
+    const parsed = parseAuroraExport(createdText);
+    return parsed.ok ? parsed.file : null;
+  }, [createdText]);
+  const createdReport = useMemo(() => (createdFile ? compareAuroraExport(doc, createdFile) : null), [createdFile, doc]);
+
+  const createFile = () => {
+    if (createDisabled) return;
+    const text = serializeAuroraExport(doc);
+    onDownload(auroraExportFileName(p.name), text);
+    setCreatedText(text);
+  };
+  const inspectFile = async (file: File) => {
+    let text = '';
+    try { text = await readTextFile(file); } catch { setInspect(null); setInspectError('파일을 읽지 못했습니다'); return; }
+    const parsed = parseAuroraExport(text);
+    if (!parsed.ok) { setInspect(null); setInspectError(parsed.reason); return; }
+    setInspectError(null);
+    setInspect(compareAuroraExport(doc, parsed.file));
+  };
+
   return <div className="sparse-split">
-    <section className="sheet">
+    <section className="sheet" data-model-rev={p.revision}>
+      <h2>초안 형식 파일</h2>
+      <p className="notice warn" data-export-draft>{AURORA_EXPORT_DRAFT_NOTICE}</p>
+      {!ready.ok && <div data-export-blocked>
+        <p className="warn-note">실행 전 검사를 통과하지 못했습니다. 파일을 만들 수 없습니다. 차단 {ready.blockers.length}건</p>
+        {ready.blockers.map((b) => {
+          const g = resolveBlocker(p, b, ready.blockers);
+          const copy = guideCopy(b.code, g);
+          return <div key={b.id} className="blocker-card" data-export-blocker={b.code}>
+            <p>{b.message}</p>
+            {copy.lead && <p className="muted">{copy.lead}</p>}
+            {copy.button && <button type="button" onClick={() => onGuide(b, g)}>{copy.button}</button>}
+          </div>;
+        })}
+      </div>}
+      {ready.ok && needsAck && <div data-export-flags data-export-undetermined={flags.undetermined.length} data-export-assumption={flags.assumption.length}>
+        <p>미정 {flags.undetermined.length} · 가정 {flags.assumption.length}. 값은 파일에 그대로 적히고, 미정은 null 입니다.</p>
+        <ul className="export-flags">
+          {flags.undetermined.map((f) => <li key={`u:${f.place}:${f.id}:${f.label}`} data-flag="undetermined">{f.label}</li>)}
+          {flags.assumption.map((f) => <li key={`a:${f.place}:${f.id}:${f.label}`} data-flag="assumption">{f.label}</li>)}
+        </ul>
+        <label className="export-ack">
+          <input type="checkbox" checked={acked} onChange={(e) => setAckFor(e.target.checked ? flagSig : null)} />
+          <span>미정 {flags.undetermined.length} · 가정 {flags.assumption.length} 을 표시한 채 내보내기</span>
+        </label>
+      </div>}
+      {ready.ok && !needsAck && <p>미정 0 · 가정 0. 확인 없이 파일을 만들 수 있습니다.</p>}
+      <div className="export-actions">
+        <button type="button" className="btn-main primary" data-export-create disabled={createDisabled} onClick={createFile}>Export 파일 만들기</button>
+        <button type="button" onClick={() => fileRef.current?.click()}>Export 파일 검사</button>
+        <input ref={fileRef} type="file" accept=".json,application/json" data-export-inspect style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void inspectFile(f); e.target.value = ''; }} />
+      </div>
+      {createdReport && <div data-export-created>
+        <h2>만든 파일과 지금 모델</h2>
+        <p className="muted">{auroraExportFileName(p.name)} · 파일 rev {createdFile?.revision ?? ''} · 모델 rev {p.revision}</p>
+        <ExportReport report={createdReport} />
+      </div>}
+      {inspectError && <p className="warn-note" data-export-error>{inspectError}</p>}
+      {inspect && <div data-export-inspect-result>
+        <h2>고른 파일과 지금 모델</h2>
+        <ExportReport report={inspect} />
+      </div>}
       <h2>현재 · 읽기 전용 미리보기</h2>
       <table className="grid plain"><thead><tr><th>내보낼 의미</th><th>상태</th></tr></thead>
         <tbody>{[...counts.entries()].map(([k, n]) => <tr key={k}><td>{k}</td><td>{n}행 · 전송 아님</td></tr>)}</tbody></table>
