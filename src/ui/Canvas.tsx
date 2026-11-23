@@ -28,6 +28,7 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/base.css';
+import './canvas-focus.css';
 import { findAsset } from '../assets/library';
 import { AI_BADGE, resolveGenerated } from '../assets/visuals';
 import { IconLabel } from './Icon';
@@ -846,7 +847,7 @@ function FlowCanvas(props: Props) {
       id: u.id, type: 'unit', zIndex: selected ? 2 : 1,
       position: { x: box.x, y: box.y },
       width: box.w, height: box.h, measured: { width: box.w, height: box.h },
-      draggable: false, selectable: false, connectable: false, deletable: false,
+      draggable: false, selectable: false, connectable: false, deletable: false, focusable: L.units,
       className: 'nopan',
       data: {
         unitId: u.id, code: u.code, name: short, meta: `${u.deviceIds.length} dev · cap ${u.capacity.maxMaterials.value ?? '?'}`,
@@ -877,7 +878,7 @@ function FlowCanvas(props: Props) {
       id: d.id, type: 'device', zIndex: selection.includes(d.id) ? 6 : 3,
       position: { x: d.layout.x + o.dx, y: d.layout.y + o.dy },
       width: d.layout.w, height: d.layout.h, measured: { width: d.layout.w, height: d.layout.h },
-      draggable: false, selectable: false, connectable: !props.locked, deletable: false,
+      draggable: false, selectable: false, connectable: !props.locked, deletable: false, focusable: !axisOff,
       className: 'nopan',
       data: {
         device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked, tone: toneOf(d.id),

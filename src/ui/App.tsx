@@ -62,6 +62,7 @@ import { TAB_ICON } from './icons';
 import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
+import './focus-target.css';
 import { RunConditions } from './RunConditions';
 import { RunDetails } from './RunDetails';
 import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
@@ -1728,7 +1729,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!guide && !view.home && step === 'canvas' && <div className="workspace ws-canvas">
-        <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
         <div className="stage layout-stage">
           <div className="stage-head">
             <h1 className="stage-title"><span data-tour="canvas"><Terms text="배치·연결" /></span></h1>
@@ -1811,6 +1811,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             ]} />
           </div>
         </div>
+        <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
         <div className="right prop-col">
           <div className="prop-body">{(() => {
           const d = p.devices.find((x) => x.id === selection[0]);
