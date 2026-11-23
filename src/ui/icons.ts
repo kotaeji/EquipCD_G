@@ -114,6 +114,8 @@ export const COMMAND_ICONS = {
   workspace: 'Folders',
   project: 'Folder',
   'add-step': 'ListPlus',
+  confirm: 'BadgeCheck',
+  jump: 'ArrowUpRight',
   'to-actions': 'Bolt',
   'to-signals': 'Radio',
   'to-props': 'SlidersVertical',

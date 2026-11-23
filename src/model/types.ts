@@ -37,6 +37,39 @@ export interface Quantity {
   history?: { at: string; from: number | null; to: number | null; assumption: boolean; note?: string }[];
 }
 
+/** Where a numeric value lives. Used by the confirmation log. */
+export type QuantityRef =
+  | { kind: 'device'; id: Id; key: string }
+  | { kind: 'action'; id: Id; field: 'duration' | 'timeout' }
+  | { kind: 'position'; id: Id }
+  | { kind: 'unitCap'; id: Id; field: 'maxMaterials' | 'maxWeight' }
+  | { kind: 'material'; id: Id; field: 'weight' | 'feedInterval' | 'w' | 'l' | 'h' }
+  | { kind: 'stepTimeout'; id: Id };
+
+/** What a confirmation row points at. The name is also stored on the row, so a deleted target still has a label. */
+export type ConfirmationTarget =
+  | { kind: 'quantity'; ref: QuantityRef }
+  | { kind: 'interlock'; id: Id }
+  | { kind: 'candidate'; id: Id }
+  | { kind: 'gap'; id: Id }
+  | { kind: 'signalAddress'; id: Id };
+
+/**
+ * One confirmation (or its reversal). Optional on the project: an empty list is not written,
+ * so files from before TURN-070 and the three samples stay the same. Format version stays 0.3.0.
+ */
+export interface ConfirmationEntry {
+  /** ISO-8601 timestamp. */
+  at: string;
+  /** Confirmer name as typed. At most 60 characters. Not an account. */
+  by: string;
+  /** Target label captured when the row was written. */
+  name: string;
+  from: string;
+  to: string;
+  target: ConfirmationTarget;
+}
+
 export interface PortDef {
   key: string;
   label: string;
@@ -365,6 +398,11 @@ export interface Project {
   assumptionsNote: string[];
   /** Optional stage-2 drawing behind the units. Missing on older files. */
   diagramBackground?: DiagramBackground;
+  /**
+   * Who confirmed a value, and when. Missing on files saved before TURN-070.
+   * Empty lists are omitted on write so the three samples stay byte-identical.
+   */
+  confirmationLog?: ConfirmationEntry[];
 }
 
 export interface ProjectFile {

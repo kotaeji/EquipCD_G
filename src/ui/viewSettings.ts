@@ -1,4 +1,5 @@
 // UserView (user-local, NOT design data). Stored under a separate key; never serialized into project files.
+import { normalizeConfirmerName } from '../model/confirmationLog';
 import { VIEW_KEY, type KV } from '../storage/localStore';
 import { STEPS, type StepId } from './wizard';
 
@@ -62,6 +63,11 @@ export interface UserView {
   helpOpen: boolean;
   /** TURN-056: dotted glossary on titles, tabs, the step bar, and table headers. Default on. */
   termHints: boolean;
+  /**
+   * TURN-070: name written into a confirmation row. This browser only — the project file
+   * stores the name on each row, not this setting.
+   */
+  confirmerName: string;
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -116,7 +122,7 @@ function cleanPanels(v: unknown): PanelWidths {
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
   step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
   explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false, autoDraft: true,
-  paletteOpen: true, minimap: { layout: true, run: false }, helpOpen: false, termHints: true };
+  paletteOpen: true, minimap: { layout: true, run: false }, helpOpen: false, termHints: true, confirmerName: '' };
 
 function cleanMinimap(v: unknown): { layout: boolean; run: boolean } {
   const o = v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
@@ -164,7 +170,8 @@ export function loadView(kv: KV | null): UserView {
       minimap: cleanMinimap(o.minimap),
       // missing helpOpen stays closed. missing termHints stays on.
       helpOpen: o.helpOpen === true,
-      termHints: o.termHints === false ? false : true };
+      termHints: o.termHints === false ? false : true,
+      confirmerName: normalizeConfirmerName(typeof o.confirmerName === 'string' ? o.confirmerName : '') };
   } catch { return DEFAULT_VIEW; }
 }
 export function saveView(kv: KV | null, v: UserView) { if (!kv) return; try { kv.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* ignore */ } }

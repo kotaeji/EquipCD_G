@@ -11,7 +11,7 @@ import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { analyzeRunGaps } from '../model/runGaps';
 import { applyEdit, initHistory, redo, undo, type History } from '../model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
-import type { AssetDefinition, AssetKind, Project } from '../model/types';
+import type { AssetDefinition, AssetKind, ConfirmationEntry, Project, QuantityRef } from '../model/types';
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { applyLabVariant, type LabReport, type LabVariant } from '../model/lab';
 import { advance, createRuntime, pause, pauseSubstation, reset, resume, resumeSubstation, runToEnd, start, type Runtime } from '../runtime/engine';
@@ -48,7 +48,11 @@ import type { BlockerGuide } from './blockerTarget';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
 import { conditionsFormula, runBlockFormula } from '../model/conditionFormula';
 import type { ConditionFinding } from '../model/conditionCheck';
+import { confirmedCaption, gapConfirmationChange, normalizeConfirmerName, quantityOf } from '../model/confirmationLog';
 import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type RunDetailsTab, type UserView } from './viewSettings';
+import { ConfirmationGate, type ConfirmationRunner } from './confirmationGate';
+import { ConfirmerDialog } from './ConfirmerDialog';
+import { confirmationJump } from './confirmationJump';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
 import * as W from '../storage/workspaces';
@@ -73,6 +77,11 @@ import { Tabs } from './Tabs';
 import { HelpPanel } from './HelpPanel';
 import { helpTopic, resolveHelpId } from './helpCopy';
 import { TermHintsProvider, Terms } from './Term';
+
+function qtyNote(p: Project, ref: QuantityRef): string | null {
+  const qv = quantityOf(p, ref);
+  return confirmedCaption(p.confirmationLog, { kind: 'quantity', ref }, !!qv && qv.value !== null && !qv.assumption);
+}
 
 interface Tab {
   key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; runRecord: Runtime | null; gaps: Gap[]; analyzedRevision: number | null;
@@ -223,6 +232,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [arrangeOpen, setArrangeOpen] = useState(false);
   const [bgPoints, setBgPoints] = useState<{ x: number; y: number }[] | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
+  const [confirmPending, setConfirmPending] = useState<ConfirmationRunner | null>(null);
   const [tourIndex, setTourIndex] = useState<number | null>(null);
   const tourReturn = useRef<HTMLElement | null>(null);
   const tourIndexRef = useRef<number | null>(null);
@@ -428,8 +438,21 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     updTab(tab.key, (t) => ({ ...t, gaps, analyzedRevision: p.revision, history: { ...t.history, present: { ...t.history.present, gapReview: review } } }));
     say(`재분석 완료: ${gaps.length}건 (rev ${p.revision})`);
   };
+  const requestConfirmation = (run: ConfirmationRunner) => {
+    const name = normalizeConfirmerName(view.confirmerName);
+    if (name) run({ by: name, at: new Date().toISOString() });
+    else setConfirmPending(() => run);
+  };
   const reviewGap = (id: string, status: 'hidden' | 'humanConfirmed' | 'open') => {
-    updTab(tab.key, (t) => { const pr = t.history.present; const old = pr.gapReview[id]; if (!old) return t; return { ...t, history: { ...t.history, present: { ...pr, gapReview: { ...pr.gapReview, [id]: { ...old, status } } } } }; });
+    const old = p.gapReview[id];
+    if (!old) return;
+    if (gapConfirmationChange(old.status, status)) {
+      const title = tab.gaps.find((g) => g.id === id)?.title ?? id;
+      const label = status === 'humanConfirmed' ? 'Gap 사람 확인' : 'Gap 확인 되돌림';
+      requestConfirmation((stamp) => edit(C.setGapReviewStatus(p, id, status, stamp, title), label));
+      return;
+    }
+    updTab(tab.key, (t) => { const pr = t.history.present; const cur = pr.gapReview[id]; if (!cur) return t; return { ...t, history: { ...t.history, present: { ...pr, gapReview: { ...pr.gapReview, [id]: { ...cur, status } } } } }; });
   };
   const goGap = (g: Gap) => {
     if (g.fromRun && g.fix) {
@@ -1178,6 +1201,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (j.save) setItemsStep(null);
     else goStep(j.step, j.sub);
   };
+  const goConfirmation = (entry: ConfirmationEntry) => {
+    const j = confirmationJump(p, entry);
+    if (!j) return;
+    goItem({ level: 'human', kind: 'gap-human', text: entry.name, jump: j });
+  };
   // TURN-066. Same flash as a wizard item. Shift+Enter only changes the selection.
   const jumpToObject = (entry: ObjectEntry, stay: boolean) => {
     const j = entry.jump;
@@ -1607,6 +1635,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   });
   const closeHelp = () => setView((v) => (v.helpOpen ? { ...v, helpOpen: false } : v));
   return (
+    <ConfirmationGate.Provider value={requestConfirmation}>
     <TermHintsProvider value={view.termHints}>
     <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen}>
       <header className="header">
@@ -1826,7 +1855,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             {d && def && def.properties.slice(0, 3).map((pd) => {
               const qv = d.properties[pd.key];
               if (!qv) return null;
-              return <p key={pd.key}>{pd.label}<br />{qv.value === null ? <StatusMark status="undetermined" /> : qv.value} {qv.unit}{qv.assumption ? <> <StatusMark status="assumption" /></> : null}</p>;
+              const note = qtyNote(p, { kind: 'device', id: d.id, key: pd.key });
+              return <p key={pd.key}>{pd.label}<br />{qv.value === null ? <StatusMark status="undetermined" /> : qv.value} {qv.unit}{qv.assumption ? <> <StatusMark status="assumption" /></> : null}{note && <span className="confirm-note" data-confirm-note>{note}</span>}</p>;
             })}
             {!d && host && <button type="button" className="btn-main secondary" onClick={fitSelectedUnit}><IconLabel id="fit-unit">크기 맞춤</IconLabel></button>}
             {missingComplete && <p className="warn-note"><StatusMark status="undetermined" /> 완료 신호 · 실행 차단<br />필수 값은 임의로 채우지 않습니다.</p>}
@@ -1864,7 +1894,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               </section>
               <aside className="sheet">
                 <h2>포지션 정의</h2>
-                {poss.map((x) => <label key={x.id} data-jump={`position:${x.id}`}>{x.name}<span className="field-ro">{x.value.value === null ? <StatusMark status="undetermined" /> : x.value.value} {x.value.unit}{x.value.assumption ? <> <StatusMark status="assumption" /></> : null}</span></label>)}
+                {poss.map((x) => <label key={x.id} data-jump={`position:${x.id}`}>{x.name}<span className="field-ro">{x.value.value === null ? <StatusMark status="undetermined" /> : x.value.value} {x.value.unit}{x.value.assumption ? <> <StatusMark status="assumption" /></> : null}{qtyNote(p, { kind: 'position', id: x.id }) && <span className="confirm-note" data-confirm-note>{qtyNote(p, { kind: 'position', id: x.id })}</span>}</span></label>)}
                 {poss.length === 0 && <p className="muted">포지션 없음</p>}
                 <p className="warn-note">단위·방향·신호 참조는 보존합니다. 실주소와 실측 역매핑은 하지 않습니다.</p>
               </aside>
@@ -1873,8 +1903,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <section className="sheet">
                 <h2>{act ? `${host?.code ?? ''} ${act.name}`.trim() : `${d.name} · Action 없음`}</h2>
                 {act ? <div className="form-grid">
-                  <label data-jump={`duration:${act.id}`}>동작 시간<QtyInput q={act.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'duration' }, v, as), '동작 시간')} /></label>
-                  <label data-jump={`timeout:${act.id}`}><Terms text="타임아웃" /><QtyInput q={act.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as), '타임아웃')} /></label>
+                  <label data-jump={`duration:${act.id}`}>동작 시간<QtyInput q={act.duration} disabled={locked} note={qtyNote(p, { kind: 'action', id: act.id, field: 'duration' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'duration' }, v, as, stamp), '동작 시간')} /></label>
+                  <label data-jump={`timeout:${act.id}`}><Terms text="타임아웃" /><QtyInput q={act.timeout} disabled={locked} note={qtyNote(p, { kind: 'action', id: act.id, field: 'timeout' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as, stamp), '타임아웃')} /></label>
                   <label>명령 신호<span className="field-ro">{signalCaption(p, act.commandSignalId)}</span></label>
                   <label>완료 신호<span className="field-ro">{signalCaption(p, act.completeSignalId)}</span></label>
                   <label>사전 조건<span className="field-ro cond-line" data-jump={`pre:${act.id}`} data-cond-formula="">{conditionsFormula(p, act.pre) || '없음'}<ConditionMark p={p} site={`action:${act.id}:pre`} /></span></label>
@@ -1909,7 +1939,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                     const qv = d.properties[pd.key];
                     if (!qv) return null;
                     return <label key={pd.key} data-jump={`prop:${d.id}:${pd.key}`}>{pd.label}
-                      <QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} />
+                      <QtyInput q={qv} disabled={locked} note={qtyNote(p, { kind: 'device', id: d.id, key: pd.key })} onCommit={(v, as, stamp) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as, stamp), `${pd.label} 변경`)} />
                     </label>;
                   })}
                   <label>정의 버전<span className="field-ro">{d.definitionRef.assetId}@{d.definitionRef.version}</span></label>
@@ -1961,11 +1991,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               {p.materials[0] ? <div className="form-grid">
                 <label data-jump={`material:${p.materials[0].id}`}>이름<TextInput value={p.materials[0].name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, p.materials[0].id, v), '자재 이름')} /></label>
                 <label>투입 개수<input key={feedCountOf(p.materials[0])} type="number" aria-label="자재 화면 투입 개수" className="num" min={1} step={1} disabled={locked} defaultValue={feedCountOf(p.materials[0])} onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== feedCountOf(p.materials[0])) edit(C.setFeedCount(p, p.materials[0].id, n), '투입 개수'); else e.target.value = String(feedCountOf(p.materials[0])); }} /></label>
-                <label data-jump="feed-interval">투입 간격<QtyInput q={p.materials[0].feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, v, as), '투입 간격')} /></label>
+                <label data-jump="feed-interval">투입 간격<QtyInput q={p.materials[0].feedInterval} disabled={locked} note={qtyNote(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, v, as, stamp), '투입 간격')} /></label>
                 <label>초기 위치<span className="field-ro">{p.materials[0].initialLocation ? unitName(p, p.materials[0].initialLocation) : '미정'}</span></label>
                 <label>초기 상태<span className="field-ro">{p.materials[0].initialState ?? '미정'}</span></label>
                 <label>크기<span className="field-ro">{materialSize(p)}</span></label>
-                <label>무게<span className="field-ro">{p.materials[0].weight.value ?? '미정'} {p.materials[0].weight.unit}{p.materials[0].weight.assumption ? ' · 가정' : ''}</span></label>
+                <label data-jump={`material:${p.materials[0].id}:weight`}>무게<span className="field-ro">{p.materials[0].weight.value ?? '미정'} {p.materials[0].weight.unit}{p.materials[0].weight.assumption ? ' · 가정' : ''}{qtyNote(p, { kind: 'material', id: p.materials[0].id, field: 'weight' }) && <span className="confirm-note" data-confirm-note>{qtyNote(p, { kind: 'material', id: p.materials[0].id, field: 'weight' })}</span>}</span></label>
                 <label>Unit 경로<span className="field-ro">{routeText(p)}</span></label>
               </div> : <EmptyState symbol="○" line={EMPTY.materials} actions={[{ label: '자재 추가', disabled: locked, reason: locked ? RUN_LOCK : undefined, onClick: () => edit(C.addMaterial(p), '자재 추가'), attrs: { 'data-jump': 'material-add' } }]} />}
               <button type="button" className="btn-main primary" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'sequence' })); }}><Terms text="Station 시퀀스 작성" /></button>
@@ -2012,7 +2042,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />
             </Fold>
           </section>}
-          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
+          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} onJumpConfirmation={goConfirmation} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
           {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
           {sub === 'lab' && <LabSheet project={p} locked={locked} variants={tab.labVariants} result={tab.labResult}
             onChangeVariants={(variants) => updTab(tab.key, (t) => ({ ...t, labVariants: variants }))}
@@ -2091,12 +2121,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
       {importBusy && <div className="import-hold"><LoadingPlaceholder label={LOADING_FILE} /></div>}
       {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.problem ? <Problem copy={toast.problem} compact={!toast.full} /> : toast.msg}</div>}
+      {confirmPending && <ConfirmerDialog onCancel={() => setConfirmPending(null)} onSubmit={(name) => {
+        const by = normalizeConfirmerName(name);
+        if (!by) return;
+        const run = confirmPending;
+        setView((v) => ({ ...v, confirmerName: by }));
+        setConfirmPending(null);
+        run({ by, at: new Date().toISOString() });
+      }} />}
       {viewOpen && <StaticModalFrame title="보기 설정" style={style} onCancel={() => setViewOpen(false)}>
         <p className="muted">보기만 바꿉니다. 모델, rev, 실행, 선택, 입력은 그대로입니다. 보관된 이전 팔레트는 고를 수 없습니다.</p>
         <label className="draft-toggle"><input type="checkbox" checked={view.autoDraft} onChange={(e) => setView((v) => ({ ...v, autoDraft: e.target.checked }))} />자동 임시 저장</label>
         <p className="muted">켜 두면 마지막 편집 후 5초 뒤에 이 브라우저에만 임시 저장합니다. 「저장」한 내용과 저장 목록은 바꾸지 않습니다.</p>
         <label className="draft-toggle"><input type="checkbox" data-term-hints checked={view.termHints} onChange={(e) => setView((v) => ({ ...v, termHints: e.target.checked }))} />용어 밑줄</label>
         <p className="muted">켜 두면 제목, 탭, 단계 바, 표 머리에 용어 풀이가 붙습니다. 끄면 밑줄과 풀이가 사라집니다. 모델은 바뀌지 않습니다.</p>
+        <label className="confirm-field">확인자 이름
+          <input data-confirmer-name maxLength={60} value={view.confirmerName} aria-label="확인자 이름" onChange={(e) => setView((v) => ({ ...v, confirmerName: e.target.value.slice(0, 60) }))} />
+        </label>
+        <p className="muted">이 브라우저에만 기억합니다. 로그인이나 인증은 없습니다. 적은 글자를 그대로 남기며, 확인을 누르면 그 이름이 프로젝트 파일의 확인 이력에 들어갑니다. 60자까지입니다.</p>
         <div className="row" style={{ gap: 8 }}>{visualToggle}</div>
         <div className="row" style={{ gap: 8 }}>
           <button type="button" className="btn-main secondary" onClick={() => {
@@ -2120,5 +2162,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {shortcutOpen && <ShortcutSheet state={commandState} mac={macShortcut} onClose={() => setShortcutOpen(false)} />}
     </div>
     </TermHintsProvider>
+    </ConfirmationGate.Provider>
   );
 }
