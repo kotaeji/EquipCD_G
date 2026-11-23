@@ -39,6 +39,12 @@ const stat = (el: HTMLElement) => {
   return { rev: /rev (\d+)/.exec(text)![1], undo: /Undo (\d+)/.exec(text)![1] };
 };
 const pop = (el: HTMLElement) => el.querySelector('.tour-pop') as HTMLElement | null;
+const tourForward = (el: HTMLElement) => {
+  const bubble = pop(el);
+  const button = bubble?.querySelector('button.primary');
+  if (!(button instanceof HTMLButtonElement)) throw new Error('tour forward button missing');
+  return button;
+};
 const stepOf = (el: HTMLElement) => el.querySelector('.app')!.getAttribute('data-step');
 
 describe('TURN-042 tour placement', () => {
@@ -149,7 +155,7 @@ describe('TURN-042 first-run tour', () => {
     const u = await mount();
     const before = stat(u.el);
     await u.click(u.btn(TOUR_BUTTON));
-    for (let i = 0; i < TOUR_STEPS.length; i++) await u.click(u.btn('다음', pop(u.el)!));
+    for (let i = 0; i < TOUR_STEPS.length; i++) await u.click(tourForward(u.el));
     expect(pop(u.el)).toBeNull();
     expect(stat(u.el)).toEqual(before);
     expect(u.el.querySelector('.workbar')!.textContent).toContain('조립 라인 01 (5공정 예제)');
@@ -167,7 +173,7 @@ describe('TURN-042 first-run tour', () => {
       await u.click(u.btn(TOUR_BUTTON));
       if (how === 'skip') await u.click(u.btn('건너뛰기', pop(u.el)!));
       else if (how === 'esc') await u.key(window, 'Escape');
-      else for (let i = 0; i < TOUR_STEPS.length; i++) await u.click(u.btn('다음', pop(u.el)!));
+      else for (let i = 0; i < TOUR_STEPS.length; i++) await u.click(tourForward(u.el));
       expect(pop(u.el)).toBeNull();
       expect(JSON.parse(localStorage.getItem(VIEW_KEY)!).tourSeen).toBe(true);
 
