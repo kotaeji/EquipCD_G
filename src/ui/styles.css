@@ -350,6 +350,8 @@ table.export-diff th, table.export-diff td { height: auto; font-size: 12px; whit
 .diagram-canvas { height: 460px; overflow: hidden; position: relative; border: 1px solid var(--border); border-radius: 12px; background: var(--canvas); }
 .diagram-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; min-width: 0; max-width: 100%; }
 .diagram-tools > button, .diagram-tools .arrange-menu > button { white-space: nowrap; }
+.copy-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 8px; }
+.copy-tools > button { white-space: nowrap; }
 .canvas-rail { display: flex; flex-direction: column; gap: 12px; padding: 24px 16px; height: 100%; overflow: auto; background: var(--panel); }
 .canvas-rail h2 { margin: 0; font-size: 18px; line-height: 1.55; }
 .canvas-rail .btn-main { width: 100%; }

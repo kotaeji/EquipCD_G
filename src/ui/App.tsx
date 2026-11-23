@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ASSET_LIBRARY, exportLibraryAml, findAsset, LOADED_LIBRARIES, registerImported } from '../assets/library';
 import { resolveGenerated } from '../assets/visuals';
 import * as C from '../model/commands';
+import { captureCopy, COPY_NEED_NODE, PASTE_EMPTY, PASTE_LOCKED, pasteClipboard, splitPasteNote, type Clipboard } from '../model/copyPaste';
 import { emptyProject } from '../model/factory';
 import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { applyEdit, initHistory, redo, undo, type History } from '../model/history';
@@ -119,6 +120,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [nameDlg, setNameDlg] = useState<NameDlg | null>(null);
   const [activeKey, setActiveKey] = useState(() => tabs[0].key);
   const [selection, setSelection] = useState<string[]>([]);
+  /** App-held copy of Units or Devices. Shared by every project tab. Not the OS clipboard. */
+  const [clip, setClip] = useState<Clipboard | null>(null);
   const [mode, setMode] = useState<Mode>('select');
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState('props');
@@ -300,6 +303,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const selectedUnitCount = p.units.filter((u) => selection.includes(u.id)).length;
   const selectedDeviceIds = selection.filter((id) => p.devices.some((d) => d.id === id));
   const selectedNodeIds = selection.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
+  const copyTitle = selectedNodeIds.length === 0 ? COPY_NEED_NODE : '복사 (Ctrl/Cmd+C)';
+  const pasteTitle = locked ? PASTE_LOCKED : !clip ? PASTE_EMPTY : '붙여넣기 (Ctrl/Cmd+V)';
+  const copyPasteButtons = () => (
+    <>
+      <button type="button" onClick={requestCopy} disabled={selectedNodeIds.length === 0} title={copyTitle}>복사</button>
+      <button type="button" onClick={requestPaste} disabled={locked || !clip} title={pasteTitle}>붙여넣기</button>
+    </>
+  );
   const runArrange = (r: C.CmdResult, label: string) => {
     setArrangeOpen(false);
     if (edit(r, label) && r.ok && r.note) say(r.note);
@@ -417,6 +428,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const r = C.duplicateDevices(p, selection);
     if (edit(r, 'Device 복제') && r.ok) setSelection(r.note ? r.note.split(',') : []);
   };
+  const requestCopy = () => {
+    const r = captureCopy(p, selection);
+    if (!r.ok) { say(r.reason, true); return; }
+    setClip(r.clip);
+    const n = r.clip.kind === 'units' ? r.clip.units.length : r.clip.devices.length;
+    const noun = r.clip.kind === 'units' ? 'Unit' : 'Device';
+    say(`${noun} ${n}개를 복사했습니다`);
+  };
+  const requestPaste = () => {
+    if (locked) { say(PASTE_LOCKED, true); return; }
+    if (!clip) { say(PASTE_EMPTY, true); return; }
+    const r = pasteClipboard(p, clip, selection);
+    if (edit(r, '붙여넣기') && r.ok) {
+      const { ids, message } = splitPasteNote(r.note);
+      setSelection(ids);
+      if (message) say(message);
+    }
+  };
   const requestReparent = (deviceId: string, unitId: string) => {
     const d = p.devices.find((x) => x.id === deviceId); const u = p.units.find((x) => x.id === unitId);
     if (!d || !u || d.unitId === unitId) return;
@@ -441,6 +470,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
       if (dialogOpen()) return;
       if (typing) return;
+      // TURN-044. Step 2, and the explorer tree. An input already returned, so text copy stays native.
+      const inTree = !!(e.target as HTMLElement | null)?.closest?.('.tree');
+      const onCanvas = !view.home && !guide && step === 'canvas';
+      if (mod && !e.shiftKey && !e.altKey && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'v') && (onCanvas || inTree)) {
+        e.preventDefault();
+        if (e.key.toLowerCase() === 'c') requestCopy();
+        else requestPaste();
+        return;
+      }
       // TURN-027. Step 2 only. Inputs and dialogs already returned, so the browser keeps its own Ctrl+A.
       if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
         if (view.home || guide || step !== 'canvas') return;
@@ -1031,6 +1069,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <div className="layout-tabs">
             <Tabs label="배치·연결" idBase="layout" value={view.layoutTab} onChange={openLayoutTab} tabs={[
               { id: 'board', label: '카드 보드', panel: <>
+                <div className="copy-tools">{copyPasteButtons()}</div>
                 <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
                   onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick}
                   onSignalHint={() => say('신호 연결은 도면 도식 탭의 포트에서 합니다')} onReparent={requestReparent}
@@ -1054,6 +1093,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   </div>
                   <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}>크기 맞춤</button>
                   <button type="button" onClick={arrangeSelectedDevices} disabled={locked || !('unitId' in arrangeTarget)} title={arrangeDevicesTitle}>자동 정렬</button>
+                  {copyPasteButtons()}
                   <button type="button" onClick={requestDuplicate} disabled={selectedDeviceIds.length === 0 || locked} title={selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : '선택한 Device 복제 (Ctrl+D)'}>복제</button>
                   <button className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}>삭제</button>
                 </div>
