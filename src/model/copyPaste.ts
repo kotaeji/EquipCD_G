@@ -56,6 +56,29 @@ function duplicateName(taken: Set<string>, name: string): string {
   return `${name} 사본 ${n}`;
 }
 
+/** Keep the name when it is free. The next one is `이름 2`. */
+function numberedName(taken: Set<string>, name: string): string {
+  if (!taken.has(name)) return name;
+  let n = 2;
+  while (taken.has(`${name} ${n}`)) n += 1;
+  return `${name} ${n}`;
+}
+
+/** How a Unit snapshot is named and stamped when it is pasted. Omit every field to keep copy/paste. */
+export interface UnitPasteOptions {
+  /** New origin of the first Unit. Later Units keep their offset, then non-overlap runs. */
+  at?: { x: number; y: number };
+  /** `copy` is `이름 사본`. `keep` reuses the name, then `이름 2`. */
+  names?: 'copy' | 'keep';
+  lineageForUnit?: (src: Unit) => Unit['lineage'];
+  /** Default true. False leaves Devices without a paste lineage. */
+  deviceLineage?: boolean;
+  /** A missing asset refuses the whole paste. */
+  requireAssets?: boolean;
+  /** Drop `templateRef` copied from the source Unit. */
+  clearTemplateRef?: boolean;
+}
+
 function copiedObjectName(original: string, sourceName: string, copyName: string): string {
   const tail = copyName.slice(sourceName.length);
   if (sourceName && original.startsWith(sourceName)) return copyName + original.slice(sourceName.length);
@@ -333,10 +356,12 @@ const no = (reason: string): CmdResult => ({ ok: false, reason });
  * Units land beside the original, then shift until they do not overlap another Unit.
  * `note` is `<new ids>\n<one-line notice>`.
  */
-export function pasteClipboard(p0: Project, clip: Clipboard, selectedIds: string[], idOf: (s: string) => string = newId): CmdResult {
+export function pasteClipboard(p0: Project, clip: Clipboard, selectedIds: string[], idOf: (s: string) => string = newId, options?: UnitPasteOptions): CmdResult {
   const skipped = clip.devices.filter((d) => !knownAsset(d));
   const skippedMsg = skipped.map((d) => skipLine(d.name, d.definitionRef.assetId));
+  if (options?.requireAssets && skipped.length) return no(skippedMsg.join(' ') || COPY_NEED_NODE);
   const keep = clip.devices.filter((d) => knownAsset(d));
+  const nextName = options?.names === 'keep' ? numberedName : duplicateName;
   if (clip.kind === 'devices' && !keep.length) return no(skippedMsg.join(' ') || COPY_NEED_NODE);
   if (clip.kind === 'units' && !clip.units.length) return no(COPY_NEED_NODE);
 
@@ -368,11 +393,13 @@ export function pasteClipboard(p0: Project, clip: Clipboard, selectedIds: string
   const placed: { src: Device; id: string; unitId: string }[] = [];
 
   if (clip.kind === 'units') {
-    const delta = besideDelta(p.units, clip.units);
+    const delta = options?.at
+      ? { dx: options.at.x - clip.units[0].layout.x, dy: options.at.y - clip.units[0].layout.y }
+      : besideDelta(p.units, clip.units);
     for (const src of clip.units) {
       const id = takeId(idOf, 'unit', used);
       unitMap.set(src.id, id);
-      const name = duplicateName(unitNames, src.name);
+      const name = nextName(unitNames, src.name);
       unitNames.add(name);
       const u = structuredClone(src);
       u.id = id;
@@ -385,7 +412,8 @@ export function pasteClipboard(p0: Project, clip: Clipboard, selectedIds: string
         w: src.layout.w,
         h: src.layout.h,
       };
-      u.lineage = { duplicatedFrom: src.id };
+      u.lineage = options?.lineageForUnit ? options.lineageForUnit(src) : { duplicatedFrom: src.id };
+      if (options?.clearTemplateRef) delete u.templateRef;
       p.units.push(u);
       p.equipment.unitIds.push(id);
       created.push(id);
@@ -398,14 +426,15 @@ export function pasteClipboard(p0: Project, clip: Clipboard, selectedIds: string
     if (!unitId || !p.units.some((u) => u.id === unitId)) continue;
     const id = takeId(idOf, 'dev', used);
     devMap.set(src.id, id);
-    const name = duplicateName(deviceNames, src.name);
+    const name = nextName(deviceNames, src.name);
     deviceNames.add(name);
     nameOf.set(src.id, name);
     const device = structuredClone(src);
     device.id = id;
     device.name = name;
     device.unitId = unitId;
-    device.lineage = { duplicatedFrom: src.id };
+    if (options?.deviceLineage === false) delete device.lineage;
+    else device.lineage = { duplicatedFrom: src.id };
     delete device.templateChild;
     if (clip.kind === 'units') {
       const origin = clip.units.find((u) => u.id === src.unitId)!;

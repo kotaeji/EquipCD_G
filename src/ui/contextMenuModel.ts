@@ -38,7 +38,8 @@ export type MenuAction =
   | 'gapX'
   | 'gapY'
   | 'matchW'
-  | 'matchH';
+  | 'matchH'
+  | 'saveTemplate';
 
 export interface MenuItem {
   id: MenuAction;
@@ -131,6 +132,8 @@ export interface MenuBuildInput {
   /** Every selected node is a Unit (edges ignored). */
   allUnits: boolean;
   canViewProps: boolean;
+  /** Set when 「내 템플릿으로 저장」 cannot run. Omit when it can. Saving does not edit the project. */
+  saveTemplateReason?: string;
 }
 
 function dim(reason: string | undefined): Pick<MenuItem, 'disabled' | 'reason'> {
@@ -199,6 +202,7 @@ export function buildContextMenu(input: MenuBuildInput): MenuItem[] {
     { id: 'rename', label: '이름 변경', ...dim(lock) },
     { id: 'copy', label: '복사', shortcut: SHORTCUT.copy },
     { id: 'paste', label: '붙여넣기(이 Unit 에)', shortcut: SHORTCUT.paste, ...dim(input.pasteReason) },
+    { id: 'saveTemplate', label: '내 템플릿으로 저장', ...dim(input.saveTemplateReason) },
     { id: 'arrange', label: '자동 정렬', ...dim(arrange) },
     { id: 'fit', label: '크기 맞춤', ...dim(lock) },
     {
