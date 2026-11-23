@@ -3,6 +3,7 @@ import type { RuntimeState } from '../runtime/engine';
 import type { InterlockBlockRecord } from '../runtime/interlock';
 import { formatMs } from '../scene/runInfo';
 import { fmtTime } from './Panels';
+import { RunReportMenu } from './RunReportMenu';
 import { RunSummary } from './RunSummary';
 import { EmptyState } from './EmptyState';
 import { Problem } from './Problem';
@@ -124,7 +125,7 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
         <InterlockHistory rows={rt?.interlockBlocks ?? []} onJump={onJumpInterlock} />
         <PieceTable rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
-          { id: 'summary', label: '실행 결과 요약', panel: <RunSummary p={p} rt={rt} embedded /> },
+          { id: 'summary', label: '실행 결과 요약', panel: <><RunReportMenu p={p} rt={rt} /><RunSummary p={p} rt={rt} embedded /></> },
           { id: 'log', label: '실행 로그', panel: <RunLog rt={rt} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
           { id: 'signals', label: '신호', panel: <RunSignals p={p} rt={rt} /> },
         ]} />
