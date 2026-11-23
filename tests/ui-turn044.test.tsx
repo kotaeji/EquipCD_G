@@ -123,7 +123,9 @@ describe('TURN-044 copy paste UI', () => {
       expect(paste().disabled).toBe(true);
       expect(paste().title).toBe(PASTE_LOCKED);
       await u.key(window, { key: 'v', ctrlKey: true });
-      expect(u.el.querySelector('.toast')?.textContent).toBe(PASTE_LOCKED);
+      const refused = u.el.querySelector('.toast')?.textContent ?? '';
+      expect(refused).toContain('붙여넣기 불가');
+      expect(refused).toContain(PASTE_LOCKED);
       expect(u.history().present.revision).toBe(rev + 1);
     } finally {
       globalThis.requestAnimationFrame = raf;

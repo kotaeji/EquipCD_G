@@ -4,6 +4,8 @@ import { findAsset } from '../assets/library';
 import { nextDeviceSlot } from '../model/unitLayout';
 import type { AssetKind, Project } from '../model/types';
 import type { Mode } from './Canvas';
+import { EmptyState } from './EmptyState';
+import { EMPTY, RUN_LOCK } from './problemCopy';
 import { cardSelection } from './selectAll';
 
 interface Props {
@@ -18,6 +20,9 @@ interface Props {
   onReparent: (deviceId: string, unitId: string) => void;
   /** Overlay. It does not take a row, so the cards stay put. */
   connectNote: string | null;
+  onFocusUnit?: () => void;
+  onFocusDevice?: () => void;
+  onStartFlow?: () => void;
 }
 
 const kindLabel = (kind: string) => findAsset(kind)?.name ?? kind;
@@ -37,6 +42,7 @@ export function flowSummary(p: Project): string {
 export function LayoutBoard(props: Props) {
   const { project: p, selection, mode } = props;
   const units = [...p.units].sort((a, b) => a.layout.x - b.layout.x || a.code.localeCompare(b.code));
+  const flows = p.connections.filter((c) => c.kind === 'flow');
   const take = (e: React.DragEvent) => {
     const kind = e.dataTransfer.getData('application/x-ecd-asset') as AssetKind | 'unit' | '';
     const deviceId = e.dataTransfer.getData('application/x-ecd-device');
@@ -44,6 +50,7 @@ export function LayoutBoard(props: Props) {
   };
   return <div className="board" data-board="live">
     {props.connectNote && <p className="notice board-connect-note" style={{ position: 'absolute' }}>{props.connectNote}</p>}
+    {units.length > 0 && flows.length === 0 && <EmptyState symbol="→" line={EMPTY.flows} actions={[{ label: '물류 연결', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onStartFlow }]} />}
     <div className="board-row" onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
       const { kind } = take(e);
       if (kind === 'unit' || (kind && findAsset(kind)?.template)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
@@ -69,7 +76,8 @@ export function LayoutBoard(props: Props) {
           </button>;
         })}
       </article>)}
-      {units.length === 0 && <p className="muted">배치된 Substation이 없습니다. 팔레트에서 빈 유닛이나 유닛 템플릿을 놓으세요.</p>}
+      {units.length === 0 && <EmptyState symbol="○" line={EMPTY.units} actions={[{ label: '팔레트의 빈 유닛', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onFocusUnit }]} />}
+      {units.length > 0 && p.devices.length === 0 && <EmptyState symbol="○" line={EMPTY.devices} actions={[{ label: '팔레트에서 고르기', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onFocusDevice }]} />}
     </div>
   </div>;
 }

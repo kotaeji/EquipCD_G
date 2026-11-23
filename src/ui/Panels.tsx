@@ -12,7 +12,10 @@ import { checkRunReadiness, validateProject, type Diagnostic } from '../model/va
 import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus, type AggregateStepStatus } from '../runtime/runSummary';
 import type { QuarantineEntry } from '../storage/localStore';
-import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
+import { type BlockerGuide } from './blockerTarget';
+import { BlockerList } from './Problem';
+import { EmptyState } from './EmptyState';
+import { EMPTY, RUN_LOCK } from './problemCopy';
 import type { ConfirmDelete, EditFn } from './Inspector';
 import { stepDeleteDetail, stepUsage } from '../model/deleteImpact';
 import { condLabel, devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
@@ -186,7 +189,7 @@ export function RunStatusExtras({ p, rt }: { p: Project; rt: RuntimeState | null
       <div style={{ flex: 1, overflow: 'auto' }}>
         <table className="grid"><thead><tr><th style={{ width: 90 }}>가상 시각</th><th style={{ width: 110 }}>코드</th><th>내용</th></tr></thead>
           <tbody>{(rt?.log ?? []).slice().reverse().map((l, i) => <tr key={i} className={l.level === 'error' ? 'err' : ''}><td className="mono">{fmt(l.t)}</td><td className="mono" style={{ fontSize: 11 }}>{l.code}</td><td style={{ fontSize: 12 }}>{l.message}</td></tr>)}
-            {!rt?.log.length && <tr><td colSpan={3} className="muted">로그 없음 — 툴바의 ▶ 실행을 누르세요</td></tr>}</tbody></table>
+            {!rt?.log.length && <tr><td colSpan={3}><EmptyState symbol="○" line={EMPTY.log} actions={[{ label: '실행', attrs: { 'data-empty-action': 'run' } }]} /></td></tr>}</tbody></table>
       </div>
     </div>
   );
@@ -204,11 +207,7 @@ export function RunReadiness({ p, onGoBlocker }: { p: Project; onGoBlocker?: (b:
       {readiness.warnings.filter((w) => w.code === 'INTERLOCK_NO_RULE' || w.code === 'INTERLOCK_UNDETERMINED').map((w) => (
         <p key={w.id} className="notice" data-interlock-notice={w.objectId}>{w.message}</p>
       ))}
-      {!readiness.ok && <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
-        <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
-        <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
-          {onGoBlocker && c.button && <button type="button" className="small" data-blocker-code={b.code} data-guide-kind={g.kind} aria-label={c.aria} onClick={() => onGoBlocker(b, g)}>{c.button}</button>}
-        </div></li>; })}</ul>}
+      {!readiness.ok && <BlockerList p={p} blockers={readiness.blockers} onGuide={onGoBlocker} />}
     </section>
   );
 }
@@ -286,7 +285,7 @@ export function RunGapSection({ gaps, ran, stale, onGo }: { gaps: Gap[]; ran: bo
       <h3>실행 결과</h3>
       {!ran && <p data-run-gap-empty="">실행하면 여기에 실행 결과 Gap 이 나옵니다</p>}
       {ran && stale && <p className="warn-note" data-run-gap-stale="">이전 rev 의 실행 결과</p>}
-      {ran && gaps.length === 0 && <p data-run-gap-none="">이 실행에서는 실행 결과 Gap 이 없습니다.</p>}
+      {ran && gaps.length === 0 && <EmptyState symbol="✓" line="이 실행에서는 실행 결과 Gap 이 없습니다." />}
       {gaps.length > 0 && <table className="grid plain">
         <thead><tr><th>종류</th><th>항목</th><th>근거</th><th>수정 제안</th><th></th></tr></thead>
         <tbody>
@@ -307,7 +306,7 @@ export function RunGapSection({ gaps, ran, stale, onGo }: { gaps: Gap[]; ran: bo
 export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean; edit: EditFn }) {
   const m = p.materials[0];
   const [addUnit, setAddUnit] = useState('');
-  if (!m) return <div data-jump="material-add"><div className="muted">자재 정의 없음</div><button disabled={locked} onClick={() => edit(C.addMaterial(p), '자재 추가')}>+ 자재 정의</button></div>;
+  if (!m) return <EmptyState symbol="○" line={EMPTY.materials} actions={[{ label: '자재 추가', disabled: locked, reason: locked ? RUN_LOCK : undefined, onClick: () => edit(C.addMaterial(p), '자재 추가'), attrs: { 'data-jump': 'material-add' } }]} />;
   const route = m.route;
   const setRoute = (r: string[]) => edit(C.updateMaterial(p, m.id, { route: r }), '경로 변경');
   return (
@@ -366,7 +365,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
         <div className="row"><Badge kind="ok">경로 A 직접 입력</Badge><Badge>경로 B 문서(PDF/DWG/XLSX) 미구현</Badge></div>
         <div className="row"><Badge>경로 C VC/USD 미구현</Badge><Badge>유사 장비 템플릿: 5공정 예제만</Badge></div>
         <div className="row"><label>대상</label><select value={targetKind} onChange={(e) => setTargetKind(e.target.value as 'unit' | 'device')}><option value="device">Device</option><option value="unit">Unit</option></select></div>
-        <div className="row"><label>이름</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="예) SEN-02" /></div>
+        <div className="row"><label>이름</label><input data-jump="candidate-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="예) SEN-02" /></div>
         {targetKind === 'device' && <>
           <div className="row"><label>종류</label><select value={kind} onChange={(e) => setKind(e.target.value as AssetKind)}>{ASSET_LIBRARY.filter((a) => !a.template).map((a) => <option key={a.kind} value={a.kind}>{a.name}</option>)}</select></div>
           <div className="row"><label>소속 Unit</label><select value={unitId} onChange={(e) => setUnitId(e.target.value)}><option value="">(미배정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
@@ -385,7 +384,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
             <td style={{ whiteSpace: 'nowrap' }}><Badge kind={c.confirmation === 'confirmed' ? 'ok' : c.confirmation === 'rejected' ? 'err' : 'warn'}>{c.confirmation}</Badge>
               {!c.appliedObjectId && <><button className="small" disabled={locked} onClick={() => setCand(c.id, { confirmation: 'confirmed' })}>확인</button><button className="small" disabled={locked} onClick={() => setCand(c.id, { confirmation: 'rejected' })}>거절</button></>}</td>
             <td className="mono" style={{ fontSize: 10 }}>{c.appliedObjectId ?? '-'}</td></tr>)}
-            {p.candidates.length === 0 && <tr><td colSpan={9} className="muted">후보 없음</td></tr>}</tbody></table>
+            {p.candidates.length === 0 && <tr><td colSpan={9}><EmptyState symbol="○" line={EMPTY.candidates} actions={[{ label: '후보 추가', disabled: locked, reason: locked ? RUN_LOCK : '이름을 입력하면 후보표에 넣습니다.', onClick: () => { const input = document.querySelector<HTMLInputElement>('[data-jump="candidate-name"]'); input?.focus(); } }]} /></td></tr>}</tbody></table>
         <div className="row" style={{ marginTop: 6 }}><button disabled={locked || plan.length === 0} onClick={() => setPreview(true)}>반영 미리보기</button></div>
         {preview && <div className="notice">
           {plan.map((it) => <div key={it.candidateId}>{it.apply ? <Badge kind="ok">반영</Badge> : <Badge kind="warn">제외</Badge>} {it.name} — {it.reason}</div>)}

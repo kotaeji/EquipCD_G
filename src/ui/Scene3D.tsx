@@ -11,6 +11,8 @@ import { emWidth, floorNameAxes, floorNameYaw, type FloorName } from '../scene/f
 import { anchorLabels, cullOverlappingLabels, visibleFloorNames, type ScreenLabel } from '../scene/labels';
 import type { LocalPart } from '../scene/shapes';
 import { floorNameColors, materialFor, photoPartsFor, photoZoneColors, renderStyle, type StyledPart, type VisualStyleId } from '../scene/style';
+import { BootGate } from './EmptyState';
+import { LOADING_3D } from './problemCopy';
 import { canUseWebGL } from './webgl';
 import { markerText, STATUS_COLOR, waitingLead } from './status';
 import { THEMES } from './viewSettings';
@@ -410,7 +412,7 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   }));
 }
 
-function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, onCamera, onSelect, onView }: {
+function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, onCamera, onSelect, onView, onReady }: {
   scene: SceneDescription;
   palette: ScenePalette;
   cam: CameraState;
@@ -420,11 +422,14 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, on
   onCamera: (fn: (cam: CameraState) => CameraState) => void;
   onSelect: (id: string | null) => void;
   onView: (width: number, height: number) => void;
+  onReady: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const viewSink = useRef(onView);
   viewSink.current = onView;
+  const readySink = useRef(onReady);
+  readySink.current = onReady;
   const viewProps = useRef({ scene, showNames, emphasize, yaw: cam.yaw });
   viewProps.current = { scene, showNames, emphasize, yaw: cam.yaw };
   const paintLabels = () => {
@@ -509,6 +514,7 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, on
     api.current = { renderer, camera, scene: threeScene, root, ambient, key: sun, fill, render };
     resize();
     buildRef.current();
+    readySink.current();
     return () => {
       ro.disconnect();
       renderer.domElement.removeEventListener('wheel', onWheel);
@@ -645,6 +651,7 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
   onDiagram: () => void;
 }) {
   const [gl] = useState(canUseWebGL);
+  const [booted, setBooted] = useState(!gl);
   const [palette, setPalette] = useState(readPalette);
   const boundsKey = useMemo(() => scene.zones.map((z) => z.id).join('|') + '/' + scene.solids.map((s) => `${s.id}:${s.x}:${s.z}`).join('|'), [scene]);
   const framed = (aspect: number, view?: Viewport) => fitToPoints(framePoints(scene), aspect, view);
@@ -708,8 +715,10 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
       </div>
       {visualMode === 'photo' && <p className="scene3d-photo-note">{PHOTO_NOTE}</p>}
       {gl
-        ? <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize} visualMode={visualMode}
-          onCamera={onCamera} onSelect={onSelect} onView={onView} />
+        ? <BootGate ready={booted} label={LOADING_3D}>
+          <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize} visualMode={visualMode}
+            onCamera={onCamera} onSelect={onSelect} onView={onView} onReady={() => setBooted(true)} />
+        </BootGate>
         : <div className="scene3d-fallback" role="status">
           <p>이 브라우저에서는 3D 를 그릴 수 없습니다</p>
           <button type="button" onClick={onDiagram}>도면으로 보기</button>
