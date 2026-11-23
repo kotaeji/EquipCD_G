@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import type { InterlockBlockRecord } from '../runtime/interlock';
 import { formatMs } from '../scene/runInfo';
 import { fmtTime } from './Panels';
 import { RunSummary } from './RunSummary';
+import { TimingChart } from './TimingChart';
 import { EmptyState } from './EmptyState';
 import { Problem } from './Problem';
 import { EMPTY, runErrorProblem } from './problemCopy';
@@ -106,10 +108,13 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
   runReason?: string;
   onJumpError?: () => void;
 }) {
+  const [chartPick, setChartPick] = useState<number | null>(null);
+  const started = !!rt?.steps.some((rec) => rec.startMs != null && rec.status !== 'skipped' && rec.status !== 'pending');
+  useEffect(() => { if (!started) setChartPick(null); }, [started]);
   const last = rt?.log?.length ? rt.log[rt.log.length - 1] : null;
   const lastLine = last ? `${fmtTime(last.t)} ${last.code} ${last.message}` : '로그 없음';
   return (
-    <section className={`run-details ${open ? 'is-open' : ''}`} aria-label="자세히">
+    <section className={`run-details${open ? ' is-open' : ''}${open && tab === 'timing' ? ' is-timing' : ''}`} aria-label="자세히">
       <div className="run-details-head">
         <button type="button" className="small" aria-expanded={open} aria-label={open ? '자세히 접기' : '자세히 펼치기'} onClick={onToggle}>자세히</button>
         {!open && <span className="run-details-last" title={lastLine}>{lastLine}</span>}
@@ -122,7 +127,8 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
         <InterlockHistory rows={rt?.interlockBlocks ?? []} onJump={onJumpInterlock} />
         <PieceTable rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
-          { id: 'summary', label: '실행 결과 요약', panel: <RunSummary p={p} rt={rt} embedded /> },
+          { id: 'summary', label: '실행 결과 요약', panel: <RunSummary p={p} rt={rt} embedded chartPick={started ? chartPick : null} /> },
+          { id: 'timing', label: '타이밍 차트', panel: <TimingChart p={p} rt={rt} onPick={(index) => { setChartPick(index); onTab('summary'); }} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
           { id: 'log', label: '실행 로그', panel: <RunLog rt={rt} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
           { id: 'signals', label: '신호', panel: <RunSignals p={p} rt={rt} /> },
         ]} />
