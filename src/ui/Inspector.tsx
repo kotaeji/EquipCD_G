@@ -7,6 +7,7 @@ import { interlockSummary } from '../model/interlock';
 import type { Action, Condition, InterlockRule, Project } from '../model/types';
 import { EmptyState } from './EmptyState';
 import { EMPTY, RUN_LOCK } from './problemCopy';
+import { templateOriginText } from '../model/userTemplates';
 import { ConditionMark } from './conditionMark';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
 import { conditionsFormula } from '../model/conditionFormula';
@@ -161,6 +162,7 @@ export function Inspector(props: Props) {
         <div className="row"><label>ID / 코드</label><span className="mono">{unit.id} · {unit.code}</span></div>
         <div className="row"><label>소속</label>{p.equipment.name} &gt; {unit.name}</div>
         {unit.templateRef && <div className="row"><label>유닛 템플릿</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{unit.templateRef.assetId}@{unit.templateRef.version} (고정, 인스턴스별 독립 편집)</span></div>}
+        {unit.lineage?.fromTemplate && <div className="row" data-template-lineage><label>근거</label><span>{templateOriginText(unit.lineage.fromTemplate.name)}</span></div>}
         <div className="row"><label>수용 개수</label><QtyInput q={unit.capacity.maxMaterials} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxMaterials' }, v, as), '수용 개수')} /></div>
         <div className="row"><label>허용 무게</label><QtyInput q={unit.capacity.maxWeight} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxWeight' }, v, as), '허용 무게')} /></div>
         <div className="row"><label>Device</label><span>{unit.deviceIds.map((d) => devName(p, d)).join(', ') || '(없음)'}</span></div>

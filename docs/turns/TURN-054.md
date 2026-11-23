@@ -72,6 +72,8 @@ TURN-052 · TURN-055 가 들어간 `origin/main` 을 한 번 더 merge 했다. �
 
 TURN-056 · TURN-058 이 들어간 `origin/main` 을 다시 merge 했다. `Library.tsx` · `Panels.tsx` 는 용어 표시와 글자 토큰을 둘 다 남겼다. `help-panel.css` · `term.css` · `lab.css` · `bundle-screen.css` 의 `font-size` 는 이미 토큰이었다.
 
+TURN-057 · TURN-060 이 들어간 `origin/main` 을 다시 merge 했다. `Inspector.tsx` 는 템플릿 근거 줄을 살리고 글자는 토큰이다. `Panels.tsx` 후보 표는 main 의 종류 · 소속 · 「이미 있음」을 살리고 글자만 토큰이다. `user-templates.css` · `xlsx-intake.css` 의 `font-size` 도 이미 토큰이었다.
+
 ## 확인 필요
 
 - 화면이 더 가지런한지, 축소한 도면에서 Unit 을 알아볼 수 있는지는 사람 검수(Matthew)다. 이 문서는 완료로 적지 않는다.

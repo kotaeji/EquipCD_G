@@ -24,6 +24,8 @@ import { Badge } from './widgets';
 import { Fold } from './Fold';
 import { Terms } from './Term';
 import { PanelSplit } from './PanelSplit';
+import { MyTemplateLibrary } from './UserTemplates';
+import type { KV } from '../storage/localStore';
 
 const SLOT_RAW = import.meta.glob('./slots/*.svg', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>;
 
@@ -128,6 +130,10 @@ interface Props {
   setFilter: (f: { q: string; category: string }) => void; setMode: (m: 'schematic' | 'photo') => void;
   onAdd: (def: AssetDefinition, unitId: string | null) => void;
   onImportAml: (f: File) => void; onExportAml: () => void;
+  templateKv?: KV | null;
+  onPlaceTemplate?: (id: string) => void;
+  onTemplatesChanged?: () => void;
+  onTemplateMessage?: (message: string, err?: boolean) => void;
   detail: boolean; setDetail: (open: boolean) => void;
   detailWidth: number; onDetailWidth: (n: number) => void;
 }
@@ -171,6 +177,7 @@ export function LibraryWorkspace(props: Props) {
           </div>); })}
         {defs.length === 0 && <div className="muted">조건에 맞는 정의가 없습니다.</div>}
       </div>
+      {props.onPlaceTemplate && <MyTemplateLibrary kv={props.templateKv ?? null} locked={props.locked} onPlace={props.onPlaceTemplate} onChanged={() => props.onTemplatesChanged?.()} onMessage={(message, err) => props.onTemplateMessage?.(message, err)} />}
       </>}
     </div>
     <PanelSplit kind="library" value={props.detailWidth} onChange={props.onDetailWidth} label="카드 상세 너비" />

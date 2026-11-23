@@ -1,6 +1,7 @@
 // S20 concept board. Units and devices are the live model (select, drop, reparent, flow click).
 // Pixel-accurate port wiring stays on the diagram tab; this board does not invent a second layout.
 import { findAsset } from '../assets/library';
+import { isUserTemplateDrag } from '../model/userTemplates';
 import { nextDeviceSlot } from '../model/unitLayout';
 import type { AssetKind, Project } from '../model/types';
 import type { Mode } from './Canvas';
@@ -28,6 +29,7 @@ interface Props {
 }
 
 const kindLabel = (kind: string) => findAsset(kind)?.name ?? kind;
+const isUnitDrop = (kind: string) => kind === 'unit' || !!findAsset(kind)?.template || isUserTemplateDrag(kind);
 
 export function flowSummary(p: Project): string {
   const flows = p.connections.filter((c) => c.kind === 'flow');
@@ -62,7 +64,7 @@ export function LayoutBoard(props: Props) {
     {units.length > 0 && flows.length === 0 && <EmptyState symbol="→" line={EMPTY.flows} actions={[{ label: '물류 연결', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onStartFlow }]} />}
     <div className="board-row" onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
       const { kind } = take(e);
-      if (kind === 'unit' || (kind && findAsset(kind)?.template)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
+      if (isUnitDrop(kind)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
     }}>
       {units.map((u) => <article key={u.id} data-jump={`unit:${u.id}`} className={`station-card ${selection.includes(u.id) ? 'on' : ''}`}
         onContextMenu={(e) => ask(e, { kind: 'unit', id: u.id })}
@@ -72,7 +74,8 @@ export function LayoutBoard(props: Props) {
           e.stopPropagation();
           const { kind, deviceId } = take(e);
           if (deviceId && deviceId !== u.id) { props.onReparent(deviceId, u.id); return; }
-          if (kind && kind !== 'unit' && !findAsset(kind)?.template) props.onDropAsset(kind, nextDeviceSlot(p, u.id, kind), u.id);
+          if (isUnitDrop(kind)) { props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 }); return; }
+          if (kind && kind !== 'unit') props.onDropAsset(kind, nextDeviceSlot(p, u.id, kind), u.id);
         }}>
         <h3>{u.code} {u.name.replace(new RegExp(`^${u.code}\\s*`), '')}</h3>
         {u.deviceIds.map((id) => {
