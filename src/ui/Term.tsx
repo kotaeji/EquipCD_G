@@ -3,6 +3,7 @@
 import { createContext, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { GLOSSARY, splitTerms, type TermId } from './glossary';
+import { nextTermTipPos, placeTermTip, type TermTipPos } from './termPlace';
 import './term.css';
 
 const TermHints = createContext(true);
@@ -11,25 +12,70 @@ export function TermHintsProvider({ value, children }: { value: boolean; childre
   return <TermHints.Provider value={value}>{children}</TermHints.Provider>;
 }
 
+const EMPTY_POS: TermTipPos = { top: 0, left: 0, bg: '', fg: '', border: '' };
+
+function visibleAnchor(node: HTMLElement | null): node is HTMLElement {
+  return !!node && node.isConnected && !node.closest('[hidden]');
+}
+
+function measureTerm(node: HTMLElement): TermTipPos | null {
+  const rect = node.getBoundingClientRect();
+  const app = node.closest('.app');
+  const cs = app ? getComputedStyle(app) : null;
+  return placeTermTip(
+    { left: rect.left, bottom: rect.bottom },
+    window.innerWidth,
+    {
+      bg: cs?.getPropertyValue('--panel').trim() || '',
+      fg: cs?.getPropertyValue('--text').trim() || '',
+      border: cs?.getPropertyValue('--border').trim() || '',
+    },
+  );
+}
+
 function TermMark({ id, text }: { id: TermId; text: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const tipId = useId();
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0, bg: '', fg: '', border: '' });
+  const [pos, setPos] = useState<TermTipPos>(EMPTY_POS);
+  // Last place we published. A layout replay can hand setState the initial
+  // object again; comparing here stops that from scheduling another render.
+  const posRef = useRef(pos);
   const place = () => {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    const width = 280;
-    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
-    const top = r.bottom + 4;
-    const app = ref.current?.closest('.app');
-    const cs = app ? getComputedStyle(app) : null;
-    const bg = cs?.getPropertyValue('--panel').trim() || '';
-    const fg = cs?.getPropertyValue('--text').trim() || '';
-    const border = cs?.getPropertyValue('--border').trim() || '';
-    setPos((p) => (p.top === top && p.left === left && p.bg === bg && p.fg === fg && p.border === border ? p : { top, left, bg, fg, border }));
+    const node = ref.current;
+    if (!visibleAnchor(node)) {
+      setOpen(false);
+      return;
+    }
+    const resolved = nextTermTipPos(posRef.current, measureTerm(node));
+    if (resolved === posRef.current) return;
+    posRef.current = resolved;
+    setPos(resolved);
   };
-  useLayoutEffect(() => { if (open) place(); });
+  const placeRef = useRef(place);
+  placeRef.current = place;
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    placeRef.current();
+    const onMove = () => placeRef.current();
+    window.addEventListener('resize', onMove);
+    window.addEventListener('scroll', onMove, true);
+    const node = ref.current;
+    const observer = node && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onMove) : null;
+    if (node && observer) observer.observe(node);
+    return () => {
+      window.removeEventListener('resize', onMove);
+      window.removeEventListener('scroll', onMove, true);
+      observer?.disconnect();
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (!visibleAnchor(ref.current)) setOpen(false);
+  });
+
   return (
     <>
       <span

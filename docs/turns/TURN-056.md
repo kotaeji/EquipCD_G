@@ -12,6 +12,8 @@
 
 용어는 `src/ui/glossary.ts` 한 파일이다. 제목, 탭 이름, 단계 바, 표 머리에 나오는 말에 점선 밑줄을 긋고, 마우스를 올리거나 그 말에 초점을 주면 한 줄 풀이가 뜬다. 풀이는 `aria-describedby` 로 붙고, 단추의 보이는 글자와 `data-*` 는 그대로다. 부록 B에 있는 Station · Substation · Device · Action · 가상 시간 · rev · Workspace · AML · 가정은 그 칸의 문장과 같다.
 
+보정(Issue #212): 용어가 붙은 탭을 실제 마우스로 누르면 위치 계산이 렌더마다 `setPos`를 다시 걸어, Chrome에서는 그 갱신이 처음 좌표부터 반복되며 `Maximum update depth exceeded`로 화면이 죽었다. 좌표는 `placeTermTip`으로 떼고, 직전에 둔 값과 같으면 상태를 바꾸지 않는다. 다시 재는 때는 풀이가 열릴 때와 창 크기·스크롤이 바뀔 때뿐이고, 말이 숨으면 풀이를 닫는다. 마우스를 올리거나 초점을 주면 풀이가 뜨고 보기 설정에서 끄는 동작은 그대로다. 로컬 참고: 수정 전 Playwright(Chrome, 1280×800)에서 예제를 연 뒤 Workspace 탭 `locator.click()`이 같은 오류로 앱을 지웠고, 수정 후 Workspace ↔ Project, 3단계, 4단계 Substation 시퀀스, 5단계, 1단계를 같은 방식으로 눌러도 콘솔 오류 0, 화면 유지, 제목 풀이가 뜬다. `npm test` 128파일 1040개, `tsc --noEmit` 통과. 통과 판정은 CI. CI 확인 대기 — 루카가 Actions로 확인. `README.md`와 `release/`는 이 보정에서 고치지 않았다.
+
 ## 화면 (1280×800)
 
 Headless Chrome. 기기 픽셀 배율 1. 콘솔 오류 0. 문서 스크롤 0 (`scrollWidth` 1280, `scrollHeight` 800). 도움말을 연 채로 단계와 테마를 바꾸는 동안 rev 1, Undo 0.
