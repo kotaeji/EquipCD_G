@@ -28,10 +28,12 @@ function deviceState(p: Project, rt: RuntimeState | null, deviceId: string): { s
   return { status: shape.status, word: stepStatusLabel(last.status) };
 }
 
-function barMark(bar: { status: string; statusLabel: string }): { status: StatusKey; word: string } {
+function barMark(bar: { status: string; statusLabel: string; stepId?: string }, rt: RuntimeState | null): { status: StatusKey; word: string } {
   if (bar.statusLabel === '가정') return { status: 'assumption', word: '가정' };
   const shape = phaseShape(bar.status);
-  return { status: shape.status, word: bar.statusLabel };
+  const blocked = rt?.error?.code === 'INTERLOCK_BLOCK' && bar.status === 'error'
+    && (rt.error.stepId === bar.stepId || (rt.interlockBlocks ?? []).some((row) => row.stepId === bar.stepId));
+  return { status: shape.status, word: blocked ? `${bar.statusLabel} · Interlock` : bar.statusLabel };
 }
 
 function runningText(row: { name: string; lane?: string }): string {
@@ -89,7 +91,7 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
     <section className={`run-strip ${folded ? 'is-folded' : ''}`} aria-label="실행 요약">
       <div className="run-strip-row">
         {!folded && <span className="run-strip-id" title={`${info.projectName} · Unit ${info.unitCount} · Device ${info.deviceCount} · 단계 ${info.stepCount}`}><span data-project-name="">{info.projectName}</span> · U{info.unitCount} D{info.deviceCount} 단계{info.stepCount}</span>}
-        <span className="run-strip-fixed">실행 상태 <StatusMark status={station.status} word={station.word} wordAttrs={{ 'data-run-status': info.status }} /></span>
+        <span className="run-strip-fixed">실행 상태 <StatusMark status={station.status} word={station.word} wordAttrs={{ 'data-run-status': info.status }} />{rt?.error?.code === 'INTERLOCK_BLOCK' && <b data-run-interlock=""> Interlock</b>}</span>
         <span className="run-strip-fixed">가상 시간 <b className="mono" data-run-time="">{info.timeText}</b></span>
         <span className="run-strip-running">실행 중 <b data-running-count={info.running.length} title={full || undefined}>{info.running.length === 0 ? '없음' : shown}{extra > 0 ? ` 외 ${extra}` : ''}</b></span>
         {!folded && <span className="run-strip-fixed" data-material="" data-fed={info.fedCount} data-exited={info.exitCount} data-feed-total={info.feedTotal}>자재 {info.materialText}</span>}
@@ -155,7 +157,7 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold }: {
               <li key={bar.key} className={`${stepLiveClass(bar.status)}${bar.longest ? ' is-longest' : ''}`} data-step-id={bar.stepId} data-step-key={bar.key} data-elapsed={bar.timeText}>
                 <span className="run3d-bar-name" title={bar.name}>{bar.name}</span>
                 <span className="run3d-bar-where" data-lane={bar.lane ?? ''} data-pass={bar.pass != null ? String(bar.pass) : ''}>{whereText(bar) || '—'}</span>
-                <span className="run3d-bar-status"><StatusMark status={barMark(bar).status} word={barMark(bar).word} /></span>
+                <span className="run3d-bar-status"><StatusMark status={barMark(bar, rt).status} word={barMark(bar, rt).word} /></span>
                 <span className="run3d-bar-track" aria-hidden="true"><span className="run3d-bar-fill" style={{ width: `${Math.min(100, (bar.widthMs / maxMs) * 100)}%` }} /></span>
                 <span className="mono run3d-bar-time">{bar.timeText}</span>
               </li>

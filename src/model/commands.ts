@@ -1,7 +1,8 @@
 // Pure model editing commands (F2/F3/F4/F5). Each returns a new Project or a rejection; never mutates input.
 import { findAsset, getAssetById } from '../assets/library';
 import { instantiateDevice, makeUnit, newId } from './factory';
-import type { Action, AssetKind, Condition, Connection, Device, FlowNode, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
+import { devicesOfRule, releaseBrokenInterlocks } from './interlock';
+import type { Action, AssetKind, Condition, Connection, Device, FlowNode, InterlockRule, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { DEFAULT_MAX_RETRIES, q } from './types';
 import { containsList, containsParallelOrSubstation, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
 import { arrangeUnitDevices } from './deviceArrange';
@@ -313,6 +314,7 @@ function eraseNodes(p: Project, unitIds: string[], looseDeviceIds: string[]): vo
   for (const q of p.substationSequences) for (const s of q.steps) s.entry = s.entry.map(fixCond);
   if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, removedStepIds, unitSet, fixCond);
   p.connections = p.connections.filter((c) => !nodeSet.has(c.from.nodeId) && !nodeSet.has(c.to.nodeId));
+  releaseBrokenInterlocks(p, { actionIds: removedActions, signalIds: sigIds, deviceIds: deviceSet, unitIds: unitSet });
   for (const k of p.constraints) k.relatedIds = k.relatedIds.filter((r) => !nodeSet.has(r));
   if (unitIds.length) {
     p.units = p.units.filter((u) => !unitSet.has(u.id));
@@ -670,6 +672,7 @@ export function deleteAction(p0: Project, id: string): CmdResult {
     q.steps = q.steps.filter((s) => s.actionId !== id);
     if (q.flow && gone.size) q.flow = scrubFlow(q.flow, gone, new Set(), (c) => c);
   }
+  releaseBrokenInterlocks(p, { actionIds: new Set([id]) });
   p.actions = p.actions.filter((a) => a.id !== id);
   return ok(p);
 }
@@ -699,6 +702,7 @@ export function deleteSignal(p0: Project, id: string): CmdResult {
   }
   for (const s of p.sequence.steps) s.entry = s.entry.map(fix);
   for (const q of p.substationSequences ?? []) for (const s of q.steps) s.entry = s.entry.map(fix);
+  releaseBrokenInterlocks(p, { signalIds: new Set([id]) });
   p.signals = p.signals.filter((s) => s.id !== id);
   p.connections = p.connections.filter((c) => c.from.signalId !== id && c.to.signalId !== id);
   if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, new Set(), new Set(), fix);
@@ -775,10 +779,67 @@ export function addMaterial(p0: Project, idOf: (s: string) => string = newId): C
   return ok(p);
 }
 
-// ---- constraints / interlock (human confirmation only) ----
+// ---- constraints / interlock ----
 export function setConstraintConfirmation(p0: Project, id: string, confirmation: 'confirmed' | 'rejected' | 'unconfirmed'): CmdResult {
   const p = clone(p0); const k = p.constraints.find((x) => x.id === id); if (!k) return no('제약 없음');
   k.confirmation = confirmation; return ok(p);
+}
+
+export function addConstraint(p0: Project, idOf: (s: string) => string = newId): CmdResult {
+  const p = clone(p0);
+  const id = idOf('IL');
+  p.constraints.push({
+    id, kind: 'interlock-candidate', description: '새 Interlock', relatedIds: [],
+    confirmation: 'unconfirmed', source: { method: 'direct-input' },
+  });
+  return ok(p, id);
+}
+
+export function deleteConstraint(p0: Project, id: string): CmdResult {
+  if (!p0.constraints.some((k) => k.id === id)) return no('제약 없음');
+  const p = clone(p0);
+  p.constraints = p.constraints.filter((k) => k.id !== id);
+  return ok(p);
+}
+
+export function setConstraintDescription(p0: Project, id: string, description: string): CmdResult {
+  if (!description.trim()) return no('설명 필요');
+  const p = clone(p0);
+  const k = p.constraints.find((x) => x.id === id);
+  if (!k) return no('제약 없음');
+  k.description = description.trim();
+  return ok(p);
+}
+
+function ruleConditionsOk(p: Project, conditions: Condition[]): string | null {
+  for (const c of conditions) {
+    if (c.kind === 'signal' && !p.signals.some((s) => s.id === c.signalId)) return '없는 Signal';
+    if (c.kind === 'materialAt' && !p.units.some((u) => u.id === c.unitId)) return '없는 Unit';
+    if (c.kind === 'materialHeldBy' && c.deviceId && !p.devices.some((d) => d.id === c.deviceId)) return '없는 Device';
+  }
+  return null;
+}
+
+/** Replace the machine-readable rule. `null` clears it. One call is one revision. */
+export function setConstraintRule(p0: Project, id: string, rule: InterlockRule | null): CmdResult {
+  const p = clone(p0);
+  const k = p.constraints.find((x) => x.id === id);
+  if (!k) return no('제약 없음');
+  if (!rule) { delete k.rule; return ok(p); }
+  if (rule.form === 'undetermined') return no('미정 규칙은 삭제로만 생깁니다');
+  if (!p.actions.some((a) => a.id === rule.actionId)) return no('Action 없음');
+  if (rule.form === 'mutex') {
+    if (rule.actionId === rule.otherActionId) return no('같은 Action에는 동시 금지를 두지 않습니다');
+    if (!p.actions.some((a) => a.id === rule.otherActionId)) return no('상대 Action 없음');
+  } else {
+    const bad = ruleConditionsOk(p, rule.conditions);
+    if (bad) return no(bad);
+  }
+  k.rule = rule.form === 'allow'
+    ? { form: 'allow', actionId: rule.actionId, conditions: structuredClone(rule.conditions) }
+    : { form: 'mutex', actionId: rule.actionId, otherActionId: rule.otherActionId };
+  k.relatedIds = devicesOfRule(p, k.rule);
+  return ok(p);
 }
 
 export function setFaults(p0: Project, faults: Project['simSettings']['faults']): CmdResult {

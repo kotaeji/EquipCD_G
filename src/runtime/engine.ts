@@ -9,6 +9,7 @@ import type { Action, Condition, FlowNode, Project } from '../model/types';
 import { collectStepIds, flowUsesSignal, hasFlow, stepOrder, walk } from '../model/flow';
 import { RUNTIME_RULES_VERSION } from '../model/types';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
+import { judgeInterlock, type InterlockBlockRecord, type InterlockHit } from './interlock';
 import { advancePieces, makePieces, seatPieces } from './multi';
 
 export type RunStatus = 'idle' | 'running' | 'paused' | 'completed' | 'error';
@@ -42,7 +43,7 @@ export interface StepRecord {
 
 /** Why a piece is standing still. Charged to `unitId` for the bottleneck. */
 export interface PieceWait {
-  reason: 'device' | 'capacity';
+  reason: 'device' | 'capacity' | 'interlock';
   sinceMs: number;
   unitId: string;
   note: string;
@@ -106,6 +107,8 @@ export interface RuntimeState {
   log: LogEntry[];
   error: { code: string; stepId: string | null; message: string } | null;
   blockers: Diagnostic[];
+  /** Interlock stops. Empty when none has fired. */
+  interlockBlocks: InterlockBlockRecord[];
   /** How many times a read action has been attempted under "fail the first N". Absent unless that fault is set. */
   readFailSeen?: Record<string, number>;
   /** Control-flow cursor. Present only when `sequence.flow` is an array. */
@@ -133,6 +136,8 @@ export interface FlowFiber {
   parentId?: number;
   lane?: string;
   join?: { childIds: number[]; message: string };
+  /** Mutex hold. The step has not started. */
+  wait?: { sinceMs: number; note: string; interlockId: string };
 }
 
 export interface FlowRunState { fibers: FlowFiber[]; nextId: number }
@@ -165,7 +170,7 @@ function initialState(p: Project, runId: string): RuntimeState {
       : flow
         ? collectStepIds(p.sequence.flow ?? []).map((stepId) => ({ stepId, status: 'pending' as const }))
         : p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const })),
-    log: [], error: null, blockers: [],
+    log: [], error: null, blockers: [], interlockBlocks: [],
     ...(pieces ? { pieces } : {}),
   };
   if (flow && !pieces) {
@@ -285,10 +290,35 @@ function fail(s: RuntimeState, code: string, stepId: string | null, message: str
   s.log.push({ t: s.timeMs, level: 'error', code, message, refId: stepId ?? undefined });
 }
 
+function pushBlock(s: RuntimeState, stepId: string, hit: InterlockHit) {
+  s.interlockBlocks.push({
+    t: s.timeMs, interlockId: hit.interlockId, description: hit.description,
+    stepId, stepName: hit.stepName, reason: hit.reason,
+  });
+}
+
+function flowActiveActionIds(p: Project, s: RuntimeState, exceptFiberId?: number): string[] {
+  const ids: string[] = [];
+  for (const fiber of s.flowRun?.fibers ?? []) {
+    if (!fiber.active || fiber.id === exceptFiberId) continue;
+    const found = locateStep(p, fiber.active.stepId);
+    if (found) ids.push(found.action.id);
+  }
+  return ids;
+}
+
 function activate(p: Project, s: RuntimeState) {
   applySensorSignals(p, s);
   const step = p.sequence.steps[s.stepIndex];
   const a = p.actions.find((x) => x.id === step.actionId) as Action;
+  const gate = judgeInterlock(p, a.id, step.name, [], false, (c) => evalCond(c, s, p), unmetText);
+  if (gate.kind === 'block') {
+    pushBlock(s, step.id, gate.hit);
+    const rec = s.steps[s.stepIndex];
+    if (rec && rec.startMs === undefined) rec.startMs = s.timeMs;
+    fail(s, 'INTERLOCK_BLOCK', step.id, gate.hit.message);
+    return;
+  }
   for (const c of [...step.entry, ...a.pre]) {
     const r = evalCond(c, s, p);
     if (!r.ok) { fail(s, 'PRE_UNMET', step.id, `[${step.name}] 전제 조건 미충족: ${unmetText(r)} — 다른 진행 주체가 없어 대기하지 않고 오류 처리`); return; }
@@ -548,15 +578,43 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
   if (!top(fiber)) finishFiber(s, fiber);
 }
 
-function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: string) {
+type FiberGate = 'go' | 'wait' | 'stop';
+
+function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: string): FiberGate {
   applySensorSignals(p, s);
   const found = locateStep(p, stepId);
-  if (!found) { failFlow(s, 'REF_MISSING_ACTION', stepId, `단계 ${stepId} 의 Action 을 찾을 수 없음`); return; }
+  if (!found) { failFlow(s, 'REF_MISSING_ACTION', stepId, `단계 ${stepId} 의 Action 을 찾을 수 없음`); return 'stop'; }
   const { step, action: a } = found;
+  const concurrent = (s.flowRun?.fibers.filter((f) => f.status !== 'done').length ?? 0) > 1;
+  const gate = judgeInterlock(
+    p, a.id, step.name, flowActiveActionIds(p, s, fiber.id), concurrent,
+    (c) => evalCond(c, s, p), unmetText,
+  );
+  if (gate.kind === 'block') {
+    pushBlock(s, step.id, gate.hit);
+    failFlow(s, 'INTERLOCK_BLOCK', step.id, gate.hit.message);
+    return 'stop';
+  }
+  if (gate.kind === 'wait') {
+    if (!fiber.wait || fiber.wait.note !== gate.wait.note) {
+      fiber.wait = { sinceMs: s.timeMs, note: gate.wait.note, interlockId: gate.wait.interlockId };
+      logAt(s, 'info', 'WAIT', `[${fiber.lane ?? '갈래'}] ${step.name} 대기 — ${gate.wait.note}`, step.id);
+    }
+    return 'wait';
+  }
+  let waited: { waitMs: number; waitNote: string } | null = null;
+  if (fiber.wait) {
+    const dt = s.timeMs - fiber.wait.sinceMs;
+    const note = fiber.wait.note;
+    fiber.wait = undefined;
+    if (dt > 0) waited = { waitMs: dt, waitNote: note };
+    logAt(s, 'info', 'WAIT_END', `[${fiber.lane ?? '갈래'}] ${step.name} 대기 끝 — ${note} ${(dt / 1000).toFixed(3)}s`, step.id);
+  }
   const recordIndex = beginRecord(s, step.id, fiber.lane);
+  if (waited) Object.assign(s.steps[recordIndex], waited);
   for (const c of [...step.entry, ...a.pre]) {
     const r = evalCond(c, s, p);
-    if (!r.ok) { failFlow(s, 'PRE_UNMET', step.id, `[${step.name}] 전제 조건 미충족: ${unmetText(r)} — 다른 진행 주체가 없어 대기하지 않고 오류 처리`); return; }
+    if (!r.ok) { failFlow(s, 'PRE_UNMET', step.id, `[${step.name}] 전제 조건 미충족: ${unmetText(r)} — 다른 진행 주체가 없어 대기하지 않고 오류 처리`); return 'stop'; }
   }
   if (a.completeSignalId) s.signals[a.completeSignalId] = false;
   if (a.commandSignalId) s.signals[a.commandSignalId] = true;
@@ -569,6 +627,7 @@ function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: st
   };
   const lane = fiber.lane ? `${fiber.lane} ` : '';
   logAt(s, 'info', 'STEP_START', `[${lane}${step.name}] 시작 — 명령 ${signalLabel(p, a.commandSignalId)}=ON, 완료조건 ${signalLabel(p, a.completeSignalId)}=true 대기 (가정 ${a.duration.value}s, 타임아웃 ${timeout}s)`, step.id);
+  return 'go';
 }
 
 function spawnLanes(s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], labels: string[], message: string) {
@@ -586,9 +645,9 @@ function spawnLanes(s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], lab
   parent.join = { childIds, message };
 }
 
-function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode) {
+function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode): FiberGate {
   const frame = top(fiber)!;
-  if (node.kind === 'step') { activateFiber(p, s, fiber, node.stepId); return; }
+  if (node.kind === 'step') return activateFiber(p, s, fiber, node.stepId);
   frame.index += 1;
   if (node.kind === 'branch') {
     const verdict = evalCond(node.cond, s, p);
@@ -596,38 +655,39 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
     logAt(s, 'info', 'BRANCH_TAKEN', `${node.name} ${takeThen ? '참' : '거짓'} — ${verdict.why}`, node.id);
     skipTree(s, takeThen ? node.else : node.then);
     fiber.stack.push({ role: 'seq', nodes: takeThen ? node.then : node.else, index: 0 });
-    return;
+    return 'go';
   }
   if (node.kind === 'loop') {
     logAt(s, 'info', 'LOOP_ITER', `${node.name} 1/${node.count}`, node.id);
     fiber.stack.push({ role: 'loop', nodes: node.body, index: 0, count: node.count, iter: 1, blockId: node.id, name: node.name });
-    return;
+    return 'go';
   }
   if (node.kind === 'retry') {
     fiber.stack.push({ role: 'retry', nodes: node.body, index: 0, maxRetries: node.maxRetries, attempt: 0, until: node.until, blockId: node.id, name: node.name });
-    return;
+    return 'go';
   }
   if (node.kind === 'parallel') {
-    if (node.lanes.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${node.name} 합류`); return; }
+    if (node.lanes.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${node.name} 합류`); return 'go'; }
     spawnLanes(s, fiber, node.lanes, node.lanes.map((_, i) => `갈래 ${i + 1}`), `${node.name} 합류`);
-    return;
+    return 'go';
   }
   const unit = p.units.find((u) => u.id === node.unitId);
   const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === node.unitId);
-  if (seqs.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${unit?.name ?? node.unitId} Substation 합류`); return; }
+  if (seqs.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${unit?.name ?? node.unitId} Substation 합류`); return 'go'; }
   spawnLanes(
     s, fiber,
     seqs.map((q) => q.steps.map((step) => ({ kind: 'step' as const, stepId: step.id }))),
     seqs.map((q) => q.name),
     `${unit?.name ?? node.unitId} Substation 합류`,
   );
+  return 'go';
 }
 
-function progressFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
+function progressFiber(p: Project, s: RuntimeState, fiber: FlowFiber): FiberGate {
   const frame = top(fiber);
-  if (!frame) { finishFiber(s, fiber); return; }
-  if (frame.index >= frame.nodes.length) { finishFrame(p, s, fiber); return; }
-  enterNode(p, s, fiber, frame.nodes[frame.index]);
+  if (!frame) { finishFiber(s, fiber); return 'go'; }
+  if (frame.index >= frame.nodes.length) { finishFrame(p, s, fiber); return 'go'; }
+  return enterNode(p, s, fiber, frame.nodes[frame.index]);
 }
 
 function completeFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
@@ -692,7 +752,17 @@ function advanceFlow(rt: Runtime, dtMs: number): Runtime {
     const run = s.flowRun;
     if (!run) break;
     const idle = run.fibers.filter((f) => f.status === 'live' && !f.active).sort((a, b) => a.id - b.id);
-    if (idle.length) { progressFiber(p, s, idle[0]); continue; }
+    let moved = false;
+    let waiting = false;
+    for (const fiber of idle) {
+      const gate = progressFiber(p, s, fiber);
+      if (s.status !== 'running') break;
+      if (gate === 'wait') { waiting = true; continue; }
+      moved = true;
+      break;
+    }
+    if (s.status !== 'running') break;
+    if (moved) continue;
     if (s.status !== 'running') break;
     const pending = run.fibers.some((f) => f.status === 'live' || f.active);
     if (!pending) {
@@ -709,7 +779,11 @@ function advanceFlow(rt: Runtime, dtMs: number): Runtime {
       const t = c ? f.active.completeAtMs! : f.active.timeoutAtMs;
       if (t < next) { next = t; who = f; isComplete = c; }
     }
-    if (!who || next > target) break;
+    if (!who) {
+      if (waiting) failFlow(s, 'DEADLOCK', null, 'Interlock 동시 금지로 진행할 수 없음 — 기다리는 상대 Action이 진행 중이 아닙니다');
+      break;
+    }
+    if (next > target) break;
     s.timeMs = next;
     if (isComplete) completeFiber(p, s, who);
     else {

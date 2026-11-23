@@ -58,6 +58,8 @@ interface Props {
   activeDeviceIds?: string[];
   /** Devices whose step stopped on an error. Same set the 3D view uses. */
   faultDeviceIds?: string[];
+  /** Subset of the fault devices stopped by a confirmed Interlock. */
+  interlockDeviceIds?: string[];
   view: UserView;
   selection: string[];
   mode: Mode;
@@ -212,7 +214,7 @@ type UnitData = {
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
-  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean; fault: boolean; tone: string;
+  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean; fault: boolean; interlock: boolean; tone: string;
   extended: boolean; raised: boolean; holding: boolean; photo: boolean;
   signals: Signal[]; onIds: string[]; positions: { id: string; name: string; assumption: boolean; current: boolean }[];
   showPositions: boolean; mode: Mode; link: SignalLink | null; api: DragApi;
@@ -323,7 +325,7 @@ function DeviceNode({ data }: NodeProps) {
           <rect width={dev.layout.w} height={dev.layout.h} rx={3} fill="none" stroke="var(--border)" strokeWidth={1} />
         </svg>
         : <svg width={dev.layout.w} height={dev.layout.h}><Symbol kind={dev.kind} w={dev.layout.w} h={dev.layout.h} st={{ active: d.active, extended: d.extended, raised: d.raised, holding: d.holding }} /></svg>}
-      {(d.fault || d.active) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : 'active'} /></div>}
+      {(d.fault || d.active) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : 'active'} />{d.interlock && <span className="rf-interlock-word">Interlock</span>}</div>}
       <div className="rf-dev-name">{dev.name}</div>
       {d.photo && <div className={`rf-photo-note ${photo?.status === 'available' ? 'ok' : 'miss'}`}>{photo?.status === 'available' ? `${AI_BADGE} 실사풍·실제 사진 아님` : 'AI 이미지 미준비→도식'}</div>}
       {d.showPositions && d.positions.length > 0 && (
@@ -652,6 +654,7 @@ function FlowCanvas(props: Props) {
         device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked, tone: toneOf(d.id),
         active: activeDevice === d.id || pieceDevices.has(d.id) || !!props.activeDeviceIds?.includes(d.id),
         fault: !!props.faultDeviceIds?.includes(d.id),
+        interlock: !!props.interlockDeviceIds?.includes(d.id),
         extended: d.kind === 'cylinder' ? sigOn(d.id, 'cmdFwd') || sigOn(d.id, 'fwdDone')
           : d.kind === 'pusher' ? sigOn(d.id, 'cmdPush') || sigOn(d.id, 'pushDone')
           : d.kind === 'gantry' ? (rt?.devicePositions?.[d.id] ?? null) !== null || sigOn(d.id, 'cmdMove') : false,

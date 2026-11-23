@@ -1,5 +1,6 @@
 import { getAssetById } from '../assets/library';
 import { flowIntegrity, flowShapeBlockers, hasFlow, laneSteps, stepOrder, walk } from './flow';
+import { interlockNotices } from './interlock';
 import { checkLanes } from './laneCheck';
 import { feedCountOf, type Condition, type FlowNode, type Project } from './types';
 
@@ -127,6 +128,7 @@ export function checkRunReadiness(p: Project): Readiness {
   const diags = validateProject(p);
   const blockers = diags.filter((d) => d.severity === 'error');
   const warnings = diags.filter((d) => d.severity === 'warning');
+  for (const n of interlockNotices(p)) warnings.push(n);
   const b = (code: string, objectId: string, message: string) => blockers.push({ id: `${code}:${objectId}:${blockers.length}`, severity: 'error', code, objectId, message });
   if (blockers.length) return { ok: false, blockers, warnings };
   const ix = indexProject(p);

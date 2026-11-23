@@ -54,6 +54,8 @@ export interface SceneSolid {
   draw: SceneDraw;
   parts: LocalPart[];
   highlight: HighlightReason | 'none';
+  /** Diagram and 3D say Interlock as well as 오류. */
+  interlock?: boolean;
   /** Set only while equipment motion is on and this device is away from its rest pose. */
   deltas?: PartDelta[];
 }
@@ -81,6 +83,8 @@ export interface SceneMaterial {
 export interface SceneHighlight {
   deviceId: string;
   reason: HighlightReason;
+  /** Fault came from a confirmed Interlock, not a timeout or injected fault. */
+  interlock?: boolean;
 }
 
 export interface SceneBounds {
@@ -176,6 +180,21 @@ export function faultDeviceIds(p: Project, rt: RuntimeState | null): string[] {
   return [...new Set(ids)];
 }
 
+/** Device of the step a confirmed Interlock stopped. Empty for every other error. */
+export function interlockFaultDeviceIds(p: Project, rt: RuntimeState | null): string[] {
+  if (!rt || rt.error?.code !== 'INTERLOCK_BLOCK') return [];
+  const ids: string[] = [];
+  for (const row of rt.interlockBlocks ?? []) {
+    const id = deviceOfStep(p, row.stepId);
+    if (id) ids.push(id);
+  }
+  if (rt.error.stepId) {
+    const id = deviceOfStep(p, rt.error.stepId);
+    if (id) ids.push(id);
+  }
+  return [...new Set(ids)];
+}
+
 const DRAW_PAD = 8;
 const DRAW_MIN_W = 72;
 const DRAW_MIN_D = 52;
@@ -234,9 +253,10 @@ function grow(b: SceneBounds, x: number, y: number, z: number) {
 
 export function describeScene(p: Project, rt: RuntimeState | null): SceneDescription {
   const faults = new Set(faultDeviceIds(p, rt));
+  const interlocks = new Set(interlockFaultDeviceIds(p, rt));
   const active = new Set(activeDeviceIds(p, rt));
   const highlights: SceneHighlight[] = [
-    ...[...faults].map((deviceId) => ({ deviceId, reason: 'fault' as const })),
+    ...[...faults].map((deviceId) => ({ deviceId, reason: 'fault' as const, ...(interlocks.has(deviceId) ? { interlock: true } : {}) })),
     ...[...active].filter((id) => !faults.has(id)).map((deviceId) => ({ deviceId, reason: 'active' as const })),
   ];
   const reasonOf = (id: string): SceneSolid['highlight'] => (faults.has(id) ? 'fault' : active.has(id) ? 'active' : 'none');
@@ -268,6 +288,7 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
       draw,
       parts: partsFor(shape, draw.w, draw.d),
       highlight: reasonOf(d.id),
+      ...(interlocks.has(d.id) ? { interlock: true } : {}),
     };
   });
 

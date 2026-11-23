@@ -98,8 +98,16 @@ export function buildSampleProject(): Project {
     { id: 'SIGC-3', kind: 'signal', from: { nodeId: 'PCK-04', signalId: sig('PCK-04', 'picked') }, to: { nodeId: 'GNT-04', signalId: sig('GNT-04', 'cmdMove') } },
   ];
   p.constraints = [
-    { id: 'IL-01', kind: 'interlock-candidate', description: 'CYL-03 전진은 STP-03 상승 완료일 때만 허용 (후보)', relatedIds: ['CYL-03', 'STP-03'], confirmation: 'unconfirmed', source: { method: 'sample-example' } },
-    { id: 'IL-02', kind: 'interlock-candidate', description: 'GNT-04 이동 중 PCK-04 놓기 금지 (후보)', relatedIds: ['GNT-04', 'PCK-04'], confirmation: 'unconfirmed', source: { method: 'sample-example' } },
+    {
+      id: 'IL-01', kind: 'interlock-candidate', description: 'CYL-03 전진은 STP-03 상승 완료일 때만 허용 (후보)',
+      relatedIds: ['CYL-03', 'STP-03'], confirmation: 'unconfirmed', source: { method: 'sample-example' },
+      rule: { form: 'allow', actionId: act('CYL-03').id, conditions: [{ kind: 'signal', signalId: sig('STP-03', 'upDone'), equals: true }] },
+    },
+    {
+      id: 'IL-02', kind: 'interlock-candidate', description: 'GNT-04 이동 중 PCK-04 놓기 금지 (후보)',
+      relatedIds: ['GNT-04', 'PCK-04'], confirmation: 'unconfirmed', source: { method: 'sample-example' },
+      rule: { form: 'mutex', actionId: act('PCK-04', 1).id, otherActionId: act('GNT-04').id },
+    },
   ];
   p.assumptionsNote = [...SAMPLE_NOTE];
   p.revision = 1;
