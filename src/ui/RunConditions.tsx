@@ -6,9 +6,11 @@ import type { Diagnostic } from '../model/validate';
 import type { BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
 import { IconLabel } from './Icon';
+import { RunScenarios } from './RunScenarios';
 import { StatusMark } from './StatusMark';
+import { RUN_SPEEDS } from '../model/scenarios';
 
-export const RUN_SPEEDS = [0.25, 0.5, 1, 2, 4, 16];
+export { RUN_SPEEDS };
 
 export const TIMEOUT_WARN = '타임아웃이 동작 시간보다 짧습니다 — 실행하면 TIMEOUT';
 export const TIMEOUT_EQUAL = '타임아웃이 동작 시간과 같습니다 — 여유가 없습니다';
@@ -171,6 +173,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
         <button type="button" className="small" aria-label={folded ? '가동 조건 펼치기' : '가동 조건 접기'} onClick={onToggleFold}><IconLabel id={folded ? 'unfold' : 'fold'}>{folded ? '펼치기' : '접기'}</IconLabel></button>
       </div>
       {!folded && <>
+      <RunScenarios p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} />
       <label className="run3d-field">배속
         <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
           {RUN_SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}

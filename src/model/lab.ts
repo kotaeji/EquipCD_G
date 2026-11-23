@@ -5,7 +5,7 @@ import type { Project, Quantity } from './types';
 import { feedCountOf } from './types';
 import { checkRunReadiness } from './validate';
 import { createRuntime, runToEnd, start } from '../runtime/engine';
-import { summarizeRun } from '../runtime/runSummary';
+import { summarizeRun, type RunSummary } from '../runtime/runSummary';
 import { CYCLE_PENDING, describeRunInfo, formatMs, THROUGHPUT_EMPTY } from '../scene/runInfo';
 
 /** Baseline plus at most this many variants (4 columns). */
@@ -207,37 +207,64 @@ function blank(id: string, name: string, kind: LabColumn['kind'], status: LabRun
   };
 }
 
-function columnOf(project: Project, id: string, name: string, kind: LabColumn['kind']): LabColumn {
+interface PreparedExecution {
+  column: LabColumn;
+  summary: RunSummary | null;
+}
+
+function runOne(project: Project, id: string, name: string, kind: LabColumn['kind']): PreparedExecution {
   const ready = checkRunReadiness(project);
   if (!ready.ok) {
     const detail = ready.blockers.map((b) => `${b.code} ${b.message}`).join(' / ');
-    return blank(id, name, kind, 'blocked', ready.blockers[0]?.code ?? null, detail);
+    return { column: blank(id, name, kind, 'blocked', ready.blockers[0]?.code ?? null, detail), summary: null };
   }
   const rt = runToEnd(start(createRuntime(project, `lab-${id}`)));
   const state = rt.state;
   if (state.status !== 'completed' && state.status !== 'error') {
-    return blank(id, name, kind, 'error', 'NOT_RUN', '실행이 끝나지 않았습니다');
+    return { column: blank(id, name, kind, 'error', 'NOT_RUN', '실행이 끝나지 않았습니다'), summary: null };
   }
   const info = describeRunInfo(project, state);
   const summary = summarizeRun(project, state);
   const done = state.status === 'completed';
   const throughput = Number(info.throughputText);
   return {
-    id,
-    name,
-    kind,
-    status: state.status,
-    code: state.status === 'error' ? state.error?.code ?? null : null,
-    detail: state.status === 'error' ? (state.error?.message ?? '') : '',
-    totalMs: state.timeMs,
-    cycleMs: done && info.cycleText !== CYCLE_PENDING ? parseClock(info.cycleText) : null,
-    cycleBasis: done ? info.metricBasis : null,
-    throughput: done && info.throughputText !== THROUGHPUT_EMPTY && Number.isFinite(throughput) ? throughput : null,
-    bottleneckName: info.bottleneck?.name ?? null,
-    bottleneckMs: info.bottleneck ? parseClock(info.bottleneck.timeText) : null,
-    longestName: summary.longest?.name ?? null,
-    longestMs: summary.longest?.elapsedMs ?? null,
+    summary,
+    column: {
+      id,
+      name,
+      kind,
+      status: state.status,
+      code: state.status === 'error' ? state.error?.code ?? null : null,
+      detail: state.status === 'error' ? (state.error?.message ?? '') : '',
+      totalMs: state.timeMs,
+      cycleMs: done && info.cycleText !== CYCLE_PENDING ? parseClock(info.cycleText) : null,
+      cycleBasis: done ? info.metricBasis : null,
+      throughput: done && info.throughputText !== THROUGHPUT_EMPTY && Number.isFinite(throughput) ? throughput : null,
+      bottleneckName: info.bottleneck?.name ?? null,
+      bottleneckMs: info.bottleneck ? parseClock(info.bottleneck.timeText) : null,
+      longestName: summary.longest?.name ?? null,
+      longestMs: summary.longest?.elapsedMs ?? null,
+    },
   };
+}
+
+function columnOf(project: Project, id: string, name: string, kind: LabColumn['kind']): LabColumn {
+  return runOne(project, id, name, kind).column;
+}
+
+/** One finished column per prepared copy. Same engine path as Evolution Lab. Does not write the inputs. */
+export interface PreparedRun {
+  id: string;
+  name: string;
+  column: LabColumn;
+  summary: RunSummary | null;
+}
+
+export function runPreparedBatch(items: readonly { id: string; name: string; project: Project }[]): PreparedRun[] {
+  return items.map((item) => {
+    const ran = runOne(item.project, item.id, item.name, 'variant');
+    return { id: item.id, name: item.name, column: ran.column, summary: ran.summary };
+  });
 }
 
 function scenarioOf(project: Project, variant: LabVariant | null): Project {

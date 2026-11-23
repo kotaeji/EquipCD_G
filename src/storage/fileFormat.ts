@@ -11,8 +11,16 @@ export function toProjectFile(p: Project): ProjectFile {
   return {
     format: FILE_FORMAT_ID, formatVersion: FILE_FORMAT_VERSION, appVersion: APP_VERSION,
     assetDefinitions: [...used.entries()].map(([id, version]) => ({ id, version })),
-    project: projectForFile(p),
+    project: omitEmptyScenarios(projectForFile(p)),
   };
+}
+
+/** An empty list is the same file as a project that never stored scenarios. */
+function omitEmptyScenarios(p: Project): Project {
+  if (p.runScenarios === undefined || p.runScenarios.length > 0) return p;
+  const next = { ...p };
+  delete next.runScenarios;
+  return next;
 }
 
 /** Stable JSON (sorted keys) so the same model always serializes identically. */

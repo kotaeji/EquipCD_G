@@ -2063,7 +2063,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <h2 data-jump="sequence-steps"><Terms text="Station 시퀀스 Draft" /></h2>
             {p.sequence.steps.length === 0 && <EmptyState symbol="○" line={EMPTY.steps} actions={[{ label: '단계 추가', disabled: locked || !p.actions[0], reason: locked ? RUN_LOCK : !p.actions[0] ? 'Action이 없습니다. 3단계 Action을 먼저 만드세요.' : undefined, onClick: () => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); } }]} />}
             {p.sequence.unresolved.length > 0 && <p className="warn-note" data-jump="sequence-unresolved">미해결: {p.sequence.unresolved.join(' · ')}</p>}
-            <FlowEditor p={p} rt={rt} locked={locked} edit={edit} picked={flowPicked} onPicked={setFlowPicked} />
+            <FlowEditor p={p} rt={rt} locked={locked} edit={edit} picked={flowPicked} onPicked={setFlowPicked} confirmDelete={confirmDelete} onOpenAction={(actionId) => {
+              const action = p.actions.find((a) => a.id === actionId);
+              if (action) setSelection([action.deviceId]);
+              setActionFocus(actionId);
+              pickRight('actions');
+              goStep('attributes');
+            }} />
             <Fold className="fold-panel" summary="단계 편집, 구조화 문장, 순서 변경">
               <SequencePanel p={p} rt={rt} locked={locked} edit={edit} confirmDelete={confirmDelete} onSelect={(id) => { setSelection([id]); pickRight('actions'); goStep('attributes'); }} />
             </Fold>

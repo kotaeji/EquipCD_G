@@ -147,6 +147,14 @@ export function activeDeviceIds(p: Project, rt: RuntimeState | null): string[] {
   const fibers = rt.flowRun?.fibers ?? [];
   if (rt.pieces && rt.pieces.length > 1) {
     for (const pc of rt.pieces) {
+      if (pc.flow) {
+        for (const fiber of pc.flow.fibers) {
+          if (!fiber.active || fiber.frozen) continue;
+          const id = deviceOfStep(p, fiber.active.stepId);
+          if (id) ids.push(id);
+        }
+        continue;
+      }
       if (!pc.active) continue;
       const step = p.sequence.steps[pc.active.stepIndex];
       const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
@@ -168,9 +176,12 @@ export function activeDeviceIds(p: Project, rt: RuntimeState | null): string[] {
 
 /** Devices whose Action is held because their Substation step is paused. */
 export function pausedDeviceIds(p: Project, rt: RuntimeState | null): string[] {
-  if (!rt?.flowRun) return [];
+  const fibers = rt?.pieces?.some((pc) => pc.flow)
+    ? rt.pieces.flatMap((pc) => pc.flow?.fibers ?? [])
+    : (rt?.flowRun?.fibers ?? []);
+  if (!fibers.length) return [];
   const ids: string[] = [];
-  for (const fiber of rt.flowRun.fibers) {
+  for (const fiber of fibers) {
     if (!fiber.frozen || !fiber.active) continue;
     const id = deviceOfStep(p, fiber.active.stepId);
     if (id) ids.push(id);

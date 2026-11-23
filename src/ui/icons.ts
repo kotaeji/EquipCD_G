@@ -112,6 +112,11 @@ export const COMMAND_ICONS = {
   empty: 'CircleDashed',
   'empty-done': 'CircleCheck',
   'empty-flow': 'MoveRight',
+  'flow-up': 'ArrowUp',
+  'flow-down': 'ArrowDown',
+  'flow-out': 'CornerUpLeft',
+  'flow-into': 'CornerDownRight',
+  'flow-grip': 'GripVertical',
   'empty-search': 'SearchX',
   workspace: 'Folders',
   project: 'Folder',
@@ -213,6 +218,16 @@ export const MENU_ICON = {
   lockPosition: 'lock',
   unlockPosition: 'unlock',
   saveTemplate: 'save-template',
+  up: 'flow-up',
+  down: 'flow-down',
+  out: 'flow-out',
+  into: 'flow-into',
+  wrapBranch: 'wrap-branch',
+  wrapParallel: 'wrap-parallel',
+  wrapLoop: 'wrap-loop',
+  wrapRetry: 'wrap-retry',
+  unwrap: 'unwrap',
+  openAction: 'to-actions',
 } as const satisfies Record<string, IconId>;
 
 export function menuIconId(action: string, label = ''): IconId | undefined {
