@@ -9,6 +9,8 @@ import { StatusMark } from './StatusMark';
 import { phaseShape } from './status';
 import type { EditFn } from './Inspector';
 import { stepLiveClass } from './RunSummary';
+import { conditionFormula } from '../model/conditionFormula';
+import { ConditionMark } from './conditionMark';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
 
 type Arm = 'then' | 'else' | 'body' | number;
@@ -176,7 +178,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
           const blockName = row.node && 'name' in row.node ? row.node.name : '';
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
           const live = row.stepId ? statusOf(rt, row.stepId) : null;
-          const jump = row.kind === 'wait' && row.blockId ? `flow:${row.blockId}` : row.stepId ? `step:${row.stepId}` : undefined;
+          const jump = (row.kind === 'wait' || row.kind === 'branch' || row.kind === 'retry') && row.blockId ? `flow:${row.blockId}` : row.stepId ? `step:${row.stepId}` : undefined;
           return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
             <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
@@ -191,9 +193,10 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
                 <label style={{ whiteSpace: 'nowrap' }}>타임아웃 <input aria-label="기다림 타임아웃" type="number" min={0} step={0.1} disabled={locked} value={row.node.timeout.value ?? ''} style={{ width: 64 }}
                   onChange={(e) => edit(C.setWaitTimeout(p, row.blockId!, e.target.value === '' ? null : Number(e.target.value)), '기다림 타임아웃')} />s</label>
               </div>}
-              {row.node?.kind === 'wait' && <div className="muted" style={{ fontSize: 11 }}>{condLabel(p, row.node.cond)}</div>}
+              {row.node?.kind === 'wait' && <div className="muted cond-head" style={{ fontSize: 11 }} data-cond-formula="">{condLabel(p, row.node.cond)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
               {row.node?.kind === 'branch' && <CondSelect p={p} cond={row.node.cond} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '분기 조건')} />}
-              {row.node?.kind === 'branch' && <div className="muted" style={{ fontSize: 11 }}>{condLabel(p, row.node.cond)}</div>}
+              {row.node?.kind === 'branch' && <div className="muted cond-head" style={{ fontSize: 11 }} data-cond-formula="">{condLabel(p, row.node.cond)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
+              {row.node?.kind === 'retry' && <div className="muted cond-head" style={{ fontSize: 11 }} data-cond-formula="">{conditionFormula(p, row.node.until)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
               {row.node?.kind === 'retry' && <div className="row" style={{ gap: 4 }}>
                 <CondSelect p={p} cond={row.node.until} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '재시도 조건')} />
                 <label>최대 <input aria-label="재시도 횟수" type="number" min={0} max={DEFAULT_MAX_RETRIES} disabled={locked} value={row.node.maxRetries} style={{ width: 48 }}

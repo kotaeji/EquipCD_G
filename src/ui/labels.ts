@@ -1,4 +1,5 @@
 import { findAsset } from '../assets/library';
+import { conditionFormula } from '../model/conditionFormula';
 import type { Condition, MaterialEffect, Project } from '../model/types';
 
 export type FlowBlockKind = 'branch' | 'parallel' | 'loop' | 'retry' | 'wait';
@@ -68,14 +69,9 @@ export function signalChoiceLabel(p: Project, signalId: string, equals: boolean)
   return `${dev} · ${bare} = ${equals ? '참' : '거짓'}`;
 }
 
+/** Screen text for one condition. The same line as `conditionFormula`. */
 export function condLabel(p: Project, c: Condition): string {
-  switch (c.kind) {
-    case 'signal': return `${sigName(p, c.signalId)} = ${c.equals}`;
-    case 'materialAt': return `자재 위치 = ${unitName(p, c.unitId)}`;
-    case 'materialState': return `자재 상태 = ${c.state}`;
-    case 'materialHeldBy': return `자재 잡음 = ${c.deviceId ? devName(p, c.deviceId) : '없음'}`;
-    case 'undefined': return `미정: ${c.note}`;
-  }
+  return conditionFormula(p, c);
 }
 export function effectLabel(p: Project, e: MaterialEffect): string {
   const parts: string[] = [];

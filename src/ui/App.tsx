@@ -27,6 +27,7 @@ import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector, InterlockPanel, type ConfirmDelete } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { focusJump, jumpCaption, jumpTarget, runGapJump } from './itemJump';
+import { ConditionMark } from './conditionMark';
 import { StatusMark } from './StatusMark';
 import { deviceDisplayStatus, gapJudgementMark, ITEM_LEVEL_STATUS, statusCssVars, WIZARD_BADGE_STATUS } from './status';
 import { BADGE_MARK, BADGE_WORD, evaluateSteps, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
@@ -36,7 +37,9 @@ import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, I
 import { PaletteIcon } from './Symbols';
 import { SubSequencePanel } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
-import type { Diagnostic } from '../model/validate';
+import { checkRunReadiness, type Diagnostic } from '../model/validate';
+import { conditionsFormula, runBlockFormula } from '../model/conditionFormula';
+import type { ConditionFinding } from '../model/conditionCheck';
 import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type RunDetailsTab, type UserView } from './viewSettings';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
@@ -1685,6 +1688,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <label data-jump={`timeout:${act.id}`}>타임아웃<QtyInput q={act.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as), '타임아웃')} /></label>
                   <label>명령 신호<span className="field-ro">{signalCaption(p, act.commandSignalId)}</span></label>
                   <label>완료 신호<span className="field-ro">{signalCaption(p, act.completeSignalId)}</span></label>
+                  <label>사전 조건<span className="field-ro cond-line" data-jump={`pre:${act.id}`} data-cond-formula="">{conditionsFormula(p, act.pre) || '없음'}<ConditionMark p={p} site={`action:${act.id}:pre`} /></span></label>
+                  <label>완료 후 조건<span className="field-ro cond-line" data-jump={`post:${act.id}`} data-cond-formula="">{conditionsFormula(p, act.post) || '없음'}<ConditionMark p={p} site={`action:${act.id}:post`} /></span></label>
                 </div> : <p>이 Device에 Action이 없습니다. 아래 접는 칸에서 추가합니다.</p>}
                 <div className="tool-pills">
                   <button type="button" className="on" disabled={!act || locked} onClick={() => act && edit(C.addStep(p, act.id), '단계 추가')}>시퀀스 끝에 추가</button>
@@ -1818,7 +1823,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />
             </Fold>
           </section>}
-          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
+          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
           {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
           {sub === 'lab' && <><LabSheet revision={p.revision} onInstead={() => goStep('run')} /><Fold className="fold-panel" summary="미구현 안내"><LabPanel /></Fold></>}
         </div>
@@ -1830,13 +1835,17 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           {runControls}<div className="sep" />{runViewToggle}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
-          <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
+          <span className="badge">실행 전 검사 {checkRunReadiness(p).ok ? '통과' : '미통과'}</span></div>
         <RunStepsPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} onPauseSubstation={doPauseSub} onResumeSubstation={doResumeSub} />
         <div className="run-center">
           <RunSummaryStrip p={p} rt={rt} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
           {rt?.error && (() => {
             const named = rt.error.message.match(/^\[([^\]]+)\]/)?.[1] ?? null;
-            const copy = runErrorProblem(rt.error.code, rt.error.message, named);
+            const interlockId = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
+            const rule = p.constraints.find((k) => k.id === interlockId)?.rule;
+            const phrase = runBlockFormula(p, rt.error.code, rt.error.stepId, rule?.form === 'allow' ? rule.conditions : undefined);
+            const base = runErrorProblem(rt.error.code, rt.error.message, named);
+            const copy = base && phrase ? { ...base, why: `${base.why} ${phrase}` } : base;
             if (!copy) return null;
             const jump = rt.error.code === 'INTERLOCK_BLOCK'
               ? () => {
