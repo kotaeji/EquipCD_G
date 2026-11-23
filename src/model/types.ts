@@ -106,6 +106,8 @@ export interface Unit {
   capacity: { maxMaterials: Quantity; maxWeight: Quantity };
   /** set when the unit was created from a unit template (definition pinned) */
   templateRef?: { assetId: Id; version: string };
+  /** set when this Unit was pasted from another Unit */
+  lineage?: { duplicatedFrom: Id };
 }
 
 export interface Device {
