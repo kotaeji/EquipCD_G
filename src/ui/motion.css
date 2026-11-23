@@ -1,0 +1,78 @@
+/* TURN-078. Three durations, two curves. State changes use these and nothing else. */
+:root {
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Fold / unfold. Open eases in, close eases out. Unsupported ::details-content leaves the block instant. */
+.app details::details-content {
+  transition: opacity var(--dur-2) var(--ease-exit);
+  opacity: 0;
+}
+.app details[open]::details-content {
+  opacity: 1;
+  transition-timing-function: var(--ease-enter);
+}
+
+/* Windows and menus arriving. */
+.modal-bg,
+.layerpop,
+.arrange-pop {
+  animation: motion-fade var(--dur-2) var(--ease-enter);
+}
+.modal,
+.cmd-panel,
+.cmd-sheet,
+.ctx-menu,
+.itemspop,
+.toast {
+  animation: motion-enter var(--dur-2) var(--ease-enter);
+}
+
+/* Tabs and the jump emphasis (TURN-038). The two-second hold stays in the jump timer. */
+.ui-tabs [role="tab"],
+.tabs button,
+.ptab,
+.tabbar .ptab {
+  transition:
+    color var(--dur-1) var(--ease-enter),
+    background-color var(--dur-1) var(--ease-enter),
+    border-color var(--dur-1) var(--ease-enter);
+}
+.jump-flash {
+  animation: jump-emphasis var(--dur-3) var(--ease-enter) 1;
+}
+
+@keyframes motion-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes motion-enter {
+  from { opacity: 0; transform: translateY(var(--sp-1)); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes jump-emphasis {
+  from { outline-color: transparent; }
+  to { outline-color: var(--accent); }
+}
+
+/* Reduced motion, and 「동작 강조」 / 「설비 동작」 off (data-motion). State stays, travel does not. */
+@media (prefers-reduced-motion: reduce) {
+  .app, .app::before, .app::after,
+  .app *, .app *::before, .app *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.app[data-motion="off"],
+.app[data-motion="off"]::before,
+.app[data-motion="off"]::after,
+.app[data-motion="off"] *,
+.app[data-motion="off"] *::before,
+.app[data-motion="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
