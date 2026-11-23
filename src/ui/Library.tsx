@@ -149,10 +149,10 @@ export function LibraryWorkspace(props: Props) {
     <div className="libmain">
       {props.detail && def ? <AssetDetailSheet def={def} onBack={() => props.setDetail(false)} onAdd={() => props.onAdd(def, def.template ? null : target)} locked={props.locked} unitOk={!!def.template || p.units.some((u) => u.id === target)} /> : <>
       <h1 className="stage-title"><span data-tour="library"><Terms text="에셋 라이브러리" /></span></h1>
-      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+      <div className="row" style={{ gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
         <input placeholder="검색 (이름/키/ID)" value={filter.q} onChange={(e) => props.setFilter({ ...filter, q: e.target.value })} style={{ width: 200 }} />
         <select value={filter.category} onChange={(e) => props.setFilter({ ...filter, category: e.target.value })}><option value="">모든 분류</option>{Object.entries(CAT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-        <span className="muted" style={{ fontSize: 12 }}>{defs.length} / {ASSET_LIBRARY.length}개 정의 · 출처 AML 파일 {LOADED_LIBRARIES.length}개</span>
+        <span className="muted" style={{ fontSize: 'var(--fs-sm)' }}>{defs.length} / {ASSET_LIBRARY.length}개 정의 · 출처 AML 파일 {LOADED_LIBRARIES.length}개</span>
         <span className="grow" />
         <button className={mode === 'schematic' ? 'on' : ''} onClick={() => props.setMode('schematic')}>도식</button>
         <button className={mode === 'photo' ? 'on' : ''} onClick={() => props.setMode('photo')} title="AI 생성 실사풍 이미지 — 실제 촬영 사진 아님">실사풍(AI)</button>
@@ -228,8 +228,8 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd, onOpen }: 
     <div className="section">
       <h2>{def.name}</h2>
       <p className="muted">정의 {def.id}@{def.version}<br />{x.kind === 'ok' ? '번들 AML · XSD 구조 검사 기록 있음' : 'XSD 미검증'} · {def.amlSource.file}</p>
-      <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
-        {isUnit ? <span className="muted" style={{ fontSize: 12 }}>새 Unit + 자식 {def.template!.children.length}개 생성</span>
+      <div className="row" style={{ marginTop: 'var(--sp-2)', flexWrap: 'wrap' }}>
+        {isUnit ? <span className="muted" style={{ fontSize: 'var(--fs-sm)' }}>새 Unit + 자식 {def.template!.children.length}개 생성</span>
           : <><label>넣을 Unit</label><select value={target} onChange={(e) => setTarget(e.target.value)}><option value="">(Unit 선택)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></>}
         <button className="primary" disabled={locked || !unitOk} onClick={() => onAdd(def, isUnit ? null : target)} title={locked ? '실행 중에는 추가 불가' : ''}>프로젝트에 추가</button>
         <button type="button" onClick={onOpen}>카드 상세</button>
@@ -239,46 +239,46 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd, onOpen }: 
     </div>
     <Fold className="lib-more" summary="AML·속성·포트 자세히">
     <div className="section"><h4>AML 원본 · 지원 상태</h4>
-      <div className="row"><label>파일</label><span className="mono" style={{ fontSize: 11 }}>{def.amlSource.file}</span></div>
-      <div className="row"><label>SUC 경로</label><span className="mono" style={{ fontSize: 11 }}>{def.amlSource.sucPath}</span></div>
-      <div className="row"><label>RoleClass</label><span className="mono" style={{ fontSize: 11 }}>{def.roleClassPath}</span></div>
+      <div className="row"><label>파일</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{def.amlSource.file}</span></div>
+      <div className="row"><label>SUC 경로</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{def.amlSource.sucPath}</span></div>
+      <div className="row"><label>RoleClass</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{def.roleClassPath}</span></div>
       <div className="row"><label>CAEX</label><span>{lib?.result.meta.schemaVersion ?? '?'} · {lib?.result.meta.superiorStandard.join(', ') || '-'}</span></div>
-      <div className="row"><label>앱 subset</label><Badge kind="ok">해석 성공</Badge><span className="muted" style={{ fontSize: 11 }}>경고 {diags.length}</span></div>
+      <div className="row"><label>앱 subset</label><Badge kind="ok">해석 성공</Badge><span className="muted" style={{ fontSize: 'var(--fs-xs)' }}>경고 {diags.length}</span></div>
       <div className="row"><label>공식 XSD</label><Badge kind={x.kind}>{x.kind === 'ok' ? '통과' : '미검증'}</Badge></div>
-      <div className="muted" style={{ fontSize: 11 }}>{x.text}. 표시는 {mode === 'photo' ? '실사풍' : '도식'}입니다. XSD 통과는 구조 적합성만 의미하며 AutomationML 의미 규칙 전체 적합성 인증이 아닙니다.</div>
-      {diags.map((d, i) => <div key={i} style={{ fontSize: 11, color: d.severity === 'error' ? 'var(--danger)' : 'var(--warning)' }}>[{d.code}] {d.message}</div>)}
+      <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>{x.text}. 표시는 {mode === 'photo' ? '실사풍' : '도식'}입니다. XSD 통과는 구조 적합성만 의미하며 AutomationML 의미 규칙 전체 적합성 인증이 아닙니다.</div>
+      {diags.map((d, i) => <div key={i} style={{ fontSize: 'var(--fs-xs)', color: d.severity === 'error' ? 'var(--danger)' : 'var(--warning)' }}>[{d.code}] {d.message}</div>)}
     </div>
     {def.properties.length > 0 && <div className="section"><h4>속성 (Attribute)</h4><table className="grid"><tbody>{def.properties.map((pp) => <tr key={pp.key}><td>{pp.label}{pp.requiredForRun ? ' *' : ''}</td><td className="mono">{pp.defaultValue ?? '미정'} {pp.unit}</td><td className="muted">[예시]</td></tr>)}</tbody></table></div>}
     {def.ports.length > 0 && <div className="section"><h4>포트 (ExternalInterface)</h4><table className="grid"><tbody>{def.ports.map((pt) => <tr key={pt.key}><td>{pt.label}</td><td className="mono">{pt.key}</td><td>{pt.direction}</td><td>{pt.role}</td></tr>)}</tbody></table></div>}
     {def.actions.length > 0 && <div className="section"><h4>Action (앱 확장)</h4><table className="grid"><tbody>{def.actions.map((a) => <tr key={a.key}><td>{a.label}</td><td className="mono">{a.commandPort} → {a.completePort ?? '미정'}</td><td className="mono">{a.durationS ?? '미정'}s / TO {a.timeoutS ?? '미정'}s</td></tr>)}</tbody></table></div>}
     {def.template && <div className="section"><h4>유닛 템플릿 (InternalElement / InternalLink)</h4>
-      <table className="grid"><tbody>{def.template.children.map((c) => <tr key={c.localId}><td className="mono">{c.localId}</td><td>{c.label}</td><td className="mono" style={{ fontSize: 10 }}>{c.assetId}</td></tr>)}</tbody></table>
-      {def.template.links.map((l, i) => <div key={i} className="mono" style={{ fontSize: 11 }}>링크: {l.from.child}.{l.from.port} → {l.to.child}.{l.to.port}</div>)}
-      {def.template.rules.map((r, i) => <div key={i} style={{ fontSize: 11 }}>규칙: {r.child}.{r.action} 사전조건 {r.pre.map((x) => `${x.child}.${x.port}=${x.equals}`).join(', ')} <span className="muted">(가정)</span></div>)}
-      <div className="muted" style={{ fontSize: 11 }}>배치할 때마다 새 Unit/Device/Signal/Action ID를 만들고 내부 링크를 새 ID로 재연결. 인스턴스끼리·정의와 편집이 전파되지 않음. Unit 자체 외부 포트는 없고 자식 Device의 포트가 그대로 노출됨(시제품 계약).</div>
+      <table className="grid"><tbody>{def.template.children.map((c) => <tr key={c.localId}><td className="mono">{c.localId}</td><td>{c.label}</td><td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{c.assetId}</td></tr>)}</tbody></table>
+      {def.template.links.map((l, i) => <div key={i} className="mono" style={{ fontSize: 'var(--fs-xs)' }}>링크: {l.from.child}.{l.from.port} → {l.to.child}.{l.to.port}</div>)}
+      {def.template.rules.map((r, i) => <div key={i} style={{ fontSize: 'var(--fs-xs)' }}>규칙: {r.child}.{r.action} 사전조건 {r.pre.map((x) => `${x.child}.${x.port}=${x.equals}`).join(', ')} <span className="muted">(가정)</span></div>)}
+      <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>배치할 때마다 새 Unit/Device/Signal/Action ID를 만들고 내부 링크를 새 ID로 재연결. 인스턴스끼리·정의와 편집이 전파되지 않음. Unit 자체 외부 포트는 없고 자식 Device의 포트가 그대로 노출됨(시제품 계약).</div>
     </div>}
     <div className="section"><h4>시각 자료</h4>
-      <div className="row"><label>도식</label><span className="mono" style={{ fontSize: 11 }}>{def.visualRefs.schematic ?? '없음'}</span></div>
-      {gen.status === 'available' ? <div style={{ fontSize: 12 }}>
+      <div className="row"><label>도식</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{def.visualRefs.schematic ?? '없음'}</span></div>
+      {gen.status === 'available' ? <div style={{ fontSize: 'var(--fs-sm)' }}>
         <div className="cbadges"><Badge kind="acc">{AI_BADGE} 실사풍 이미지</Badge><Badge kind="warn">실제 촬영 사진 아님</Badge><Badge kind="warn">정확 모델 일치: 아니오</Badge><Badge>대표 범위: 종류(class)</Badge><Badge>검토: 에이전트 대조 · 사람 검수 전</Badge></div>
-        <table className="grid kv" style={{ marginTop: 6 }}><tbody>
+        <table className="grid kv" style={{ marginTop: 'var(--sp-1)' }}><tbody>
           <tr><th>생성 도구</th><td>{gen.meta.tool}</td></tr>
           <tr><th>생성일</th><td>{gen.meta.generatedAt}</td></tr>
           <tr><th>방향·구도</th><td>{gen.info.orientation}</td></tr>
           <tr><th>구도 참고</th><td className="mono">{gen.info.referenceImage}</td></tr>
-          <tr><th>생성 지시(brief)</th><td style={{ fontSize: 11 }}>{gen.info.brief}</td></tr>
-          <tr><th>공통 지시</th><td style={{ fontSize: 11 }}>{gen.meta.commonBrief}</td></tr>
-          <tr><th>파일</th><td className="mono" style={{ fontSize: 10 }}>generated/{gen.info.file} · {gen.info.savedSize.join('×')} · {gen.info.bytes} B · sha256 {gen.info.sha256.slice(0, 12)}…</td></tr>
-          <tr><th>사용 조건</th><td style={{ fontSize: 11 }}>{gen.meta.usageTerms}</td></tr>
+          <tr><th>생성 지시(brief)</th><td style={{ fontSize: 'var(--fs-xs)' }}>{gen.info.brief}</td></tr>
+          <tr><th>공통 지시</th><td style={{ fontSize: 'var(--fs-xs)' }}>{gen.meta.commonBrief}</td></tr>
+          <tr><th>파일</th><td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>generated/{gen.info.file} · {gen.info.savedSize.join('×')} · {gen.info.bytes} B · sha256 {gen.info.sha256.slice(0, 12)}…</td></tr>
+          <tr><th>사용 조건</th><td style={{ fontSize: 'var(--fs-xs)' }}>{gen.meta.usageTerms}</td></tr>
         </tbody></table>
-        <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{gen.meta.toggleRule}. {gen.meta.reviewNote}. AI 이미지는 앱 표시 계층이며 AML에 들어가지 않습니다.</div>
+        <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 'var(--sp-1)' }}>{gen.meta.toggleRule}. {gen.meta.reviewNote}. AI 이미지는 앱 표시 계층이며 AML에 들어가지 않습니다.</div>
       </div> : <div className="notice warn">{gen.reason}</div>}
       <Fold className="history" summary="이전 참고 사진 (v0.2 출처 이력)">
-        <div className="row"><label>AML 사진 참조</label><span className="mono" style={{ fontSize: 11 }}>{def.visualRefs.photo ?? '없음'}</span></div>
-        {ph.status === 'available' ? <div style={{ fontSize: 12 }}>
+        <div className="row"><label>AML 사진 참조</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{def.visualRefs.photo ?? '없음'}</span></div>
+        {ph.status === 'available' ? <div style={{ fontSize: 'var(--fs-sm)' }}>
           <div><Badge>{MATCH_LABEL[ph.scope?.matchType ?? 'class-reference']}</Badge> <Badge>촬영 유형: {ph.info.captureType === 'actual-photo' ? '실제 촬영 사진(제3자, 생성 이미지 아님)' : '미확인'}</Badge></div>
-          <div style={{ marginTop: 4 }}>{ph.info.title} — {ph.info.author} — <a href={ph.info.licenseUrl} target="_blank" rel="noreferrer">{ph.info.license}</a> — <a href={ph.info.sourcePageUrl} target="_blank" rel="noreferrer">출처 페이지</a></div>
-          <div className="muted" style={{ fontSize: 11 }}>{ph.info.attribution}. {GENERATED_META.previousPhotos}.</div>
+          <div style={{ marginTop: 'var(--sp-1)' }}>{ph.info.title} — {ph.info.author} — <a href={ph.info.licenseUrl} target="_blank" rel="noreferrer">{ph.info.license}</a> — <a href={ph.info.sourcePageUrl} target="_blank" rel="noreferrer">출처 페이지</a></div>
+          <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>{ph.info.attribution}. {GENERATED_META.previousPhotos}.</div>
         </div> : <div className="muted">{ph.reason}</div>}
       </Fold>
     </div>
@@ -287,11 +287,11 @@ function CardDetail({ def, p, mode, locked, target, setTarget, onAdd, onOpen }: 
 }
 
 export function AmlLoadStatus({ libVersion: _v }: { libVersion: number }) {
-  return <div style={{ marginTop: 10 }}><h4>AML 로드 상태</h4>
+  return <div style={{ marginTop: 'var(--sp-2)' }}><h4>AML 로드 상태</h4>
     <table className="grid"><thead><tr><th>파일</th><th>출처</th><th>CAEX</th><th>정의</th><th>오류/경고</th></tr></thead><tbody>
-      {LOADED_LIBRARIES.map((l, i) => <tr key={i} className={l.result.ok ? '' : 'err'}><td className="mono" style={{ fontSize: 10 }}>{l.file}</td><td>{l.origin === 'bundled' ? '번들' : '가져옴'}</td><td>{l.result.meta.schemaVersion ?? '?'}</td><td>{l.result.defs.length}</td>
+      {LOADED_LIBRARIES.map((l, i) => <tr key={i} className={l.result.ok ? '' : 'err'}><td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{l.file}</td><td>{l.origin === 'bundled' ? '번들' : '가져옴'}</td><td>{l.result.meta.schemaVersion ?? '?'}</td><td>{l.result.defs.length}</td>
         <td>{l.result.diags.filter((d) => d.severity === 'error').length} / {l.result.diags.filter((d) => d.severity === 'warning').length}</td></tr>)}
     </tbody></table>
-    <div className="muted" style={{ fontSize: 11 }}>단계: ① XML 구문 ② CAEX 루트·namespace·SchemaVersion 3.0 ③ 앱 subset 의미 검사(타입·단위·포트 방향·Action 포트·자식 참조·링크 방향) ④ 공식 XSD = 번들 파일만 빌드 전 검사, 가져온 파일은 미검증.</div>
+    <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>단계: ① XML 구문 ② CAEX 루트·namespace·SchemaVersion 3.0 ③ 앱 subset 의미 검사(타입·단위·포트 방향·Action 포트·자식 참조·링크 방향) ④ 공식 XSD = 번들 파일만 빌드 전 검사, 가져온 파일은 미검증.</div>
   </div>;
 }

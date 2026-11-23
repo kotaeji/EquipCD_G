@@ -47,6 +47,13 @@ import {
   signalCaption,
   type EdgeTone,
 } from './edgeFocus';
+import {
+  layoutDiagramLabels,
+  unitNameFontPx,
+  zoomTier,
+  type DiagramLabel,
+  type PlacedLabel,
+} from '../scene/labels';
 import { pointerSelection, SELECT_HINT } from './selectAll';
 import { EDIT_LOCKED as EDIT_LOCKED_MSG, FLOW_UNIT_ONLY, isTextField, type ContextRequest } from './contextMenuModel';
 import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
@@ -118,6 +125,58 @@ const FIT_PADDING = { top: '48px', right: '188px', bottom: '140px', left: '52px'
 export function leftAlignedViewport(vp: { x: number; y: number; zoom: number }, minZoom: number, leftmostX: number, leftInset: number) {
   if (vp.zoom > minZoom + 0.001) return vp;
   return { x: leftInset - leftmostX * vp.zoom, y: vp.y, zoom: vp.zoom };
+}
+
+/** Unit name lives in this strip at the top of the unit box. */
+export const UNIT_NAME_H = 28;
+/** Gap kept between the legend's bottom edge and a unit name. */
+export const LEGEND_NAME_GAP = 4;
+
+export interface NameBox { x: number; y: number; w: number }
+export interface ScreenRect { x: number; y: number; w: number; h: number }
+
+/** Screen rectangle of a unit's name strip. */
+export function unitNameScreen(unit: NameBox, vp: { x: number; y: number; zoom: number }): ScreenRect {
+  return {
+    x: unit.x * vp.zoom + vp.x,
+    y: unit.y * vp.zoom + vp.y,
+    w: unit.w * vp.zoom,
+    h: UNIT_NAME_H * vp.zoom,
+  };
+}
+
+function screensOverlap(a: ScreenRect, b: ScreenRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/**
+ * Move the viewport down until no unit name meets the legend.
+ * Zoom and x stay. A legend with no size (no layout yet) is left alone.
+ */
+export function clearLegendViewport(
+  vp: { x: number; y: number; zoom: number },
+  units: readonly NameBox[],
+  legend: ScreenRect,
+): { x: number; y: number; zoom: number } {
+  if (!(vp.zoom > 0) || legend.w < 1 || legend.h < 1) return vp;
+  let dy = 0;
+  for (const unit of units) {
+    const head = unitNameScreen(unit, vp);
+    if (!screensOverlap(head, legend)) continue;
+    dy = Math.max(dy, legend.y + legend.h + LEGEND_NAME_GAP - head.y);
+  }
+  if (dy <= 0) return vp;
+  return { ...vp, y: vp.y + dy };
+}
+
+function legendInPane(host: HTMLElement | null): ScreenRect | null {
+  const legend = host?.querySelector('.rf-legend');
+  const pane = host?.querySelector('.react-flow');
+  if (!legend || !pane) return null;
+  const lr = legend.getBoundingClientRect();
+  const pr = pane.getBoundingClientRect();
+  if (lr.width < 1 || lr.height < 1) return null;
+  return { x: lr.left - pr.left, y: lr.top - pr.top, w: lr.width, h: lr.height };
 }
 
 /** Stage-6 insets. Top clears the 28px legend; the other sides stay small so the station can fill the pane. */
@@ -230,6 +289,7 @@ type UnitData = {
   showResize: boolean; minW: number; minH: number; api: DragApi;
   paused?: boolean;
   positionLocked?: boolean;
+  nameShown: string; nameTitle: string; nameHidden: boolean; nameFont: number; showPause: boolean;
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
@@ -237,6 +297,8 @@ type DeviceData = {
   extended: boolean; raised: boolean; holding: boolean; photo: boolean;
   signals: Signal[]; onIds: string[]; positions: { id: string; name: string; assumption: boolean; current: boolean }[];
   showPositions: boolean; mode: Mode; link: SignalLink | null; api: DragApi;
+  nameShown: string; nameTitle: string; nameHidden: boolean; showStatus: boolean;
+  portLabels: { id: string; text: string; title: string; top: number; side: 'in' | 'out' }[];
 };
 type MatData = { label: string; waiting?: boolean; pieceId?: string };
 type EdgeView = { on?: boolean; tone: EdgeTone; caption: string; hover: boolean };
@@ -327,8 +389,8 @@ function UnitNode({ data }: NodeProps) {
       )}
       <div className="rf-unit-head">
         <span className="rf-code">{d.code}</span>
-        <span className="rf-unit-name">{d.name}</span>
-        {d.paused && <span className="rf-paused-word" data-unit-paused={d.unitId}>일시정지</span>}
+        <span className={`rf-unit-name${d.nameHidden ? ' is-culled' : ''}`} style={{ fontSize: d.nameFont }} title={d.nameTitle}>{d.nameShown}</span>
+        {d.showPause && d.paused && <span className="rf-paused-word" data-unit-paused={d.unitId}>일시정지</span>}
         <span className="rf-unit-meta">{d.meta}</span>
       </div>
       {d.positionLocked && <UnitLockMark unitId={d.unitId} />}
@@ -362,8 +424,9 @@ function DeviceNode({ data }: NodeProps) {
           <rect width={dev.layout.w} height={dev.layout.h} rx={3} fill="none" stroke="var(--border)" strokeWidth={1} />
         </svg>
         : <svg width={dev.layout.w} height={dev.layout.h}><Symbol kind={dev.kind} w={dev.layout.w} h={dev.layout.h} st={{ active: d.active, extended: d.extended, raised: d.raised, holding: d.holding }} /></svg>}
-      {(d.fault || d.paused || d.active) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : d.paused ? 'assumption' : 'active'} word={d.paused ? '일시정지' : undefined} />{d.interlock && <span className="rf-interlock-word">Interlock</span>}</div>}
-      <div className="rf-dev-name">{dev.name}</div>
+      {d.showStatus && (d.fault || d.paused || d.active) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : d.paused ? 'assumption' : 'active'} word={d.paused ? '일시정지' : undefined} />{d.interlock && <span className="rf-interlock-word">Interlock</span>}</div>}
+      <div className={`rf-dev-name${d.nameHidden ? ' is-culled' : ''}`} title={d.nameTitle}>{d.nameShown}</div>
+      {d.portLabels.map((port) => <span key={port.id} className={`rf-port-name ${port.side}`} style={{ top: port.top }} title={port.title}>{port.text}</span>)}
       {d.photo && <div className={`rf-photo-note ${photo?.status === 'available' ? 'ok' : 'miss'}`}>{photo?.status === 'available' ? `${AI_BADGE} 실사풍·실제 사진 아님` : 'AI 이미지 미준비→도식'}</div>}
       {d.showPositions && d.positions.length > 0 && (
         <svg className="rf-positions" width={dev.layout.w} height={dev.layout.h + 24} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
@@ -718,10 +781,62 @@ function FlowCanvas(props: Props) {
   };
   const pausedUnits = new Set(pausedUnitIds(rt));
   const pausedDevices = new Set(pausedDeviceIds(p, rt));
+  const nameFont = unitNameFontPx(vpZoom);
+  const sx = (x: number) => x * vpZoom + vpX;
+  const sy = (y: number) => y * vpZoom + vpY;
+  const diagramLabels: DiagramLabel[] = [];
+  for (const u of p.units) {
+    const box = boxes.find((b) => b.id === u.id)!;
+    const short = u.name.replace(new RegExp(`^${u.code}\\s*`), '') || u.name;
+    diagramLabels.push({
+      id: `unit:${u.id}`, kind: 'unit', fullText: short, selected: selection.includes(u.id), alert: false,
+      x: sx(box.x + 36), y: sy(box.y + 6), w: Math.max(28, short.length * 12 * vpZoom), h: 16 * vpZoom,
+    });
+    if (pausedUnits.has(u.id)) {
+      diagramLabels.push({
+        id: `status:${u.id}`, kind: 'status', fullText: '일시정지', selected: false, alert: true,
+        x: sx(box.x + box.w - 72), y: sy(box.y + 6), w: 64 * vpZoom, h: 16 * vpZoom,
+      });
+    }
+  }
+  for (const d of p.devices) {
+    const o = off(d.id, d.unitId);
+    const x = d.layout.x + o.dx;
+    const y = d.layout.y + o.dy;
+    const alert = !!props.faultDeviceIds?.includes(d.id) || pausedDevices.has(d.id);
+    diagramLabels.push({
+      id: `device:${d.id}`, kind: 'device', fullText: d.name, selected: selection.includes(d.id), alert,
+      x: sx(x), y: sy(y + d.layout.h + 2), w: Math.max(28, d.name.length * 11 * vpZoom), h: 14 * vpZoom,
+    });
+    if (alert || activeDevice === d.id || pieceDevices.has(d.id) || !!props.activeDeviceIds?.includes(d.id)) {
+      const word = props.faultDeviceIds?.includes(d.id) ? '오류' : pausedDevices.has(d.id) ? '일시정지' : '진행 중';
+      diagramLabels.push({
+        id: `status:${d.id}`, kind: 'status', fullText: word, selected: false, alert,
+        x: sx(x), y: sy(y - 18), w: 72 * vpZoom, h: 16 * vpZoom,
+      });
+    }
+    const signals = p.signals.filter((s) => s.deviceId === d.id);
+    const ins = signals.filter((s) => s.direction === 'in');
+    const outs = signals.filter((s) => s.direction === 'out');
+    for (const s of signals) {
+      const list = s.direction === 'in' ? ins : outs;
+      const word = portWord(d.name, s.name, s.portKey);
+      diagramLabels.push({
+        id: `port:${s.id}`, kind: 'port', fullText: word, selected: false, alert: false,
+        x: sx(x + (s.direction === 'in' ? -4 : d.layout.w - 36)), y: sy(y + portTop(list, s, d.layout.h) - 6),
+        w: Math.max(24, word.length * 8 * vpZoom), h: 12 * vpZoom,
+      });
+    }
+  }
+  const placed = new Map(layoutDiagramLabels(vpZoom, diagramLabels, true).map((label) => [label.id, label]));
+  const shown = (id: string, fallback: string): PlacedLabel => placed.get(id) ?? {
+    id, kind: 'device', x: 0, y: 0, w: 0, h: 0, text: fallback, fullText: fallback, hidden: false, title: fallback,
+  };
   const nodes: Node[] = [];
   for (const u of p.units) {
     const box = boxes.find((b) => b.id === u.id)!;
     const short = u.name.replace(new RegExp(`^${u.code}\\s*`), '');
+    const unitLabel = shown(`unit:${u.id}`, short);
     const min = unitMinSize(p, u.id);
     const selected = selection.includes(u.id);
     nodes.push({
@@ -738,6 +853,8 @@ function FlowCanvas(props: Props) {
         flowTarget: !!flowDrag && flowDrag.fromId !== u.id && !p.connections.some((c) => c.kind === 'flow' && c.from.nodeId === flowDrag.fromId && c.to.nodeId === u.id),
         showResize: selected && mode === 'select' && !props.locked && L.units && u.positionLocked !== true,
         minW: min.w, minH: min.h, api, paused: pausedUnits.has(u.id), positionLocked: u.positionLocked === true,
+        nameShown: unitLabel.text, nameTitle: unitLabel.title, nameHidden: unitLabel.hidden,
+        nameFont, showPause: pausedUnits.has(u.id) && shown(`status:${u.id}`, '일시정지').hidden === false,
       } satisfies UnitData,
     });
   }
@@ -749,6 +866,10 @@ function FlowCanvas(props: Props) {
     const positions = p.positions.filter((ps) => ps.deviceId === d.id).map((ps) => ({
       id: ps.id, name: ps.name.replace(d.name, '').trim(), assumption: !!ps.value.assumption, current: rt?.devicePositions?.[d.id] === ps.id,
     }));
+    const devLabel = shown(`device:${d.id}`, d.name);
+    const devSignals = p.signals.filter((s) => s.deviceId === d.id);
+    const devIns = devSignals.filter((s) => s.direction === 'in');
+    const devOuts = devSignals.filter((s) => s.direction === 'out');
     nodes.push({
       id: d.id, type: 'device', zIndex: selection.includes(d.id) ? 6 : 3,
       position: { x: d.layout.x + o.dx, y: d.layout.y + o.dy },
@@ -769,8 +890,16 @@ function FlowCanvas(props: Props) {
           ? rt.pieces.some((pc) => pc.material.holder === d.id)
           : rt?.material?.holder === d.id,
         photo: view.visualMode === 'photo',
-        signals: p.signals.filter((s) => s.deviceId === d.id), onIds, positions, showPositions: L.positions,
+        signals: devSignals, onIds, positions, showPositions: L.positions,
         mode, link, api,
+        nameShown: devLabel.text, nameTitle: devLabel.title, nameHidden: devLabel.hidden,
+        showStatus: shown(`status:${d.id}`, '').hidden === false,
+        portLabels: devSignals.flatMap((s) => {
+          const row = shown(`port:${s.id}`, portWord(d.name, s.name, s.portKey));
+          if (row.hidden) return [];
+          const list = s.direction === 'in' ? devIns : devOuts;
+          return [{ id: s.id, text: row.text, title: row.title, top: portTop(list, s, d.layout.h), side: s.direction }];
+        }),
       } satisfies DeviceData,
     });
   }
@@ -814,15 +943,29 @@ function FlowCanvas(props: Props) {
     }
   }
 
+  const placeFitted = useCallback((vp: Viewport) => {
+    const nodes = getNodes();
+    if (!nodes.length) return vp;
+    const minX = Math.min(...nodes.map((n) => n.position.x));
+    let next = leftAlignedViewport(vp, FIT_MIN_ZOOM, minX, FIT_LEFT);
+    const legend = legendInPane(hostRef.current);
+    if (legend) {
+      const units = nodes.filter((n) => n.type === 'unit').map((n) => ({
+        x: n.position.x,
+        y: n.position.y,
+        w: n.width ?? n.measured?.width ?? (n.data as { w?: number }).w ?? 0,
+      }));
+      next = clearLegendViewport(next, units, legend);
+    }
+    return next;
+  }, [getNodes]);
+
   const alignLeftIfMin = useCallback(() => {
     const vp = getViewport();
-    const nodes = getNodes();
-    if (!nodes.length) return;
-    const minX = Math.min(...nodes.map((n) => n.position.x));
-    const next = leftAlignedViewport(vp, FIT_MIN_ZOOM, minX, FIT_LEFT);
-    if (Math.abs(next.x - vp.x) < 0.5) return;
+    const next = placeFitted(vp);
+    if (Math.abs(next.x - vp.x) < 0.5 && Math.abs(next.y - vp.y) < 0.5) return;
     void setViewport(next, { duration: 0 });
-  }, [getViewport, getNodes, setViewport]);
+  }, [getViewport, placeFitted, setViewport]);
 
   const fitCanvas = useCallback(async () => {
     // Insets clear the 28px legend, 28px controls, and 160×110 minimap. Panel margin is 15px.
@@ -847,7 +990,10 @@ function FlowCanvas(props: Props) {
     if (width <= 40 || height <= 40) return;
     const bounds = unionBounds(runEquipmentBoxes(propsRef.current.project, propsRef.current.rt));
     if (!bounds) return;
-    const vp = runPlanViewport(bounds, width, height, runFitPad(minimapRef.current));
+    const units = propsRef.current.project.units.map((u) => ({ x: u.layout.x, y: u.layout.y, w: u.layout.w }));
+    const legend = legendInPane(hostRef.current);
+    const planned = runPlanViewport(bounds, width, height, runFitPad(minimapRef.current));
+    const vp = legend ? clearLegendViewport(planned, units, legend) : planned;
     fitting.current = true;
     userAdjusted.current = false;
     void setViewportRef.current(vp, { duration: 0 }).then(() => {
@@ -1050,7 +1196,7 @@ function FlowCanvas(props: Props) {
     };
   })();
   return (
-    <div ref={hostRef} className="rf-host" tabIndex={-1} data-mode={mode} data-frame={frame} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} data-flow-drag={flowDrag ? '1' : '0'} onPointerDownCapture={onBandDown} onContextMenuCapture={openContext} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div ref={hostRef} className="rf-host" tabIndex={-1} data-mode={mode} data-frame={frame} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} data-flow-drag={flowDrag ? '1' : '0'} data-label-tier={zoomTier(vpZoom)} onPointerDownCapture={onBandDown} onContextMenuCapture={openContext} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

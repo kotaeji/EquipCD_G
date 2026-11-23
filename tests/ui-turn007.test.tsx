@@ -122,14 +122,15 @@ describe('TURN-007 icons and name dialog', () => {
   });
 
   it('AC2: the name note sits 8px under the field for the unchanged line and for an error', async () => {
-    expect(css).toMatch(/\.name-note \{ margin-top: 8px/);
+    expect(css).toMatch(/\.name-note \{ margin-top: var\(--sp-2\)/);
+    expect(css).toContain('--sp-2: 8px');
     const u = await mount({ css: true });
     await u.click(u.el.querySelector('.exitem .x')!);
     await u.click(u.btn('이름 변경', u.el.querySelector('[role=dialog]')!));
     const note = u.el.querySelector('#name-err') as HTMLElement;
     expect(note.className).toContain('name-note');
     expect(note.textContent).toContain('이름이 바뀌지 않았습니다');
-    expect(getComputedStyle(note).marginTop).toBe('8px');
+    expect(getComputedStyle(note).marginTop).toBe('var(--sp-2)');
     const input = u.el.querySelector('.namefield input') as HTMLInputElement;
     await act(async () => {
       const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
@@ -138,7 +139,7 @@ describe('TURN-007 icons and name dialog', () => {
     });
     expect(note.className).toContain('err-text');
     expect(note.textContent).not.toContain('이름이 바뀌지 않았습니다');
-    expect(getComputedStyle(note).marginTop).toBe('8px');
+    expect(getComputedStyle(note).marginTop).toBe('var(--sp-2)');
   });
 });
 

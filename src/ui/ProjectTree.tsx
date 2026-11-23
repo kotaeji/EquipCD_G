@@ -84,14 +84,14 @@ export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick
             className="titem tunit" onClick={(e) => own(e, () => onPick(u.id))}
             onContextMenu={(e) => ask(e, { kind: 'unit', id: u.id })}
             onKeyDown={(e) => onKey(e, u.id, { expandable: kids, open, parent: stationId, select: () => onPick(u.id) })} title={`${u.name} — Substation(Unit) ${u.id}`}>
-            <div className={`tnode ${sel ? 'sel' : ''}`} style={{ paddingLeft: 14 }}>
+            <div className={`tnode ${sel ? 'sel' : ''}`} style={{ paddingLeft: 'var(--sp-3)' }}>
               {kids ? <Twisty id={u.id} open={open} label={u.name} /> : leafPad}
               {u.name}{u.templateRef ? ' ⧉' : ''} <span className="kind">Substation · 시퀀스 {subCount(u.id)}</span>{hiddenSel && selMark}</div>
             {kids && open && <div role="group">
               {u.deviceIds.map((d) => {
                 const dsel = selection.includes(d);
                 return <div key={d} role="treeitem" tabIndex={0} data-tree-id={d} aria-level={3} aria-selected={dsel} className={`tnode ${dsel ? 'sel' : ''}`}
-                  style={{ paddingLeft: 44, fontSize: 12 }} onClick={(e) => own(e, () => onPick(d))}
+                  style={{ paddingLeft: 44, fontSize: 'var(--fs-sm)' }} onClick={(e) => own(e, () => onPick(d))}
                   onContextMenu={(e) => ask(e, { kind: 'device', id: d })}
                   onKeyDown={(e) => onKey(e, d, { expandable: false, open: false, parent: u.id, select: () => onPick(d) })}>
                   {devName(p, d)} {statusOf?.[d] && <StatusMark status={statusOf[d]} compact />} <span className="muted">{findAsset(p.devices.find((x) => x.id === d)?.kind ?? '')?.name ?? '정의 없음'}</span></div>;

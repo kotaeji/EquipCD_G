@@ -592,7 +592,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       <p>XML 구문: {out.result.diags.some((d) => d.code === 'XML_SYNTAX') ? '실패' : '통과'} · CAEX SchemaVersion: {out.result.meta.schemaVersion ?? '없음'} · 앱 subset: 오류 {errs.length} / 경고 {warns.length} · <b>공식 XSD: 미검증</b> (브라우저 내 미실행)</p>
       <p>추가된 정의 {out.added.length}개: {out.added.map((d) => d.name).join(', ') || '없음'}</p>
       {out.skipped.length > 0 && <p>건너뜀 {out.skipped.length}: {out.skipped.map((x) => `${x.id} (${x.reason})`).join(' / ')}</p>}
-      {out.result.diags.slice(0, 14).map((d, i) => <div key={i} style={{ fontSize: 11, color: d.severity === 'error' ? 'var(--danger)' : 'var(--warning)' }}>[{d.code}] {d.where}: {d.message}</div>)}
+      {out.result.diags.slice(0, 14).map((d, i) => <div key={i} style={{ fontSize: 'var(--fs-xs)', color: d.severity === 'error' ? 'var(--danger)' : 'var(--warning)' }}>[{d.code}] {d.where}: {d.message}</div>)}
       <p className="muted">오류가 있는 정의는 라이브러리에 넣지 않았습니다. 기존 정의와 열린 프로젝트는 변경되지 않았습니다{out.added.length ? " (새 정의만 추가됨, 이 브라우저에 보관)" : ""}.</p></div>, actions: [{ label: '확인', run: () => {} }] });
   };
   const onMoveCommit = (ids: string[], dx: number, dy: number, pointer: { x: number; y: number }) => {
@@ -1118,7 +1118,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const r = parseProjectFile(text);
     if (!r.ok) {
       setQlist((l) => quarantine(kv, { at: new Date().toLocaleString(), label: f.name, raw: text, errors: r.errors.map((e) => `[${e.code}] ${e.objectId}: ${e.message}`) }, l));
-      setModal({ title: '가져오기 거부 — 현재 모델 불변', body: <div data-import-reject=""><Problem copy={importRejectProblem(f.name)} />{r.errors.slice(0, 12).map((e) => <div key={e.id} style={{ fontSize: 12 }}>[{e.code}] {e.objectId}: {e.message}</div>)}</div>, actions: [{ label: '확인', run: () => setBottomTab('diag') }] });
+      setModal({ title: '가져오기 거부 — 현재 모델 불변', body: <div data-import-reject=""><Problem copy={importRejectProblem(f.name)} />{r.errors.slice(0, 12).map((e) => <div key={e.id} style={{ fontSize: 'var(--fs-sm)' }}>[{e.code}] {e.objectId}: {e.message}</div>)}</div>, actions: [{ label: '확인', run: () => setBottomTab('diag') }] });
       return;
     }
     const existing = tabs.find((t) => t.history.present.id === r.project.id);
@@ -1156,7 +1156,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const nx = STEPS[cur.no]; if (!nx) return;
     if (curEval.ready) { confirmStep(step); goStep(nx.id); return; }
     setModal({ title: `${cur.no} ${cur.label}: 필수 데이터 누락 ${missing.length}건`, body: <div>
-      {missing.slice(0, 10).map((m, i) => <div key={i} style={{ fontSize: 12, color: 'var(--danger)' }}>• {m.text}</div>)}
+      {missing.slice(0, 10).map((m, i) => <div key={i} style={{ fontSize: 'var(--fs-sm)', color: 'var(--danger)' }}>• {m.text}</div>)}
       <p className="muted">단계 확인(완료 표시)은 실제 데이터가 채워져야 됩니다. 다음 화면을 보는 것은 가능하지만 이 단계는 ‘필수 누락’으로 남고, 실행은 실행 전 검사에서 따로 차단됩니다.</p></div>,
       actions: [{ label: '머무르며 수정', primary: true, run: () => setItemsStep(step) }, { label: '확인 없이 다음 화면 보기', run: () => goStep(nx.id) }] });
   };
