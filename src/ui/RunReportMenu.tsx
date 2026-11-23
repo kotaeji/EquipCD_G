@@ -9,6 +9,8 @@ import {
   runReportFileName,
   type ReportKind,
 } from './runReport';
+import { IconLabel } from './Icon';
+import { REPORT_ICON } from './icons';
 import './run-report.css';
 
 const ITEMS: { kind: ReportKind; label: string; mime: string }[] = [
@@ -94,7 +96,7 @@ export function RunReportMenu({ p, rt }: { p: Project; rt: RuntimeState | null }
         disabled={!gate.enabled}
         title={gate.enabled ? 'HTML 보고서, 단계 표 CSV, 로그 CSV' : gate.reason}
         onClick={toggle}
-      >보고서 내보내기 ▾</button>
+      ><IconLabel id={REPORT_ICON.menu}>보고서 내보내기 ▾</IconLabel></button>
       {!gate.enabled && <span className="run-report-reason" data-report-reason="">{gate.reason}</span>}
       {open && gate.enabled && box && (
         <div
@@ -106,7 +108,7 @@ export function RunReportMenu({ p, rt }: { p: Project; rt: RuntimeState | null }
           style={{ top: box.top, left: box.left }}
         >
           {ITEMS.map((item) => (
-            <button key={item.kind} type="button" role="menuitem" data-report-kind={item.kind} onClick={() => pick(item.kind, item.mime)}>{item.label}</button>
+            <button key={item.kind} type="button" role="menuitem" data-report-kind={item.kind} onClick={() => pick(item.kind, item.mime)}><IconLabel id={REPORT_ICON[item.kind]}>{item.label}</IconLabel></button>
           ))}
         </div>
       )}

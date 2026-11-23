@@ -5,6 +5,7 @@ import { NeverTrueFaults, ReadFailFaults, RunReadiness } from './Panels';
 import type { Diagnostic } from '../model/validate';
 import type { BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
+import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
@@ -167,7 +168,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
     <aside className={`run-conditions ${folded ? 'is-folded' : ''}`} aria-label="가동 조건">
       <div className="run3d-head">
         <h2>가동 조건</h2>
-        <button type="button" className="small" aria-label={folded ? '가동 조건 펼치기' : '가동 조건 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
+        <button type="button" className="small" aria-label={folded ? '가동 조건 펼치기' : '가동 조건 접기'} onClick={onToggleFold}><IconLabel id={folded ? 'unfold' : 'fold'}>{folded ? '펼치기' : '접기'}</IconLabel></button>
       </div>
       {!folded && <>
       <label className="run3d-field">배속

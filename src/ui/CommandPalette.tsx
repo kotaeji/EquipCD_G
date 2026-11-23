@@ -2,6 +2,8 @@
 // Neither writes the model.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { shortcutSheet, visibleCommands, type CommandRow, type CommandState } from './commandModel';
+import { IconLabel } from './Icon';
+import { OBJECT_ICON } from './icons';
 import {
   indexObjects,
   parseFindQuery,
@@ -122,7 +124,7 @@ export function CommandPaletteDialog({ state, mac, onRun, onJump, onClose }: {
         onMouseMove={() => setActive(i)}
         onClick={() => choose({ type: 'command', row }, false)}
       >
-        <span className="cmd-name">{row.name}</span>
+        <span className="cmd-name"><IconLabel id={row.id}>{row.name}</IconLabel></span>
         <span className="cmd-meta">
           <span className="cmd-group">{row.group}</span>
           {!row.ok && <span className="cmd-reason">{row.reason}</span>}
@@ -147,7 +149,7 @@ export function CommandPaletteDialog({ state, mac, onRun, onJump, onClose }: {
           onMouseMove={() => setActive(i)}
           onClick={(e) => choose({ type: 'object', entry }, e.shiftKey)}
         >
-          <span className="cmd-name">{entry.name}</span>
+          <span className="cmd-name"><IconLabel id={OBJECT_ICON[entry.kind]}>{entry.name}</IconLabel></span>
           <span className="cmd-meta">
             <span className="cmd-group">{group.label}</span>
             {entry.where && <span className="cmd-where">{entry.where}</span>}
@@ -170,7 +172,7 @@ export function CommandPaletteDialog({ state, mac, onRun, onJump, onClose }: {
           onMouseMove={() => setActive(i)}
           onClick={() => choose({ type: 'more', kind: group.kind, count: group.more }, false)}
         >
-          <span className="cmd-name">{group.more}개 더</span>
+          <span className="cmd-name"><IconLabel id="object-more">{group.more}개 더</IconLabel></span>
         </button>
       );
     })() : null;
@@ -225,7 +227,7 @@ export function ShortcutSheet({ state, mac, onClose }: { state: CommandState; ma
       <div ref={box} tabIndex={-1} className="cmd-sheet" role="dialog" aria-modal="true" aria-label="단축키 목록" onMouseDown={(e) => e.stopPropagation()}>
         <div className="cmd-sheet-head">
           <h3>단축키 목록</h3>
-          <button type="button" className="btn-main secondary" onClick={onClose}>닫기</button>
+          <button type="button" className="btn-main secondary" onClick={onClose}><IconLabel id="close">닫기</IconLabel></button>
         </div>
         {groups.map((g) => (
           <section key={g.group} data-shortcut-group={g.group}>

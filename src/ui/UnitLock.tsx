@@ -1,4 +1,5 @@
 import type { Project } from '../model/types';
+import { IconLabel } from './Icon';
 import './unit-lock.css';
 
 /** Padlock drawn on a locked Unit. The name row is left alone. */
@@ -29,9 +30,9 @@ export function UnitLockTools({ project, selection, disabled, onLockSelected, on
   const label = allLocked ? '위치 잠금 해제' : '위치 잠금';
   return (
     <span className="unit-lock-tools">
-      <button type="button" disabled={disabled || selected.length === 0} aria-pressed={allLocked} onClick={() => onLockSelected(!allLocked)}>{label}</button>
-      <button type="button" disabled={disabled || !anyUnit} onClick={() => onLockAll(true)}>모두 잠금</button>
-      <button type="button" disabled={disabled || !anyUnit} onClick={() => onLockAll(false)}>모두 풀기</button>
+      <button type="button" disabled={disabled || selected.length === 0} aria-pressed={allLocked} onClick={() => onLockSelected(!allLocked)}><IconLabel id={allLocked ? 'unlock' : 'lock'}>{label}</IconLabel></button>
+      <button type="button" disabled={disabled || !anyUnit} onClick={() => onLockAll(true)}><IconLabel id="lock-all">모두 잠금</IconLabel></button>
+      <button type="button" disabled={disabled || !anyUnit} onClick={() => onLockAll(false)}><IconLabel id="unlock-all">모두 풀기</IconLabel></button>
     </span>
   );
 }

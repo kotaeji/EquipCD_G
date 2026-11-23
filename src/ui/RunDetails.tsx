@@ -9,6 +9,7 @@ import { EmptyState } from './EmptyState';
 import { Problem } from './Problem';
 import { runBlockFormula } from '../model/conditionFormula';
 import { EMPTY, runErrorProblem } from './problemCopy';
+import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 import { piecePhaseStatus } from './status';
 import { Tabs } from './Tabs';
@@ -113,7 +114,7 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
   return (
     <section className={`run-details ${open ? 'is-open' : ''}`} aria-label="자세히">
       <div className="run-details-head">
-        <button type="button" className="small" aria-expanded={open} aria-label={open ? '자세히 접기' : '자세히 펼치기'} onClick={onToggle}>자세히</button>
+        <button type="button" className="small" aria-expanded={open} aria-label={open ? '자세히 접기' : '자세히 펼치기'} onClick={onToggle}><IconLabel id={open ? 'fold' : 'unfold'}>자세히</IconLabel></button>
         {!open && <span className="run-details-last" title={lastLine}>{lastLine}</span>}
       </div>
       {open && <div className="run-details-body">
@@ -125,9 +126,9 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
         <InterlockHistory rows={rt?.interlockBlocks ?? []} onJump={onJumpInterlock} />
         <PieceTable rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
-          { id: 'summary', label: '실행 결과 요약', panel: <><RunReportMenu p={p} rt={rt} /><RunSummary p={p} rt={rt} embedded /></> },
-          { id: 'log', label: '실행 로그', panel: <RunLog rt={rt} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
-          { id: 'signals', label: '신호', panel: <RunSignals p={p} rt={rt} /> },
+          { id: 'summary', label: '실행 결과 요약', icon: 'run-summary', panel: <><RunReportMenu p={p} rt={rt} /><RunSummary p={p} rt={rt} embedded /></> },
+          { id: 'log', label: '실행 로그', icon: 'run-log', panel: <RunLog rt={rt} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
+          { id: 'signals', label: '신호', icon: 'run-signals', panel: <RunSignals p={p} rt={rt} /> },
         ]} />
       </div>}
     </section>

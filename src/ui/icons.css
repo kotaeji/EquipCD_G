@@ -1,0 +1,44 @@
+/* TURN-061. Two sizes, one stroke. Color is currentColor so light, dark, and disabled fade together. */
+.icon-host {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  max-width: 100%;
+  position: relative;
+  vertical-align: middle;
+}
+.ecd-icon {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+}
+.ecd-icon.is-md { width: 24px; height: 24px; }
+.ecd-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+}
+.icon-glyph {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* Danger keeps the red outline and the word. The set's X replaces the CSS mark when an icon is present. */
+button.danger:has(.ecd-icon)::before { content: none; }
+.empty-mark { position: relative; display: inline-flex; align-items: center; }
+.cmd-name { display: inline-flex; align-items: center; min-width: 0; }
+.ctx-label { display: inline-flex; align-items: center; min-width: 0; }
+/* Percent stays the first span so existing zoom reads still see 100%. Buttons sit on either side. */
+.zoom-pill > span { order: 2; }
+.zoom-pill > button[aria-label="축소"] { order: 1; }
+.zoom-pill > button[aria-label="확대"] { order: 3; }
