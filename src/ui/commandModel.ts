@@ -74,6 +74,7 @@ export interface CommandActions {
   newProject: (kind: 'blank' | 'sample' | 'parallel' | 'flow') => void;
   undo: () => void;
   redo: () => void;
+  openHistory: () => void;
   copy: () => void;
   paste: () => void;
   duplicate: () => void;
@@ -231,6 +232,11 @@ export const COMMANDS: readonly CommandDef[] = [
     keys: [{ key: 'z', mod: true, shift: true }, { key: 'y', mod: true }],
     available: (s) => (s.locked ? no('실행 중에는 Redo가 차단됩니다') : s.canRedo ? yes() : no('다시 실행할 편집이 없습니다')),
     run: (a) => a.redo(),
+  },
+  {
+    id: 'undo-history', name: '실행 취소 이력', group: '편집',
+    available: yes,
+    run: (a) => a.openHistory(),
   },
   {
     id: 'copy', name: '복사', group: '편집', steps: ['canvas'], where: '2단계 · 탐색기',

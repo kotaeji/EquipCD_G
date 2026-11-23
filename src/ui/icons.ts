@@ -42,6 +42,7 @@ export const COMMAND_ICONS = {
 
   undo: 'Undo2',
   redo: 'Redo2',
+  'undo-history': 'History',
   copy: 'Copy',
   paste: 'ClipboardPaste',
   duplicate: 'CopyPlus',
@@ -115,6 +116,8 @@ export const COMMAND_ICONS = {
   workspace: 'Folders',
   project: 'Folder',
   'add-step': 'ListPlus',
+  confirm: 'BadgeCheck',
+  jump: 'ArrowUpRight',
   'to-actions': 'Bolt',
   'to-signals': 'Radio',
   'to-props': 'SlidersVertical',
@@ -124,6 +127,8 @@ export const COMMAND_ICONS = {
   'filter-human': 'UserRound',
   'filter-hidden': 'EyeOff',
   'run-summary': 'ScrollText',
+  'run-timing': 'ChartGantt',
+  'run-piece': 'Users',
   'run-log': 'Scroll',
   'run-signals': 'Activity',
   'action-add': 'Plus',
@@ -234,6 +239,7 @@ export const TAB_ICON: Record<string, IconId> = {
   workspace: 'workspace',
   project: 'project',
   summary: 'run-summary',
+  timing: 'run-timing',
   log: 'run-log',
   signals: 'run-signals',
 };
