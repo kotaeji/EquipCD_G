@@ -157,7 +157,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
           const blockName = row.node && 'name' in row.node ? row.node.name : '';
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
           const live = row.stepId ? statusOf(rt, row.stepId) : null;
-          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
+          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-jump={row.stepId ? `step:${row.stepId}` : undefined} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
             <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={picked.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
