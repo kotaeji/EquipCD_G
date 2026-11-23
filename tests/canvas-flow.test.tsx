@@ -246,7 +246,7 @@ describe('React Flow canvas (TURN-005)', () => {
     expect(section).toContain('border-radius: 8px');
     expect(section).toContain('outline: 2px solid var(--accent)');
     expect(section).toContain('outline-offset: 2px');
-    expect(section).toContain('color-mix(in srgb, var(--accent) 25%, transparent)');
+    expect(section).toContain('color-mix(in srgb, var(--status-active, var(--accent)) 25%, transparent)');
     expect(section).toContain('stroke-dasharray: 5 4');
     expect(section).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.react-flow__edge-path\.rf-sig-on \{ animation: none; \}/);
     expect(section).toContain('width: 28px');

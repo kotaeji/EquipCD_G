@@ -366,7 +366,7 @@ describe('TURN-024 stopped is a word on the run screen (AC3)', () => {
     }
     await click([...el.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === '자세히 펼치기')!);
     const table = [...el.querySelectorAll('table')].find((t) => (t.textContent ?? '').includes('갈래 · 회차'))!;
-    const statuses = [...table.querySelectorAll('tbody tr')].map((tr) => tr.children[2]?.textContent ?? '');
+    const statuses = [...table.querySelectorAll('tbody tr')].map((tr) => tr.children[2]?.querySelector('.status-word')?.textContent ?? tr.children[2]?.textContent ?? '');
     expect(statuses).toContain('정지');
     expect(statuses).not.toContain('active');
     expect(el.querySelector('.run-summary-head')!.textContent).toContain('정지');

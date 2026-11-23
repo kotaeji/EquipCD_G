@@ -8,6 +8,7 @@ import type { Project } from '../model/types';
 import { checkRunReadiness } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
 import { runStatusLabel } from './labels';
+import { wizardBadgeMark } from './status';
 
 export type StepId = 'library' | 'canvas' | 'attributes' | 'sequence' | 'check' | 'run';
 export const STEPS: { id: StepId; no: number; label: string; workspace: string; goal: string }[] = [
@@ -162,9 +163,9 @@ export function evaluateSteps(p: Project, ctx: EvalContext): Record<StepId, Step
   return out;
 }
 
-/** Visible status word. The mark is drawn with the word so the badge is not color alone. */
+/** Visible status word. The mark comes from the same status as the badge color. */
 export const BADGE_WORD = { ready: '필수 충족', blocked: '필수 누락', recheck: '재확인 필요', confirmed: '확인됨' } as const;
-export const BADGE_MARK = { ready: '○', blocked: '×', recheck: '△', confirmed: '✓' } as const;
+export const BADGE_MARK = { ready: wizardBadgeMark('ready'), blocked: wizardBadgeMark('blocked'), recheck: wizardBadgeMark('recheck'), confirmed: wizardBadgeMark('confirmed') } as const;
 export const BADGE_TONE = { ready: 'ok', blocked: 'err', recheck: 'warn', confirmed: 'ok' } as const;
 
 /** step status for the stepper: 'ready' | 'blocked' | 'recheck' (confirmed earlier but dependency data changed) */

@@ -6,18 +6,16 @@ import { faultDeviceIds, activeDeviceIds } from '../scene/describe';
 import { describeRunInfo, type RunInfoBar } from '../scene/runInfo';
 import { stepStatusLabel } from '../runtime/runSummary';
 import { stepLiveClass } from './RunSummary';
-
-const RUN_STATUS_KO: Record<string, string> = {
-  idle: '대기', running: '실행 중', paused: '일시정지', completed: '완료', error: '오류',
-};
+import { StatusMark } from './StatusMark';
+import { phaseShape, piecePhaseStatus, stationShape, type StatusKey } from './status';
 
 /** How many running names stay on the strip before 「외 N」. */
 const RUNNING_SHOWN = 2;
 const SCROLL_HOLD_MS = 3000;
 
-function deviceState(p: Project, rt: RuntimeState | null, deviceId: string): string {
-  if (faultDeviceIds(p, rt).includes(deviceId)) return '오류';
-  if (activeDeviceIds(p, rt).includes(deviceId)) return '동작 중';
+function deviceState(p: Project, rt: RuntimeState | null, deviceId: string): { status: StatusKey; word: string } {
+  if (faultDeviceIds(p, rt).includes(deviceId)) return { status: 'error', word: '오류' };
+  if (activeDeviceIds(p, rt).includes(deviceId)) return phaseShape('active');
   const records = (rt?.steps ?? []).filter((rec) => {
     const step = p.sequence.steps.find((s) => s.id === rec.stepId)
       ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === rec.stepId);
@@ -25,7 +23,15 @@ function deviceState(p: Project, rt: RuntimeState | null, deviceId: string): str
     return action?.deviceId === deviceId && rec.status !== 'pending';
   });
   const last = records[records.length - 1];
-  return last ? stepStatusLabel(last.status) : '대기';
+  if (!last) return phaseShape('pending');
+  const shape = phaseShape(last.status);
+  return { status: shape.status, word: stepStatusLabel(last.status) };
+}
+
+function barMark(bar: { status: string; statusLabel: string }): { status: StatusKey; word: string } {
+  if (bar.statusLabel === '가정') return { status: 'assumption', word: '가정' };
+  const shape = phaseShape(bar.status);
+  return { status: shape.status, word: bar.statusLabel };
 }
 
 function runningText(row: { name: string; lane?: string }): string {
@@ -74,6 +80,7 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
   onOpenGaps: () => void;
 }) {
   const info = describeRunInfo(p, rt);
+  const station = stationShape(info.status);
   const full = info.running.map(runningText).join(', ');
   const shown = info.running.slice(0, RUNNING_SHOWN).map(runningText).join(', ');
   const extra = info.running.length - RUNNING_SHOWN;
@@ -82,7 +89,7 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
     <section className={`run-strip ${folded ? 'is-folded' : ''}`} aria-label="실행 요약">
       <div className="run-strip-row">
         {!folded && <span className="run-strip-id" title={`${info.projectName} · Unit ${info.unitCount} · Device ${info.deviceCount} · 단계 ${info.stepCount}`}><span data-project-name="">{info.projectName}</span> · U{info.unitCount} D{info.deviceCount} 단계{info.stepCount}</span>}
-        <span className="run-strip-fixed">실행 상태 <b data-run-status={info.status}>{RUN_STATUS_KO[info.status] ?? info.status}</b></span>
+        <span className="run-strip-fixed">실행 상태 <StatusMark status={station.status} word={station.word} wordAttrs={{ 'data-run-status': info.status }} /></span>
         <span className="run-strip-fixed">가상 시간 <b className="mono" data-run-time="">{info.timeText}</b></span>
         <span className="run-strip-running">실행 중 <b data-running-count={info.running.length} title={full || undefined}>{info.running.length === 0 ? '없음' : shown}{extra > 0 ? ` 외 ${extra}` : ''}</b></span>
         {!folded && <span className="run-strip-fixed" data-material="" data-fed={info.fedCount} data-exited={info.exitCount} data-feed-total={info.feedTotal}>자재 {info.materialText}</span>}
@@ -138,7 +145,7 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold }: {
               <li key={row.instanceId} className={row.phase === 'active' ? 'step-row is-running' : 'step-row'} data-piece={row.instanceId} data-piece-phase={row.phase}>
                 <span className="run3d-bar-name">개체 {row.index}</span>
                 <span className="run3d-bar-where">{row.stepName}</span>
-                <span className="run3d-bar-status" data-piece-status="">{row.statusLabel}</span>
+                <span className="run3d-bar-status"><StatusMark status={piecePhaseStatus(row.phase)} word={row.statusLabel} wordAttrs={{ 'data-piece-status': '' }} /></span>
                 <span className="run3d-bar-time">{row.note}</span>
               </li>
             ))}
@@ -148,7 +155,7 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold }: {
               <li key={bar.key} className={`${stepLiveClass(bar.status)}${bar.longest ? ' is-longest' : ''}`} data-step-id={bar.stepId} data-step-key={bar.key} data-elapsed={bar.timeText}>
                 <span className="run3d-bar-name" title={bar.name}>{bar.name}</span>
                 <span className="run3d-bar-where" data-lane={bar.lane ?? ''} data-pass={bar.pass != null ? String(bar.pass) : ''}>{whereText(bar) || '—'}</span>
-                <span className="run3d-bar-status">{bar.statusLabel}</span>
+                <span className="run3d-bar-status"><StatusMark status={barMark(bar).status} word={barMark(bar).word} /></span>
                 <span className="run3d-bar-track" aria-hidden="true"><span className="run3d-bar-fill" style={{ width: `${Math.min(100, (bar.widthMs / maxMs) * 100)}%` }} /></span>
                 <span className="mono run3d-bar-time">{bar.timeText}</span>
               </li>
@@ -170,7 +177,7 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold }: {
         <section aria-label="선택한 Device">
           <h3>선택한 Device</h3>
           {device
-            ? <p data-selected-device="">{device.name} · {findAsset(device.kind)?.name ?? device.kind} · {unit?.name ?? device.unitId} · {deviceState(p, rt, device.id)}</p>
+            ? <p data-selected-device="">{device.name} · {findAsset(device.kind)?.name ?? device.kind} · {unit?.name ?? device.unitId} · <StatusMark status={deviceState(p, rt, device.id).status} word={deviceState(p, rt, device.id).word} /></p>
             : <p className="muted">Device를 누르면 여기에 나옵니다</p>}
         </section>
         <p className="run3d-note">{info.assumed ? '실행 전 막대는 Action의 가정 동작 시간입니다. ' : ''}시간 · 속도는 가정값입니다. 실제 택트가 아닙니다.</p>

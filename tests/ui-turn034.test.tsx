@@ -70,7 +70,8 @@ async function renderTables(p: Project, rt: RuntimeState) {
   const cell = (table: HTMLTableElement, name: string, index: number) => {
     const row = [...table.querySelectorAll('tbody tr')].find((tr) => (tr.textContent ?? '').includes(name));
     if (!row) throw new Error(`missing ${name}`);
-    return row.querySelectorAll('td')[index]?.textContent ?? '';
+    const td = row.querySelectorAll('td')[index];
+    return td?.querySelector('.status-word')?.textContent ?? td?.textContent ?? '';
   };
   return { el, flow, seq, cell };
 }

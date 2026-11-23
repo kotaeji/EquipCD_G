@@ -5,6 +5,8 @@ import type { Condition, FlowNode, Project } from '../model/types';
 import { DEFAULT_MAX_RETRIES } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus } from '../runtime/runSummary';
+import { StatusMark } from './StatusMark';
+import { phaseShape } from './status';
 import type { EditFn } from './Inspector';
 import { stepLiveClass } from './RunSummary';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
@@ -180,7 +182,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
               </span>}
               {row.kind === 'arm' && typeof row.arm === 'number' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.removeParallelLane(p, row.blockId!, row.arm as number), '갈래 삭제')}>이 갈래 삭제</button>}
             </td>
-            <td>{live ? live.label : ''}</td>
+            <td>{live ? <StatusMark status={phaseShape(live.phase).status} word={live.label} /> : ''}</td>
             <td style={{ whiteSpace: 'nowrap' }}>
               {id && <>
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowNode(p, id, -1), row.kind === 'step' ? '단계 위로' : '블록 위로')}>위로</button>

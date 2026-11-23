@@ -28,6 +28,8 @@ import {
 import '@xyflow/react/dist/base.css';
 import { findAsset } from '../assets/library';
 import { AI_BADGE, resolveGenerated } from '../assets/visuals';
+import { StatusMark } from './StatusMark';
+import { STATUS, waitingLead } from './status';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { Symbol } from './Symbols';
@@ -43,6 +45,8 @@ interface Props {
   rt: RuntimeState | null;
   /** v0.3 group run: devices active in any lane (highlight only) */
   activeDeviceIds?: string[];
+  /** Devices whose step stopped on an error. Same set the 3D view uses. */
+  faultDeviceIds?: string[];
   view: UserView;
   selection: string[];
   mode: Mode;
@@ -157,7 +161,7 @@ type UnitData = {
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
-  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean;
+  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean; fault: boolean;
   extended: boolean; raised: boolean; holding: boolean; photo: boolean;
   signals: Signal[]; onIds: string[]; positions: { id: string; name: string; assumption: boolean; current: boolean }[];
   showPositions: boolean; mode: Mode; link: SignalLink | null; api: DragApi;
@@ -238,7 +242,7 @@ function DeviceNode({ data }: NodeProps) {
   const photo = d.photo ? resolveGenerated(dev.kind) : null;
   return (
     <div
-      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}`}
+      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}`}
       style={{ width: dev.layout.w, height: dev.layout.h }}
       onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
       onPointerMove={(e) => d.api.move(e, nodeIdOf(e.currentTarget))}
@@ -252,6 +256,7 @@ function DeviceNode({ data }: NodeProps) {
           <rect width={dev.layout.w} height={dev.layout.h} rx={3} fill="none" stroke="var(--border)" strokeWidth={1} />
         </svg>
         : <svg width={dev.layout.w} height={dev.layout.h}><Symbol kind={dev.kind} w={dev.layout.w} h={dev.layout.h} st={{ active: d.active, extended: d.extended, raised: d.raised, holding: d.holding }} /></svg>}
+      {(d.fault || d.active) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : 'active'} /></div>}
       <div className="rf-dev-name">{dev.name}</div>
       {d.photo && <div className={`rf-photo-note ${photo?.status === 'available' ? 'ok' : 'miss'}`}>{photo?.status === 'available' ? `${AI_BADGE} 실사풍·실제 사진 아님` : 'AI 이미지 미준비→도식'}</div>}
       {d.showPositions && d.positions.length > 0 && (
@@ -259,7 +264,7 @@ function DeviceNode({ data }: NodeProps) {
           {d.positions.map((ps, i) => {
             const x = ((i + 1) * dev.layout.w) / (d.positions.length + 1);
             const y = dev.layout.h + 4;
-            return <g key={ps.id}><path d={`M${x} ${y} l-4 7 l8 0 z`} fill={ps.current ? 'var(--accent)' : 'none'} stroke="var(--warning)" /><text x={x} y={y + 16} fontSize={8} textAnchor="middle" fill="var(--warning)">{ps.name}{ps.assumption ? '(가정)' : ''}</text></g>;
+            return <g key={ps.id}><path d={`M${x} ${y} l-4 7 l8 0 z`} fill={ps.current ? 'var(--accent)' : 'none'} stroke={ps.assumption ? 'var(--status-assumption)' : 'var(--text)'} /><text x={x} y={y + 16} fontSize={8} textAnchor="middle" fill={ps.assumption ? 'var(--status-assumption)' : 'var(--text)'}>{ps.name}{ps.assumption ? ` ${STATUS.assumption.mark} ${STATUS.assumption.word}` : ''}</text></g>;
           })}
         </svg>
       )}
@@ -546,6 +551,7 @@ function FlowCanvas(props: Props) {
       data: {
         device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked,
         active: activeDevice === d.id || pieceDevices.has(d.id) || !!props.activeDeviceIds?.includes(d.id),
+        fault: !!props.faultDeviceIds?.includes(d.id),
         extended: d.kind === 'cylinder' ? sigOn(d.id, 'cmdFwd') || sigOn(d.id, 'fwdDone')
           : d.kind === 'pusher' ? sigOn(d.id, 'cmdPush') || sigOn(d.id, 'pushDone')
           : d.kind === 'gantry' ? (rt?.devicePositions?.[d.id] ?? null) !== null || sigOn(d.id, 'cmdMove') : false,
@@ -884,7 +890,7 @@ function materialMarkers(p: Project, rt: RuntimeState | null, off: (id: string, 
       out.push({
         id: pc.index === 1 ? 'runtime-material' : `runtime-material-${pc.instanceId}`,
         x: pos.x, y: pos.y,
-        label: `${pc.phase === 'waiting' ? '대기 · ' : ''}개체 ${pc.index} · ${pc.material.state}`,
+        label: `${pc.phase === 'waiting' ? `${waitingLead()} · ` : ''}개체 ${pc.index} · ${pc.material.state}`,
         waiting: pc.phase === 'waiting',
         pieceId: pc.instanceId,
       });

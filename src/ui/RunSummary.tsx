@@ -1,20 +1,13 @@
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
-import { summarizeRun, type RunStepPhase } from '../runtime/runSummary';
+import { summarizeRun } from '../runtime/runSummary';
 import { Fold } from './Fold';
+import { StatusMark } from './StatusMark';
+import { phaseShape } from './status';
 import './run-summary.css';
 
 /** Same virtual-time text as `fmt` in Panels.tsx (`mm:ss.mmm`). */
 const fmt = (msv: number) => `${String(Math.floor(msv / 60000)).padStart(2, '0')}:${(Math.floor(msv / 1000) % 60).toString().padStart(2, '0')}.${(msv % 1000).toString().padStart(3, '0')}`;
-
-const STATUS_LABEL: Record<RunStepPhase, string> = {
-  pending: '대기',
-  active: '진행 중',
-  done: '완료',
-  error: '오류',
-  skipped: '건너뜀',
-  stopped: '정지',
-};
 
 const dash = (ms: number | null) => (ms === null ? '-' : fmt(ms));
 
@@ -35,7 +28,7 @@ export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: Runtim
   const body = notStarted || !summary ? <p className="run-summary-empty">실행하면 단계별 시간이 여기에 나옵니다</p> : (
         <>
           <p className="run-summary-head">
-            {summary.aborted && <span className="run-summary-abort">오류로 중단 </span>}
+            {summary.aborted && <span className="run-summary-abort"><StatusMark status="error" />로 중단 </span>}
             총 {dash(summary.totalMs)} · {summary.finishedCount} / {summary.totalCount} 단계
             {summary.longest && <> · 가장 긴 단계 {summary.longest.name} {fmt(summary.longest.elapsedMs)}</>}
             {(summary.skippedCount > 0 || summary.stoppedCount > 0 || summary.steps.some((s) => (s.pass ?? 1) > 1 || s.lane)) && <> · 실행 {summary.executedCount} · 건너뜀 {summary.skippedCount}{summary.stoppedCount > 0 ? ` · 정지 ${summary.stoppedCount}` : ''}</>}
@@ -50,11 +43,13 @@ export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: Runtim
                   const longest = summary.longest?.stepId === step.stepId && summary.longest.elapsedMs === step.elapsedMs
                     && summary.steps.findIndex((s) => s.stepId === step.stepId && s.elapsedMs === step.elapsedMs) === i;
                   const where = [step.lane, step.pass != null ? `${step.pass}회` : ''].filter(Boolean).join(' · ');
+                  const shape = phaseShape(step.status);
+                  const tone = step.status === 'error' ? 'run-summary-error' : step.status === 'stopped' ? 'run-summary-stopped' : undefined;
                   return (
                     <tr key={`${step.stepId}:${i}`} className={`${stepLiveClass(step.status)}${longest ? ' is-longest' : ''}`} data-step-id={step.stepId}>
                       <td>{step.name}{longest && <span className="run-summary-tag">가장 김</span>}</td>
                       <td>{where || '—'}</td>
-                      <td className={step.status === 'error' ? 'run-summary-error' : step.status === 'stopped' ? 'run-summary-stopped' : undefined}>{STATUS_LABEL[step.status]}</td>
+                      <td><StatusMark status={shape.status} word={shape.word} wordAttrs={tone ? { className: tone } : undefined} /></td>
                       <td className="mono">{dash(step.startMs)}</td>
                       <td className="mono">{dash(step.endMs)}</td>
                       <td className="mono">{dash(step.elapsedMs)}</td>

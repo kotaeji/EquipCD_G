@@ -12,6 +12,7 @@ import { anchorLabels, cullOverlappingLabels, visibleFloorNames, type ScreenLabe
 import type { LocalPart } from '../scene/shapes';
 import { floorNameColors, materialFor, photoPartsFor, photoZoneColors, renderStyle, type StyledPart, type VisualStyleId } from '../scene/style';
 import { canUseWebGL } from './webgl';
+import { markerText, STATUS_COLOR, waitingLead } from './status';
 import { THEMES } from './viewSettings';
 
 export const PHOTO_NOTE = '3D 실사풍은 재질 · 조명 표현입니다. 실제 설비 형상이 아닙니다.';
@@ -24,6 +25,7 @@ export interface ScenePalette {
   solid: string;
   active: string;
   fault: string;
+  pending: string;
   beacon: string;
   material: string;
   flow: string;
@@ -42,8 +44,9 @@ function readPalette(): ScenePalette {
     zone: pick('--selected', fallback.selected),
     zoneLine: pick('--border', fallback.border),
     solid: pick('--success', fallback.success),
-    active: pick('--warning', fallback.warning),
-    fault: pick('--danger', fallback.danger),
+    active: pick('--status-active', STATUS_COLOR.light.active),
+    fault: pick('--status-error', STATUS_COLOR.light.error),
+    pending: pick('--status-pending', STATUS_COLOR.light.pending),
     beacon: pick('--warning', fallback.warning),
     material: pick('--warning', fallback.warning),
     flow: pick('--accent', fallback.accent),
@@ -341,9 +344,9 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
 
   for (const mat of scene.materials) {
     const box = new Mesh(new BoxGeometry(42, 30, 42), new MeshStandardMaterial({
-      color: mat.waiting ? palette.edge : palette.material,
+      color: mat.waiting ? palette.pending : palette.material,
       roughness: 0.45,
-      emissive: mat.waiting ? palette.edge : palette.material,
+      emissive: mat.waiting ? palette.pending : palette.material,
       emissiveIntensity: mat.waiting ? 0.05 : (photo ? 0.18 : 0),
       transparent: !!mat.waiting,
       opacity: mat.waiting ? 0.55 : 1,
@@ -397,8 +400,9 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   const kept = cullOverlappingLabels(boxes).filter((label) => label.kind !== 'unit');
   layer.replaceChildren(...kept.map((label) => {
     const el = document.createElement('div');
-    const marker = label.kind === 'marker' ? (label.text === '오류' ? ' fault' : ' active') : '';
-    el.className = `scene3d-label ${label.kind}${marker}`;
+    const marker = label.kind === 'marker' ? (label.text === markerText('fault') ? ' fault' : ' active') : '';
+    const waiting = label.kind === 'material' && label.text.startsWith(`${waitingLead()}`);
+    el.className = `scene3d-label ${label.kind}${marker}${waiting ? ' waiting' : ''}`;
     el.textContent = label.text;
     el.style.left = `${label.x + label.w / 2}px`;
     el.style.top = `${label.y + label.h}px`;

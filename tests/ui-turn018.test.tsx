@@ -132,7 +132,8 @@ describe('TURN-018 run summary UI', () => {
       globalThis.requestAnimationFrame = raf;
     }
     const box = summaryOf(u.el);
-    expect(box.querySelector('.run-summary-head')!.textContent).toBe('오류로 중단 총 00:03.100 · 3 / 12 단계 · 가장 긴 단계 S2 바코드 읽기 00:02.000');
+    expect(box.querySelector('.run-summary-abort')!.textContent).toContain('오류');
+    expect(box.querySelector('.run-summary-head')!.textContent).toContain('오류로 중단 총 00:03.100 · 3 / 12 단계 · 가장 긴 단계 S2 바코드 읽기 00:02.000');
     const rows = [...box.querySelectorAll('tbody tr')];
     expect(rows[2].textContent).toContain('오류');
     expect(rows[2].textContent).toContain('00:03.100');

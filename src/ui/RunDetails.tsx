@@ -3,6 +3,8 @@ import type { RuntimeState } from '../runtime/engine';
 import { formatMs } from '../scene/runInfo';
 import { fmtTime } from './Panels';
 import { RunSummary } from './RunSummary';
+import { StatusMark } from './StatusMark';
+import { piecePhaseStatus } from './status';
 import { Tabs } from './Tabs';
 import type { RunDetailsTab } from './viewSettings';
 
@@ -25,12 +27,6 @@ function RunLog({ rt }: { rt: RuntimeState | null }) {
   );
 }
 
-function pieceStatus(phase: string): string {
-  if (phase === 'done') return '완료';
-  if (phase === 'active') return '진행 중';
-  return '대기';
-}
-
 function PieceTable({ rt }: { rt: RuntimeState | null }) {
   const rows = rt?.pieces ?? [];
   if (rows.length < 2) return null;
@@ -47,7 +43,7 @@ function PieceTable({ rt }: { rt: RuntimeState | null }) {
               <td className="mono">{pc.fedAtMs == null ? '-' : formatMs(pc.fedAtMs)}</td>
               <td className="mono">{pc.exitedAtMs == null ? '-' : formatMs(pc.exitedAtMs)}</td>
               <td className="mono" data-piece-wait="">{formatMs(pc.waitMs + open)}</td>
-              <td>{pieceStatus(pc.phase)}{pc.wait ? ` · ${pc.wait.note}` : ''}</td>
+              <td><StatusMark status={piecePhaseStatus(pc.phase)} />{pc.wait ? ` · ${pc.wait.note}` : ''}</td>
             </tr>
           );
         })}

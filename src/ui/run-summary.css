@@ -22,5 +22,5 @@ table.grid.run-summary-table tr.is-longest td { background: var(--selected); }
   color: var(--warning);
   white-space: nowrap;
 }
-.run-summary-error { color: var(--danger); font-weight: 700; }
-.run-summary-stopped { font-weight: 700; }
+.run-summary-error { color: var(--status-error); font-weight: 700; }
+.run-summary-stopped { color: var(--status-assumption); font-weight: 700; }

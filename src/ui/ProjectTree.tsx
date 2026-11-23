@@ -9,6 +9,8 @@ import type { Project } from '../model/types';
 import chevronOpen from './slots/47069.svg?url';
 import chevronFolded from './slots/e5f85.svg?url';
 import { devName } from './labels';
+import { StatusMark } from './StatusMark';
+import type { StatusKey } from './status';
 
 export interface ProjectTreeProps {
   p: Project;
@@ -17,12 +19,14 @@ export interface ProjectTreeProps {
   onCollapsedChange: (ids: string[]) => void;
   onPick: (id: string) => void;
   subCount: (unitId: string) => number;
+  /** Device id → status chip. Missing ids show no chip. */
+  statusOf?: Record<string, StatusKey>;
 }
 
 /** "모두 접기" = Station and every Substation (with devices) folded; unfolding the Station then shows folded Substations. */
 export const collapseAllIds = (p: Project) => [...(p.units.length ? [p.equipment.id] : []), ...p.units.filter((u) => u.deviceIds.length > 0).map((u) => u.id)];
 
-export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick, subCount }: ProjectTreeProps) {
+export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick, subCount, statusOf }: ProjectTreeProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isCol = (id: string) => collapsed.includes(id);
   const setCol = (id: string, fold: boolean) => {
@@ -80,7 +84,7 @@ export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick
                 return <div key={d} role="treeitem" tabIndex={0} data-tree-id={d} aria-level={3} aria-selected={dsel} className={`tnode ${dsel ? 'sel' : ''}`}
                   style={{ paddingLeft: 44, fontSize: 12 }} onClick={(e) => own(e, () => onPick(d))}
                   onKeyDown={(e) => onKey(e, d, { expandable: false, open: false, parent: u.id, select: () => onPick(d) })}>
-                  ○ {devName(p, d)} <span className="muted">{findAsset(p.devices.find((x) => x.id === d)?.kind ?? '')?.name ?? '정의 없음'}</span></div>;
+                  {devName(p, d)} {statusOf?.[d] && <StatusMark status={statusOf[d]} compact />} <span className="muted">{findAsset(p.devices.find((x) => x.id === d)?.kind ?? '')?.name ?? '정의 없음'}</span></div>;
               })}
             </div>}
           </div>;

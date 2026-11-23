@@ -13,6 +13,7 @@ import { xsdStatus, AmlLoadStatus } from './Library';
 import { Fold } from './Fold';
 import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
 import { devName, sigName, unitName } from './labels';
+import { StatusMark } from './StatusMark';
 
 export function AmlResultSheet({ onCandidates }: { onCandidates: () => void }) {
   const lib = LOADED_LIBRARIES[0];
@@ -300,10 +301,10 @@ export function ExportSheet({ p, onDownload, onGuide }: {
         })}
       </div>}
       {ready.ok && needsAck && <div data-export-flags data-export-undetermined={flags.undetermined.length} data-export-assumption={flags.assumption.length}>
-        <p>미정 {flags.undetermined.length} · 가정 {flags.assumption.length}. 값은 파일에 그대로 적히고, 미정은 null 입니다.</p>
+        <p><StatusMark status="undetermined" /> {flags.undetermined.length} · <StatusMark status="assumption" /> {flags.assumption.length}. 값은 파일에 그대로 적히고, 미정은 null 입니다.</p>
         <ul className="export-flags">
-          {flags.undetermined.map((f) => <li key={`u:${f.place}:${f.id}:${f.label}`} data-flag="undetermined">{f.label}</li>)}
-          {flags.assumption.map((f) => <li key={`a:${f.place}:${f.id}:${f.label}`} data-flag="assumption">{f.label}</li>)}
+          {flags.undetermined.map((f) => <li key={`u:${f.place}:${f.id}:${f.label}`} data-flag="undetermined"><StatusMark status="undetermined" /> {f.label}</li>)}
+          {flags.assumption.map((f) => <li key={`a:${f.place}:${f.id}:${f.label}`} data-flag="assumption"><StatusMark status="assumption" /> {f.label}</li>)}
         </ul>
         <label className="export-ack">
           <input type="checkbox" checked={acked} onChange={(e) => setAckFor(e.target.checked ? flagSig : null)} />

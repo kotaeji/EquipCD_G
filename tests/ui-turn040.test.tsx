@@ -4,6 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { App } from '../src/ui/App';
+import { waitingLead } from '../src/ui/status';
 import { holdRuntimeClock } from './holdRuntimeClock';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -125,7 +126,8 @@ describe('TURN-040 run screen', () => {
     } finally { clock.restore(); }
     expect(u.el.querySelector('[data-material]')!.textContent).toContain('투입');
     expect(u.el.querySelectorAll('[data-piece]').length).toBeGreaterThanOrEqual(3);
-    expect(u.el.querySelector('[data-piece-status]')!.textContent === '대기' || u.el.textContent?.includes('대기')).toBe(true);
+    expect([...u.el.querySelectorAll('[data-piece-status]')].map((n) => n.textContent)).toContain('대기');
+    expect(u.el.querySelector('.rf-mat.is-waiting .rf-mat-label')!.textContent).toContain(waitingLead());
     const markers = u.el.querySelectorAll('.rf-mat');
     expect(markers.length).toBe(3);
     expect(u.el.querySelectorAll('.rf-mat.is-waiting').length).toBeGreaterThanOrEqual(1);

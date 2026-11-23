@@ -8,7 +8,9 @@ import { checkRunReadiness } from '../src/model/validate';
 import { parseProjectFile, serializeProject } from '../src/storage/fileFormat';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start } from '../src/runtime/engine';
 import { describeScene } from '../src/scene/describe';
+import { anchorLabels } from '../src/scene/labels';
 import { describeRunInfo, steadyCycleMs } from '../src/scene/runInfo';
+import { waitingLead } from '../src/ui/status';
 import { resolveBlocker } from '../src/ui/blockerTarget';
 
 function fed(p: Project, count: number, interval: number | null): Project {
@@ -285,6 +287,7 @@ describe('TURN-040 multi-piece feed', () => {
     const scene = describeScene(p, rt.state);
     expect(scene.materials.length).toBeGreaterThanOrEqual(2);
     expect(scene.materials.some((m) => m.waiting)).toBe(true);
+    expect(anchorLabels(scene, false, false).some((label) => label.text.startsWith(`${waitingLead()} ·`))).toBe(true);
     const info = describeRunInfo(p, rt.state);
     expect(info.materialText).toMatch(/투입 \d\/3 · 배출/);
     expect(info.pieceRows?.some((row) => row.statusLabel === '대기')).toBe(true);

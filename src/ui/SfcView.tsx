@@ -2,7 +2,9 @@
 import type { ReactNode } from 'react';
 import type { FlowNode, Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
+import { aggregateStepStatus } from '../runtime/runSummary';
 import { condLabel, flowBlockTitle } from './labels';
+import { phaseShape, STATUS, type StatusKey } from './status';
 
 const BOX_W = 180;
 const BOX_H = 28;
@@ -17,10 +19,13 @@ function stepName(p: Project, id: string): string {
     ?? id;
 }
 
-function box(key: string, label: string, x: number, y: number, hot: boolean, done: boolean): ReactNode {
-  return <g key={key}>
-    <rect x={x} y={y} width={BOX_W} height={BOX_H} rx={2} fill={hot ? 'var(--selected)' : done ? 'var(--grid)' : 'var(--panel)'} stroke="var(--text)" />
-    <text x={x + 8} y={y + 18} fontSize={FONT} fill="var(--text)">{label.slice(0, 20)}</text>
+function box(key: string, label: string, x: number, y: number, tone: StatusKey): ReactNode {
+  const def = STATUS[tone];
+  const hot = tone === 'active';
+  return <g key={key} data-sfc-status={tone} role="img" aria-label={`${def.word} ${label}`}>
+    <rect x={x} y={y} width={BOX_W} height={BOX_H} rx={2} fill={hot ? 'var(--selected)' : 'var(--panel)'} stroke={`var(${def.colorVar})`} strokeWidth={hot ? 2 : 1} />
+    <text x={x + 6} y={y + 18} fontSize={FONT} fill={`var(${def.colorVar})`}>{def.mark}</text>
+    <text x={x + 20} y={y + 18} fontSize={FONT} fill="var(--text)">{label.slice(0, 16)}</text>
   </g>;
 }
 
@@ -29,8 +34,8 @@ function arrowHead(x: number, y: number, dir: 'left' | 'up'): ReactNode {
   return <polygon points={`${x},${y} ${x - 4},${y + 8} ${x + 4},${y + 8}`} fill="var(--text)" />;
 }
 
-function layoutSeq(p: Project, nodes: FlowNode[], active: Set<string>, done: Set<string>): Block {
-  const parts = nodes.map((n) => layoutNode(p, n, active, done));
+function layoutSeq(p: Project, nodes: FlowNode[], tone: (id: string) => StatusKey): Block {
+  const parts = nodes.map((n) => layoutNode(p, n, tone));
   const w = Math.max(BOX_W, ...parts.map((b) => b.w), 40);
   const h = parts.reduce((sum, b) => sum + b.h, 0) + Math.max(0, parts.length - 1) * GAP;
   return {
@@ -48,13 +53,13 @@ function layoutSeq(p: Project, nodes: FlowNode[], active: Set<string>, done: Set
   };
 }
 
-function layoutNode(p: Project, n: FlowNode, active: Set<string>, done: Set<string>): Block {
+function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey): Block {
   if (n.kind === 'step') {
-    return { w: BOX_W, h: BOX_H, body: (x, y) => box(n.stepId, stepName(p, n.stepId), x, y, active.has(n.stepId), done.has(n.stepId)) };
+    return { w: BOX_W, h: BOX_H, body: (x, y) => box(n.stepId, stepName(p, n.stepId), x, y, tone(n.stepId)) };
   }
   if (n.kind === 'branch') {
-    const thenB = layoutSeq(p, n.then, active, done);
-    const elseB = layoutSeq(p, n.else, active, done);
+    const thenB = layoutSeq(p, n.then, tone);
+    const elseB = layoutSeq(p, n.else, tone);
     const gap = 36;
     const w = Math.max(BOX_W, thenB.w + elseB.w + gap);
     const h = 40 + Math.max(thenB.h, elseB.h) + 20;
@@ -91,11 +96,11 @@ function layoutNode(p: Project, n: FlowNode, active: Set<string>, done: Set<stri
       ? (p.substationSequences ?? []).filter((q) => q.unitId === n.unitId).map((q) => q.name)
       : n.lanes.map((_, idx) => `갈래 ${idx + 1}`);
     const laid = lanes.map((lane) => lane.length
-      ? layoutSeq(p, lane, active, done)
-      : { w: BOX_W, h: BOX_H, body: (x: number, y: number) => box(`empty-${n.id}`, '(빈 갈래)', x, y, false, false) });
+      ? layoutSeq(p, lane, tone)
+      : { w: BOX_W, h: BOX_H, body: (x: number, y: number) => box(`empty-${n.id}`, '(빈 갈래)', x, y, 'pending') });
     if (n.kind === 'substation') {
       laid.forEach((b, idx) => {
-        b.body = (x, y) => box(names[idx] ?? String(idx), names[idx] ?? '시퀀스', x, y, false, false);
+        b.body = (x, y) => box(names[idx] ?? String(idx), names[idx] ?? '시퀀스', x, y, 'pending');
         b.w = BOX_W;
         b.h = BOX_H;
       });
@@ -120,7 +125,7 @@ function layoutNode(p: Project, n: FlowNode, active: Set<string>, done: Set<stri
       },
     };
   }
-  const inner = layoutSeq(p, n.body, active, done);
+  const inner = layoutSeq(p, n.body, tone);
   const tag = n.kind === 'loop' ? `×${n.count}` : `최대 ${n.maxRetries}회`;
   const caption = n.kind === 'loop' ? flowBlockTitle('loop', n.name) : flowBlockTitle('retry', n.name);
   const extra = n.kind === 'loop' ? 44 : 84;
@@ -146,9 +151,8 @@ function layoutNode(p: Project, n: FlowNode, active: Set<string>, done: Set<stri
 
 export function SfcView({ p, rt }: { p: Project; rt: RuntimeState | null }) {
   const flow: FlowNode[] = p.sequence.flow ?? p.sequence.steps.map((s) => ({ kind: 'step', stepId: s.id }));
-  const active = new Set((rt?.steps ?? []).filter((s) => s.status === 'active').map((s) => s.stepId));
-  const done = new Set((rt?.steps ?? []).filter((s) => s.status === 'done').map((s) => s.stepId));
-  const laid = layoutSeq(p, flow, active, done);
+  const tone = (id: string) => phaseShape(aggregateStepStatus((rt?.steps ?? []).filter((s) => s.stepId === id)).phase).status;
+  const laid = layoutSeq(p, flow, tone);
   const h = Math.max(80, laid.h + 40);
   const w = Math.max(BOX_W + 48, laid.w + 48);
   return <svg width={w} height={h} role="img" aria-label="SFC 미리보기">
