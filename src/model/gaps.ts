@@ -9,6 +9,14 @@ export const GAP_KIND_LABEL: Record<GapKind, string> = {
   io: '부족 I/O', unit: '부족 Unit', axisSpec: '미정 축 사양', interference: '간섭 후보', timing: '타이밍 병목',
 };
 
+/** 「이동」 for a row that came from a finished run. Static rows leave this unset. */
+export type RunGapFix =
+  | { to: 'timeout'; actionId: string; deviceId: string }
+  | { to: 'duration'; actionId: string; deviceId: string }
+  | { to: 'unit'; unitId: string }
+  | { to: 'interval'; materialId: string }
+  | { to: 'step'; stepId: string };
+
 export interface Gap {
   id: string;
   kind: GapKind;
@@ -21,6 +29,10 @@ export interface Gap {
   target: { panel: 'configurator' | 'canvas' | 'material' | 'sequence'; objectId: string };
   safety: boolean; // 간섭/안전: 자동 종료 금지
   assumptions: string[];
+  /** True when this row was read from a finished run. It is not stored in the project file. */
+  fromRun?: boolean;
+  /** Where 「이동」 goes for a run row. */
+  fix?: RunGapFix;
 }
 
 export function analyzeGaps(p: Project): Gap[] {

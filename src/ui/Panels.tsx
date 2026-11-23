@@ -274,6 +274,30 @@ export function GapPanel({ p, gaps, analyzedRevision, onReanalyze, onGo, onRevie
   );
 }
 
+/** Finished-run rows. They are not part of the saved project and are not hidden by the static filters. */
+export function RunGapSection({ gaps, ran, stale, onGo }: { gaps: Gap[]; ran: boolean; stale: boolean; onGo: (g: Gap) => void }) {
+  return (
+    <div className="run-gap-block" data-run-gaps={gaps.length} data-run-stale={stale ? '1' : '0'}>
+      <h3>실행 결과</h3>
+      {!ran && <p data-run-gap-empty="">실행하면 여기에 실행 결과 Gap 이 나옵니다</p>}
+      {ran && stale && <p className="warn-note" data-run-gap-stale="">이전 rev 의 실행 결과</p>}
+      {ran && gaps.length === 0 && <p data-run-gap-none="">이 실행에서는 실행 결과 Gap 이 없습니다.</p>}
+      {gaps.length > 0 && <table className="grid plain">
+        <thead><tr><th>종류</th><th>항목</th><th>근거</th><th>수정 제안</th><th></th></tr></thead>
+        <tbody>
+          {gaps.map((g) => <tr key={g.id} data-run-gap={g.id} data-jump={`gap:${g.id}`}>
+            <td><span className="badge acc">실행 결과</span> {GAP_KIND_LABEL[g.kind]}</td>
+            <td>{g.title}</td>
+            <td>{g.evidence}{g.assumptions.length > 0 && <div className="muted">{g.assumptions.join(' · ')}</div>}</td>
+            <td>{g.suggestion}</td>
+            <td style={{ whiteSpace: 'nowrap' }}><button type="button" className="small" aria-label={`${g.title} 이동`} onClick={() => onGo(g)}>이동</button></td>
+          </tr>)}
+        </tbody>
+      </table>}
+    </div>
+  );
+}
+
 // ---------------- F4 Material & Flow ----------------
 export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean; edit: EditFn }) {
   const m = p.materials[0];
