@@ -44,7 +44,7 @@ describe('TURN-052 condition text on the screens', () => {
     const summary = u.el.querySelector('[data-cond-formula]')!;
     expect(summary.textContent).toContain('자재 위치 = S1 투입');
     const interlock = u.el.querySelector('[data-interlock="IL-01"] [data-interlock-summary]')!;
-    expect(interlock.textContent).toContain('STP-03.upDone = ON');
+    expect(interlock.textContent).toContain('STP-03.상승 완료 = ON');
     expect(interlock.textContent).not.toContain('==');
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]'));
     const branch = u.el.querySelector('tr[data-flow-kind="branch"] [data-cond-formula]')!;
@@ -54,7 +54,7 @@ describe('TURN-052 condition text on the screens', () => {
     await u.click(u.el.querySelector('.stepper [data-stepid="run"]'));
     const steps = u.el.querySelector('.run-steps')!;
     expect(steps.textContent).toContain('자재 위치 = S1 투입');
-    expect(steps.textContent).toContain('STP-02.upDone = ON 그리고 자재 위치 = S2 식별');
+    expect(steps.textContent).toContain('STP-02.상승 완료 = ON 그리고 자재 위치 = S2 식별');
   });
 
   it('AC8 AC9 AC10 a contradiction is listed, 이동 highlights the condition, and the badge counts it', async () => {

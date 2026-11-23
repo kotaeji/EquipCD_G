@@ -26,17 +26,17 @@ describe('TURN-052 condition formula', () => {
     const four: Condition = { kind: 'materialHeldBy', deviceId: picker.id };
     const five: Condition = { kind: 'undefined', note: '메모' };
     const loose: Condition = { kind: 'materialHeldBy', deviceId: null };
-    expect(conditionFormula(p, one)).toBe('CYL-01.fwdDone = ON');
-    expect(conditionFormula(p, { ...one, equals: false })).toBe('CYL-01.fwdDone = OFF');
+    expect(conditionFormula(p, one)).toBe('CYL-01.전진 완료 = ON');
+    expect(conditionFormula(p, { ...one, equals: false })).toBe('CYL-01.전진 완료 = OFF');
     expect(conditionFormula(p, two)).toBe('자재 위치 = S2 식별');
     expect(conditionFormula(p, three)).toBe('자재 상태 = 식별됨');
     expect(conditionFormula(p, four)).toBe('자재 잡음 = PCK-04');
     expect(conditionFormula(p, loose)).toBe('자재 잡음 = 없음');
     expect(conditionFormula(p, five)).toBe('미정(메모)');
     const line = conditionsFormula(p, [one, two]);
-    expect(line).toBe('CYL-01.fwdDone = ON 그리고 자재 위치 = S2 식별');
+    expect(line).toBe('CYL-01.전진 완료 = ON 그리고 자재 위치 = S2 식별');
     expect(conditionsFormula(p, [one, two])).toBe(line);
-    expect(conditionFormula(p, { kind: 'signal', signalId: 'gone', equals: true })).toBe('없는 신호 gone = ON');
+    expect(conditionFormula(p, { kind: 'signal', signalId: 'gone', equals: true })).toBe('⚠없음:gone = ON');
   });
 });
 

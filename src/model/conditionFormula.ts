@@ -11,14 +11,11 @@ function bit(equals: boolean): 'ON' | 'OFF' {
   return equals ? 'ON' : 'OFF';
 }
 
-/** Device and port, without the ON / OFF. Missing pieces stay readable. */
+/** Screen name of a signal, the same words `sigName` shows. Missing pieces stay readable. */
 export function signalHead(p: Project, signalId: string): string {
   const sig = p.signals.find((s) => s.id === signalId);
-  if (!sig) return `없는 신호 ${signalId}`;
-  const dev = p.devices.find((d) => d.id === sig.deviceId);
-  const devName = dev?.name ?? '장치 없음';
-  const port = sig.portKey ?? (sig.name.startsWith(`${devName}.`) ? sig.name.slice(devName.length + 1) : sig.name);
-  return `${devName}.${port}`;
+  if (!sig) return `⚠없음:${signalId}`;
+  return sig.name;
 }
 
 /** One condition. The same value always returns the same line. */
