@@ -1,6 +1,7 @@
 // Station sequence flow editor (TURN-022, names and moves in TURN-023). Blocks are indented and named in words, not by color alone.
 import { useEffect, useState } from 'react';
 import * as C from '../model/commands';
+import { armLabel, branchArms, MAX_BRANCH_ARMS } from '../model/flow';
 import type { Condition, FlowNode, Project } from '../model/types';
 import { DEFAULT_MAX_RETRIES } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
@@ -25,6 +26,10 @@ interface Row {
   stepId?: string;
   blockId?: string;
   arm?: Arm;
+  armOf?: 'branch' | 'parallel';
+  armCount?: number;
+  /** Set on a multi-way arm. Null is 「그 밖」. Omitted on a two-arm branch, which keeps the condition on the header. */
+  armCond?: Condition | null;
   node?: FlowNode;
 }
 
@@ -37,15 +42,26 @@ function flatten(p: Project, nodes: FlowNode[], depth: number): Row[] {
       continue;
     }
     if (n.kind === 'branch') {
-      out.push({ key: n.id, depth, kind: 'branch', title: flowBlockWord('branch'), blockId: n.id, node: n });
-      out.push({ key: `${n.id}:then`, depth: depth + 1, kind: 'arm', title: '참', blockId: n.id, arm: 'then' });
-      out.push(...flatten(p, n.then, depth + 2));
-      out.push({ key: `${n.id}:else`, depth: depth + 1, kind: 'arm', title: '거짓', blockId: n.id, arm: 'else' });
-      out.push(...flatten(p, n.else, depth + 2));
+      const arms = branchArms(n);
+      out.push({ key: n.id, depth, kind: 'branch', title: flowBlockWord('branch'), blockId: n.id, node: n, armCount: arms.length });
+      arms.forEach((arm, i) => {
+        out.push({
+          key: `${n.id}:arm${i}`,
+          depth: depth + 1,
+          kind: 'arm',
+          title: armLabel(arms.length, i),
+          blockId: n.id,
+          arm: i,
+          armOf: 'branch',
+          armCount: arms.length,
+          armCond: arms.length > 2 ? arm.cond : undefined,
+        });
+        out.push(...flatten(p, arm.body, depth + 2));
+      });
     } else if (n.kind === 'parallel') {
       out.push({ key: n.id, depth, kind: 'parallel', title: flowBlockWord('parallel'), blockId: n.id, node: n });
       n.lanes.forEach((lane, i) => {
-        out.push({ key: `${n.id}:lane${i}`, depth: depth + 1, kind: 'arm', title: `갈래 ${i + 1}`, blockId: n.id, arm: i });
+        out.push({ key: `${n.id}:lane${i}`, depth: depth + 1, kind: 'arm', title: `갈래 ${i + 1}`, blockId: n.id, arm: i, armOf: 'parallel' });
         out.push(...flatten(p, lane, depth + 2));
       });
     } else if (n.kind === 'loop') {
@@ -81,9 +97,9 @@ function condFrom(value: string): Condition {
   return { kind: 'undefined', note: '조건 없음' };
 }
 
-function CondSelect({ p, cond, disabled, onChange }: { p: Project; cond: Condition; disabled: boolean; onChange: (c: Condition) => void }) {
+function CondSelect({ p, cond, disabled, onChange, label = '조건' }: { p: Project; cond: Condition; disabled: boolean; onChange: (c: Condition) => void; label?: string }) {
   const states = p.materials[0]?.states ?? [];
-  return <select aria-label="조건" disabled={disabled} value={condValue(cond)} onChange={(e) => onChange(condFrom(e.target.value))} style={{ maxWidth: 280 }}>
+  return <select aria-label={label} disabled={disabled} value={condValue(cond)} onChange={(e) => onChange(condFrom(e.target.value))} style={{ maxWidth: 280 }}>
     <option value="undef">조건 없음</option>
     {p.signals.map((s) => <option key={`${s.id}:1`} value={`sig:${s.id}:1`}>{signalChoiceLabel(p, s.id, true)}</option>)}
     {p.signals.map((s) => <option key={`${s.id}:0`} value={`sig:${s.id}:0`}>{signalChoiceLabel(p, s.id, false)}</option>)}
@@ -180,14 +196,17 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
           const blockName = row.node && 'name' in row.node ? row.node.name : '';
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
           const live = row.stepId ? statusOf(rt, row.stepId) : null;
-          const jump = row.stepId ? `step:${row.stepId}` : row.blockId && row.kind !== 'arm' ? `flow:${row.blockId}` : undefined;
-          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
+          const armIndex = typeof row.arm === 'number' ? row.arm : null;
+          const jump = row.armOf === 'branch' && row.blockId && armIndex != null
+            ? `flow:${row.blockId}:arm:${armIndex}`
+            : row.stepId ? `step:${row.stepId}` : row.blockId && row.kind !== 'arm' ? `flow:${row.blockId}` : undefined;
+          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-flow-arm={armIndex ?? undefined} data-arm-count={row.armCount} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
             <td>{id && <label className="check-hit"><input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} /></label>}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
               {isBlockKind(row.kind) && <BlockName name={blockName} word={flowBlockWord(row.kind)} disabled={locked} onCommit={(v) => edit(C.renameFlowBlock(p, row.blockId!, v), '블록 이름')} />}
               {row.kind === 'step' && action && <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>{unitName(p, action.unitId)} / {devName(p, action.deviceId)}</div>}
-              {row.kind === 'arm' && <span className="muted"> {row.title === '참' ? '(조건이 참)' : row.title === '거짓' ? '(조건이 거짓)' : ''}</span>}
+              {row.kind === 'arm' && <span className="muted"> {row.title === '참' ? '(조건이 참)' : row.title === '거짓' ? '(조건이 거짓)' : row.title === '그 밖' ? '(앞 갈래가 모두 거짓)' : ''}</span>}
             </td>
             <td>
               {row.node?.kind === 'wait' && <div className="row" style={{ gap: 'var(--sp-1)' }}>
@@ -196,8 +215,13 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
                   onChange={(e) => edit(C.setWaitTimeout(p, row.blockId!, e.target.value === '' ? null : Number(e.target.value)), '기다림 타임아웃')} />s</label>
               </div>}
               {row.node?.kind === 'wait' && <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{condLabel(p, row.node.cond)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
-              {row.node?.kind === 'branch' && <CondSelect p={p} cond={row.node.cond} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '분기 조건')} />}
-              {row.node?.kind === 'branch' && <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{condLabel(p, row.node.cond)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
+              {row.node?.kind === 'branch' && row.armCount === 2 && <CondSelect p={p} cond={row.node.cond} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '분기 조건')} />}
+              {row.node?.kind === 'branch' && row.armCount === 2 && <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{condLabel(p, row.node.cond)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
+              {row.node?.kind === 'branch' && <button type="button" className="small" disabled={locked || (row.armCount ?? 0) >= MAX_BRANCH_ARMS} onClick={() => edit(C.addBranchArm(p, row.blockId!), '갈래 추가')}><IconLabel id="action-add">갈래 추가</IconLabel></button>}
+              {row.armOf === 'branch' && row.armCond && armIndex != null && <>
+                <CondSelect p={p} cond={row.armCond} disabled={locked} label={`${row.title} 조건`} onChange={(c) => edit(C.setBranchArmCondition(p, row.blockId!, armIndex, c), '갈래 조건')} />
+                <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{condLabel(p, row.armCond)}<ConditionMark p={p} site={`flow:${row.blockId}:arm:${armIndex}`} /></div>
+              </>}
               {row.node?.kind === 'retry' && <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{conditionFormula(p, row.node.until)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
               {row.node?.kind === 'retry' && <div className="row" style={{ gap: 'var(--sp-1)' }}>
                 <CondSelect p={p} cond={row.node.until} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '재시도 조건')} />
@@ -209,7 +233,8 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
               {row.node?.kind === 'parallel' && <span>갈래 {row.node.lanes.length}
                 <button type="button" className="small" disabled={locked || row.node.lanes.length >= 4} onClick={() => edit(C.addParallelLane(p, row.blockId!), '갈래 추가')}>갈래 추가</button>
               </span>}
-              {row.kind === 'arm' && typeof row.arm === 'number' && <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeParallelLane(p, row.blockId!, row.arm as number), '갈래 삭제')}>이 갈래 삭제</button>}
+              {row.armOf === 'parallel' && armIndex != null && <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeParallelLane(p, row.blockId!, armIndex), '갈래 삭제')}>이 갈래 삭제</button>}
+              {row.armOf === 'branch' && (row.armCount ?? 0) > 2 && armIndex != null && <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeBranchArm(p, row.blockId!, armIndex), '이 갈래 삭제')}><IconLabel id="delete">이 갈래 삭제</IconLabel></button>}
             </td>
             <td>{live ? <StatusMark status={phaseShape(live.phase).status} word={live.label} /> : ''}</td>
             <td style={{ whiteSpace: 'nowrap' }}>
@@ -220,6 +245,10 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
               </>}
               {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && row.kind !== 'wait' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}><IconLabel id="unwrap">블록 풀기</IconLabel></button>}
               {row.kind === 'wait' && row.blockId && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '신호 기다림 삭제')}>삭제</button>}
+              {row.armOf === 'branch' && (row.armCount ?? 0) > 2 && armIndex != null && <>
+                <button type="button" className="small" disabled={locked || armIndex === 0} onClick={() => edit(C.moveBranchArm(p, row.blockId!, armIndex, -1), '갈래 위로')}>위로</button>
+                <button type="button" className="small" disabled={locked || armIndex === (row.armCount ?? 1) - 1} onClick={() => edit(C.moveBranchArm(p, row.blockId!, armIndex, 1), '갈래 아래로')}>아래로</button>
+              </>}
               {row.kind === 'arm' && row.arm != null && selected.length > 0 && <button type="button" className="small" disabled={locked} onClick={() => { if (edit(C.moveFlowInto(p, selected[0], row.blockId!, row.arm as Arm), '갈래로 옮기기')) setPicked(selected.slice(1)); }}>선택 넣기</button>}
             </td>
           </tr>;

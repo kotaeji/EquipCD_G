@@ -1,4 +1,5 @@
 // UserView (user-local, NOT design data). Stored under a separate key; never serialized into project files.
+import { normalizeConfirmerName } from '../model/confirmationLog';
 import { VIEW_KEY, type KV } from '../storage/localStore';
 import { STEPS, type StepId } from './wizard';
 
@@ -62,6 +63,11 @@ export interface UserView {
   helpOpen: boolean;
   /** TURN-056: dotted glossary on titles, tabs, the step bar, and table headers. Default on. */
   termHints: boolean;
+  /**
+   * TURN-070: name written into a confirmation row. This browser only — the project file
+   * stores the name on each row, not this setting.
+   */
+  confirmerName: string;
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -70,8 +76,8 @@ export type PanelKey = 'explorer' | 'library' | 'canvas' | 'run';
 export type ExplorerTab = 'workspace' | 'project';
 /** TURN-009 layout tabs. The card board is the default; signal mode switches to the diagram. */
 export type LayoutTab = 'board' | 'diagram';
-/** TURN-035 tabs under the run canvas. The summary table is the default, and the panel starts closed. */
-export type RunDetailsTab = 'summary' | 'log' | 'signals';
+/** TURN-035 tabs under the run canvas. The summary table is the default, and the panel starts closed. TURN-064 adds the timing chart. */
+export type RunDetailsTab = 'summary' | 'log' | 'signals' | 'timing';
 export interface PanelWidths { explorer: number; library: number; canvas: number; run: number }
 export const PANEL_LIMITS: Record<PanelKey, { min: number; max: number; def: number }> = {
   explorer: { min: 180, max: 420, def: 224 },
@@ -116,7 +122,7 @@ function cleanPanels(v: unknown): PanelWidths {
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
   step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
   explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false, autoDraft: true,
-  paletteOpen: true, minimap: { layout: true, run: false }, helpOpen: false, termHints: true };
+  paletteOpen: true, minimap: { layout: true, run: false }, helpOpen: false, termHints: true, confirmerName: '' };
 
 function cleanMinimap(v: unknown): { layout: boolean; run: boolean } {
   const o = v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
@@ -152,7 +158,7 @@ export function loadView(kv: KV | null): UserView {
       explorerOpen: o.explorerOpen === false ? false : true,
       runStripFolded: o.runStripFolded === true,
       runDetailsOpen: o.runDetailsOpen === true,
-      runDetailsTab: o.runDetailsTab === 'log' || o.runDetailsTab === 'signals' ? o.runDetailsTab : 'summary',
+      runDetailsTab: o.runDetailsTab === 'log' || o.runDetailsTab === 'signals' || o.runDetailsTab === 'timing' ? o.runDetailsTab : 'summary',
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
       home: o.home === false ? false : true,
       // missing tourSeen (views saved before TURN-042) means this browser has not finished the tour.
@@ -164,7 +170,8 @@ export function loadView(kv: KV | null): UserView {
       minimap: cleanMinimap(o.minimap),
       // missing helpOpen stays closed. missing termHints stays on.
       helpOpen: o.helpOpen === true,
-      termHints: o.termHints === false ? false : true };
+      termHints: o.termHints === false ? false : true,
+      confirmerName: normalizeConfirmerName(typeof o.confirmerName === 'string' ? o.confirmerName : '') };
   } catch { return DEFAULT_VIEW; }
 }
 export function saveView(kv: KV | null, v: UserView) { if (!kv) return; try { kv.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* ignore */ } }

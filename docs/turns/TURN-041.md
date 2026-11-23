@@ -31,6 +31,7 @@
 | 흐름 블록 | `sequence.flow[]` | 분기(조건, 참, 거짓), 병렬(갈래), 반복(횟수, 본문), 재시도(조건, 최대 횟수, 본문), Substation 단계(유닛 id). 단계 노드는 `stepId` 만 |
 | Substation 시퀀스 | `substationSequences[]` | id, 이름, 유닛, 단계, 흐름. 단계 칸은 Station 단계와 같다 |
 | 확인된 Interlock | `interlocks[]` | `interlock-candidate` 이면서 `confirmed` 인 것만. id, 설명, 관련 id |
+| 확인 이력 (TURN-070) | `confirmationLog[]` (선택) | 이력이 있을 때만. 시각, 확인자, 대상 이름, 이전 → 이후, 대상 종류와 위치. 없으면 필드를 쓰지 않는다 |
 | 자재 | `excluded[]` | 본문에 넣지 않음. 까닭: 대상 자리 없음. 원본 모델에는 남는다 |
 | 확인되지 않은 Interlock | `excluded[]` | 까닭에 확인 상태(`unconfirmed` 등)를 적음 |
 | Interlock 이 아닌 제약 | `excluded[]` | 금지 · 전제. 이번 초안의 Interlock 자리가 아님 |
