@@ -41,6 +41,7 @@ export const COMMAND_ICONS = {
 
   undo: 'Undo2',
   redo: 'Redo2',
+  'undo-history': 'History',
   copy: 'Copy',
   paste: 'ClipboardPaste',
   duplicate: 'CopyPlus',
