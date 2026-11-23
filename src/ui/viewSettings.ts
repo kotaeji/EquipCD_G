@@ -52,6 +52,8 @@ export interface UserView {
   runDetailsTab: RunDetailsTab;
   /** TURN-042: this browser finished or skipped the first-run tour. View only — never in a project file. */
   tourSeen: boolean;
+  /** TURN-047: write a browser-local draft after edits. Default on. Never written into a project file. */
+  autoDraft: boolean;
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -105,7 +107,7 @@ function cleanPanels(v: unknown): PanelWidths {
 
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
   step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
-  explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false };
+  explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false, autoDraft: true };
 
 function cleanCollapsed(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -140,7 +142,9 @@ export function loadView(kv: KV | null): UserView {
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
       home: o.home === false ? false : true,
       // missing tourSeen (views saved before TURN-042) means this browser has not finished the tour.
-      tourSeen: o.tourSeen === true };
+      tourSeen: o.tourSeen === true,
+      // missing autoDraft (views saved before TURN-047) stays on. Only an explicit false turns drafts off.
+      autoDraft: o.autoDraft === false ? false : true };
   } catch { return DEFAULT_VIEW; }
 }
 export function saveView(kv: KV | null, v: UserView) { if (!kv) return; try { kv.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* ignore */ } }

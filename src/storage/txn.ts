@@ -31,8 +31,9 @@ export function hashText(s: string): string {
   return `${s.length}:${h.toString(16)}`;
 }
 const HASH_RE = /^\d{1,10}:[0-9a-f]{1,8}$/;
-/** the only keys a journal may touch */
-export const isDataKey = (k: string) => k === 'ecd.v1.index' || k === 'ecd.v1.workspaces' || /^ecd\.v1\.project\.[^\s]{1,200}$/.test(k);
+/** the only keys a journal may touch. Draft keys are TURN-047 and never share a transaction with the saved body. */
+export const isDataKey = (k: string) => k === 'ecd.v1.index' || k === 'ecd.v1.workspaces' || k === 'ecd.v1.drafts'
+  || /^ecd\.v1\.project\.[^\s]{1,200}$/.test(k) || /^ecd\.v1\.draft\.[^\s]{1,200}$/.test(k);
 const matches = (cur: string | null, after: string | null) => (after === null ? cur === null : cur !== null && hashText(cur) === after);
 const sumOf = (j: Omit<Journal, 'sum'>) => hashText(JSON.stringify([j.v, j.at, j.label, j.ops.map((o) => [o.key, o.before, o.beforeHash, o.after])]));
 

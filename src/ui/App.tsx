@@ -15,6 +15,7 @@ import { activeDeviceIds as sceneActiveIds, faultDeviceIds } from '../scene/desc
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
+import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDraft, readDraftList, saveDraft, sweepDrafts, workTimesLabel, type DraftMeta } from '../storage/drafts';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
 import { selectAll, SELECT_HINT } from './selectAll';
@@ -50,7 +51,19 @@ import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
 import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';
 
-interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; runRecord: Runtime | null; gaps: Gap[]; analyzedRevision: number | null }
+interface Tab {
+  key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; runRecord: Runtime | null; gaps: Gap[]; analyzedRevision: number | null;
+  /** Revision at open. A never-saved project is drafted only after the model moves past this. */
+  baselineRevision: number;
+  draftAt: string | null;
+  /** Revision last written by this session. Null until a draft write succeeds. */
+  draftedRevision: number | null;
+  /** Revision last attempted. Stops a failed write from retrying until the next edit. */
+  draftTriedRevision: number | null;
+  draftError: boolean;
+  /** True only after this session's timer wrote a draft. Opening an existing draft does not set it. */
+  sessionDraft: boolean;
+}
 
 /** Keep a finished run for Gap after a later model edit. Reset clears it. A new finish replaces it. */
 function keepRun(t: Tab, runtime: Runtime): Tab {
@@ -68,12 +81,29 @@ function restoreImportedAml(kv: KV | null) {
   if (restored || !kv) return; restored = true;
   try { for (const e of JSON.parse(kv.getItem(IMPORTED_AML_KEY) ?? '[]') as { file: string; text: string }[]) if (!LOADED_LIBRARIES.some((l) => l.file === e.file)) registerImported(e.text, e.file); } catch { /* ignore broken list */ }
 }
-function makeTab(p: Project, saved: { rev: number; at: string } | null = null): Tab {
+function makeTab(p: Project, saved: { rev: number; at: string } | null = null, draft: { at: string; revision: number } | null = null): Tab {
   const gaps = analyzeGaps(p);
   const review = reconcileGapReview(p.gapReview ?? {}, gaps, p.revision, new Set(gaps.filter((g) => g.safety).map((g) => g.id)));
   const proj = { ...p, gapReview: review };
-  return { key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, runRecord: null, gaps, analyzedRevision: p.revision };
+  return {
+    key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, runRecord: null, gaps, analyzedRevision: p.revision,
+    baselineRevision: saved?.rev ?? p.revision, draftAt: draft?.at ?? null, draftedRevision: draft?.revision ?? null, draftTriedRevision: draft?.revision ?? null, draftError: false, sessionDraft: false,
+  };
 }
+const runBusy = (t: Tab) => t.runtime?.state.status === 'running' || t.runtime?.state.status === 'paused';
+/** A draft is due when the open model is ahead of the saved copy, or ahead of the revision this tab was created at. */
+const draftDue = (t: Tab) => (t.savedRevision !== null ? t.history.present.revision > t.savedRevision : t.history.present.revision > t.baselineRevision);
+function bootDrafts(kv: KV | null): { drafts: DraftMeta[]; quarantine: QuarantineEntry[] } {
+  if (!kv) return { drafts: [], quarantine: [] };
+  const swept = sweepDrafts(kv);
+  let list = readQuarantine(kv);
+  for (const entry of swept.quarantine) {
+    if (list.some((q) => q.label === entry.label && q.raw === entry.raw)) continue;
+    list = quarantine(kv, entry, list);
+  }
+  return { drafts: readDraftList(kv), quarantine: list };
+}
+const noDraft = { draftAt: null, draftedRevision: null, draftTriedRevision: null, draftError: false, sessionDraft: false };
 
 /** Header undo / redo. A 24px stroke sits inside the 44px button; currentColor follows the button. */
 function HistoryIcon({ dir }: { dir: 'undo' | 'redo' }) {
@@ -106,7 +136,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   useState(() => { restoreImportedAml(kv); return 0; });
   const [libVersion, setLibVersion] = useState(0);
   const [view, setView] = useState<UserView>(() => loadView(kv));
-  const [qlist, setQlist] = useState<QuarantineEntry[]>(() => readQuarantine(kv));
+  const [draftBoot] = useState(() => bootDrafts(kv));
+  const [qlist, setQlist] = useState<QuarantineEntry[]>(() => draftBoot.quarantine);
+  const [drafts, setDrafts] = useState<DraftMeta[]>(() => draftBoot.drafts);
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
   const [modal, setModal] = useState<Modal | null>(null);
   // TURN-002: workspaces (browser-local management unit). Non-destructive migration on start; memory-only without storage.
@@ -195,6 +227,43 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const say = (msg: string, err = false) => setToast({ msg, err });
 
   const updTab = useCallback((key: string, f: (t: Tab) => Tab) => setTabs((ts) => ts.map((t) => (t.key === key ? f(t) : t))), []);
+  const tabsRef = useRef(tabs); tabsRef.current = tabs;
+  const kvRef = useRef(kv); kvRef.current = kv;
+  const autoRef = useRef(view.autoDraft); autoRef.current = view.autoDraft;
+  const recoveryArmed = useRef(false);
+  const draftTimers = useRef<number[]>([]);
+  const clearDraftTimers = () => { for (const id of draftTimers.current) window.clearTimeout(id); draftTimers.current = []; };
+  // TURN-047: one draft per tab, measured from the last edit. Running and paused tabs wait.
+  useEffect(() => {
+    if (!view.autoDraft) { clearDraftTimers(); return; }
+    const timers: number[] = [];
+    for (const t of tabs) {
+      const rev = t.history.present.revision;
+      if (runBusy(t) || !draftDue(t)) {
+        if (!draftDue(t) && t.sessionDraft && kv) {
+          const id = t.history.present.id;
+          const cleared = discardDraft(kv, id);
+          if (cleared.ok) { setDrafts(readDraftList(kv)); updTab(t.key, (x) => ({ ...x, ...noDraft })); }
+        }
+        continue;
+      }
+      if (t.draftTriedRevision === rev && (t.draftedRevision === rev || t.draftError)) continue;
+      const key = t.key;
+      timers.push(window.setTimeout(() => {
+        if (!autoRef.current) return;
+        const cur = tabsRef.current.find((x) => x.key === key);
+        const storage = kvRef.current;
+        if (!cur || cur.history.present.revision !== rev || runBusy(cur) || !draftDue(cur)) return;
+        if (!storage) { updTab(key, (x) => ({ ...x, draftError: true, draftTriedRevision: rev })); return; }
+        const written = saveDraft(storage, cur.history.present, new Date());
+        if (!written.ok) { updTab(key, (x) => ({ ...x, draftError: true, draftTriedRevision: rev })); return; }
+        updTab(key, (x) => (x.history.present.revision !== rev ? x : { ...x, draftAt: written.savedAt, draftedRevision: rev, draftTriedRevision: rev, draftError: false, sessionDraft: true }));
+        setDrafts(readDraftList(storage));
+      }, DRAFT_DELAY_MS));
+    }
+    draftTimers.current = timers;
+    return () => { for (const id of timers) window.clearTimeout(id); };
+  }, [tabs, view.autoDraft, kv, updTab]);
 
   /** Apply one model edit as one undo unit. Returns false if blocked/rejected. */
   const edit = (r: C.CmdResult, label: string): boolean => {
@@ -547,25 +616,108 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const r = W.saveProjectInWorkspace(kv, reg, reg.activeId, proj);
     if (!r.ok) { say(r.reason, true); return false; }
     setReg(r.reg);
-    updTab(target.key, (t) => ({ ...t, savedRevision: proj.revision, savedAt: r.savedAt }));
-    say(`브라우저 저장소에 저장됨 (Workspace 「${curWs.name}」, 저장 후 읽기 확인 완료)`);
+    clearDraftTimers();
+    const cleared = discardDraft(kv, proj.id);
+    setDrafts(readDraftList(kv));
+    updTab(target.key, (t) => ({ ...t, savedRevision: proj.revision, savedAt: r.savedAt, ...noDraft }));
+    say(`브라우저 저장소에 저장됨 (Workspace 「${curWs.name}」, 저장 후 읽기 확인 완료)${cleared.ok ? '' : ` 임시 저장은 지우지 못했습니다: ${cleared.reason}`}`);
     return true;
   };
   const doSave = () => { persistTab(tab); };
   /** project id saved in another workspace → save a copy with a new id here (the original tab content moves to the copy; nothing lost) */
   const saveAsCopy = () => {
     if (!kv) return;
+    const oldId = p.id;
     const copy = { ...p, id: `${p.id}-copy-${Date.now().toString(36)}` };
     const r = W.saveProjectInWorkspace(kv, reg, reg.activeId, copy);
     if (!r.ok) { say(`${r.reason} — 사본을 만들지 않았고 현재 탭은 그대로입니다`, true); return; }
     setReg(r.reg);
+    discardDraft(kv, oldId);
+    setDrafts(readDraftList(kv));
     const t = makeTab(copy, { rev: copy.revision, at: r.savedAt });
     setTabs((ts) => ts.map((x) => (x.key === tab.key ? t : x))); setActiveKey(t.key);
     say(`새 ID 사본 ${copy.id}로 저장했습니다 (원래 Workspace의 프로젝트는 그대로)`);
   };
+  const savedStamp = (id: string) => {
+    const entry = kv ? readIndex(kv).find((e) => e.id === id) : undefined;
+    return entry ? { revision: entry.revision, savedAt: entry.savedAt } : null;
+  };
+  const askRecovery = (tabKey: string, id: string, draft: DraftMeta, saved: { revision: number; savedAt: string }) => {
+    setModal({
+      title: '저장 안 된 변경이 있습니다',
+      body: <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>,
+      actions: [
+        { label: '복구', primary: true, focus: true, run: () => recoverInto(tabKey, id, saved) },
+        { label: '버리기', danger: true, run: () => dropDraft(id, tabKey) },
+      ],
+    });
+  };
+  const recoverInto = (tabKey: string, id: string, saved: { revision: number; savedAt: string }) => {
+    if (!kv) return;
+    const loaded = loadDraft(kv, id);
+    if (!loaded.ok) {
+      if (loaded.raw) setQlist((l) => quarantine(kv, { at: new Date().toLocaleString(), label: `draft:${id}`, raw: loaded.raw, errors: loaded.errors.map((e) => e.message) }, l));
+      discardDraft(kv, id);
+      setDrafts(readDraftList(kv));
+      say('임시 저장을 열지 못했습니다. 저장본을 유지합니다.', true);
+      return;
+    }
+    const meta = readDraftList(kv).find((d) => d.id === id);
+    const next = makeTab(loaded.project, { rev: saved.revision, at: saved.savedAt }, meta ? { at: meta.savedAt, revision: loaded.project.revision } : null);
+    setTabs((ts) => ts.map((t) => (t.key === tabKey ? { ...next, key: tabKey } : t)));
+    setActiveKey(tabKey); setSelection([]); setView((v) => ({ ...v, home: false }));
+  };
+  const dropDraft = (id: string, tabKey?: string) => {
+    clearDraftTimers();
+    if (!kv) return;
+    const r = discardDraft(kv, id);
+    if (!r.ok) { say(r.reason, true); return; }
+    setDrafts(readDraftList(kv));
+    if (tabKey) updTab(tabKey, (t) => ({ ...t, ...noDraft }));
+  };
+  const openDraft = (id: string) => {
+    if (!kv) return;
+    const loaded = loadDraft(kv, id);
+    if (!loaded.ok) {
+      if (loaded.raw) setQlist((l) => quarantine(kv, { at: new Date().toLocaleString(), label: `draft:${id}`, raw: loaded.raw, errors: loaded.errors.map((e) => e.message) }, l));
+      discardDraft(kv, id);
+      setDrafts(readDraftList(kv));
+      say('임시 저장을 열지 못했습니다.', true);
+      return;
+    }
+    const meta = drafts.find((d) => d.id === id) ?? readDraftList(kv).find((d) => d.id === id);
+    const draftInfo = { at: meta?.savedAt ?? new Date().toISOString(), revision: loaded.project.revision };
+    const existing = tabs.find((t) => t.history.present.id === id);
+    const untouched = !!existing && existing.history.past.length === 0 && existing.history.future.length === 0 && existing.savedRevision === null && existing.history.present.revision === existing.baselineRevision;
+    if (existing && !untouched) { setActiveKey(existing.key); setView((v) => ({ ...v, home: false })); return; }
+    const next = makeTab(loaded.project, null, draftInfo);
+    if (existing && untouched) {
+      setTabs((ts) => ts.map((t) => (t.key === existing.key ? { ...next, key: existing.key } : t)));
+      setActiveKey(existing.key);
+    } else {
+      setTabs((ts) => [...ts, next]); setActiveKey(next.key);
+    }
+    setSelection([]); setView((v) => ({ ...v, home: false }));
+  };
+  useEffect(() => {
+    if (recoveryArmed.current) return;
+    recoveryArmed.current = true;
+    const t = tabsRef.current[0];
+    if (!t || !kv) return;
+    const saved = savedStamp(t.history.present.id);
+    const draft = drafts.find((d) => d.id === t.history.present.id);
+    if (!draft || !saved || !draftOffersRecovery(draft, saved)) return;
+    askRecovery(t.key, t.history.present.id, draft, saved);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const openSaved = (id: string) => {
     const existing = tabs.find((t) => t.history.present.id === id);
-    if (existing) { setActiveKey(existing.key); setView((v) => ({ ...v, home: false })); say('이미 열린 프로젝트입니다 — 기존 탭으로 이동했습니다'); return; }
+    const saved = savedStamp(id);
+    const draft = drafts.find((d) => d.id === id);
+    if (existing) {
+      setActiveKey(existing.key); setView((v) => ({ ...v, home: false }));
+      if (draft && saved && draftOffersRecovery(draft, saved)) { askRecovery(existing.key, id, draft, saved); return; }
+      say('이미 열린 프로젝트입니다 — 기존 탭으로 이동했습니다'); return;
+    }
     const r = loadProject(kv!, id);
     if (!r.ok) {
       if (r.raw) setQlist((l) => quarantine(kv, { at: new Date().toLocaleString(), label: `saved:${id}`, raw: r.raw, errors: r.errors.map((e) => e.message) }, l));
@@ -574,7 +726,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const entry = readIndex(kv!).find((e) => e.id === id);
     const t = makeTab(r.project, { rev: r.project.revision, at: entry?.savedAt ?? '' });
     setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]); setView((v) => ({ ...v, home: false }));
-    if (r.warnings.length) say(`경고 ${r.warnings.length}: ${r.warnings[0].message}`);
+    if (draft && saved && draftOffersRecovery(draft, { revision: r.project.revision, savedAt: saved.savedAt })) askRecovery(t.key, id, draft, { revision: r.project.revision, savedAt: saved.savedAt });
+    else if (r.warnings.length) say(`경고 ${r.warnings.length}: ${r.warnings[0].message}`);
   };
   const openExplorerTab = (id: ExplorerTab) => {
     setView((v) => (v.explorerTab === id && v.explorerOpen ? v : { ...v, explorerTab: id, explorerOpen: true }));
@@ -637,7 +790,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (t.savedRevision !== t.history.present.revision) setModal({ title: '저장하지 않은 변경', body: <p>{t.history.present.name}에 저장되지 않은 변경이 있습니다. 저장에 성공한 뒤에만 탭을 닫습니다. 버리기는 이 확인에서만 적용됩니다.</p>, actions: [
       { label: '취소 (변경 유지)', focus: true, run: () => {} },
       { label: '저장 후 닫기', primary: true, run: () => { if (persistTab(t)) doClose(); } },
-      { label: '저장하지 않고 닫기', danger: true, run: doClose },
+      { label: '저장하지 않고 닫기', danger: true, run: () => { dropDraft(t.history.present.id); doClose(); } },
     ] });
     else doClose();
   };
@@ -852,7 +1005,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       <p className="err-text">이 브라우저 저장소에서 영구 삭제합니다. <b>되돌릴 수 없습니다</b>(Undo 대상 아님). 필요하면 먼저 JSON으로 내보내세요.</p></div>,
       actions: [{ label: '취소', focus: true, run: () => {} },
         { label: 'JSON 내보내기', run: () => { const raw = kv.getItem(`ecd.v1.project.${id}`); if (raw) download(`${e.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, raw); setTimeout(() => deleteSaved(id), 0); } },
-        { label: '영구 삭제', danger: true, run: () => { const r = W.deleteSavedProject(kv, reg, id); if (!r.ok) { say(r.reason, true); return; } setReg(r.reg); say(`「${e.name}」을(를) 삭제했습니다`); } }] }); };
+        { label: '영구 삭제', danger: true, run: () => { const r = W.deleteSavedProject(kv, reg, id); if (!r.ok) { say(r.reason, true); return; } dropDraft(id); setReg(r.reg); say(`「${e.name}」을(를) 삭제했습니다`); } }] }); };
   /** N03: switching projects while this project runs → pause its run first (state kept, no auto resume). */
   const switchTab = (key: string) => {
     if (key !== tab.key) {
@@ -865,6 +1018,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const savedList = kv ? W.listProjects(kv, reg, reg.activeId) : [];
   const savedById = new Map(savedList.map((e) => [e.id, e]));
+  const unsavedDrafts = drafts.filter((d) => !savedById.has(d.id));
+  const savedForLine = tab.savedRevision !== null && tab.savedAt ? { revision: tab.savedRevision, savedAt: tab.savedAt } : null;
+  const draftMeta = drafts.find((d) => d.id === p.id) ?? null;
+  const draftShown = tab.draftAt ?? (draftMeta && savedForLine && draftOffersRecovery(draftMeta, savedForLine) ? draftMeta.savedAt : null);
+  const workTimes = workTimesLabel(tab.savedAt, tab.draftError ? null : draftShown, tab.draftError);
   const projectRows: ProjectListRow[] = [
     ...tabs.map((t) => {
       const id = t.history.present.id;
@@ -992,6 +1150,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <button type="button" className="work-crumb" onClick={() => openExplorerTab('project')}>Project {p.name}</button>
         <span className="work-rev">rev {p.revision}</span>
         <span className={dirty ? 'save-chip dirty' : 'save-chip saved'}>{dirty ? '● 저장 안 됨' : '저장됨'}</span>
+        {workTimes && <span className="work-times">{workTimes}</span>}
       </div>
       <div className="stepper" role="navigation" aria-label="단계" data-tour="stepbar">
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
@@ -1056,6 +1215,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <button className="btn-main secondary" onClick={() => newProject('flow')}>흐름 예제</button></div>
           </section>
         </div>
+        {unsavedDrafts.length > 0 && <h2>저장 안 된 작업</h2>}
+        {unsavedDrafts.map((d) => <div key={d.id} className="home-recent" data-unsaved-draft={d.id}>
+          <div><b>{d.name}</b><div className="muted">rev {d.revision} · 임시 저장 {formatClock(d.savedAt)}</div></div>
+          <button type="button" className="btn-main danger" aria-label={`${d.name} 임시 저장 버리기`} onClick={() => dropDraft(d.id)}>버리기</button>
+          <button type="button" className="btn-main primary" aria-label={`${d.name} 임시 저장 열기`} onClick={() => openDraft(d.id)}>열기</button>
+        </div>)}
         <h2>최근 프로젝트</h2>
         {savedList.length === 0 && <p className="muted">이 Workspace에 저장된 프로젝트가 없습니다. 예시는 저장 목록이 아닙니다.</p>}
         {savedList.slice(0, 6).map((e) => <div key={e.id} className="home-recent">
@@ -1382,6 +1547,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.msg}</div>}
       {viewOpen && <StaticModalFrame title="보기 설정" style={style} onCancel={() => setViewOpen(false)}>
         <p className="muted">보기만 바꿉니다. 모델, rev, 실행, 선택, 입력은 그대로입니다. 보관된 이전 팔레트는 고를 수 없습니다.</p>
+        <label className="draft-toggle"><input type="checkbox" checked={view.autoDraft} onChange={(e) => setView((v) => ({ ...v, autoDraft: e.target.checked }))} />자동 임시 저장</label>
+        <p className="muted">켜 두면 마지막 편집 후 5초 뒤에 이 브라우저에만 임시 저장합니다. 「저장」한 내용과 저장 목록은 바꾸지 않습니다.</p>
         <div className="row" style={{ gap: 8 }}>{visualToggle}</div>
         <div className="row" style={{ gap: 8 }}>
           <button type="button" className="btn-main secondary" onClick={() => {
