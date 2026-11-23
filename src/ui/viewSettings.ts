@@ -54,6 +54,10 @@ export interface UserView {
   tourSeen: boolean;
   /** TURN-047: write a browser-local draft after edits. Default on. Never written into a project file. */
   autoDraft: boolean;
+  /** TURN-048: stage-2 palette. This browser only — never written into a project file. */
+  paletteOpen: boolean;
+  /** TURN-048: minimap per drawing. Layout starts open, the run drawing starts closed. */
+  minimap: { layout: boolean; run: boolean };
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -107,7 +111,13 @@ function cleanPanels(v: unknown): PanelWidths {
 
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
   step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
-  explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false, autoDraft: true };
+  explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false, autoDraft: true,
+  paletteOpen: true, minimap: { layout: true, run: false } };
+
+function cleanMinimap(v: unknown): { layout: boolean; run: boolean } {
+  const o = v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
+  return { layout: o.layout === false ? false : true, run: o.run === true };
+}
 
 function cleanCollapsed(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -144,7 +154,10 @@ export function loadView(kv: KV | null): UserView {
       // missing tourSeen (views saved before TURN-042) means this browser has not finished the tour.
       tourSeen: o.tourSeen === true,
       // missing autoDraft (views saved before TURN-047) stays on. Only an explicit false turns drafts off.
-      autoDraft: o.autoDraft === false ? false : true };
+      autoDraft: o.autoDraft === false ? false : true,
+      // TURN-048: a missing palette stays open. A missing minimap is open on the layout and closed on the run drawing.
+      paletteOpen: o.paletteOpen === false ? false : true,
+      minimap: cleanMinimap(o.minimap) };
   } catch { return DEFAULT_VIEW; }
 }
 export function saveView(kv: KV | null, v: UserView) { if (!kv) return; try { kv.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* ignore */ } }

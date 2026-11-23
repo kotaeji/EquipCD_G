@@ -206,6 +206,29 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const subUnitId = (p.units.some((u) => u.id === subUnitPref) ? subUnitPref : selUnit ?? p.units.find((u) => (p.substationSequences ?? []).some((q) => q.unitId === u.id))?.id ?? p.units[0]?.id ?? '');
 
   useEffect(() => { saveView(kv, view); }, [kv, view]);
+  const paletteRef = useRef<HTMLDivElement>(null);
+  const [paletteHidden, setPaletteHidden] = useState(0);
+  useEffect(() => {
+    const el = paletteRef.current;
+    const fold = el?.closest('.palette-fold') as HTMLElement | null;
+    if (!el || !fold) { setPaletteHidden(0); return; }
+    const count = () => {
+      const box = fold.getBoundingClientRect();
+      if (box.height < 1 || fold.scrollHeight <= fold.clientHeight + 1) { setPaletteHidden(0); return; }
+      let n = 0;
+      for (const item of el.querySelectorAll('.pi')) {
+        const r = item.getBoundingClientRect();
+        if (r.height < 1) continue;
+        if (r.top < box.top - 1 || r.bottom > box.bottom + 1) n += 1;
+      }
+      setPaletteHidden((v) => (v === n ? v : n));
+    };
+    count();
+    const ro = new ResizeObserver(count);
+    ro.observe(fold);
+    fold.addEventListener('scroll', count);
+    return () => { ro.disconnect(); fold.removeEventListener('scroll', count); };
+  }, [step, view.paletteOpen, view.layoutTab]);
   useEffect(() => { if (wsInit?.warnings.length) say(wsInit.warnings.join(' / '), true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onHistory?.(tab.history); }, [onHistory, tab.history]);
   // N03: a project that is not active never keeps running in the background → pause (state kept, no auto resume)
@@ -1166,15 +1189,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const scene3d = view.runView === '3d' ? presentScene(p, rt, equipmentMotion) : null;
   const activeDeviceIds = runningIds;
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
+  const onMinimapChange = (frame: 'layout' | 'run', open: boolean) => setView((v) => (v.minimap[frame] === open ? v : { ...v, minimap: { ...v.minimap, [frame]: open } }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
   const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
   const canvasEl = <Canvas project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} confirmDelete={confirmDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
@@ -1312,8 +1336,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
-          <Fold className="palette-fold" summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span></>}>
-            <div className="palette">
+          <Fold className="palette-fold" open={view.paletteOpen} onToggle={(open) => setView((v) => (v.paletteOpen === open ? v : { ...v, paletteOpen: open }))} summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span>{paletteHidden > 0 && <span className="palette-more" data-palette-more={paletteHidden}>+{paletteHidden}개 더</span>}</>}>
+            <div className="palette" ref={paletteRef}>
               <div className="pi" data-jump="palette-unit" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
               {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
             </div>
