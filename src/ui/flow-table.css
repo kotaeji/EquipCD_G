@@ -1,0 +1,21 @@
+/* TURN-073. Flow-table grip and the line that marks a drop. */
+.flow-mark { white-space: nowrap; }
+.flow-grip {
+  padding: 0 var(--sp-1);
+  margin-right: var(--sp-1);
+  cursor: grab;
+}
+.flow-grip[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.flow-table[data-flow-drag="1"] { cursor: grabbing; user-select: none; }
+.flow-drop-line {
+  position: fixed;
+  height: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 60;
+}
+.flow-drag-reason {
+  margin: var(--sp-1) 0;
+  font-size: var(--fs-xs);
+  color: var(--danger);
+}

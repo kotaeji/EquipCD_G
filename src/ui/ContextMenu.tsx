@@ -1,20 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
-import { clampMenu, MENU_WIDTH, menuHeight, type MenuAction, type MenuItem, type MenuKind } from './contextMenuModel';
+import { clampMenu, MENU_WIDTH, menuHeight } from './contextMenuModel';
 import { IconLabel } from './Icon';
 import { menuIconId } from './icons';
 
-interface Props {
+interface MenuEntry<A extends string> {
+  id: A;
+  label: string;
+  shortcut?: string;
+  danger?: boolean;
+  disabled?: boolean;
+  reason?: string;
+  separatorBefore?: boolean;
+}
+
+interface Props<A extends string> {
   x: number;
   y: number;
-  kind: MenuKind;
-  items: MenuItem[];
+  kind: string;
+  items: MenuEntry<A>[];
   returnFocus: HTMLElement | null;
-  onRun: (id: MenuAction) => void;
+  onRun: (id: A) => void;
   onClose: () => void;
 }
 
 /** Command menu. Arrow keys move, Enter runs, Esc and an outside press close. Focus returns on dismiss. */
-export function ContextMenu({ x, y, kind, items, returnFocus, onRun, onClose }: Props) {
+export function ContextMenu<A extends string>({ x, y, kind, items, returnFocus, onRun, onClose }: Props<A>) {
   const ref = useRef<HTMLDivElement>(null);
   const acted = useRef(false);
   const estimated = menuHeight(items);
