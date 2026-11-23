@@ -1713,9 +1713,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
       {!guide && !view.home && step === 'library' && <div className="workspace ws-full">
         <Sub items={[['cards', '에셋 라이브러리'], ['input', '입력 후보표 (F1)'], ['aml', 'AML 입출력'], ['extract', '자료 입력']]} />
-        {sub === 'input' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="입력 후보표" /></h1><p className="muted">후보는 확인 전에 모델에 들어가지 않습니다.</p><section className="sheet wide"><InputHubPanel p={p} locked={locked} edit={edit} /></section></div>
+        {sub === 'input' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="입력 후보표" /></h1><p className="muted">후보는 확인 전에 모델에 들어가지 않습니다.</p><section className="sheet wide"><InputHubPanel p={p} locked={locked} edit={edit} onDownload={download} /></section></div>
           : sub === 'aml' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="AML 입출력 결과" /></h1><AmlResultSheet onCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /></div>
-          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="자료 입력" /></h1><ExtractSheet p={p} locked={locked} onCandidates={(next) => edit({ ok: true, project: next }, 'XLSX 후보')} onOpenCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /><Fold className="fold-panel" summary="형식 안내"><ExtractPanel /></Fold></div>
+          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="자료 입력" /></h1><ExtractSheet p={p} locked={locked} onCandidates={(next) => edit({ ok: true, project: next }, '자료 후보')} onOpenCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /><Fold className="fold-panel" summary="형식 안내"><ExtractPanel /></Fold></div>
           : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion} detail={libDetail} setDetail={setLibDetail}
             detailWidth={view.panels.library} onDetailWidth={(n) => setPanel('library', n)}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}

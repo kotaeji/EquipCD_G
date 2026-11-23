@@ -26,6 +26,7 @@ import { SfcView } from './SfcView';
 import { StatusMark } from './StatusMark';
 import { exportStatusMark, gapJudgementMark, phaseShape } from './status';
 import { Badge, QtyInput, TextInput } from './widgets';
+import { IoListExportButton } from './IoListExportButton';
 
 const fmt = (msv: number) => `${String(Math.floor(msv / 60000)).padStart(2, '0')}:${(Math.floor(msv / 1000) % 60).toString().padStart(2, '0')}.${(msv % 1000).toString().padStart(3, '0')}`;
 
@@ -352,7 +353,7 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
 }
 
 // ---------------- F1 Input Hub ----------------
-export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean; edit: EditFn }) {
+export function InputHubPanel({ p, locked, edit, onDownload }: { p: Project; locked: boolean; edit: EditFn; onDownload?: (name: string, text: string, mime?: string) => void }) {
   const [targetKind, setTargetKind] = useState<'unit' | 'device'>('device');
   const [name, setName] = useState('');
   const [kind, setKind] = useState<AssetKind>('sensor');
@@ -367,7 +368,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
   return (
     <div className="cols">
       <div style={{ width: 300, borderRight: '1px solid var(--border)', paddingRight: 8, overflow: 'auto' }}>
-        <div className="row"><Badge kind="ok">경로 A 직접 입력</Badge><Badge>경로 B XLSX는 자료 입력</Badge></div>
+        <div className="row"><Badge kind="ok">경로 A 직접 입력</Badge><Badge>경로 B XLSX·CSV는 자료 입력</Badge></div>
         <div className="row"><Badge>경로 C VC/USD 미구현</Badge><Badge>유사 장비 템플릿: 5공정 예제만</Badge></div>
         <div className="row"><label>대상</label><select value={targetKind} onChange={(e) => setTargetKind(e.target.value as 'unit' | 'device')}><option value="device">Device</option><option value="unit">Unit</option></select></div>
         <div className="row"><label>이름</label><input data-jump="candidate-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="예) SEN-02" /></div>
@@ -380,6 +381,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
         <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 6 }}>후보는 사람이 확인하기 전 모델에 반영되지 않습니다.</div>
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
+        <div className="row" data-io-export-row=""><IoListExportButton p={p} onDownload={onDownload} /></div>
         <table className="grid"><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th><Terms text="소속 Unit" /></th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
           <tbody>{p.candidates.map((c) => <tr key={c.id} data-jump={`candidate:${c.id}`} data-candidate-kind={c.targetKind} data-already={c.alreadyExists ? 'true' : 'false'}>
             <td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{c.id}</td><td>{c.targetKind}</td>
@@ -446,7 +448,7 @@ export function LabPanel() {
 export function ExtractPanel() {
   return <div className="notice" data-screen-note="S14">
     <b>자료 입력</b>
-    <p>XLSX(IO 리스트 · 사양표)는 이 화면에서 읽어 후보로 올립니다. PDF, DWG, USD는 추출하지 않습니다.</p>
+    <p>XLSX와 CSV(IO 리스트 · 사양표), 그리고 엑셀에서 복사한 표는 이 화면에서 읽어 후보로 올립니다. PDF, DWG, USD는 추출하지 않습니다.</p>
     <p>파일은 이 브라우저 안에서만 읽습니다. 업로드와 외부 전송은 없습니다. 확인한 후보만 모델에 반영됩니다.</p>
   </div>;
 }
