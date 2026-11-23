@@ -1,5 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { buildSampleProject } from '../src/model/sample';
+import { clearLegendViewport, unitNameScreen } from '../src/ui/Canvas';
 import {
   LABEL_NEAR_DISTANCE,
   LABEL_UNIT_MIN_PX,
@@ -192,5 +194,25 @@ describe('TURN-054 diagram labels', () => {
       { id: 'far', kind: 'device', x: 200, y: 0, w: 60, h: 16, text: 'CNV-05' },
     ]);
     expect(kept.map((label) => label.id).sort()).toEqual(['far', 'u']);
+  });
+});
+
+describe('TURN-054 legend clearance', () => {
+  it('the first fit keeps every unit name clear of the legend', () => {
+    const units = buildSampleProject().units.map((u) => ({ x: u.layout.x, y: u.layout.y, w: u.layout.w }));
+    const legend = { x: 15, y: 15, w: 435, h: 28 };
+    const zoom = 0.5;
+    const vp = { x: 52 - units[0].x * zoom, y: 20 - units[0].y * zoom, zoom };
+    const hits = (view: typeof vp) => units.filter((unit) => {
+      const head = unitNameScreen(unit, view);
+      return head.x < legend.x + legend.w && head.x + head.w > legend.x
+        && head.y < legend.y + legend.h && head.y + head.h > legend.y;
+    });
+    expect(hits(vp).length).toBeGreaterThan(0);
+    const next = clearLegendViewport(vp, units, legend);
+    expect(hits(next)).toEqual([]);
+    expect(next.x).toBe(vp.x);
+    expect(next.zoom).toBe(zoom);
+    expect(clearLegendViewport(vp, units, { x: 0, y: 0, w: 0, h: 0 })).toEqual(vp);
   });
 });

@@ -111,6 +111,6 @@
   font-weight: 600;
   line-height: 32px;
 }
-.run3d-head > button { order: -1; flex: 0 0 auto; }
+.run3d-head > button { flex: 0 0 auto; }
 .scene3d-label { pointer-events: auto; }
 .scene3d-label.is-culled { opacity: 0; }

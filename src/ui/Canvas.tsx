@@ -120,6 +120,58 @@ export function leftAlignedViewport(vp: { x: number; y: number; zoom: number }, 
   return { x: leftInset - leftmostX * vp.zoom, y: vp.y, zoom: vp.zoom };
 }
 
+/** Unit name lives in this strip at the top of the unit box. */
+export const UNIT_NAME_H = 28;
+/** Gap kept between the legend's bottom edge and a unit name. */
+export const LEGEND_NAME_GAP = 4;
+
+export interface NameBox { x: number; y: number; w: number }
+export interface ScreenRect { x: number; y: number; w: number; h: number }
+
+/** Screen rectangle of a unit's name strip. */
+export function unitNameScreen(unit: NameBox, vp: { x: number; y: number; zoom: number }): ScreenRect {
+  return {
+    x: unit.x * vp.zoom + vp.x,
+    y: unit.y * vp.zoom + vp.y,
+    w: unit.w * vp.zoom,
+    h: UNIT_NAME_H * vp.zoom,
+  };
+}
+
+function screensOverlap(a: ScreenRect, b: ScreenRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/**
+ * Move the viewport down until no unit name meets the legend.
+ * Zoom and x stay. A legend with no size (no layout yet) is left alone.
+ */
+export function clearLegendViewport(
+  vp: { x: number; y: number; zoom: number },
+  units: readonly NameBox[],
+  legend: ScreenRect,
+): { x: number; y: number; zoom: number } {
+  if (!(vp.zoom > 0) || legend.w < 1 || legend.h < 1) return vp;
+  let dy = 0;
+  for (const unit of units) {
+    const head = unitNameScreen(unit, vp);
+    if (!screensOverlap(head, legend)) continue;
+    dy = Math.max(dy, legend.y + legend.h + LEGEND_NAME_GAP - head.y);
+  }
+  if (dy <= 0) return vp;
+  return { ...vp, y: vp.y + dy };
+}
+
+function legendInPane(host: HTMLElement | null): ScreenRect | null {
+  const legend = host?.querySelector('.rf-legend');
+  const pane = host?.querySelector('.react-flow');
+  if (!legend || !pane) return null;
+  const lr = legend.getBoundingClientRect();
+  const pr = pane.getBoundingClientRect();
+  if (lr.width < 1 || lr.height < 1) return null;
+  return { x: lr.left - pr.left, y: lr.top - pr.top, w: lr.width, h: lr.height };
+}
+
 /** Stage-6 insets. Top clears the 28px legend; the other sides stay small so the station can fill the pane. */
 export const RUN_FIT_PAD = { top: 44, right: 12, bottom: 16, left: 12 } as const;
 /** Minimap box. The panel margin matches React Flow's 15px corner inset. */
@@ -877,15 +929,29 @@ function FlowCanvas(props: Props) {
     }
   }
 
+  const placeFitted = useCallback((vp: Viewport) => {
+    const nodes = getNodes();
+    if (!nodes.length) return vp;
+    const minX = Math.min(...nodes.map((n) => n.position.x));
+    let next = leftAlignedViewport(vp, FIT_MIN_ZOOM, minX, FIT_LEFT);
+    const legend = legendInPane(hostRef.current);
+    if (legend) {
+      const units = nodes.filter((n) => n.type === 'unit').map((n) => ({
+        x: n.position.x,
+        y: n.position.y,
+        w: n.width ?? n.measured?.width ?? (n.data as { w?: number }).w ?? 0,
+      }));
+      next = clearLegendViewport(next, units, legend);
+    }
+    return next;
+  }, [getNodes]);
+
   const alignLeftIfMin = useCallback(() => {
     const vp = getViewport();
-    const nodes = getNodes();
-    if (!nodes.length) return;
-    const minX = Math.min(...nodes.map((n) => n.position.x));
-    const next = leftAlignedViewport(vp, FIT_MIN_ZOOM, minX, FIT_LEFT);
-    if (Math.abs(next.x - vp.x) < 0.5) return;
+    const next = placeFitted(vp);
+    if (Math.abs(next.x - vp.x) < 0.5 && Math.abs(next.y - vp.y) < 0.5) return;
     void setViewport(next, { duration: 0 });
-  }, [getViewport, getNodes, setViewport]);
+  }, [getViewport, placeFitted, setViewport]);
 
   const fitCanvas = useCallback(async () => {
     // Insets clear the 28px legend, 28px controls, and 160×110 minimap. Panel margin is 15px.
@@ -910,7 +976,10 @@ function FlowCanvas(props: Props) {
     if (width <= 40 || height <= 40) return;
     const bounds = unionBounds(runEquipmentBoxes(propsRef.current.project, propsRef.current.rt));
     if (!bounds) return;
-    const vp = runPlanViewport(bounds, width, height, runFitPad(minimapRef.current));
+    const units = propsRef.current.project.units.map((u) => ({ x: u.layout.x, y: u.layout.y, w: u.layout.w }));
+    const legend = legendInPane(hostRef.current);
+    const planned = runPlanViewport(bounds, width, height, runFitPad(minimapRef.current));
+    const vp = legend ? clearLegendViewport(planned, units, legend) : planned;
     fitting.current = true;
     userAdjusted.current = false;
     void setViewportRef.current(vp, { duration: 0 }).then(() => {
