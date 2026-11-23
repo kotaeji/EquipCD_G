@@ -70,8 +70,8 @@ export type PanelKey = 'explorer' | 'library' | 'canvas' | 'run';
 export type ExplorerTab = 'workspace' | 'project';
 /** TURN-009 layout tabs. The card board is the default; signal mode switches to the diagram. */
 export type LayoutTab = 'board' | 'diagram';
-/** TURN-035 tabs under the run canvas. The summary table is the default, and the panel starts closed. */
-export type RunDetailsTab = 'summary' | 'log' | 'signals';
+/** TURN-035 tabs under the run canvas. The summary table is the default, and the panel starts closed. TURN-064 adds the timing chart. */
+export type RunDetailsTab = 'summary' | 'log' | 'signals' | 'timing';
 export interface PanelWidths { explorer: number; library: number; canvas: number; run: number }
 export const PANEL_LIMITS: Record<PanelKey, { min: number; max: number; def: number }> = {
   explorer: { min: 180, max: 420, def: 224 },
@@ -152,7 +152,7 @@ export function loadView(kv: KV | null): UserView {
       explorerOpen: o.explorerOpen === false ? false : true,
       runStripFolded: o.runStripFolded === true,
       runDetailsOpen: o.runDetailsOpen === true,
-      runDetailsTab: o.runDetailsTab === 'log' || o.runDetailsTab === 'signals' ? o.runDetailsTab : 'summary',
+      runDetailsTab: o.runDetailsTab === 'log' || o.runDetailsTab === 'signals' || o.runDetailsTab === 'timing' ? o.runDetailsTab : 'summary',
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
       home: o.home === false ? false : true,
       // missing tourSeen (views saved before TURN-042) means this browser has not finished the tour.
