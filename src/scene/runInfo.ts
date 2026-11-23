@@ -4,7 +4,10 @@
 import { feedCountOf, type Project } from '../model/types';
 import { collectStepIds } from '../model/flow';
 import { analyzeGaps, GAP_KIND_LABEL, type GapKind } from '../model/gaps';
+import { analyzeRunGaps, steadyCycleMs } from '../model/runGaps';
 import type { PieceRun, RuntimeState } from '../runtime/engine';
+
+export { steadyCycleMs };
 import { stepStatusLabel, summarizeRun, type RunStepSummary } from '../runtime/runSummary';
 import { deviceOfStep } from './describe';
 
@@ -77,20 +80,6 @@ export interface PieceRow {
   phase: string;
   statusLabel: string;
   note: string;
-}
-
-/** Steady-state cycle, or the first piece's pass time when fewer than 3 pieces exist. */
-export function steadyCycleMs(pieces: readonly { fedAtMs: number | null; exitedAtMs: number | null }[]): number | null {
-  if (pieces.length < 3) {
-    const first = pieces[0];
-    if (first?.fedAtMs == null || first.exitedAtMs == null) return null;
-    return first.exitedAtMs - first.fedAtMs;
-  }
-  const exits = pieces.map((pc) => pc.exitedAtMs).filter((t): t is number => t != null).sort((a, b) => a - b);
-  if (exits.length < 2) return null;
-  let sum = 0;
-  for (let i = 1; i < exits.length; i++) sum += exits[i] - exits[i - 1];
-  return sum / (exits.length - 1);
 }
 
 function onePassUnits(p: Project): { unitId: string; name: string; ms: number; timeText: string }[] {
@@ -270,7 +259,7 @@ export function describeRunInfo(p: Project, rt: RuntimeState | null): RunInfo {
     ? (Math.round((3_600_000 / cycleMs) * 10) / 10).toFixed(1)
     : THROUGHPUT_EMPTY;
   const metricBasis = ended ? (feedTotal >= 3 ? '정상 상태(가정)' : '한 개 기준') : null;
-  const gaps = analyzeGaps(p);
+  const gaps = [...analyzeGaps(p), ...(ended && rt ? analyzeRunGaps(p, rt) : [])];
   const gapKinds = GAP_KINDS.map((kind) => ({
     kind,
     label: GAP_KIND_LABEL[kind],

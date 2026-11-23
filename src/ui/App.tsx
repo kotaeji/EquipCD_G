@@ -4,6 +4,7 @@ import { resolveGenerated } from '../assets/visuals';
 import * as C from '../model/commands';
 import { emptyProject } from '../model/factory';
 import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
+import { analyzeRunGaps } from '../model/runGaps';
 import { applyEdit, initHistory, redo, undo, type History } from '../model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
@@ -19,13 +20,13 @@ import { selectAll, SELECT_HINT } from './selectAll';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector } from './Inspector';
 import { LibraryWorkspace } from './Library';
-import { focusJump, jumpCaption, jumpTarget } from './itemJump';
+import { focusJump, jumpCaption, jumpTarget, runGapJump } from './itemJump';
 import { StatusMark } from './StatusMark';
 import { deviceDisplayStatus, gapJudgementMark, ITEM_LEVEL_STATUS, statusCssVars, WIZARD_BADGE_STATUS } from './status';
 import { BADGE_MARK, BADGE_WORD, evaluateSteps, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
 import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
-import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, SequencePanel, SfcPanel } from './Panels';
+import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RunGapSection, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { SubSequencePanel } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
@@ -48,7 +49,13 @@ import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
 import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';
 
-interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; gaps: Gap[]; analyzedRevision: number | null }
+interface Tab { key: string; history: History; savedRevision: number | null; savedAt: string | null; runtime: Runtime | null; runRecord: Runtime | null; gaps: Gap[]; analyzedRevision: number | null }
+
+/** Keep a finished run for Gap after a later model edit. Reset clears it. A new finish replaces it. */
+function keepRun(t: Tab, runtime: Runtime): Tab {
+  const ended = runtime.state.status === 'completed' || runtime.state.status === 'error';
+  return ended ? { ...t, runtime, runRecord: runtime } : { ...t, runtime };
+}
 interface Modal { title: string; body: React.ReactNode; actions: { label: string; primary?: boolean; danger?: boolean; focus?: boolean; run: () => void }[] }
 interface NameDlg { title: string; initial: string; hint?: string; submitLabel: string; validate: (n: string) => string | null; onSubmit: (n: string) => void }
 
@@ -64,7 +71,7 @@ function makeTab(p: Project, saved: { rev: number; at: string } | null = null): 
   const gaps = analyzeGaps(p);
   const review = reconcileGapReview(p.gapReview ?? {}, gaps, p.revision, new Set(gaps.filter((g) => g.safety).map((g) => g.id)));
   const proj = { ...p, gapReview: review };
-  return { key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, gaps, analyzedRevision: p.revision };
+  return { key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, runRecord: null, gaps, analyzedRevision: p.revision };
 }
 
 /** Header undo / redo. A 24px stroke sits inside the 44px button; currentColor follows the button. */
@@ -201,7 +208,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     let last = performance.now(); let raf = 0;
     const loop = (now: number) => {
       const dt = Math.min(250, now - last) * speed; last = now;
-      updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? { ...t, runtime: advance(t.runtime, dt) } : t));
+      updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? keepRun(t, advance(t.runtime, dt)) : t));
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -213,13 +220,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!r || (r.state.status === 'idle' && r.snapshot.revision !== p.revision) || r.state.status === 'completed' || r.state.status === 'error') r = createRuntime(p, `run-${Date.now().toString(36)}`);
     const s = start(r);
     if (s.state.status !== 'running') { say(`실행 준비 실패: ${s.state.blockers.map((b) => b.message).slice(0, 2).join(' / ')}`, true); setBottomTab('runtime'); }
-    updTab(tab.key, (t) => ({ ...t, runtime: s }));
+    updTab(tab.key, (t) => keepRun(t, s));
   };
-  const doPause = () => updTab(tab.key, (t) => (t.runtime ? { ...t, runtime: pause(t.runtime) } : t));
-  const doResume = () => updTab(tab.key, (t) => (t.runtime ? { ...t, runtime: resume(t.runtime) } : t));
-  const doReset = () => updTab(tab.key, (t) => (t.runtime ? { ...t, runtime: reset(t.runtime) } : t));
-  const doStep = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'paused' ? { ...t, runtime: pause(advance(resume(t.runtime), 100)) } : t));
-  const doToEnd = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? { ...t, runtime: runToEnd(t.runtime) } : t));
+  const doPause = () => updTab(tab.key, (t) => (t.runtime ? keepRun(t, pause(t.runtime)) : t));
+  const doResume = () => updTab(tab.key, (t) => (t.runtime ? keepRun(t, resume(t.runtime)) : t));
+  const doReset = () => updTab(tab.key, (t) => (t.runtime ? { ...t, runtime: reset(t.runtime), runRecord: null } : t));
+  const doStep = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'paused' ? keepRun(t, pause(advance(resume(t.runtime), 100))) : t));
+  const doToEnd = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? keepRun(t, runToEnd(t.runtime)) : t));
 
   const onActionQuantity = (actionId: string, field: 'duration' | 'timeout', value: number) => {
     const action = p.actions.find((a) => a.id === actionId);
@@ -266,6 +273,21 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     updTab(tab.key, (t) => { const pr = t.history.present; const old = pr.gapReview[id]; if (!old) return t; return { ...t, history: { ...t.history, present: { ...pr, gapReview: { ...pr.gapReview, [id]: { ...old, status } } } } }; });
   };
   const goGap = (g: Gap) => {
+    if (g.fromRun && g.fix) {
+      const j = runGapJump(g.fix);
+      if (j.selectId) {
+        setSelection([j.selectId]);
+        const unitId = p.units.some((u) => u.id === j.selectId) ? j.selectId : p.devices.find((d) => d.id === j.selectId)?.unitId;
+        if (unitId) setSubUnitPref(unitId);
+      }
+      if (j.rightTab) setRightTab(j.rightTab);
+      if (j.actionId) setActionFocus(j.actionId);
+      if (j.step === 'canvas') setView((v) => (v.layoutTab === 'board' ? v : { ...v, layoutTab: 'board' }));
+      jumpRef.current = j;
+      setJumpTick((n) => n + 1);
+      goStep(j.step, j.sub);
+      return;
+    }
     const id = g.target.objectId;
     if (g.target.panel === 'material') setBottomTab('material');
     else if (g.target.panel === 'sequence') setBottomTab('sequence');
@@ -601,7 +623,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const L = view.layers;
 
   const photoMissingKinds = ASSET_LIBRARY.filter((d) => resolveGenerated(d.kind).status === 'missing').map((d) => d.kind);
-  const evals = evaluateSteps(p, { gaps: tab.gaps, rt, saved: !dirty, photoMissingKinds });
+  const runRecord = tab.runRecord;
+  const runGaps = analyzeRunGaps(runRecord?.snapshot ?? p, runRecord?.state ?? null);
+  const runStale = !!runRecord && runRecord.state.modelRevision !== p.revision;
+  const evals = evaluateSteps(p, { gaps: [...tab.gaps, ...runGaps], rt, saved: !dirty, photoMissingKinds });
   const confirmed = view.confirmed[p.id] ?? {};
   const cur = STEPS.find((s) => s.id === step)!;
   const curEval = evals[step];
@@ -1121,7 +1146,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <section className="sheet">
                 <h2>{act ? `${host?.code ?? ''} ${act.name}`.trim() : `${d.name} · Action 없음`}</h2>
                 {act ? <div className="form-grid">
-                  <label>동작 시간<QtyInput q={act.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'duration' }, v, as), '동작 시간')} /></label>
+                  <label data-jump={`duration:${act.id}`}>동작 시간<QtyInput q={act.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'duration' }, v, as), '동작 시간')} /></label>
                   <label data-jump={`timeout:${act.id}`}>타임아웃<QtyInput q={act.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as), '타임아웃')} /></label>
                   <label>명령 신호<span className="field-ro">{signalCaption(p, act.commandSignalId)}</span></label>
                   <label>완료 신호<span className="field-ro">{signalCaption(p, act.completeSignalId)}</span></label>
@@ -1205,7 +1230,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               {p.materials[0] ? <div className="form-grid">
                 <label>이름<TextInput value={p.materials[0].name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, p.materials[0].id, v), '자재 이름')} /></label>
                 <label>투입 개수<input key={feedCountOf(p.materials[0])} type="number" aria-label="자재 화면 투입 개수" className="num" min={1} step={1} disabled={locked} defaultValue={feedCountOf(p.materials[0])} onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== feedCountOf(p.materials[0])) edit(C.setFeedCount(p, p.materials[0].id, n), '투입 개수'); else e.target.value = String(feedCountOf(p.materials[0])); }} /></label>
-                <label>투입 간격<QtyInput q={p.materials[0].feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, v, as), '투입 간격')} /></label>
+                <label data-jump="feed-interval">투입 간격<QtyInput q={p.materials[0].feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, v, as), '투입 간격')} /></label>
                 <label>초기 위치<span className="field-ro">{p.materials[0].initialLocation ? unitName(p, p.materials[0].initialLocation) : '미정'}</span></label>
                 <label>초기 상태<span className="field-ro">{p.materials[0].initialState ?? '미정'}</span></label>
                 <label>크기<span className="field-ro">{materialSize(p)}</span></label>
@@ -1234,7 +1259,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
       {!guide && !view.home && step === 'check' && <div className="workspace ws-full">
         <h1 className="stage-title"><span data-tour="check">{sub === 'diag' ? '진단과 저장' : sub === 'export' ? 'Export 미리보기' : sub === 'lab' ? 'Evolution Lab' : 'Gap 점검'}</span></h1>
-        <Sub items={[['gap', `Gap (F6) ${tab.gaps.length}`], ['diag', '진단·저장·AML'], ['export', 'Export 미리보기 (F8)'], ['lab', 'Evolution Lab (F7)']]} />
+        <Sub items={[['gap', `Gap (F6) ${tab.gaps.length + runGaps.length}`], ['diag', '진단·저장·AML'], ['export', 'Export 미리보기 (F8)'], ['lab', 'Evolution Lab (F7)']]} />
         <div className="bbody sparse-page">
           {sub === 'gap' && <section className="sheet wide">
             <div className="tool-pills">
@@ -1244,6 +1269,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <button type="button" className={gapFilter === 'hidden' ? 'on' : ''} onClick={() => setGapFilter('hidden')}>숨긴 항목</button>
             </div>
             <h2 data-jump="check-gaps">Gap 목록 · 기준 모델 rev {tab.analyzedRevision ?? p.revision}</h2>
+            <RunGapSection gaps={runGaps} ran={!!runRecord} stale={runStale} onGo={goGap} />
             <table className="grid plain">
               <thead><tr><th>종류와 판정</th><th>근거</th><th>관련 대상</th><th>다음 행동</th></tr></thead>
               <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id} data-jump={`gap:${g.id}`}><td>{g.title} <StatusMark status={gapJudgementMark(g.judgement).status} word={gapJudgementMark(g.judgement).word} /></td><td>{g.evidence}</td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}

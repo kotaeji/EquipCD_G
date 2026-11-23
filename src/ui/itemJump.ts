@@ -1,5 +1,22 @@
 // TURN-038: where a wizard item goes. View navigation only — never a model edit.
+import type { RunGapFix } from '../model/gaps';
 import { STEPS, type ItemJump } from './wizard';
+
+/** TURN-043. Same flash and focus as a wizard item. Does not edit the model. */
+export function runGapJump(fix: RunGapFix): ItemJump {
+  switch (fix.to) {
+    case 'timeout':
+      return { step: 'attributes', selectId: fix.deviceId, rightTab: 'actions', actionId: fix.actionId, field: `timeout:${fix.actionId}` };
+    case 'duration':
+      return { step: 'attributes', selectId: fix.deviceId, rightTab: 'actions', actionId: fix.actionId, field: `duration:${fix.actionId}` };
+    case 'unit':
+      return { step: 'canvas', selectId: fix.unitId, field: `unit:${fix.unitId}` };
+    case 'interval':
+      return { step: 'sequence', sub: 'material', selectId: fix.materialId, field: 'feed-interval' };
+    case 'step':
+      return { step: 'sequence', sub: 'sequence', field: `step:${fix.stepId}` };
+  }
+}
 
 export const NO_JUMP = '이동할 화면 없음';
 

@@ -902,6 +902,8 @@ tr.step-row.is-stopped td:first-child { box-shadow: inset 2px 0 0 var(--warning)
 .itemspop .item-jump-text { flex: 1; padding: 4px 0; }
 .itemspop .item-go { flex: none; max-width: 168px; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .jump-flash { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 2px var(--accent); }
+.run-gap-block { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; background: var(--panel); }
+.run-gap-block h3 { margin: 0 0 6px; font-size: 14px; }
 
 /* TURN-042: first-run tour. The bubble uses the theme tokens so light and dark both stay readable. */
 .home-tour { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
