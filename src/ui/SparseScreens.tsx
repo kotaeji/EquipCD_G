@@ -16,6 +16,7 @@ import { type BlockerGuide } from './blockerTarget';
 import { EmptyState } from './EmptyState';
 import { BlockerCards, BlockerList, Problem } from './Problem';
 import { EMPTY, SCREEN, exportBlockedProblem } from './problemCopy';
+import { checkConditions, type ConditionFinding } from '../model/conditionCheck';
 import { devName, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
 
@@ -340,12 +341,30 @@ export function ExportSheet({ p, onDownload, onGuide }: {
   </div>;
 }
 
-export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml }: {
+const COND_WORD = { error: '오류', undetermined: '미정', info: '안내' } as const;
+
+export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml, onJumpCondition }: {
   p: Project; storageReason: string | null; quarantineList: QuarantineEntry[]; onDownload: (name: string, text: string) => void; onAml: () => void;
+  onJumpCondition: (f: ConditionFinding) => void;
 }) {
   const diags = validateProject(p);
+  const conditions = checkConditions(p);
   return <div className="sparse-split">
     <section className="sheet">
+      <h2>조건</h2>
+      <table className="grid plain cond-table" aria-label="조건">
+        <thead><tr><th>수준</th><th>어디</th><th>식</th><th>까닭</th><th></th></tr></thead>
+        <tbody>
+          {conditions.map((f) => <tr key={f.id} data-cond-finding={f.kind} data-cond-level={f.level}>
+            <td><StatusMark status={f.level === 'error' ? 'error' : f.level === 'undetermined' ? 'undetermined' : 'assumption'} word={COND_WORD[f.level]} /></td>
+            <td>{f.where}</td>
+            <td className="cond-formula" data-cond-formula="">{f.formula}</td>
+            <td>{f.reason}</td>
+            <td><button type="button" className="small" onClick={() => onJumpCondition(f)}>이동</button></td>
+          </tr>)}
+          {conditions.length === 0 && <tr><td colSpan={5}>조건 오류 없음</td></tr>}
+        </tbody>
+      </table>
       <h2>진단 내역</h2>
       <table className="grid plain"><thead><tr><th>진단</th><th>상태</th><th>수정 위치</th></tr></thead>
         <tbody>{diags.slice(0, 8).map((d) => <tr key={d.id}><td>{d.message}</td><td>{d.severity === 'error' ? '차단' : '경고'}</td><td>{d.objectId}</td></tr>)}

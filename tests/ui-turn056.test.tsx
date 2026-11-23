@@ -52,7 +52,7 @@ describe('TURN-056 help panel', () => {
     expect(open.textContent).toContain('막힐 때');
     expect(open.textContent).toContain('매뉴얼 2.3 처음 열면');
     expect(open.textContent).toContain('둘러보기 다시 보기');
-    expect(open.textContent).not.toContain('단축키');
+    expect(u.btn('단축키 목록', open)).toBeTruthy();
     expect(document.activeElement).toBe(open);
     await u.click(u.btn('닫기', open));
     expect(panel(u.el)).toBeNull();
@@ -62,6 +62,15 @@ describe('TURN-056 help panel', () => {
     await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
     expect(panel(u.el)).toBeNull();
     expect(document.activeElement).toBe(toggle);
+    const before = stat(u.el);
+    await u.click(toggle);
+    await u.click(u.btn('단축키 목록', panel(u.el)!));
+    const sheet = document.querySelector('[aria-label="단축키 목록"]');
+    expect(sheet).not.toBeNull();
+    expect(stat(u.el)).toEqual(before);
+    await u.click(u.btn('닫기', sheet!));
+    expect(document.querySelector('[aria-label="단축키 목록"]')).toBeNull();
+    expect(panel(u.el)).not.toBeNull();
   });
 
   it('AC3 AC5 the open dock follows the step and tab, and the screen still works', async () => {

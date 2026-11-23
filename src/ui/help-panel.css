@@ -59,6 +59,12 @@
 .help-manual {
   color: var(--muted);
 }
+.help-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
 .help-panel .btn-main {
   height: 36px;
   align-self: flex-start;

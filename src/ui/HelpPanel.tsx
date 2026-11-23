@@ -1,5 +1,5 @@
 // TURN-056 help dock. Not a modal: the rest of the screen stays usable.
-// TURN-053 is not on this branch, so there is no shortcut-list button.
+// The shortcut sheet is TURN-053. This panel only opens it.
 import { useEffect, useRef } from 'react';
 import { GLOSSARY, GLOSSARY_ORDER } from './glossary';
 import type { HelpTopic } from './helpCopy';
@@ -7,10 +7,11 @@ import { TOUR_AGAIN } from './tour';
 import { dialogOpen } from './WorkspacePanels';
 import './help-panel.css';
 
-export function HelpPanel({ topic, onClose, onTour }: {
+export function HelpPanel({ topic, onClose, onTour, onShortcuts }: {
   topic: HelpTopic;
   onClose: () => void;
   onTour: (opener: HTMLElement) => void;
+  onShortcuts: () => void;
 }) {
   const panelRef = useRef<HTMLElement>(null);
   useEffect(() => { panelRef.current?.focus(); }, []);
@@ -52,7 +53,10 @@ export function HelpPanel({ topic, onClose, onTour }: {
         <ul>{topic.stuck.map((line) => <li key={line}>{line}</li>)}</ul>
       </section>
       <p className="help-manual" data-help-manual={`${topic.manual.section} ${topic.manual.title}`}>매뉴얼 {topic.manual.section} {topic.manual.title}</p>
-      <button type="button" className="btn-main secondary" data-help-tour onClick={(e) => onTour(e.currentTarget)}>{TOUR_AGAIN}</button>
+      <div className="help-actions">
+        <button type="button" className="btn-main secondary" data-help-tour onClick={(e) => onTour(e.currentTarget)}>{TOUR_AGAIN}</button>
+        <button type="button" className="btn-main secondary" data-help-shortcuts onClick={onShortcuts}>단축키 목록</button>
+      </div>
       <details className="help-gloss">
         <summary>용어</summary>
         <dl>

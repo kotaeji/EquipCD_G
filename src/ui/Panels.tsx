@@ -18,8 +18,9 @@ import { EmptyState } from './EmptyState';
 import { EMPTY, RUN_LOCK } from './problemCopy';
 import type { ConfirmDelete, EditFn } from './Inspector';
 import { stepDeleteDetail, stepUsage } from '../model/deleteImpact';
+import { conditionsFormula } from '../model/conditionFormula';
 import { Terms } from './Term';
-import { condLabel, devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
+import { devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
 import { RunSummary } from './RunSummary';
 import { SfcView } from './SfcView';
 import { StatusMark } from './StatusMark';
@@ -89,7 +90,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect, confirmDelete }: 
                   <td className="mono">{String(i + 1).padStart(2, '0')}</td>
                   <td><span style={{ cursor: 'pointer' }} onClick={() => a && onSelect(a.deviceId)}>{s.name}</span><div className="muted mono" style={{ fontSize: 10 }}>{s.id}</div></td>
                   <td style={{ fontSize: 11 }}>{a ? `${unitName(p, a.unitId)} / ${devName(p, a.deviceId)}` : <Badge kind="err">Action 없음</Badge>}</td>
-                  <td style={{ fontSize: 11 }}>{a?.completeSignalId ? `${sigName(p, a.completeSignalId)} = true` : <StatusMark status="undetermined" />}{a && a.pre.length > 0 && <div className="muted">진입: {a.pre.map((c) => condLabel(p, c)).join('; ')}</div>}</td>
+                  <td style={{ fontSize: 11 }}>{a?.completeSignalId ? `${sigName(p, a.completeSignalId)} = true` : <StatusMark status="undetermined" />}{a && (a.pre.length > 0 || s.entry.length > 0) && <div className="muted" data-step-cond="">{conditionsFormula(p, [...a.pre, ...s.entry])}</div>}</td>
                   <td>{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as), '단계 타임아웃')} />}</td>
                   <td style={{ fontSize: 11 }}>{a ? effectLabel(p, a.effect) : ''}</td>
                   <td style={{ fontSize: 10 }} className="muted">{s.origin}{s.sourceText ? `: "${s.sourceText}"` : ''}</td>
@@ -341,7 +342,7 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
       <div style={{ flex: 1, overflow: 'auto' }}>
         <b style={{ fontSize: 12 }}>상태전이 ↔ Action/post 연결 (F4-03)</b>
         <table className="grid"><thead><tr><th><Terms text="Action" /></th><th>전제</th><th>자재 변화</th><th>post 검증</th></tr></thead>
-          <tbody>{p.actions.filter((a) => a.effect.moveTo || a.effect.setState || a.effect.holder !== undefined).map((a) => <tr key={a.id}><td style={{ fontSize: 12 }}>{a.name}</td><td style={{ fontSize: 11 }}>{a.pre.map((c) => condLabel(p, c)).join('; ') || '-'}</td><td style={{ fontSize: 11 }}>{effectLabel(p, a.effect)}</td><td style={{ fontSize: 11 }}>{a.post.map((c) => condLabel(p, c)).join('; ') || '-'}</td></tr>)}</tbody></table>
+          <tbody>{p.actions.filter((a) => a.effect.moveTo || a.effect.setState || a.effect.holder !== undefined).map((a) => <tr key={a.id}><td style={{ fontSize: 12 }}>{a.name}</td><td style={{ fontSize: 11 }}>{conditionsFormula(p, a.pre) || '-'}</td><td style={{ fontSize: 11 }}>{effectLabel(p, a.effect)}</td><td style={{ fontSize: 11 }}>{conditionsFormula(p, a.post) || '-'}</td></tr>)}</tbody></table>
         <b style={{ fontSize: 12, display: 'block', marginTop: 8 }}>Unit 수용 능력</b>
         <table className="grid"><thead><tr><th><Terms text="Unit" /></th><th>수용 개수</th><th>허용 무게</th></tr></thead>
           <tbody>{p.units.map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.capacity.maxMaterials.value ?? <StatusMark status="undetermined" />}{u.capacity.maxMaterials.assumption ? <> <StatusMark status="assumption" /></> : null}</td><td>{u.capacity.maxWeight.value ?? <StatusMark status="undetermined" />} kg{u.capacity.maxWeight.assumption ? <> <StatusMark status="assumption" /></> : null}</td></tr>)}</tbody></table>
