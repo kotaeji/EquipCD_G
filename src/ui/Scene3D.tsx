@@ -340,7 +340,14 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
   }
 
   for (const mat of scene.materials) {
-    const box = new Mesh(new BoxGeometry(42, 30, 42), new MeshStandardMaterial({ color: palette.material, roughness: 0.45, emissive: palette.material, emissiveIntensity: photo ? 0.18 : 0 }));
+    const box = new Mesh(new BoxGeometry(42, 30, 42), new MeshStandardMaterial({
+      color: mat.waiting ? palette.edge : palette.material,
+      roughness: 0.45,
+      emissive: mat.waiting ? palette.edge : palette.material,
+      emissiveIntensity: mat.waiting ? 0.05 : (photo ? 0.18 : 0),
+      transparent: !!mat.waiting,
+      opacity: mat.waiting ? 0.55 : 1,
+    }));
     box.position.set(mat.x, 18, mat.z);
     box.castShadow = photo;
     root.add(box);

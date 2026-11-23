@@ -11,7 +11,7 @@
 //    being moved/held/changed by more than one lane (duplicate ownership).
 // NOT equipment control, NOT physics.
 import type { Action, Project, SequenceStep, SubstationSequence } from '../model/types';
-import { GROUP_RULES_VERSION } from '../model/types';
+import { feedCountOf, GROUP_RULES_VERSION } from '../model/types';
 import { checkLanes } from '../model/laneCheck';
 import { validateProject, type Diagnostic } from '../model/validate';
 import { applySensorSignals, evalCond, ms, signalLabel, unmetText, type LogEntry, type MaterialInstance } from './engine';
@@ -71,6 +71,7 @@ export function checkGroupReadiness(p: Project, unitId: string): GroupReadiness 
     const m = p.materials[0];
     if (m && !m.initialLocation) b('MAT_NO_LOCATION', m.id, '자재 초기 위치 미정');
     if (m && !m.initialState) b('MAT_NO_STATE', m.id, '자재 초기 상태 미정');
+    if (m && feedCountOf(m) >= 2) b('MULTI_FEED', m.id, '투입 개수 2 이상은 Substation 그룹 실행에서 지원하지 않습니다. Station 순차 시퀀스에서 실행하세요.');
   }
   return { ok: blockers.length === 0, blockers, warnings, usesMaterial };
 }

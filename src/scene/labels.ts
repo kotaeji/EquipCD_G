@@ -48,7 +48,7 @@ export function anchorLabels(scene: SceneDescription, showNames: boolean, emphas
   for (const mat of scene.materials) {
     out.push({
       id: `mat:${mat.id}`, kind: 'material', px: 12,
-      text: `${mat.name} · ${mat.state || '상태 없음'}`,
+      text: `${mat.waiting ? '대기 · ' : ''}${mat.name} · ${mat.state || '상태 없음'}`,
       x: mat.x, y: 20, z: mat.z,
     });
   }

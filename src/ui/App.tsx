@@ -7,7 +7,7 @@ import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { applyEdit, initHistory, redo, undo, type History } from '../model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
-import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
+import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
@@ -1077,6 +1077,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <h2>{p.materials[0] ? `${p.materials[0].name} · 정의와 초기 조건` : '자재 없음'}</h2>
               {p.materials[0] ? <div className="form-grid">
                 <label>이름<TextInput value={p.materials[0].name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, p.materials[0].id, v), '자재 이름')} /></label>
+                <label>투입 개수<input key={feedCountOf(p.materials[0])} type="number" aria-label="자재 화면 투입 개수" className="num" min={1} step={1} disabled={locked} defaultValue={feedCountOf(p.materials[0])} onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== feedCountOf(p.materials[0])) edit(C.setFeedCount(p, p.materials[0].id, n), '투입 개수'); else e.target.value = String(feedCountOf(p.materials[0])); }} /></label>
                 <label>투입 간격<QtyInput q={p.materials[0].feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, v, as), '투입 간격')} /></label>
                 <label>초기 위치<span className="field-ro">{p.materials[0].initialLocation ? unitName(p, p.materials[0].initialLocation) : '미정'}</span></label>
                 <label>초기 상태<span className="field-ro">{p.materials[0].initialState ?? '미정'}</span></label>
@@ -1091,7 +1092,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <table className="grid plain"><thead><tr><th>상태</th><th>완료 Action</th></tr></thead>
                 <tbody>{p.actions.filter((a) => a.effect.setState || a.effect.moveTo).slice(0, 6).map((a) => <tr key={a.id}><td>{a.effect.setState ?? (a.effect.moveTo === 'EXIT' ? '배출' : a.effect.moveTo ? unitName(p, a.effect.moveTo) : a.name)}</td><td>{a.name}</td></tr>)}
                   {p.actions.every((a) => !a.effect.setState && !a.effect.moveTo) && <tr><td colSpan={2}>자재 변화가 있는 Action이 없습니다.</td></tr>}</tbody></table>
-              <p className="warn-note">실행은 자재 하나만 지원합니다. 여러 자재와 캐리어는 미구현입니다.</p>
+              <p className="warn-note">실행은 자재 정의 하나를 투입 개수만큼 이어서 넣습니다. 정의가 여러 종류이거나 캐리어에 싣는 것은 없습니다.</p>
             </aside>
             <Fold className="fold-panel" summary="자재 값과 경로 편집"><MaterialPanel p={p} locked={locked} edit={edit} /></Fold>
           </div>}

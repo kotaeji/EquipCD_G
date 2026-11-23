@@ -30,7 +30,7 @@ const CHECK: Dest = { step: 'check', place: '점검' };
 /** Codes raised by checkGroupReadiness itself (src/runtime/group.ts). */
 export const GROUP_CODES = ['NO_SUBSTATION', 'NO_SUB_SEQUENCES', 'NO_STEPS', 'DEVICE_OUTSIDE_SUBSTATION', 'NO_COMPLETE_SIGNAL',
   'DURATION_UNDEFINED', 'TIMEOUT_UNDEFINED', 'CONDITION_UNDEFINED', 'CAPACITY_UNDEFINED', 'DEVICE_CONFLICT',
-  'SHARED_MATERIAL_CONFLICT', 'MATERIAL_COUNT', 'MAT_NO_LOCATION', 'MAT_NO_STATE'] as const;
+  'SHARED_MATERIAL_CONFLICT', 'MATERIAL_COUNT', 'MAT_NO_LOCATION', 'MAT_NO_STATE', 'MULTI_FEED'] as const;
 /** Error codes of validateProject (src/model/validate.ts) — the group gate returns these first. */
 export const VALIDATE_ERROR_CODES = ['SHAPE', 'ID_INVALID', 'ID_DUPLICATE', 'REF_MISSING_UNIT', 'ORPHAN_UNIT', 'REF_MISSING_DEVICE',
   'DUP_OWNERSHIP', 'OWNERSHIP_MISMATCH', 'ASSET_UNKNOWN', 'REF_MISSING_SIGNAL', 'REF_MISSING_POSITION', 'REF_MISSING_ACTION',
@@ -63,8 +63,10 @@ export function resolveBlocker(p: Project, b: { code: string; objectId: string; 
     case 'MATERIAL_COUNT':
       if (p.materials.length === 0) return { kind: 'fix', dest: MATERIAL };
       return { kind: 'unsupported', note: `자재 정의가 ${p.materials.length}개입니다. 이 시제품 실행은 1개만 지원하며, 현재 화면은 첫 자재만 편집하고 자재 삭제 기능이 없어 화면에서 개수를 줄일 수 없습니다.` };
-    case 'MAT_NO_LOCATION': case 'MAT_NO_STATE':
+    case 'MAT_NO_LOCATION': case 'MAT_NO_STATE': case 'FEED_INTERVAL': case 'FEED_COUNT': case 'MULTI_FEED':
       return { kind: 'fix', dest: MATERIAL };
+    case 'MULTI_FLOW':
+      return { kind: 'inspect', dest: STATION_SEQ, note: '투입 개수 2 이상은 흐름(분기·병렬·반복·재시도·Substation) 없이 순차 시퀀스만 실행합니다.' };
     case 'NO_SUBSTATION':
       return { kind: 'inspect', dest: CHECK, note: '선택된 Substation을 찾을 수 없습니다 — 6단계 Substation 목록에서 다시 선택하세요' };
     default:

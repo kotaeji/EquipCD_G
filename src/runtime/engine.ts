@@ -9,6 +9,7 @@ import type { Action, Condition, FlowNode, Project } from '../model/types';
 import { collectStepIds, flowUsesSignal, hasFlow, walk } from '../model/flow';
 import { RUNTIME_RULES_VERSION } from '../model/types';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
+import { advancePieces, makePieces, seatPieces } from './multi';
 
 export type RunStatus = 'idle' | 'running' | 'paused' | 'completed' | 'error';
 
@@ -29,8 +30,51 @@ export interface StepRecord {
   endMs?: number;
   /** 1-based time this step has started (loop / retry). */
   pass?: number;
-  /** Parallel lane or Substation sequence name. */
+  /** Parallel lane, Substation sequence, or `개체 N` when several pieces run. */
   lane?: string;
+  /** Set on a multi-piece run. The piece that executed this row. */
+  instanceId?: string;
+  /** Time this piece waited before or during the row. */
+  waitMs?: number;
+  /** Why it waited (Device 사용 중 / Unit 가득). */
+  waitNote?: string;
+}
+
+/** Why a piece is standing still. Charged to `unitId` for the bottleneck. */
+export interface PieceWait {
+  reason: 'device' | 'capacity';
+  sinceMs: number;
+  unitId: string;
+  note: string;
+}
+
+export interface PieceActive {
+  stepIndex: number;
+  startMs: number;
+  completeAtMs: number | null;
+  timeoutAtMs: number;
+  recordIndex: number;
+  /** The action time has elapsed and the move is waiting for a free unit. */
+  hold: boolean;
+}
+
+/** One fed instance. Present only when the feed count is 2 or more (linear runs). */
+export interface PieceRun {
+  index: number;
+  instanceId: string;
+  material: MaterialInstance;
+  stepIndex: number;
+  phase: 'queued' | 'ready' | 'active' | 'waiting' | 'done';
+  active: PieceActive | null;
+  /** Virtual time at which this piece may enter. `(index - 1) × feed interval`. */
+  readyAtMs: number;
+  fedAtMs: number | null;
+  exitedAtMs: number | null;
+  waitMs: number;
+  waitByUnit: Record<string, number>;
+  wait: PieceWait | null;
+  pendingWaitMs: number;
+  pendingWaitNote: string;
 }
 
 export interface ActiveStep {
@@ -53,6 +97,8 @@ export interface RuntimeState {
   signals: Record<string, boolean>;
   devicePositions: Record<string, string | null>;
   material: MaterialInstance | null;
+  /** Fed instances. Absent when the feed count is 1 — that path is unchanged. */
+  pieces?: PieceRun[];
   occupancy: Record<string, string | null>;
   steps: StepRecord[];
   log: LogEntry[];
@@ -99,21 +145,25 @@ function initialState(p: Project, runId: string): RuntimeState {
   const occupancy: Record<string, string | null> = {};
   for (const u of p.units) occupancy[u.id] = null;
   const m = p.materials[0];
+  const flow = hasFlow(p);
+  const pieces = flow ? null : makePieces(p);
   let material: MaterialInstance | null = null;
-  if (m && m.initialLocation && m.initialState) {
+  if (!pieces && m && m.initialLocation && m.initialState) {
     material = { instanceId: `${m.id}#1`, materialId: m.id, location: m.initialLocation, state: m.initialState, holder: null };
     occupancy[m.initialLocation] = material.instanceId;
   }
   const devicePositions: Record<string, string | null> = {};
   for (const d of p.devices) devicePositions[d.id] = null;
-  const flow = hasFlow(p);
   const state: RuntimeState = {
     rulesVersion: RUNTIME_RULES_VERSION, runId, modelRevision: p.revision, status: 'idle', timeMs: 0, stepIndex: 0, active: null,
     signals, devicePositions, material, occupancy,
-    steps: flow
-      ? collectStepIds(p.sequence.flow ?? []).map((stepId) => ({ stepId, status: 'pending' as const }))
-      : p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const })),
+    steps: pieces
+      ? []
+      : flow
+        ? collectStepIds(p.sequence.flow ?? []).map((stepId) => ({ stepId, status: 'pending' as const }))
+        : p.sequence.steps.map((s) => ({ stepId: s.id, status: 'pending' as const })),
     log: [], error: null, blockers: [],
+    ...(pieces ? { pieces } : {}),
   };
   if (flow) {
     state.flowRun = {
@@ -121,6 +171,7 @@ function initialState(p: Project, runId: string): RuntimeState {
       fibers: [{ id: 1, status: 'live', stack: [{ role: 'seq', nodes: p.sequence.flow ?? [], index: 0 }], active: null }],
     };
   }
+  if (pieces) seatPieces(p, state);
   applySensorSignals(p, state);
   return state;
 }
@@ -189,12 +240,18 @@ export function unmetText(r: { why: string; sensor: boolean }): string {
  * Other roles are left alone. A change is one log line (`SENSOR_ON` / `SENSOR_OFF`) with the signal name.
  * Station and Substation group runtimes both call this.
  */
-export function applySensorSignals(p: Project, s: { timeMs: number; signals: Record<string, boolean>; material: MaterialInstance | null; log: LogEntry[] }): void {
-  const loc = s.material && s.material.location !== 'EXIT' ? s.material.location : null;
+export function applySensorSignals(p: Project, s: { timeMs: number; signals: Record<string, boolean>; material: MaterialInstance | null; log: LogEntry[]; pieces?: { phase: string; material: MaterialInstance }[] }): void {
+  const locs = new Set<string>();
+  if (s.pieces && s.pieces.length) {
+    for (const pc of s.pieces) {
+      if (pc.phase === 'queued') continue;
+      if (pc.material.location && pc.material.location !== 'EXIT') locs.add(pc.material.location);
+    }
+  } else if (s.material && s.material.location !== 'EXIT') locs.add(s.material.location);
   for (const sig of p.signals) {
     if (sig.role !== 'sensor') continue;
     const dev = p.devices.find((d) => d.id === sig.deviceId);
-    const next = !!dev && dev.unitId === loc;
+    const next = !!dev && locs.has(dev.unitId);
     const prev = s.signals[sig.id] ?? false;
     if (prev === next) continue;
     s.signals[sig.id] = next;
@@ -300,6 +357,7 @@ function complete(p: Project, s: RuntimeState) {
 /** Advance virtual time by dtMs (>=0). Result is independent of how dt is chunked. */
 export function advance(rt: Runtime, dtMs: number): Runtime {
   if (rt.state.status !== 'running' || dtMs < 0) return rt;
+  if (rt.state.pieces && rt.state.pieces.length > 1) return advancePieces(rt, dtMs);
   if (rt.state.flowRun) return advanceFlow(rt, dtMs);
   const p = rt.snapshot;
   const s = structuredClone(rt.state);

@@ -153,7 +153,15 @@ function collectLive(project: Project, state: RuntimeState | null): LiveStep[] {
   if (!state || state.status === 'idle' || state.status === 'completed') return [];
   const fault = state.status === 'error';
   const out: LiveStep[] = [];
-  if (!state.flowRun && state.active) {
+  if (state.pieces && state.pieces.length > 1) {
+    for (const pc of state.pieces) {
+      if (!pc.active || pc.active.hold) continue;
+      const step = project.sequence.steps[pc.active.stepIndex];
+      if (!step) continue;
+      const end = pc.active.completeAtMs ?? pc.active.timeoutAtMs;
+      pushLive(out, project, step.id, clampProgress(state.timeMs, pc.active.startMs, end), Math.max(0, state.timeMs - pc.active.startMs), fault);
+    }
+  } else if (!state.flowRun && state.active) {
     const step = project.sequence.steps[state.active.stepIndex];
     if (step) {
       const end = state.active.completeAtMs ?? state.active.timeoutAtMs;
@@ -325,10 +333,34 @@ export function presentScene(project: Project, state: RuntimeState | null, enabl
       .filter(moved);
     if (deltas.length) solid.deltas = deltas;
   }
-  const spot = materialSpot(project, state, true);
-  if (!spot || !spot.visible) next.materials = [];
-  else if (next.materials[0]) {
-    next.materials[0] = { ...next.materials[0], x: spot.x, z: spot.z };
+  if (state.pieces && state.pieces.length > 1) {
+    next.materials = next.materials.flatMap((mat) => {
+      const pc = state.pieces!.find((item) => item.instanceId === mat.id);
+      if (!pc?.active || pc.active.hold || pc.active.completeAtMs === null) return [mat];
+      const step = project.sequence.steps[pc.active.stepIndex];
+      const action = step ? project.actions.find((a) => a.id === step.actionId) : undefined;
+      const moveTo = action?.effect.moveTo;
+      if (!moveTo || pc.material.location === 'EXIT' || pc.material.location === moveTo) return [mat];
+      const fromUnit = project.units.find((u) => u.id === pc.material.location);
+      if (!fromUnit) return [mat];
+      const span = Math.max(1, pc.active.completeAtMs - pc.active.startMs);
+      const f = clamp01((state.timeMs - pc.active.startMs) / span);
+      const from = centerOf(fromUnit);
+      const dest = moveTo === 'EXIT'
+        ? exitPoint(fromUnit, flowDirection(project, fromUnit.id), 1)
+        : (() => {
+          const toUnit = project.units.find((u) => u.id === moveTo);
+          return toUnit ? centerOf(toUnit) : null;
+        })();
+      if (!dest) return [mat];
+      return [{ ...mat, x: mat.x + (dest.x - from.x) * f, z: mat.z + (dest.z - from.z) * f }];
+    });
+  } else {
+    const spot = materialSpot(project, state, true);
+    if (!spot || !spot.visible) next.materials = [];
+    else if (next.materials[0]) {
+      next.materials[0] = { ...next.materials[0], x: spot.x, z: spot.z };
+    }
   }
   return next;
 }
