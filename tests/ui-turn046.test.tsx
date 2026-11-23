@@ -77,6 +77,14 @@ describe('TURN-046 interlock editor and blocked run', () => {
       action.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await u.click(u.btn('확인', row));
+    const ask = u.el.querySelector('[data-confirmer-input]') as HTMLInputElement | null;
+    if (ask) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(ask, '김검토');
+        ask.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await u.click(u.btn('이 이름으로 확인'));
+    }
     await u.click(u.el.querySelector('.stepper [data-stepid="run"]'));
     await u.click(u.btn('▶ 실행'));
     await u.click(u.btn('끝까지'));

@@ -1,5 +1,8 @@
 import { useEffect, useId, useState } from 'react';
+import type { ConfirmStamp } from '../model/confirmationLog';
 import type { Quantity } from '../model/types';
+import { useConfirmationGate } from './confirmationGate';
+import './confirmation-log.css';
 import { StatusMark } from './StatusMark';
 
 /** Count units must be whole numbers. Time, length, weight, and other quantities may be decimal. None may be negative. */
@@ -16,7 +19,8 @@ export function quantityDraftError(raw: string, unit: string): string | null {
 }
 
 /** Numeric quantity editor. Empty = 미정 (null). A bad draft stays on screen and is not written. */
-export function QtyInput({ q, onCommit, disabled, title }: { q: Quantity; onCommit: (v: string, assumption: boolean) => void; disabled?: boolean; title?: string }) {
+export function QtyInput({ q, onCommit, disabled, title, note }: { q: Quantity; onCommit: (v: string, assumption: boolean, stamp?: ConfirmStamp) => void; disabled?: boolean; title?: string; note?: string | null }) {
+  const gate = useConfirmationGate();
   const [v, setV] = useState(q.value === null ? '' : String(q.value));
   const [err, setErr] = useState<string | null>(null);
   const errId = useId();
@@ -26,7 +30,11 @@ export function QtyInput({ q, onCommit, disabled, title }: { q: Quantity; onComm
     setErr(next);
     if (next) return;
     const cur = q.value === null ? '' : String(q.value);
-    if (cur !== v.trim() || assumption !== q.assumption) onCommit(v.trim(), assumption);
+    const send = (stamp?: ConfirmStamp) => {
+      if (cur !== v.trim() || assumption !== q.assumption) onCommit(v.trim(), assumption, stamp);
+    };
+    if (assumption !== q.assumption) gate((stamp) => send(stamp));
+    else send();
   };
   return (
     <span className="qty-field" title={title}>
@@ -42,6 +50,7 @@ export function QtyInput({ q, onCommit, disabled, title }: { q: Quantity; onComm
         {q.assumption ? <StatusMark status="assumption" /> : '가정'}
       </label>
       {q.value === null && !err && <StatusMark status="undetermined" />}
+      {note && <span className="confirm-note" data-confirm-note>{note}</span>}
     </span>
   );
 }

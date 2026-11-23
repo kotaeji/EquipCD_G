@@ -1,0 +1,56 @@
+/* TURN-067. Popover next to undo / redo. Type and space stay on the tokens. */
+.hist-anchor { position: relative; display: flex; align-items: center; flex: none; }
+.app > .header button.hist-open {
+  color: var(--header-fg);
+  background: transparent;
+  border-color: transparent;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.app > .header button.hist-open:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .12);
+  border-color: transparent;
+  color: var(--header-fg);
+}
+.hist-pop {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 40;
+  width: 280px;
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+  padding: var(--sp-2);
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.hist-head { font-size: var(--fs-sm); font-weight: 700; }
+.hist-lock { margin: 0; color: var(--warning); font-size: var(--fs-sm); }
+.hist-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.hist-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--text);
+}
+.hist-row.is-future { color: var(--muted); }
+.hist-row.is-current { background: var(--selected); color: var(--text); font-weight: 700; }
+.hist-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-rev, .hist-now { flex: none; font-size: var(--fs-xs); color: var(--muted); }
+.hist-row.is-current .hist-now { color: var(--accent); }

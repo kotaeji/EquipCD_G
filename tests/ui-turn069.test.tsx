@@ -71,7 +71,7 @@ describe('TURN-069 header', () => {
       expect(button.classList.contains('header-overflow')).toBe(false);
       expect(button.hidden).toBe(false);
     }
-    expect(hiddenIds(u.el)).toEqual(['export-json', 'view-settings', 'help']);
+    expect(hiddenIds(u.el)).toEqual(['export-json', 'view-settings', 'help', 'undo-history']);
     expect(u.btn('더 보기', bar).classList.contains('header-overflow')).toBe(false);
     const css = readFileSync('src/ui/header-bar.css', 'utf8');
     expect(css).toMatch(/\.app > \.header \{[^}]*flex-wrap:\s*nowrap/);
@@ -87,8 +87,8 @@ describe('TURN-069 header', () => {
     const menu = document.querySelector('[role="menu"][data-ctx-kind="header"]') as HTMLElement;
     expect(menu.getAttribute('aria-label')).toBe('더 보기');
     const items = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
-    expect(items.map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim())).toEqual(['내보내기', '보기 설정', '도움말']);
-    expect(items.map((b) => b.querySelector('.ecd-icon')?.getAttribute('data-icon'))).toEqual([icons['export-json'], icons['view-settings'], icons.help]);
+    expect(items.map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim())).toEqual(['내보내기', '보기 설정', '도움말', '실행 취소 이력']);
+    expect(items.map((b) => b.querySelector('.ecd-icon')?.getAttribute('data-icon'))).toEqual([icons['export-json'], icons['view-settings'], icons.help, icons['undo-history']]);
     const blobs: string[] = [];
     const origCreate = URL.createObjectURL;
     const origRevoke = URL.revokeObjectURL;
@@ -110,6 +110,9 @@ describe('TURN-069 header', () => {
     await u.click(u.btn('더 보기', bar));
     await u.click(document.querySelector('[data-action="help"]')!);
     expect(u.el.querySelector('[data-help-panel]')).not.toBeNull();
+    await u.click(u.btn('더 보기', bar));
+    await u.click(document.querySelector('[data-action="undo-history"]')!);
+    expect(document.querySelector('[role="dialog"][aria-label="실행 취소 이력"]')).not.toBeNull();
     expect(u.el.querySelector('[data-help-toggle]')!.getAttribute('aria-expanded')).toBe('true');
   });
 

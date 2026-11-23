@@ -1,6 +1,6 @@
 // TURN-069. Header actions. Save, undo, redo, and command search stay.
 // Export, view settings, help, and later extras fold into 「더 보기」 when the bar is short.
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { cloneElement, isValidElement, useCallback, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { APP_VERSION, PRODUCT_NAME } from '../model/types';
 import { BrandMark } from './BrandMark';
@@ -17,6 +17,8 @@ interface Props {
   helpOpen: boolean;
   undo: ReactNode;
   redo: ReactNode;
+  /** Later header actions, such as the undo history list. They fold into 「더 보기」 first. */
+  history: ReactNode;
   paletteLabel: string;
   paletteShortcut: string;
   onPalette: () => void;
@@ -29,14 +31,14 @@ interface Props {
 }
 
 export function HeaderBar({
-  viewportWidth, dirty, helpOpen, undo, redo,
+  viewportWidth, dirty, helpOpen, undo, redo, history,
   paletteLabel, paletteShortcut, onPalette, onSave, onExport, onViewSettings, onHelp,
   fileRef, onImportFile,
 }: Props) {
   const headerRef = useRef<HTMLElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const tier: HeaderTier = headerTier(viewportWidth);
-  const [collapsed, setCollapsed] = useState<string[]>(() => (tier === 'compact' ? ['export-json', 'view-settings', 'help'] : []));
+  const [collapsed, setCollapsed] = useState<string[]>(() => (tier === 'compact' ? ['export-json', 'view-settings', 'help', 'undo-history'] : []));
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const measuring = useRef(false);
   const closeMenu = useCallback(() => setMenuAt(null), []);
@@ -65,6 +67,7 @@ export function HeaderBar({
     if (id === 'export-json') onExport();
     else if (id === 'view-settings') onViewSettings();
     else if (id === 'help') onHelp(opener);
+    else headerRef.current?.querySelector<HTMLButtonElement>(`[data-overflow="${id}"]`)?.click();
   };
   const menuItems = collapsed.map((id) => {
     const button = headerRef.current?.querySelector<HTMLButtonElement>(`[data-overflow="${id}"]`);
@@ -84,6 +87,7 @@ export function HeaderBar({
       <button className={cls('btn-main secondary', 'export-json')} data-overflow="export-json" onClick={onExport}><IconLabel id="export-json">내보내기</IconLabel></button>
       <button className={cls('btn-main secondary', 'view-settings')} data-overflow="view-settings" onClick={onViewSettings}><IconLabel id="view-settings">보기 설정</IconLabel></button>
       <button type="button" className={cls('btn-main secondary', 'help')} data-overflow="help" data-help-toggle aria-expanded={helpOpen} aria-label="도움말" onClick={(e) => onHelp(e.currentTarget)}><IconLabel id="help">도움말</IconLabel></button>
+      {isValidElement(history) ? cloneElement(history as ReactElement<{ overflowHidden?: boolean }>, { overflowHidden: hidden('undo-history') }) : history}
       <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
       {undo}
       {redo}

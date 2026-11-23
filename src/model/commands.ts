@@ -2,9 +2,14 @@
 import { findAsset, getAssetById } from '../assets/library';
 import { instantiateDevice, makeUnit, newId } from './factory';
 import { devicesOfRule, releaseBrokenInterlocks } from './interlock';
-import type { Action, AssetKind, Condition, Connection, Device, FlowNode, InterlockRule, Material, Position, Project, Quantity, SequenceStep, Signal, SubstationSequence, Unit } from './types';
+import {
+  addressConfirmationChange, addressWord, appendConfirmation, assumptionWord, candidateConfirmationChange, confirmationWord,
+  CONFIRMER_REQUIRED, gapConfirmationChange, gapStatusWord, interlockConfirmationChange, quantityConfirmationChange, quantityName, takeStamp,
+  type ConfirmStamp,
+} from './confirmationLog';
+import type { Action, AssetKind, Candidate, Condition, Connection, Device, FlowNode, GapReviewEntry, InterlockRule, Material, Position, Project, Quantity, QuantityRef, SequenceStep, Signal, SubstationSequence, Unit } from './types';
 import { DEFAULT_MAX_RETRIES, q } from './types';
-import { containsList, containsParallel, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes } from './flow';
+import { armLists, branchArms, branchFromArms, containsList, containsParallel, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, MAX_BRANCH_ARMS, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes, type BranchArm } from './flow';
 import { arrangeUnitDevices } from './deviceArrange';
 import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, rectsOverlap, tightUnitLayout, unitMinSize } from './unitLayout';
 
@@ -681,34 +686,72 @@ function parseNum(v: string | number | null): number | null | 'invalid' {
   return Number.isFinite(n) ? n : 'invalid';
 }
 
-export function setDeviceProperty(p0: Project, deviceId: string, key: string, value: string | number | null, assumption: boolean): CmdResult {
+function recordQuantity(p: Project, ref: QuantityRef, from: boolean, to: boolean, stamp: ConfirmStamp | undefined): string | null {
+  if (!quantityConfirmationChange(from, to)) return null;
+  const ready = takeStamp(stamp);
+  if (ready === 'bad') return CONFIRMER_REQUIRED;
+  if (ready === 'skip') return null;
+  appendConfirmation(p, {
+    at: ready.at, by: ready.by, name: quantityName(p, ref),
+    from: assumptionWord(from), to: assumptionWord(to),
+    target: { kind: 'quantity', ref },
+  });
+  return null;
+}
+
+export function setDeviceProperty(p0: Project, deviceId: string, key: string, value: string | number | null, assumption: boolean, stamp?: ConfirmStamp): CmdResult {
   const n = parseNum(value);
   if (n === 'invalid') return no('숫자가 아닙니다 (빈 값 = 미정)');
   if (n !== null && n < 0) return no('음수는 허용되지 않습니다');
+  const d0 = p0.devices.find((x) => x.id === deviceId); if (!d0) return no('Device 없음');
+  const prev0 = d0.properties[key]; if (!prev0) return no('속성 없음');
+  if (quantityConfirmationChange(prev0.assumption, assumption) && takeStamp(stamp) === 'bad') return no(CONFIRMER_REQUIRED);
   const p = clone(p0);
-  const d = p.devices.find((x) => x.id === deviceId); if (!d) return no('Device 없음');
-  const prev = d.properties[key]; if (!prev) return no('속성 없음');
+  const d = p.devices.find((x) => x.id === deviceId)!;
+  const prev = d.properties[key];
   d.properties[key] = { ...prev, value: n, assumption, source: { method: 'direct-input' }, history: [...(prev.history ?? []), { at: `rev${p.revision + 1}`, from: prev.value, to: n, assumption }] };
+  const err = recordQuantity(p, { kind: 'device', id: deviceId, key }, prev.assumption, assumption, stamp);
+  if (err) return no(err);
   return ok(p);
 }
 
-export function setQuantity(p0: Project, path: { kind: 'action'; id: string; field: 'duration' | 'timeout' } | { kind: 'position'; id: string } | { kind: 'unitCap'; id: string; field: 'maxMaterials' | 'maxWeight' } | { kind: 'material'; id: string; field: 'weight' | 'feedInterval' | 'w' | 'l' | 'h' } | { kind: 'stepTimeout'; id: string }, value: string | number | null, assumption: boolean): CmdResult {
+export function setQuantity(p0: Project, path: Exclude<QuantityRef, { kind: 'device' }>, value: string | number | null, assumption: boolean, stamp?: ConfirmStamp): CmdResult {
   const n = parseNum(value);
   if (n === 'invalid') return no('숫자가 아닙니다 (빈 값 = 미정)');
   if (n !== null && n < 0) return no('음수는 허용되지 않습니다');
   const p = clone(p0);
   const upd = (prev: Quantity): Quantity => ({ ...prev, value: n, assumption, source: { method: 'direct-input' }, history: [...(prev.history ?? []), { at: `rev${p.revision + 1}`, from: prev.value, to: n, assumption }] });
-  if (path.kind === 'action') { const a = p.actions.find((x) => x.id === path.id); if (!a) return no('Action 없음'); a[path.field] = upd(a[path.field]); }
-  else if (path.kind === 'position') { const x = p.positions.find((y) => y.id === path.id); if (!x) return no('Position 없음'); x.value = upd(x.value); }
-  else if (path.kind === 'unitCap') { const u = p.units.find((y) => y.id === path.id); if (!u) return no('Unit 없음'); u.capacity[path.field] = upd(u.capacity[path.field]); }
-  else if (path.kind === 'stepTimeout') {
+  let fromAssumption: boolean | null = null;
+  if (path.kind === 'action') {
+    const a = p.actions.find((x) => x.id === path.id); if (!a) return no('Action 없음');
+    fromAssumption = a[path.field].assumption;
+    a[path.field] = upd(a[path.field]);
+  } else if (path.kind === 'position') {
+    const x = p.positions.find((y) => y.id === path.id); if (!x) return no('Position 없음');
+    fromAssumption = x.value.assumption;
+    x.value = upd(x.value);
+  } else if (path.kind === 'unitCap') {
+    const u = p.units.find((y) => y.id === path.id); if (!u) return no('Unit 없음');
+    fromAssumption = u.capacity[path.field].assumption;
+    u.capacity[path.field] = upd(u.capacity[path.field]);
+  } else if (path.kind === 'stepTimeout') {
     const s = p.sequence.steps.find((y) => y.id === path.id); if (!s) return no('단계 없음');
-    s.timeoutOverride = n === null && value === null ? null : upd(s.timeoutOverride ?? q(null, 's'));
+    if (n === null && value === null) s.timeoutOverride = null;
+    else {
+      fromAssumption = (s.timeoutOverride ?? q(null, 's')).assumption;
+      s.timeoutOverride = upd(s.timeoutOverride ?? q(null, 's'));
+    }
   } else {
     const m = p.materials.find((y) => y.id === path.id); if (!m) return no('자재 없음');
+    const prev = path.field === 'weight' ? m.weight : path.field === 'feedInterval' ? m.feedInterval : m.size[path.field];
+    fromAssumption = prev.assumption;
     if (path.field === 'weight') m.weight = upd(m.weight);
     else if (path.field === 'feedInterval') m.feedInterval = upd(m.feedInterval);
     else m.size[path.field] = upd(m.size[path.field]);
+  }
+  if (fromAssumption !== null) {
+    const err = recordQuantity(p, path, fromAssumption, assumption, stamp);
+    if (err) return no(err);
   }
   return ok(p);
 }
@@ -761,10 +804,32 @@ export function addSignal(p0: Project, deviceId: string, direction: 'in' | 'out'
   p.signals.push(s); return ok(p, s.id);
 }
 
-export function updateSignal(p0: Project, id: string, patch: Partial<Pick<Signal, 'name' | 'direction' | 'role' | 'address' | 'addressStatus'>>): CmdResult {
-  const p = clone(p0); const s = p.signals.find((x) => x.id === id); if (!s) return no('Signal 없음');
+function nextAddressStatus(prev: Signal, patch: Partial<Pick<Signal, 'address' | 'addressStatus'>>): Signal['addressStatus'] {
+  let status = patch.addressStatus ?? prev.addressStatus;
+  if (patch.address !== undefined) {
+    const address = patch.address || null;
+    if (!address) status = 'unassigned';
+    else if (status === 'unassigned') status = 'assumed';
+  }
+  return status;
+}
+
+export function updateSignal(p0: Project, id: string, patch: Partial<Pick<Signal, 'name' | 'direction' | 'role' | 'address' | 'addressStatus'>>, stamp?: ConfirmStamp): CmdResult {
+  const s0 = p0.signals.find((x) => x.id === id); if (!s0) return no('Signal 없음');
+  const next = nextAddressStatus(s0, patch);
+  const logged = addressConfirmationChange(s0.addressStatus, next);
+  const ready = logged ? takeStamp(stamp) : 'skip';
+  if (ready === 'bad') return no(CONFIRMER_REQUIRED);
+  const p = clone(p0); const s = p.signals.find((x) => x.id === id)!;
   Object.assign(s, patch);
   if (patch.address !== undefined) { s.address = patch.address || null; if (!s.address) s.addressStatus = 'unassigned'; else if (s.addressStatus === 'unassigned') s.addressStatus = 'assumed'; }
+  if (ready !== 'skip') {
+    appendConfirmation(p, {
+      at: ready.at, by: ready.by, name: `${s.name} 주소`,
+      from: addressWord(s0.addressStatus), to: addressWord(s.addressStatus),
+      target: { kind: 'signalAddress', id },
+    });
+  }
   return ok(p);
 }
 
@@ -857,9 +922,57 @@ export function addMaterial(p0: Project, idOf: (s: string) => string = newId): C
 }
 
 // ---- constraints / interlock ----
-export function setConstraintConfirmation(p0: Project, id: string, confirmation: 'confirmed' | 'rejected' | 'unconfirmed'): CmdResult {
-  const p = clone(p0); const k = p.constraints.find((x) => x.id === id); if (!k) return no('제약 없음');
-  k.confirmation = confirmation; return ok(p);
+export function setConstraintConfirmation(p0: Project, id: string, confirmation: 'confirmed' | 'rejected' | 'unconfirmed', stamp?: ConfirmStamp): CmdResult {
+  const k0 = p0.constraints.find((x) => x.id === id); if (!k0) return no('제약 없음');
+  const logged = interlockConfirmationChange(k0.confirmation, confirmation);
+  const ready = logged ? takeStamp(stamp) : 'skip';
+  if (ready === 'bad') return no(CONFIRMER_REQUIRED);
+  const p = clone(p0); const k = p.constraints.find((x) => x.id === id)!;
+  const from = k.confirmation;
+  k.confirmation = confirmation;
+  if (ready !== 'skip') {
+    appendConfirmation(p, {
+      at: ready.at, by: ready.by, name: k.description, from: confirmationWord(from), to: confirmationWord(confirmation),
+      target: { kind: 'interlock', id },
+    });
+  }
+  return ok(p);
+}
+
+export function updateCandidate(p0: Project, id: string, patch: Partial<Pick<Candidate, 'confirmation' | 'deviceKind' | 'assignedUnitId' | 'confidence'>>, stamp?: ConfirmStamp): CmdResult {
+  const c0 = p0.candidates.find((x) => x.id === id); if (!c0) return no('후보 없음');
+  const next = patch.confirmation ?? c0.confirmation;
+  const logged = patch.confirmation !== undefined && candidateConfirmationChange(c0.confirmation, next);
+  const ready = logged ? takeStamp(stamp) : 'skip';
+  if (ready === 'bad') return no(CONFIRMER_REQUIRED);
+  const p = clone(p0); const c = p.candidates.find((x) => x.id === id)!;
+  const from = c.confirmation;
+  Object.assign(c, patch);
+  if (ready !== 'skip') {
+    appendConfirmation(p, {
+      at: ready.at, by: ready.by, name: c.name, from: confirmationWord(from), to: confirmationWord(c.confirmation),
+      target: { kind: 'candidate', id },
+    });
+  }
+  return ok(p);
+}
+
+export function setGapReviewStatus(p0: Project, id: string, status: GapReviewEntry['status'], stamp?: ConfirmStamp, title?: string): CmdResult {
+  const old = p0.gapReview[id]; if (!old) return no('Gap 검토 없음');
+  if (old.status === status) return no('변경 없음');
+  const logged = gapConfirmationChange(old.status, status);
+  const ready = logged ? takeStamp(stamp) : 'skip';
+  if (ready === 'bad') return no(CONFIRMER_REQUIRED);
+  const p = clone(p0);
+  p.gapReview[id] = { ...old, status };
+  if (ready !== 'skip') {
+    appendConfirmation(p, {
+      at: ready.at, by: ready.by, name: title?.trim() || id,
+      from: gapStatusWord(old.status), to: gapStatusWord(status),
+      target: { kind: 'gap', id },
+    });
+  }
+  return ok(p);
 }
 
 export function addConstraint(p0: Project, idOf: (s: string) => string = newId): CmdResult {
@@ -1013,6 +1126,79 @@ export function unwrapFlow(p0: Project, blockId: string): CmdResult {
   return ok(p);
 }
 
+function branchAt(p: Project, blockId: string) {
+  const flow = p.sequence.flow;
+  if (!flow) return null;
+  const hit = findById(flow, blockId);
+  if (!hit || hit.node.kind !== 'branch') return null;
+  return hit;
+}
+
+/** Insert one conditional arm before 「그 밖」. Five arms are rejected. The new arm starts empty and undetermined. */
+export function addBranchArm(p0: Project, blockId: string): CmdResult {
+  const p = clone(p0);
+  const hit = branchAt(p, blockId);
+  if (!hit || hit.node.kind !== 'branch') return no('분기 블록 없음');
+  const arms = branchArms(hit.node);
+  if (arms.length >= MAX_BRANCH_ARMS) return no('갈래는 4개까지입니다');
+  const created: BranchArm = { cond: { kind: 'undefined', note: '조건 없음' }, body: [] };
+  const next = [...arms.slice(0, -1), created, arms[arms.length - 1]];
+  hit.list[hit.index] = branchFromArms(hit.node, next);
+  return ok(p);
+}
+
+/** Drop one arm. Its lines move to the sibling list after the branch, same as a parallel lane. */
+export function removeBranchArm(p0: Project, blockId: string, armIndex: number): CmdResult {
+  const p = clone(p0);
+  const hit = branchAt(p, blockId);
+  if (!hit || hit.node.kind !== 'branch') return no('분기 블록 없음');
+  const arms = branchArms(hit.node);
+  if (arms.length <= 2) return no('갈래는 2개 이상이어야 합니다');
+  if (armIndex < 0 || armIndex >= arms.length) return no('갈래 없음');
+  const removed = arms[armIndex];
+  const next = arms.filter((_, i) => i !== armIndex);
+  hit.list[hit.index] = branchFromArms(hit.node, next);
+  hit.list.splice(hit.index + 1, 0, ...removed.body);
+  return ok(p);
+}
+
+/**
+ * Swap an arm with its neighbor. A condition stays on its conditional slot when one side is 「그 밖」,
+ * so moving the last arm and moving it back restores the same condition.
+ */
+export function moveBranchArm(p0: Project, blockId: string, armIndex: number, delta: number): CmdResult {
+  if (delta !== -1 && delta !== 1) return no('이동 불가');
+  const p = clone(p0);
+  const hit = branchAt(p, blockId);
+  if (!hit || hit.node.kind !== 'branch') return no('분기 블록 없음');
+  const arms = branchArms(hit.node);
+  const j = armIndex + delta;
+  if (armIndex < 0 || j < 0 || armIndex >= arms.length || j >= arms.length) return no('이동 불가');
+  const a = arms[armIndex];
+  const b = arms[j];
+  if (a.cond && b.cond) {
+    arms[armIndex] = b;
+    arms[j] = a;
+  } else {
+    arms[armIndex] = { ...a, body: b.body };
+    arms[j] = { ...b, body: a.body };
+  }
+  hit.list[hit.index] = branchFromArms(hit.node, arms);
+  return ok(p);
+}
+
+/** Set the condition of one conditional arm. The last arm has no condition. */
+export function setBranchArmCondition(p0: Project, blockId: string, armIndex: number, cond: Condition): CmdResult {
+  const p = clone(p0);
+  const hit = branchAt(p, blockId);
+  if (!hit || hit.node.kind !== 'branch') return no('분기 블록 없음');
+  const arms = branchArms(hit.node);
+  if (armIndex < 0 || armIndex >= arms.length - 1) return no('조건을 두는 갈래가 아닙니다');
+  arms[armIndex] = { ...arms[armIndex], cond };
+  hit.list[hit.index] = branchFromArms(hit.node, arms);
+  return ok(p);
+}
+
 export function addParallelLane(p0: Project, blockId: string): CmdResult {
   const p = clone(p0);
   const hit = p.sequence.flow && findById(p.sequence.flow, blockId);
@@ -1116,9 +1302,12 @@ export function moveFlowInto(p0: Project, id: string, blockId: string, arm: 'the
   const block = findById(flow, blockId);
   if (!block) return no('블록 없음');
   let target: FlowNode[] | null = null;
-  if (block.node.kind === 'branch' && arm === 'then') target = block.node.then;
-  else if (block.node.kind === 'branch' && arm === 'else') target = block.node.else;
-  else if ((block.node.kind === 'loop' || block.node.kind === 'retry') && (arm === 'body' || arm === 'then')) target = block.node.body;
+  if (block.node.kind === 'branch') {
+    const lists = armLists(block.node);
+    if (arm === 'then') target = lists[0] ?? null;
+    else if (arm === 'else') target = lists[lists.length - 1] ?? null;
+    else if (typeof arm === 'number') target = lists[arm] ?? null;
+  } else if ((block.node.kind === 'loop' || block.node.kind === 'retry') && (arm === 'body' || arm === 'then')) target = block.node.body;
   else if (block.node.kind === 'parallel' && typeof arm === 'number') target = block.node.lanes[arm] ?? null;
   if (!target) return no('갈래 없음');
   const moving = findById(flow, id);
