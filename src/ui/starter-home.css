@@ -1,0 +1,94 @@
+/* TURN-075. Gallery cards and the skeleton wizard. Type and space stay on the shared tokens. */
+.starter-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.starter-new,
+.starter-wizard {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: var(--sp-4);
+  display: flex;
+  gap: var(--sp-4);
+}
+.starter-new {
+  align-items: center;
+  justify-content: space-between;
+}
+.starter-new h2,
+.starter-wizard h2,
+.starter-gallery-title {
+  margin: 0;
+  font-size: var(--fs-h2);
+}
+.starter-new p,
+.starter-card p,
+.starter-step {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.starter-new p { margin-top: var(--sp-1); font-size: var(--fs-md); }
+.starter-actions,
+.starter-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+.starter-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+.starter-card {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.starter-card h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  line-height: 1.4;
+}
+.starter-shows { color: var(--accent); font-weight: 700; }
+.starter-card .btn-main { margin-top: auto; }
+.starter-wizard {
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.starter-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.starter-fields label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: auto;
+  font-size: var(--fs-md);
+}
+.starter-fields input,
+.starter-fields select { flex: 1; min-width: 0; }
+.starter-preview {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+.starter-next { flex: 0 0 auto; }
+.starter-next .empty-state {
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: var(--sp-1) var(--sp-2);
+  gap: var(--sp-2);
+}
+.starter-next .empty-line { margin: 0; }

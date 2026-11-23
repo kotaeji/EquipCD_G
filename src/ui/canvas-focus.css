@@ -1,0 +1,11 @@
+/* TURN-077. Diagram nodes use the same keyboard ring as the rest of the shell.
+   A pointer press matches :focus only, so the ring stays off until the keyboard moves. */
+
+.app .react-flow__node:focus {
+  outline: none;
+}
+
+.app .react-flow__node:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

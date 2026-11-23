@@ -11,6 +11,7 @@ import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { analyzeRunGaps } from '../model/runGaps';
 import { applyEdit, initHistory, jumpHistory, redo, redoTooltip, undo, undoTooltip, type History } from '../model/history';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
+import { buildStarter, STARTER_NEXT, type StarterSpec } from '../model/starter';
 import type { AssetDefinition, AssetKind, ConfirmationEntry, Project, QuantityRef } from '../model/types';
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { applyLabVariant, type LabReport, type LabVariant } from '../model/lab';
@@ -69,10 +70,12 @@ import { TAB_ICON } from './icons';
 import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
+import './focus-target.css';
 import { RUN_SPEEDS, RunConditions } from './RunConditions';
 import { RunDetails } from './RunDetails';
 import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
 import { EmptyState, LoadingPlaceholder } from './EmptyState';
+import { StarterHome } from './StarterHome';
 import { Problem } from './Problem';
 import { Clip, ECD_TABLE } from './dataTable';
 import { NoticeLog, NoticeStack } from './Notices';
@@ -81,6 +84,7 @@ import { EMPTY, LARGE_IMPORT_BYTES, LOADING_FILE, RUN_LOCK, draftProblem, import
 import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';
 import { HelpPanel } from './HelpPanel';
+import { PrintView } from './PrintView';
 import { helpTopic, resolveHelpId } from './helpCopy';
 import { TermHintsProvider, Terms } from './Term';
 
@@ -241,8 +245,20 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [arrangeOpen, setArrangeOpen] = useState(false);
   const [bgPoints, setBgPoints] = useState<{ x: number; y: number }[] | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [confirmPending, setConfirmPending] = useState<ConfirmationRunner | null>(null);
+  useEffect(() => {
+    if (!exportOpen) return;
+    const close = (e: PointerEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (!t?.closest('.export-anchor')) setExportOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [exportOpen]);
   const [tourIndex, setTourIndex] = useState<number | null>(null);
+  const [starterHintId, setStarterHintId] = useState<string | null>(null);
   const tourReturn = useRef<HTMLElement | null>(null);
   const tourIndexRef = useRef<number | null>(null);
   useEffect(() => {
@@ -828,6 +844,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || isTextField(target);
       const cmd = commandForEvent(e);
       const blocked = dialogOpen() || tourIndex !== null;
+      if (printOpen) {
+        if (e.key === 'Escape') { e.preventDefault(); setPrintOpen(false); }
+        return;
+      }
+      if (exportOpen && e.key === 'Escape') {
+        e.preventDefault();
+        setExportOpen(false);
+        return;
+      }
       // Ctrl/Cmd+K opens the palette from an input too. It does not open over a dialog or the tour.
       if (cmd?.id === 'palette') {
         e.preventDefault();
@@ -1110,6 +1135,17 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       : emptyProject(W.uniqueName(`새 프로젝트 ${tabs.length + 1}`, used));
     const t = makeTab(proj); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
     setView((v) => ({ ...v, home: false }));
+  };
+  const openStarter = (spec: StarterSpec): boolean => {
+    const built = buildStarter(spec);
+    if (!built.ok) { say(built.reason, true); return false; }
+    const proj = { ...built.project, name: W.uniqueName(built.project.name, projectNames()) };
+    const t = makeTab(proj);
+    setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
+    setStarterHintId(proj.id);
+    setHelpScope('main');
+    setView((v) => ({ ...v, home: false, step: 'canvas', layoutTab: 'board' }));
+    return true;
   };
   const restoreTourFocus = () => {
     const back = tourReturn.current;
@@ -1588,6 +1624,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setRunView,
     save: doSave,
     exportJson: () => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)),
+    openPrint: () => { setExportOpen(false); setPrintOpen(true); },
     importJson: () => fileRef.current?.click(),
     newProject,
     undo: doUndo,
@@ -1667,7 +1704,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <IconLabel id="palette">{PALETTE_LABEL}</IconLabel><span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
         </button>
         <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}><IconLabel id="save">저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</IconLabel></button>
-        <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}><IconLabel id="export-json">내보내기</IconLabel></button>
+        <div className="export-anchor">
+          <button type="button" className="btn-main secondary" aria-haspopup="menu" aria-expanded={exportOpen} aria-controls="export-menu" onClick={() => setExportOpen((v) => !v)}><IconLabel id="export-json">내보내기</IconLabel></button>
+          {exportOpen && <div id="export-menu" className="export-pop" role="menu" aria-label="내보내기">
+            <button type="button" role="menuitem" onClick={() => { setExportOpen(false); download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)); }}><IconLabel id="export-json">JSON 내보내기</IconLabel></button>
+            <button type="button" role="menuitem" onClick={() => { setExportOpen(false); setPrintOpen(true); }}><IconLabel id="print-view">인쇄용 보기</IconLabel></button>
+          </div>}
+        </div>
         <button className="btn-main secondary" onClick={() => setViewOpen(true)}><IconLabel id="view-settings">보기 설정</IconLabel></button>
         <button type="button" className="btn-main secondary" data-help-toggle aria-expanded={view.helpOpen} aria-label="도움말" onClick={(e) => { helpReturn.current = e.currentTarget; setView((v) => ({ ...v, helpOpen: !v.helpOpen })); }}><IconLabel id="help">도움말</IconLabel></button>
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
@@ -1732,20 +1775,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             data-tour-start data-tour-offer={savedList.length === 0 && !view.tourSeen ? 'primary' : view.tourSeen ? 'again' : 'quiet'}
             onClick={(e) => beginTour(e.currentTarget)}>{view.tourSeen ? TOUR_AGAIN : TOUR_BUTTON}</button>
         </div>
-        <div className="home-cards">
-          <section className="home-card">
-            <h2>새 설계 시작</h2>
-            <p>자료가 없어도 시작할 수 있습니다.<br />에셋 선택부터 단계별로 안내합니다.</p>
-            <button className="btn-main primary" onClick={() => newProject('blank')}>빈 프로젝트 만들기</button>
-          </section>
-          <section className="home-card">
-            <h2>예제로 익히기</h2>
-            <p>5공정 조립 라인 · 병렬 시퀀스 · 분기와 반복<br />실제 장비가 아닌 논리 실행 예제입니다.</p>
-            <div className="row"><button className="btn-main primary" onClick={() => newProject('sample')}>예제 열기</button>
-              <button className="btn-main secondary" onClick={() => newProject('parallel')}>병렬 예제</button>
-              <button className="btn-main secondary" onClick={() => newProject('flow')}>흐름 예제</button></div>
-          </section>
-        </div>
+        <StarterHome templates={templates} onBlank={() => newProject('blank')} onOpenSample={newProject} onCreate={openStarter} />
         {unsavedDrafts.length > 0 && <h2>저장 안 된 작업</h2>}
         {unsavedDrafts.map((d) => <div key={d.id} className="home-recent" data-unsaved-draft={d.id}>
           <div><b>{d.name}</b><div className="muted">rev {d.revision} · 임시 저장 {formatClock(d.savedAt)}</div></div>
@@ -1779,7 +1809,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!guide && !view.home && step === 'canvas' && <div className="workspace ws-canvas">
-        <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
         <div className="stage layout-stage">
           <div className="stage-head">
             <h1 className="stage-title"><span data-tour="canvas"><Terms text="배치·연결" /></span></h1>
@@ -1795,6 +1824,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
+          {starterHintId === p.id && <div className="starter-next"><EmptyState symbol="→" line={STARTER_NEXT} attrs={{ 'data-starter-next': 'canvas' }} /></div>}
           <Fold className="palette-fold" open={view.paletteOpen} onToggle={(open) => setView((v) => (v.paletteOpen === open ? v : { ...v, paletteOpen: open }))} summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span>{paletteHidden > 0 && <span className="palette-more" data-palette-more={paletteHidden}>+{paletteHidden}개 더</span>}</>}>
             <div className="palette" ref={paletteRef}>
               <div className="pi" data-jump="palette-unit" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
@@ -1862,6 +1892,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             ]} />
           </div>
         </div>
+        <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
         <div className="right prop-col">
           <div className="prop-body">{(() => {
           const d = p.devices.find((x) => x.id === selection[0]);
@@ -2185,6 +2216,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </StaticModalFrame>}
       {view.helpOpen && <HelpPanel topic={helpTopic(helpId)} onClose={closeHelp} onTour={(el) => beginTour(el)} onShortcuts={() => setShortcutOpen(true)} />}
       {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
+      {printOpen && <PrintView project={p} onClose={() => setPrintOpen(false)} />}
       {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onJump={(entry, stay) => { jumpToObject(entry, stay); setPaletteOpen(false); }} onClose={() => setPaletteOpen(false)} />}
       {shortcutOpen && <ShortcutSheet state={commandState} mac={macShortcut} onClose={() => setShortcutOpen(false)} />}
     </div>

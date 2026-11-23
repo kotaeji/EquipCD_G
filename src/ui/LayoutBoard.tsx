@@ -62,6 +62,7 @@ export function LayoutBoard(props: Props) {
   return <div className="board" tabIndex={-1} data-board="live" onContextMenu={(e) => { if ((e.target as Element).closest('.station-card')) return; ask(e, { kind: 'empty' }); }}>
     {props.connectNote && <p className="notice board-connect-note" style={{ position: 'absolute' }}>{props.connectNote}</p>}
     {units.length > 0 && flows.length === 0 && <EmptyState symbol="→" line={EMPTY.flows} actions={[{ label: '물류 연결', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onStartFlow }]} />}
+    {units.length > 0 && p.devices.length === 0 && <EmptyState symbol="○" line={EMPTY.devices} actions={[{ label: '팔레트에서 고르기', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onFocusDevice }]} />}
     <div className="board-row" onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
       const { kind } = take(e);
       if (isUnitDrop(kind)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
@@ -91,7 +92,6 @@ export function LayoutBoard(props: Props) {
         })}
       </article>)}
       {units.length === 0 && <EmptyState symbol="○" line={EMPTY.units} actions={[{ label: '팔레트의 빈 유닛', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onFocusUnit }]} />}
-      {units.length > 0 && p.devices.length === 0 && <EmptyState symbol="○" line={EMPTY.devices} actions={[{ label: '팔레트에서 고르기', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onFocusDevice }]} />}
     </div>
   </div>;
 }

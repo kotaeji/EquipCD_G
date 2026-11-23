@@ -52,10 +52,11 @@ describe('theme colors', () => {
   it('AC8: header focus ring is a white 2px outline with 2px offset, and the global accent ring stays', () => {
     const css = readFileSync('src/ui/styles.css', 'utf8');
     const block = css.match(/\.header :focus-visible \{[\s\S]*?\}/)?.[0] ?? '';
-    expect(block).toMatch(/outline:\s*2px solid #FFFFFF/);
+    expect(block).toMatch(/outline:\s*2px solid var\(--focus\)/);
     expect(block).toMatch(/outline-offset:\s*2px/);
     expect(block).not.toMatch(/--accent/);
-    expect(css).toMatch(/:where\(button, a, select, input, textarea, \[tabindex\]\):focus-visible \{ outline: 2px solid var\(--accent\)/);
+    expect(css).toMatch(/\.app > \.header \{\s*--focus:\s*#FFFFFF/);
+    expect(css).toMatch(/:where\(button, a, select, input, textarea, \[tabindex\]\):focus-visible \{ outline: 2px solid var\(--focus\); outline-offset: 2px/);
     const headerRule = css.slice(css.lastIndexOf('.app > .header {'));
     expect(headerRule).toMatch(/background:\s*var\(--header-bg\)/);
     expect(headerRule).toMatch(/color:\s*var\(--header-fg\)/);
@@ -121,7 +122,8 @@ describe('theme colors', () => {
     const hoverBlocks = [...header.matchAll(/:hover:not\(:disabled\) \{[\s\S]*?\}/g)].map((m) => m[0]);
     expect(hoverBlocks.length).toBeGreaterThanOrEqual(4);
     for (const block of hoverBlocks) expect(block).not.toMatch(/outline/);
-    expect(header).toMatch(/\.header :focus-visible \{[\s\S]*?outline:\s*2px solid #FFFFFF/);
+    expect(header).toMatch(/\.header :focus-visible \{[\s\S]*?outline:\s*2px solid var\(--focus\)/);
     expect(header).toMatch(/\.header :focus-visible \{[\s\S]*?outline-offset:\s*2px/);
+    expect(header).toMatch(/--focus:\s*#FFFFFF/);
   });
 });

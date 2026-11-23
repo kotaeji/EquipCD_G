@@ -125,7 +125,7 @@ describe('TURN-068 tables', () => {
 
   it('AC1 the substation step table uses the same class and right-aligns the time column', async () => {
     const u = await mount();
-    await u.click(u.btn('병렬 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="parallel"]'));
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]'));
     await u.click([...u.el.querySelectorAll('.subtabs button')].find((item) => (item.textContent ?? '').includes('Substation 시퀀스')));
     const sub = tableByHead(u.el, '시간')!;

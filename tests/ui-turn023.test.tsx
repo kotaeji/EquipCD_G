@@ -73,7 +73,7 @@ describe('TURN-023 flow editor UI', () => {
     root = null;
     document.body.innerHTML = '';
     const flow = await mount();
-    await flow.click(flow.btn('흐름 예제'));
+    await flow.click(flow.el.querySelector('[data-sample-open="flow"]')!);
     await flow.click(flow.el.querySelector('.stepper [data-stepid="sequence"]')!);
     const u2 = flow;
     const titled = u2.row('branch');
@@ -122,7 +122,7 @@ describe('TURN-023 flow editor UI', () => {
 
   it('AC3 moves a block and a substation step with buttons and arrow keys', async () => {
     const u = await mount();
-    await u.click(u.btn('흐름 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="flow"]')!);
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]')!);
     const retry = u.row('retry');
     expect([...retry.querySelectorAll('button')].map((b) => b.textContent)).toEqual(expect.arrayContaining(['위로', '아래로', '밖으로']));
@@ -154,7 +154,7 @@ describe('TURN-023 flow editor UI', () => {
 
   it('AC4 AC5 inserts and wraps a block or substation step when the run is consecutive', async () => {
     const u = await mount();
-    await u.click(u.btn('흐름 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="flow"]')!);
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]')!);
     const check = (kind: string) => u.row(kind).querySelector('input[type="checkbox"]') as HTMLInputElement;
     await u.click(check('retry'));
@@ -180,7 +180,7 @@ describe('TURN-023 flow editor UI', () => {
     root = null;
     document.body.innerHTML = '';
     const fresh = await mount();
-    await fresh.click(fresh.btn('흐름 예제'));
+    await fresh.click(fresh.el.querySelector('[data-sample-open="flow"]')!);
     await fresh.click(fresh.el.querySelector('.stepper [data-stepid="sequence"]')!);
     const step = fresh.history().present.sequence.flow![1];
     const stepId = step.kind === 'step' ? step.stepId : '';
@@ -200,7 +200,7 @@ describe('TURN-023 flow editor UI', () => {
 
   it('AC6 draws the station flow table and the wrap row once, and keeps step editing', async () => {
     const u = await mount();
-    await u.click(u.btn('흐름 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="flow"]')!);
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]')!);
     expect(u.el.querySelectorAll('table[aria-label="Station 흐름"]')).toHaveLength(1);
     for (const label of ['분기로 묶기', '병렬로 묶기', '반복으로 묶기', '재시도로 묶기']) {

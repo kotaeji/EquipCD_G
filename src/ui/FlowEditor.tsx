@@ -204,7 +204,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
           const picked = !!id && pickedIds.includes(id);
           const rowClass = [row.stepId ? stepLiveClass(live?.phase ?? 'pending') : '', picked ? 'is-picked' : ''].filter(Boolean).join(' ');
           return <tr key={row.key} className={rowClass || undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-flow-arm={armIndex ?? undefined} data-arm-count={row.armCount} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
-            <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />}</td>
+            <td>{id && <label className="check-hit"><input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} /></label>}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b><Clip text={row.title} /></b>
               {isBlockKind(row.kind) && <BlockName name={blockName} word={flowBlockWord(row.kind)} disabled={locked} onCommit={(v) => edit(C.renameFlowBlock(p, row.blockId!, v), '블록 이름')} />}
