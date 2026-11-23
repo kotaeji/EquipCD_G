@@ -377,7 +377,6 @@ export function flowShapeBlockers(p: Project): Diagnostic[] {
       arms.forEach((arm, i) => {
         const place = arms.length > 2 ? `분기 ${n.name} ${armLabel(arms.length, i)}` : `분기 ${n.name}`;
         if (arm.cond) cond(arm.cond, n.id, place);
-        if (arm.body.length === 0) err('EMPTY_LANE', n.id, `분기 ${n.name}: 갈래 ${i + 1} 이 비어 있음`);
       });
     }
     if (n.kind === 'wait') {

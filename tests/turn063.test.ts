@@ -150,21 +150,38 @@ describe('TURN-063 multi-way branch', () => {
     }
   });
 
-  it('AC7 an empty arm and an undetermined condition block the run and point at that arm', () => {
+  it('AC7 an empty arm does not block, and an undetermined condition still points at that arm', () => {
+    const open = buildSampleProject();
+    const step = open.sequence.steps[0];
+    const action = open.actions.find((a) => a.id === step.actionId)!;
+    action.pre = [];
+    action.post = [];
+    open.sequence.flow = [{
+      kind: 'branch', id: 'B', name: '검사',
+      cond: { kind: 'materialState', state: '대기' },
+      then: [{ kind: 'step', stepId: step.id }],
+      else: [],
+    }];
+    const ready = checkRunReadiness(open);
+    expect(ready.blockers.some((b) => b.code === 'EMPTY_LANE')).toBe(false);
+    expect(ready.ok).toBe(true);
+    expect(runToEnd(createRuntime(open)).state.status).toBe('completed');
+    const notice = checkConditions(open).find((f) => f.kind === 'emptyArm');
+    expect(notice?.level).toBe('info');
+    expect(notice?.reason).toContain('빈 갈래');
+    expect(notice?.jump.field).toBe('flow:B:arm:1');
+
     const p = buildFlowSampleProject();
     const added = C.addBranchArm(p, 'FLW-BRANCH');
     expect(added.ok).toBe(true);
     if (!added.ok) return;
-    const ready = checkRunReadiness(added.project);
-    expect(ready.ok).toBe(false);
-    const empty = ready.blockers.find((b) => b.code === 'EMPTY_LANE' && b.objectId === 'FLW-BRANCH');
-    const unset = ready.blockers.find((b) => b.code === 'CONDITION_UNDEFINED' && b.objectId === 'FLW-BRANCH');
-    expect(empty?.message).toContain('갈래 2');
+    const blocked = checkRunReadiness(added.project);
+    expect(blocked.ok).toBe(false);
+    expect(blocked.blockers.some((b) => b.code === 'EMPTY_LANE')).toBe(false);
+    const unset = blocked.blockers.find((b) => b.code === 'CONDITION_UNDEFINED' && b.objectId === 'FLW-BRANCH');
     expect(unset?.message).toContain('미정 조건');
-    expect(branchArmField(added.project, empty!)).toBe('flow:FLW-BRANCH:arm:1');
     expect(branchArmField(added.project, unset!)).toBe('flow:FLW-BRANCH:arm:1');
-    const started = createRuntime(added.project);
-    expect(started.state.status).toBe('idle');
+    expect(createRuntime(added.project).state.status).toBe('idle');
   });
 
   it('AC8 the runtime rule is seq-runtime/0.7.0', () => {

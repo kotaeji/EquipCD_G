@@ -77,11 +77,7 @@ describe('TURN-063 flow table and SFC', () => {
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]'));
     await u.click(u.btn('갈래 추가', u.branch()));
     await u.click(u.el.querySelector('.stepper [data-stepid="run"]'));
-    const empty = u.el.querySelector('[data-blocker-code="EMPTY_LANE"]') as HTMLButtonElement;
-    expect(empty).toBeTruthy();
-    await u.click(empty);
-    expect(u.el.querySelector('.jump-flash')!.getAttribute('data-jump')).toBe('flow:FLW-BRANCH:arm:1');
-    await u.click(u.el.querySelector('.stepper [data-stepid="run"]'));
+    expect(u.el.querySelector('[data-blocker-code="EMPTY_LANE"]')).toBeNull();
     const unset = u.el.querySelector('[data-blocker-code="CONDITION_UNDEFINED"]') as HTMLButtonElement;
     expect(unset).toBeTruthy();
     await u.click(unset);
@@ -98,6 +94,9 @@ describe('TURN-063 flow table and SFC', () => {
     await u.click(u.btn('진단·저장·AML'));
     const table = u.el.querySelector('[aria-label="조건"]')!;
     expect(table.textContent).toContain('도달하지 않음');
+    const empty = table.querySelector('[data-cond-finding="emptyArm"]')!;
+    expect(empty.getAttribute('data-cond-level')).toBe('info');
+    expect(empty.textContent).toContain('빈 갈래');
     const row = table.querySelector('[data-cond-finding="unreachable"]')!;
     await u.click(u.btn('이동', row));
     expect(u.el.querySelector('.app')!.getAttribute('data-step')).toBe('sequence');

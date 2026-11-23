@@ -5,7 +5,7 @@ import { conditionFormula, conditionsFormula, signalHead, stepById } from './con
 import type { Condition, FlowNode, Project, SequenceStep } from './types';
 
 export type ConditionLevel = 'error' | 'undetermined' | 'info';
-export type ConditionKind = 'broken' | 'alwaysFalse' | 'overlap' | 'undetermined' | 'opposite' | 'unreachable';
+export type ConditionKind = 'broken' | 'alwaysFalse' | 'overlap' | 'undetermined' | 'opposite' | 'unreachable' | 'emptyArm';
 
 export interface ConditionJump {
   step: 'attributes' | 'sequence';
@@ -309,12 +309,41 @@ function unreachableFindings(p: Project): ConditionFinding[] {
   return out;
 }
 
-/** Every condition site, then opposite lanes, then a later arm that repeats an earlier condition. Order is file order. */
+/** An empty arm is not a run block. The branch just passes through it. */
+function emptyArmFindings(p: Project): ConditionFinding[] {
+  const flow = p.sequence.flow;
+  if (!flow) return [];
+  const out: ConditionFinding[] = [];
+  walk(flow, (n) => {
+    if (n.kind !== 'branch') return;
+    const arms = branchArms(n);
+    arms.forEach((arm, index) => {
+      if (arm.body.length > 0) return;
+      const label = armLabel(arms.length, index);
+      const site = `flow:${n.id}:arm:${index}`;
+      out.push({
+        id: `empty-arm:${n.id}:${index}`,
+        level: 'info',
+        kind: 'emptyArm',
+        site,
+        sites: [site],
+        where: `분기 ${n.name} ${label}`,
+        formula: arm.cond ? conditionFormula(p, arm.cond) : label,
+        reason: '빈 갈래 — 줄이 없어 이 갈래는 그냥 지나갑니다',
+        jump: { step: 'sequence', sub: 'sequence', field: site },
+      });
+    });
+  });
+  return out;
+}
+
+/** Every condition site, then opposite lanes, then unreachable and empty arms. Order is file order. */
 export function checkConditions(p: Project): ConditionFinding[] {
   const states = knownStates(p);
   const out: ConditionFinding[] = [];
   for (const site of sitesOf(p)) out.push(...bundleFindings(p, site, states));
   out.push(...oppositeFindings(p));
   out.push(...unreachableFindings(p));
+  out.push(...emptyArmFindings(p));
   return out;
 }
