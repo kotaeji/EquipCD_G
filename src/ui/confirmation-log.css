@@ -1,0 +1,6 @@
+.confirm-log { margin-top: var(--sp-4); }
+.confirm-log h2 { margin: 0 0 var(--sp-2); font-size: var(--fs-h2); }
+.confirm-note { display: block; margin-top: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); }
+.confirm-field { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-1); font-size: var(--fs-sm); }
+.confirm-ask p { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); }
+.confirm-gone { color: var(--muted); }
