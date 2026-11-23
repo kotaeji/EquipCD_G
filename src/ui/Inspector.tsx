@@ -6,7 +6,10 @@ import type { Gap } from '../model/gaps';
 import type { Action, Condition, Project } from '../model/types';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
+import { actionDeleteDetail, actionUsage, positionDeleteDetail, positionUsage, signalDeleteDetail, signalUsage } from '../model/deleteImpact';
 import { Badge, QtyInput, TextInput } from './widgets';
+
+export type ConfirmDelete = (title: string, detail: string | null, run: () => void) => void;
 
 export type EditFn = (r: C.CmdResult, label: string) => boolean;
 
@@ -18,6 +21,7 @@ interface Props {
   edit: EditFn;
   onAddStep: (actionId: string) => void;
   onDelete: (id: string) => void;
+  confirmDelete: ConfirmDelete;
   onReparent: (deviceId: string, unitId: string) => void;
   tab: string;
   setTab: (t: string) => void;
@@ -63,10 +67,10 @@ function ConditionEditor({ p, list, onChange, disabled }: { p: Project; list: Co
   );
 }
 
-function ActionEditor({ p, a, locked, edit, onAddStep }: { p: Project; a: Action; locked: boolean; edit: EditFn; onAddStep: (id: string) => void }) {
+function ActionEditor({ p, a, locked, edit, onAddStep, confirmDelete }: { p: Project; a: Action; locked: boolean; edit: EditFn; onAddStep: (id: string) => void; confirmDelete: ConfirmDelete }) {
   const devSignals = p.signals.filter((s) => s.deviceId === a.deviceId);
   const states = p.materials[0]?.states ?? [];
-  const used = p.sequence.steps.filter((s) => s.actionId === a.id);
+  const used = actionUsage(p, a.id);
   const upd = (patch: Parameters<typeof C.updateAction>[2], label: string) => edit(C.updateAction(p, a.id, patch), label);
   return (
     <div className="section">
@@ -88,10 +92,10 @@ function ActionEditor({ p, a, locked, edit, onAddStep }: { p: Project; a: Action
       <div className="row"><label>위치 이동</label><select disabled={locked} value={a.effect.moveTo ?? ''} onChange={(e) => { const eff = { ...a.effect }; if (e.target.value) eff.moveTo = e.target.value; else delete eff.moveTo; upd({ effect: eff }, '자재 이동'); }}><option value="">(변화 없음)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}<option value="EXIT">배출(장비 밖)</option></select></div>
       <div className="row"><label>상태 변경</label><select disabled={locked} value={a.effect.setState ?? ''} onChange={(e) => { const eff = { ...a.effect }; if (e.target.value) eff.setState = e.target.value; else delete eff.setState; upd({ effect: eff }, '자재 상태'); }}><option value="">(변화 없음)</option>{states.map((s) => <option key={s}>{s}</option>)}</select></div>
       <div className="row"><label>잡기/놓기</label><select disabled={locked} value={a.effect.holder === undefined ? '' : a.effect.holder === null ? '__release' : a.effect.holder} onChange={(e) => { const eff = { ...a.effect }; if (e.target.value === '') delete eff.holder; else eff.holder = e.target.value === '__release' ? null : e.target.value; upd({ effect: eff }, '잡기/놓기'); }}><option value="">(변화 없음)</option><option value="__release">놓기(해제)</option>{p.devices.filter((d) => d.kind === 'picker').map((d) => <option key={d.id} value={d.id}>{d.name} 잡음</option>)}</select></div>
-      <div className="row" style={{ marginTop: 6 }}>
-        <button disabled={locked} onClick={() => onAddStep(a.id)}>시퀀스 끝에 추가</button>
-        <button className="danger" disabled={locked} onClick={() => edit(C.deleteAction(p, a.id), 'Action 삭제')}>Action 삭제</button>
-        {used.length > 0 && <span className="muted" style={{ fontSize: 11 }}>사용 단계 {used.length}</span>}
+      <div className="row danger-row" style={{ marginTop: 6 }}>
+        <button type="button" disabled={locked} onClick={() => onAddStep(a.id)}>시퀀스 끝에 추가</button>
+        {used && <span className="danger-note" data-delete-impact>{used}</span>}
+        <button type="button" className="danger" disabled={locked} onClick={() => confirmDelete(`${a.name} 삭제`, actionDeleteDetail(p, a.id), () => edit(C.deleteAction(p, a.id), 'Action 삭제'))}>Action 삭제</button>
       </div>
     </div>
   );
@@ -138,7 +142,7 @@ export function Inspector(props: Props) {
       <div className="row"><label>From</label>{conn.kind === 'flow' ? unitName(p, conn.from.nodeId) : sigName(p, conn.from.signalId)}</div>
       <div className="row"><label>To</label>{conn.kind === 'flow' ? unitName(p, conn.to.nodeId) : sigName(p, conn.to.signalId)}</div>
       <div className="notice">{conn.kind === 'flow' ? '물류 연결선은 자재를 자동 이동시키지 않습니다. 이동은 Action의 자재 변화로만 일어납니다.' : '신호 연결은 논리 관계 표시이며 이번 시제품 런타임은 시퀀스 단계의 명령/완료 Signal로 진행합니다.'}</div>
-      <button className="danger" disabled={locked} onClick={() => edit(C.deleteConnection(p, conn.id), '연결 삭제')}>연결 삭제</button>
+      <div className="danger-row"><button type="button" className="danger" disabled={locked} onClick={() => edit(C.deleteConnection(p, conn.id), '연결 삭제')}>연결 삭제</button></div>
     </div>;
   }
   if (unit) {
@@ -152,7 +156,7 @@ export function Inspector(props: Props) {
         <div className="row"><label>수용 개수</label><QtyInput q={unit.capacity.maxMaterials} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxMaterials' }, v, as), '수용 개수')} /></div>
         <div className="row"><label>허용 무게</label><QtyInput q={unit.capacity.maxWeight} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxWeight' }, v, as), '허용 무게')} /></div>
         <div className="row"><label>Device</label><span>{unit.deviceIds.map((d) => devName(p, d)).join(', ') || '(없음)'}</span></div>
-        <button className="danger" disabled={locked} onClick={() => props.onDelete(unit.id)}>Unit 삭제(영향 확인)</button>
+        <div className="danger-row"><button type="button" className="danger" disabled={locked} onClick={() => props.onDelete(unit.id)}>Unit 삭제(영향 확인)</button></div>
       </div>
       <div className="section"><h4>제공 능력표 (F3-03, 자동 생성)</h4><CapabilityTable p={p} unitId={unit.id} /></div>
       <GapList gaps={relatedGaps} />
@@ -179,18 +183,19 @@ export function Inspector(props: Props) {
     {tab === 'props' && <div className="section">
       {def.properties.map((pd) => { const qv = d.properties[pd.key]; return qv ? <div key={pd.key} className="row" data-jump={`prop:${d.id}:${pd.key}`}><label>{pd.label}{pd.requiredForRun ? ' *' : ''}</label><QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} /></div> : null; })}
       <div className="muted" style={{ fontSize: 11 }}>* 실행/수용 판정에 필요 (비우면 미정 축 사양 Gap). 빈 값 = 미정, 0과 다름.</div>
-      <button className="danger" style={{ marginTop: 8 }} disabled={locked} onClick={() => props.onDelete(d.id)}>Device 삭제(영향 확인)</button>
+      <div className="danger-row" style={{ marginTop: 8 }}><button type="button" className="danger" disabled={locked} onClick={() => props.onDelete(d.id)}>Device 삭제(영향 확인)</button></div>
     </div>}
     {tab === 'signals' && <div className="section">
       {sigs.map((s) => <div key={s.id} style={{ borderBottom: '1px solid var(--border)', padding: '4px 0' }}>
         <div className="row"><TextInput value={s.name} disabled={locked} width={160} onCommit={(v) => edit(C.renameObject(p, s.id, v), 'Signal 이름')} />
           <Badge kind={s.direction === 'in' ? 'acc' : undefined}>{s.direction === 'in' ? '입력 in' : '출력 out'}</Badge><Badge>{s.role}</Badge></div>
-        <div className="row"><label>실제 주소</label><TextInput value={s.address ?? ''} width={90} disabled={locked} onCommit={(v) => edit(C.updateSignal(p, s.id, { address: v }), 'Signal 주소')} />
+        <div className="row danger-row"><label>실제 주소</label><TextInput value={s.address ?? ''} width={90} disabled={locked} onCommit={(v) => edit(C.updateSignal(p, s.id, { address: v }), 'Signal 주소')} />
           {!s.address && <><StatusMark status="undetermined" /> <span className="muted">개념 신호</span></>}
           {s.address && s.addressStatus === 'assumed' && <StatusMark status="assumption" />}
           {s.address && s.addressStatus === 'confirmed' && <Badge kind="ok">{s.addressStatus}</Badge>}
           {s.address && s.addressStatus === 'unassigned' && <StatusMark status="undetermined" />}
-          <button className="small danger" disabled={locked} onClick={() => edit(C.deleteSignal(p, s.id), 'Signal 삭제')}>삭제</button></div>
+          {signalUsage(p, s.id) && <span className="danger-note" data-delete-impact>{signalUsage(p, s.id)}</span>}
+          <button type="button" className="small danger" disabled={locked} onClick={() => props.confirmDelete(`${s.name} 삭제`, signalDeleteDetail(p, s.id), () => edit(C.deleteSignal(p, s.id), 'Signal 삭제'))}>삭제</button></div>
       </div>)}
       <div className="row" style={{ marginTop: 6 }}>
         <button className="small" disabled={locked} onClick={() => edit(C.addSignal(p, d.id, 'out', 'complete'), 'Signal 추가')}>+ 출력(완료)</button>
@@ -200,14 +205,15 @@ export function Inspector(props: Props) {
       <div className="muted" style={{ fontSize: 11 }}>실제 I/O 주소가 없어도 역할 기반 개념 신호로 설계 가능 (주소 = 미정 유지).</div>
     </div>}
     {tab === 'positions' && <div className="section">
-      {poss.map((x) => <div key={x.id} className="row"><TextInput value={x.name} width={120} disabled={locked} onCommit={(v) => edit(C.renameObject(p, x.id, v), 'Position 이름')} />
+      {poss.map((x) => <div key={x.id} className="row danger-row"><TextInput value={x.name} width={120} disabled={locked} onCommit={(v) => edit(C.renameObject(p, x.id, v), 'Position 이름')} />
         <QtyInput q={x.value} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'position', id: x.id }, v, as), 'Position 값')} />
-        <button className="small danger" disabled={locked} onClick={() => edit(C.deletePosition(p, x.id), 'Position 삭제')}>×</button></div>)}
+        {positionUsage(p, x.id) && <span className="danger-note" data-delete-impact>{positionUsage(p, x.id)}</span>}
+        <button type="button" className="small danger" disabled={locked} onClick={() => props.confirmDelete(`${x.name} 삭제`, positionDeleteDetail(p, x.id), () => edit(C.deletePosition(p, x.id), 'Position 삭제'))}>삭제</button></div>)}
       <button className="small" disabled={locked} onClick={() => edit(C.addPosition(p, d.id), 'Position 추가')}>+ Position</button>
       <div className="muted" style={{ fontSize: 11 }}>가정값은 가정 표시와 함께 저장됩니다. 실측 교체(역매핑)는 미구현.</div>
     </div>}
     {tab === 'actions' && <div>
-      {acts.map((a) => <ActionEditor key={a.id} p={p} a={a} locked={locked} edit={edit} onAddStep={props.onAddStep} />)}
+      {acts.map((a) => <ActionEditor key={a.id} p={p} a={a} locked={locked} edit={edit} onAddStep={props.onAddStep} confirmDelete={props.confirmDelete} />)}
       <div className="section"><button disabled={locked} onClick={() => edit(C.addAction(p, d.id), 'Action 추가')}>+ Action</button></div>
     </div>}
     {tab === 'check' && <div className="section">

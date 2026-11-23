@@ -13,7 +13,8 @@ import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus, type AggregateStepStatus } from '../runtime/runSummary';
 import type { QuarantineEntry } from '../storage/localStore';
 import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
-import type { EditFn } from './Inspector';
+import type { ConfirmDelete, EditFn } from './Inspector';
+import { stepDeleteDetail, stepUsage } from '../model/deleteImpact';
 import { condLabel, devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
 import { RunSummary } from './RunSummary';
 import { SfcView } from './SfcView';
@@ -36,7 +37,7 @@ function sequenceStatus(view: AggregateStepStatus) {
 }
 
 // ---------------- F5 Sequence ----------------
-export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onSelect: (id: string) => void }) {
+export function SequencePanel({ p, rt, locked, edit, onSelect, confirmDelete }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn; onSelect: (id: string) => void; confirmDelete?: ConfirmDelete }) {
   const [unitFilter, setUnitFilter] = useState('');
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<ParsedLine[] | null>(null);
@@ -89,10 +90,11 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
                   <td style={{ fontSize: 11 }}>{a ? effectLabel(p, a.effect) : ''}</td>
                   <td style={{ fontSize: 10 }} className="muted">{s.origin}{s.sourceText ? `: "${s.sourceText}"` : ''}</td>
                   <td>{sequenceStatus(view)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="small" disabled={locked || i === 0} onClick={() => edit(C.moveStep(p, i, i - 1), '단계 위로')}>↑</button>
-                    <button className="small" disabled={locked || i === p.sequence.steps.length - 1} onClick={() => edit(C.moveStep(p, i, i + 1), '단계 아래로')}>↓</button>
-                    <button className="small danger" disabled={locked} onClick={() => edit(C.removeStep(p, s.id), '단계 삭제')}>×</button>
+                  <td className="danger-row">
+                    <button type="button" className="small" disabled={locked || i === 0} onClick={() => edit(C.moveStep(p, i, i - 1), '단계 위로')}>↑</button>
+                    <button type="button" className="small" disabled={locked || i === p.sequence.steps.length - 1} onClick={() => edit(C.moveStep(p, i, i + 1), '단계 아래로')}>↓</button>
+                    {stepUsage(p, s.id) && <span className="danger-note" data-delete-impact>{stepUsage(p, s.id)}</span>}
+                    <button type="button" className="small danger" disabled={locked} onClick={() => { const detail = stepDeleteDetail(p, s.id); const run = () => edit(C.removeStep(p, s.id), '단계 삭제'); if (detail && confirmDelete) confirmDelete(`${s.name} 삭제`, detail, run); else run(); }}>삭제</button>
                   </td>
                 </tr>
               );
@@ -326,7 +328,7 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
         {route.map((uid, i) => <div key={`${uid}-${i}`} className="row" style={{ minHeight: 24 }}><span className="mono">{i + 1}.</span><span style={{ flex: 1 }}>{unitName(p, uid)}</span>
           <button className="small" disabled={locked || i === 0} onClick={() => { const r = [...route]; [r[i - 1], r[i]] = [r[i], r[i - 1]]; setRoute(r); }}>↑</button>
           <button className="small" disabled={locked || i === route.length - 1} onClick={() => { const r = [...route]; [r[i + 1], r[i]] = [r[i], r[i + 1]]; setRoute(r); }}>↓</button>
-          <button className="small danger" disabled={locked} onClick={() => setRoute(route.filter((_, j) => j !== i))}>×</button></div>)}
+          <button type="button" className="small danger" disabled={locked} onClick={() => setRoute(route.filter((_, j) => j !== i))}>삭제</button></div>)}
         <div className="row"><select value={addUnit} disabled={locked} onChange={(e) => setAddUnit(e.target.value)}><option value="">Unit 선택</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select><button className="small" disabled={locked || !addUnit} onClick={() => { setRoute([...route, addUnit]); setAddUnit(''); }}>+ 경로 추가</button></div>
         <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>물류 연결선(캔버스)은 자재를 자동 이동시키지 않음. 이동은 Action 자재 변화로만.</div>
       </div>

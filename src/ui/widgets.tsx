@@ -1,21 +1,47 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { Quantity } from '../model/types';
 import { StatusMark } from './StatusMark';
 
-/** Numeric quantity editor. Empty = 미정 (null). Commits on blur / Enter. */
+/** Count units must be whole numbers. Time, length, weight, and other quantities may be decimal. None may be negative. */
+export function quantityDraftError(raw: string, unit: string): string | null {
+  const t = raw.trim();
+  if (t === '') return null;
+  if (t.startsWith('-')) return /^-(?:\d+(?:\.\d+)?|\.\d+)?$/.test(t) ? '음수는 허용되지 않습니다' : '숫자가 아닙니다';
+  if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(t)) return '숫자가 아닙니다';
+  const n = Number(t);
+  if (!Number.isFinite(n)) return '숫자가 아닙니다';
+  const u = unit.trim().toLowerCase();
+  if ((u === 'ea' || u === '개' || u === 'count') && !Number.isInteger(n)) return '개수는 정수만 됩니다';
+  return null;
+}
+
+/** Numeric quantity editor. Empty = 미정 (null). A bad draft stays on screen and is not written. */
 export function QtyInput({ q, onCommit, disabled, title }: { q: Quantity; onCommit: (v: string, assumption: boolean) => void; disabled?: boolean; title?: string }) {
   const [v, setV] = useState(q.value === null ? '' : String(q.value));
+  const [err, setErr] = useState<string | null>(null);
+  const errId = useId();
   useEffect(() => setV(q.value === null ? '' : String(q.value)), [q.value]);
-  const commit = () => { if ((q.value === null ? '' : String(q.value)) !== v) onCommit(v, q.assumption); };
+  const commit = (assumption = q.assumption) => {
+    const next = quantityDraftError(v, q.unit);
+    setErr(next);
+    if (next) return;
+    const cur = q.value === null ? '' : String(q.value);
+    if (cur !== v.trim() || assumption !== q.assumption) onCommit(v.trim(), assumption);
+  };
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title={title}>
-      <input className="num" value={v} placeholder="미정" disabled={disabled} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-      <span className="muted mono" style={{ minWidth: 30 }}>{q.unit}</span>
-      <label style={{ width: 'auto', display: 'inline-flex', gap: 2, alignItems: 'center', fontSize: 11 }} className="muted">
-        <input type="checkbox" checked={q.assumption} disabled={disabled} onChange={(e) => onCommit(v, e.target.checked)} />
+    <span className="qty-field" title={title}>
+      <span className={`qty${err ? ' is-error' : ''}`} data-unit={q.unit}>
+        <input className="num" value={v} placeholder="미정" disabled={disabled} aria-invalid={err ? true : undefined} aria-describedby={err ? errId : undefined}
+          onChange={(e) => { setV(e.target.value); setErr(quantityDraftError(e.target.value, q.unit)); }}
+          onBlur={() => commit()} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+        <span className="qty-unit">{q.unit}</span>
+      </span>
+      {err && <span className="qty-error" id={errId} role="alert">{err}</span>}
+      <label className="qty-assume muted">
+        <input type="checkbox" checked={q.assumption} disabled={disabled} onChange={(e) => commit(e.target.checked)} />
         {q.assumption ? <StatusMark status="assumption" /> : '가정'}
       </label>
-      {q.value === null && <StatusMark status="undetermined" />}
+      {q.value === null && !err && <StatusMark status="undetermined" />}
     </span>
   );
 }

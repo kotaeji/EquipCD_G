@@ -211,7 +211,9 @@ describe('TURN-023 flow editor UI', () => {
     expect(fold?.querySelectorAll('table[aria-label="Station 흐름"]')).toHaveLength(0);
     expect(fold?.textContent).toContain('제공 Action');
     const stepsBefore = u.history().present.sequence.steps.length;
-    await u.click([...fold!.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === '×'));
+    await u.click([...fold!.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === '삭제'));
+    const confirm = u.el.querySelector('.modal');
+    if (confirm) await u.click([...confirm.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === '삭제'));
     expect(u.history().present.sequence.steps.length).toBe(stepsBefore - 1);
   });
 });
