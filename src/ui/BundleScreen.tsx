@@ -8,6 +8,7 @@ import {
 import type { WorkspaceRegistry } from '../storage/workspaces';
 import { Overlay } from './WorkspacePanels';
 import { Problem } from './Problem';
+import { Clip, ECD_TABLE } from './dataTable';
 import { bundleRejectProblem, type ProblemCopy } from './problemCopy';
 
 function readTextFile(file: File): Promise<string> {
@@ -117,9 +118,9 @@ export function BundleSheet({ kv, reg, dirtyNames, openIds, storageReason, onDow
       <section className="sheet">
         <h2>내보낼 프로젝트</h2>
         <p className="field-ro">{ws?.name ?? ''}</p>
-        <table className="grid plain"><thead><tr><th>이름</th><th>rev</th><th>저장 시각</th></tr></thead>
+        <table className={`grid plain ${ECD_TABLE}`}><thead><tr><th>이름</th><th className="ecd-num">rev</th><th className="ecd-num">저장 시각</th></tr></thead>
           <tbody>
-            {exported && exported.projects.map((p) => <tr key={p.id} data-export-project={p.id}><td>{p.name}</td><td>{p.revision}</td><td>{p.savedAt ? new Date(p.savedAt).toLocaleString() : ''}</td></tr>)}
+            {exported && exported.projects.map((p) => <tr key={p.id} data-export-project={p.id}><td><Clip text={p.name} /></td><td className="ecd-num">{p.revision}</td><td className="ecd-num">{p.savedAt ? new Date(p.savedAt).toLocaleString() : ''}</td></tr>)}
             {exported && exported.projects.length === 0 && <tr><td colSpan={3}>저장된 프로젝트가 없습니다.</td></tr>}
             {exportError && <tr><td colSpan={3}>{exportError}</td></tr>}
           </tbody></table>
@@ -144,10 +145,10 @@ export function BundleSheet({ kv, reg, dirtyNames, openIds, storageReason, onDow
     </div>
     {preview && <section className="sheet wide">
       <h2>미리보기</h2>
-      <table className="grid plain"><thead><tr><th>이름</th><th>rev</th><th>판정</th><th>선택</th></tr></thead>
+      <table className={`grid plain ${ECD_TABLE}`}><thead><tr><th>이름</th><th className="ecd-num">rev</th><th>판정</th><th>선택</th></tr></thead>
         <tbody>{preview.rows.map((r) => <tr key={r.index} data-bundle-row={r.index} data-verdict={r.verdict}>
-          <td>{r.name}</td>
-          <td>{r.revision ?? '—'}</td>
+          <td><Clip text={r.name} /></td>
+          <td className="ecd-num">{r.revision ?? '—'}</td>
           <td>{verdictLabel[r.verdict]}{r.reason && r.verdict === 'unreadable' ? ` · ${r.reason}` : ''}</td>
           <td>{r.verdict === 'conflict'
             ? <select aria-label={`${r.name} 받는 방법`} value={choiceOf(r.index)} onChange={(e) => setChoices((c) => ({ ...c, [r.index]: e.target.value as ConflictChoice }))}>

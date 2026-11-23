@@ -3,6 +3,7 @@ import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { summarizeRun } from '../runtime/runSummary';
 import { Fold } from './Fold';
+import { Clip, ECD_TABLE } from './dataTable';
 import { StatusMark } from './StatusMark';
 import { phaseShape } from './status';
 import './run-summary.css';
@@ -35,9 +36,9 @@ export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: Runtim
             {(summary.skippedCount > 0 || summary.stoppedCount > 0 || summary.steps.some((s) => (s.pass ?? 1) > 1 || s.lane)) && <> · 실행 {summary.executedCount} · 건너뜀 {summary.skippedCount}{summary.stoppedCount > 0 ? ` · 정지 ${summary.stoppedCount}` : ''}</>}
           </p>
           <div className="run-summary-scroll">
-            <table className="grid run-summary-table">
+            <table className={`grid run-summary-table ${ECD_TABLE}`}>
               <thead>
-                <tr><th>단계 이름</th><th>갈래 · 회차</th><th>상태</th><th>시작</th><th>끝</th><th>걸린 시간</th></tr>
+                <tr><th>단계 이름</th><th>갈래 · 회차</th><th>상태</th><th className="ecd-num">시작</th><th className="ecd-num">끝</th><th className="ecd-num">걸린 시간</th></tr>
               </thead>
               <tbody>
                 {summary.steps.map((step, i) => {
@@ -50,12 +51,12 @@ export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: Runtim
                   const tone = step.status === 'error' ? 'run-summary-error' : step.status === 'stopped' ? 'run-summary-stopped' : undefined;
                   return (
                     <tr key={`${step.stepId}:${i}`} className={`${stepLiveClass(step.status)}${longest ? ' is-longest' : ''}`} data-step-id={step.stepId}>
-                      <td>{step.name}{longest && <span className="run-summary-tag">가장 김</span>}</td>
-                      <td>{where || '—'}</td>
+                      <td><Clip text={step.name} />{longest && <span className="run-summary-tag">가장 김</span>}</td>
+                      <td><Clip text={where || '—'} /></td>
                       <td><StatusMark status={shape.status} word={word} wordAttrs={tone ? { className: tone } : undefined} /></td>
-                      <td className="mono">{dash(step.startMs)}</td>
-                      <td className="mono">{dash(step.endMs)}</td>
-                      <td className="mono">{dash(step.elapsedMs)}</td>
+                      <td className="mono ecd-num">{dash(step.startMs)}</td>
+                      <td className="mono ecd-num">{dash(step.endMs)}</td>
+                      <td className="mono ecd-num">{dash(step.elapsedMs)}</td>
                     </tr>
                   );
                 })}

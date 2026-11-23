@@ -14,6 +14,7 @@ import { ConditionMark } from './conditionMark';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
 import { Terms } from './Term';
 import { IconLabel } from './Icon';
+import { Clip, ECD_TABLE } from './dataTable';
 
 type Arm = 'then' | 'else' | 'body' | number;
 
@@ -170,7 +171,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
     </div>
     <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
     <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>병렬로 묶으면 고른 줄이 갈래마다 하나씩 나뉩니다.</p>
-    <table className="grid" aria-label="Station 흐름">
+    <table className={`grid ${ECD_TABLE}`} aria-label="Station 흐름">
       <thead><tr><th></th><th>흐름</th><th>조건 · 횟수 · 갈래</th><th>상태</th><th></th></tr></thead>
       <tbody>
         {rows.map((row) => {
@@ -181,10 +182,12 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
           const live = row.stepId ? statusOf(rt, row.stepId) : null;
           const jump = row.stepId ? `step:${row.stepId}` : row.blockId && row.kind !== 'arm' ? `flow:${row.blockId}` : undefined;
-          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
+          const picked = !!id && pickedIds.includes(id);
+          const rowClass = [row.stepId ? stepLiveClass(live?.phase ?? 'pending') : '', picked ? 'is-picked' : ''].filter(Boolean).join(' ');
+          return <tr key={row.key} className={rowClass || undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
             <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
-              <b>{row.title}</b>
+              <b><Clip text={row.title} /></b>
               {isBlockKind(row.kind) && <BlockName name={blockName} word={flowBlockWord(row.kind)} disabled={locked} onCommit={(v) => edit(C.renameFlowBlock(p, row.blockId!, v), '블록 이름')} />}
               {row.kind === 'step' && action && <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>{unitName(p, action.unitId)} / {devName(p, action.deviceId)}</div>}
               {row.kind === 'arm' && <span className="muted"> {row.title === '참' ? '(조건이 참)' : row.title === '거짓' ? '(조건이 거짓)' : ''}</span>}

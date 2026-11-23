@@ -20,6 +20,7 @@ import type { ConfirmDelete, EditFn } from './Inspector';
 import { stepDeleteDetail, stepUsage } from '../model/deleteImpact';
 import { conditionsFormula } from '../model/conditionFormula';
 import { Terms } from './Term';
+import { Clip, ECD_TABLE } from './dataTable';
 import { devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
 import { RunSummary } from './RunSummary';
 import { SfcView } from './SfcView';
@@ -77,8 +78,8 @@ export function SequencePanel({ p, rt, locked, edit, onSelect, confirmDelete }: 
         {acts.map((a) => <div key={a.id} className="draggable-action" draggable={!locked} onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-action', a.id)} title={a.id}>{a.name}</div>)}
       </div>
       <div style={{ flex: 1, overflow: 'auto' }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => dropAt(e, p.sequence.steps.length)}>
-        <table className="grid">
-          <thead><tr><th>#</th><th>단계</th><th><Terms text="Unit / Device" /></th><th><Terms text="완료 조건" /></th><th><Terms text="타임아웃" /></th><th>자재 변화</th><th>출처</th><th>상태</th><th></th></tr></thead>
+        <table className={`grid ${ECD_TABLE}`}>
+          <thead><tr><th className="ecd-num">#</th><th>단계</th><th><Terms text="Unit / Device" /></th><th><Terms text="완료 조건" /></th><th className="ecd-num"><Terms text="타임아웃" /></th><th>자재 변화</th><th>출처</th><th>상태</th><th></th></tr></thead>
           <tbody>
             {p.sequence.steps.map((s, i) => {
               const a = p.actions.find((x) => x.id === s.actionId);
@@ -87,11 +88,11 @@ export function SequencePanel({ p, rt, locked, edit, onSelect, confirmDelete }: 
               return (
                 <tr key={s.id} className={st === 'active' ? 'active' : st === 'error' ? 'err' : ''} draggable={!locked}
                   onDragStart={(e) => { setDragIdx(i); e.dataTransfer.setData('text/plain', s.id); }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => dropAt(e, i)}>
-                  <td className="mono">{String(i + 1).padStart(2, '0')}</td>
-                  <td><span style={{ cursor: 'pointer' }} onClick={() => a && onSelect(a.deviceId)}>{s.name}</span><div className="muted mono" style={{ fontSize: 'var(--fs-xs)' }}>{s.id}</div></td>
+                  <td className="mono ecd-num">{String(i + 1).padStart(2, '0')}</td>
+                  <td><span style={{ cursor: 'pointer' }} onClick={() => a && onSelect(a.deviceId)}><Clip text={s.name} /></span><div className="muted mono" style={{ fontSize: 'var(--fs-xs)' }}>{s.id}</div></td>
                   <td style={{ fontSize: 'var(--fs-xs)' }}>{a ? `${unitName(p, a.unitId)} / ${devName(p, a.deviceId)}` : <Badge kind="err">Action 없음</Badge>}</td>
                   <td style={{ fontSize: 'var(--fs-xs)' }}>{a?.completeSignalId ? `${sigName(p, a.completeSignalId)} = true` : <StatusMark status="undetermined" />}{a && (a.pre.length > 0 || s.entry.length > 0) && <div className="muted" data-step-cond="">{conditionsFormula(p, [...a.pre, ...s.entry])}</div>}</td>
-                  <td>{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as), '단계 타임아웃')} />}</td>
+                  <td className="ecd-num">{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as), '단계 타임아웃')} />}</td>
                   <td style={{ fontSize: 'var(--fs-xs)' }}>{a ? effectLabel(p, a.effect) : ''}</td>
                   <td style={{ fontSize: 'var(--fs-xs)' }} className="muted">{s.origin}{s.sourceText ? `: "${s.sourceText}"` : ''}</td>
                   <td>{sequenceStatus(view)}</td>
@@ -258,17 +259,17 @@ export function GapPanel({ p, gaps, analyzedRevision, onReanalyze, onGo, onRevie
         <label style={{ fontSize: 'var(--fs-sm)' }}><input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />해결 행 펼치기 ({resolved.length})</label>
       </div>
       <div className="notice">규칙 기반 경량 판정 (시제품 규칙, 임계값·심각도 미확정). 간섭 후보는 2D 도식 중첩/Interlock 후보일 뿐 정밀 물리·안전 검증이 아니며 자동 종료하지 않습니다.</div>
-      <table className="grid">
+      <table className={`grid ${ECD_TABLE}`}>
         <thead><tr><th>종류</th><th>판정</th><th>항목</th><th>근거</th><th>공정 단계</th><th>수정 제안</th><th>상태</th><th></th></tr></thead>
         <tbody>
           {gaps.map((g) => { const r = review[g.id]; if (r?.status === 'hidden') return null; return (
             <tr key={g.id} data-jump={`gap:${g.id}`}>
               <td><Badge kind={g.safety ? 'warn' : 'acc'}>{GAP_KIND_LABEL[g.kind]}</Badge></td>
               <td><StatusMark status={gapJudgementMark(g.judgement).status} word={gapJudgementMark(g.judgement).word} /></td>
-              <td style={{ fontSize: 'var(--fs-sm)' }}>{g.title}</td>
-              <td style={{ fontSize: 'var(--fs-xs)' }}>{g.evidence}{g.assumptions.length > 0 && <div className="muted"><StatusMark status="assumption" /> {g.assumptions.join(' · ')}</div>}</td>
+              <td style={{ fontSize: 'var(--fs-sm)' }}><Clip text={g.title} /></td>
+              <td style={{ fontSize: 'var(--fs-xs)' }}><Clip text={g.evidence} />{g.assumptions.length > 0 && <div className="muted"><StatusMark status="assumption" /> {g.assumptions.join(' · ')}</div>}</td>
               <td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{g.stepIds.join(', ') || '-'}</td>
-              <td style={{ fontSize: 'var(--fs-xs)' }}>{g.suggestion}</td>
+              <td style={{ fontSize: 'var(--fs-xs)' }}><Clip text={g.suggestion} /></td>
               <td style={{ fontSize: 'var(--fs-xs)' }}>{r ? ({ open: '열림', needsHuman: '사람 확인 필요', humanConfirmed: '사람 확인됨', resolved: '해결', hidden: '숨김' } as const)[r.status] : '미분석'}</td>
               <td style={{ whiteSpace: 'nowrap' }}><button className="small" onClick={() => onGo(g)}>이동</button>
                 {g.safety && <button className="small" onClick={() => onReview(g.id, 'humanConfirmed')}>사람 확인</button>}
@@ -291,14 +292,14 @@ export function RunGapSection({ gaps, ran, stale, onGo }: { gaps: Gap[]; ran: bo
       {!ran && <p data-run-gap-empty="">실행하면 여기에 실행 결과 Gap 이 나옵니다</p>}
       {ran && stale && <p className="warn-note" data-run-gap-stale="">이전 rev 의 실행 결과</p>}
       {ran && gaps.length === 0 && <EmptyState symbol="✓" line="이 실행에서는 실행 결과 Gap 이 없습니다." />}
-      {gaps.length > 0 && <table className="grid plain">
+      {gaps.length > 0 && <table className={`grid plain ${ECD_TABLE}`}>
         <thead><tr><th>종류</th><th>항목</th><th>근거</th><th>수정 제안</th><th></th></tr></thead>
         <tbody>
           {gaps.map((g) => <tr key={g.id} data-run-gap={g.id} data-jump={`gap:${g.id}`}>
             <td><span className="badge acc">실행 결과</span> {GAP_KIND_LABEL[g.kind]}</td>
-            <td>{g.title}</td>
-            <td>{g.evidence}{g.assumptions.length > 0 && <div className="muted">{g.assumptions.join(' · ')}</div>}</td>
-            <td>{g.suggestion}</td>
+            <td><Clip text={g.title} /></td>
+            <td><Clip text={g.evidence} />{g.assumptions.length > 0 && <div className="muted">{g.assumptions.join(' · ')}</div>}</td>
+            <td><Clip text={g.suggestion} /></td>
             <td style={{ whiteSpace: 'nowrap' }}><button type="button" className="small" aria-label={`${g.title} 이동`} onClick={() => onGo(g)}>이동</button></td>
           </tr>)}
         </tbody>
@@ -380,10 +381,10 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
         <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 6 }}>후보는 사람이 확인하기 전 모델에 반영되지 않습니다.</div>
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <table className="grid"><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th><Terms text="소속 Unit" /></th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
+        <table className={`grid ${ECD_TABLE}`}><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th><Terms text="소속 Unit" /></th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
           <tbody>{p.candidates.map((c) => <tr key={c.id} data-jump={`candidate:${c.id}`} data-candidate-kind={c.targetKind} data-already={c.alreadyExists ? 'true' : 'false'}>
-            <td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{c.id}</td><td>{c.targetKind}</td>
-            <td>{c.name}{c.alreadyExists ? <> <Badge kind="warn">이미 있음</Badge></> : null}</td>
+            <td className="mono" style={{ fontSize: 'var(--fs-xs)' }}><Clip text={c.id} /></td><td>{c.targetKind}</td>
+            <td><Clip text={c.name} />{c.alreadyExists ? <> <Badge kind="warn">이미 있음</Badge></> : null}</td>
             <td>{c.targetKind === 'device' && !c.deviceKind && !c.appliedObjectId
               ? <select aria-label={`${c.name} 종류`} disabled={locked} value="" onChange={(e) => {
                 const deviceKind = e.target.value || null;
@@ -393,8 +394,8 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
               }}><option value="">종류 미지정</option>{ASSET_LIBRARY.filter((a) => !a.template).map((a) => <option key={a.kind} value={a.kind}>{a.name}</option>)}</select>
               : c.targetKind === 'signal' ? `${c.signalDirection === 'out' ? '출력' : c.signalDirection === 'in' ? '입력' : '방향 없음'}${c.signalAddress ? ` · ${c.signalAddress}` : ''}` : (c.deviceKind ?? (c.targetKind === 'device' ? '종류 미지정' : '-'))}</td>
             <td>{c.targetKind === 'device' ? <><select aria-label={`${c.name} 소속`} disabled={locked || !!c.appliedObjectId} value={c.assignedUnitId ?? ''} onChange={(e) => setCand(c.id, { assignedUnitId: e.target.value || null })}><option value="">(미배정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>{c.assignedUnitName && !c.assignedUnitId ? <span>후보 Unit {c.assignedUnitName}</span> : null}</> : c.targetKind === 'signal' ? (c.signalDeviceName ?? '-') : '-'}</td>
-            <td style={{ fontSize: 'var(--fs-xs)' }}>{c.sourceRefs.map((s) => s.note ?? s.method).join(', ')}</td>
-            <td style={{ fontSize: 'var(--fs-xs)' }}>{c.confidence.level} · {c.confidence.basis}</td>
+            <td style={{ fontSize: 'var(--fs-xs)' }}><Clip text={c.sourceRefs.map((s) => s.note ?? s.method).join(', ')} /></td>
+            <td style={{ fontSize: 'var(--fs-xs)' }}><Clip text={`${c.confidence.level} · ${c.confidence.basis}`} /></td>
             <td style={{ whiteSpace: 'nowrap' }}><Badge kind={c.confirmation === 'confirmed' ? 'ok' : c.confirmation === 'rejected' ? 'err' : 'warn'}>{c.confirmation}</Badge>
               {!c.appliedObjectId && <><button className="small" disabled={locked} onClick={() => setCand(c.id, { confirmation: 'confirmed' })}>확인</button><button className="small" disabled={locked} onClick={() => setCand(c.id, { confirmation: 'rejected' })}>거절</button></>}</td>
             <td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{c.appliedObjectId ?? '-'}</td></tr>)}

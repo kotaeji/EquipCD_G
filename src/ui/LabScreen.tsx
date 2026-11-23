@@ -6,6 +6,7 @@ import {
 } from '../model/lab';
 import type { Project } from '../model/types';
 import { EmptyState } from './EmptyState';
+import { Clip, ECD_TABLE } from './dataTable';
 import { SCREEN } from './problemCopy';
 import './lab.css';
 
@@ -76,7 +77,7 @@ function bestIndexes(values: (number | null)[], higher: boolean): Set<number> {
 }
 
 function cell(text: string, best: boolean, mark: string | null) {
-  return <>{text}{best && mark ? <span className="lab-mark">{mark}</span> : null}</>;
+  return <><Clip text={text} />{best && mark ? <span className="lab-mark">{mark}</span> : null}</>;
 }
 
 export function LabScreen({ project, locked, variants, result, onChangeVariants, onResult, onApply }: LabScreenProps) {
@@ -113,7 +114,9 @@ export function LabScreen({ project, locked, variants, result, onChangeVariants,
       <th scope="row">{title}</th>
       {columns.map((column, index) => {
         const cellInfo = textOf(column, index);
-        return <td key={column.id} data-lab-col={column.id} className={cellInfo.best ? 'lab-best' : undefined} data-best={cellInfo.best ? '1' : undefined}>{cell(cellInfo.text, cellInfo.best, cellInfo.mark)}</td>;
+        const numeric = key !== 'status';
+        const cls = [cellInfo.best ? 'lab-best' : '', numeric ? 'ecd-num' : ''].filter(Boolean).join(' ');
+        return <td key={column.id} data-lab-col={column.id} className={cls || undefined} data-best={cellInfo.best ? '1' : undefined}>{cell(cellInfo.text, cellInfo.best, cellInfo.mark)}</td>;
       })}
     </tr>
   );
@@ -136,7 +139,7 @@ export function LabScreen({ project, locked, variants, result, onChangeVariants,
               {staleRev && <p className="lab-stale" data-lab-stale="">{LAB_STALE}</p>}
               {stalePlan && <p className="lab-note" data-lab-plan-stale="">이 표는 실행할 때의 안입니다.</p>}
               <div className="lab-table-wrap">
-                <table className="lab-table" data-lab-table="" aria-label="가동 조건 비교">
+                <table className={`lab-table ${ECD_TABLE}`} data-lab-table="" aria-label="가동 조건 비교">
                   <thead>
                     <tr>
                       <th>지표</th>

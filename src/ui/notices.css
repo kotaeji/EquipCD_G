@@ -1,0 +1,95 @@
+/* TURN-068. Toasts sit on the left, above the status bar, so they do not cover 「다음 단계」. */
+
+.toast-stack {
+  position: fixed;
+  z-index: 50;
+  left: var(--sp-4);
+  bottom: calc(var(--sp-6) + var(--sp-4) + var(--sp-2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(520px, calc(100vw - var(--sp-6)));
+  pointer-events: none;
+}
+
+.toast-stack .toast-card {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-2);
+}
+
+.toast-stack .toast-card[data-toast-kind="info"] { border-color: var(--status-pending); }
+.toast-stack .toast-card[data-toast-kind="success"] { border-color: var(--status-done); }
+.toast-stack .toast-card[data-toast-kind="reject"] { border-color: var(--status-error); }
+
+.toast-stack .toast {
+  position: static;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.toast-stack .toast-x {
+  flex: 0 0 auto;
+  width: var(--sp-6);
+  height: var(--sp-6);
+  padding: 0;
+  line-height: 1;
+}
+
+.notice-log {
+  position: fixed;
+  z-index: 51;
+  left: var(--sp-4);
+  bottom: calc(var(--sp-6) + var(--sp-4) + var(--sp-2));
+  width: calc(var(--sp-6) * 12);
+  max-height: calc(var(--sp-6) * 10);
+  overflow: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+.notice-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.notice-log-empty { margin: 0; color: var(--muted); }
+
+.notice-log ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+
+.notice-log li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.notice-log time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.notice-log li > span:last-child { min-width: 0; }
