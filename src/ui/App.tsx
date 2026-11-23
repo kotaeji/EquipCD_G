@@ -79,7 +79,7 @@ import { StarterHome } from './StarterHome';
 import { Problem } from './Problem';
 import { Clip, ECD_TABLE } from './dataTable';
 import { NoticeLog, NoticeStack } from './Notices';
-import { noticeKind, useNotices } from './notices';
+import { noticeKind, useNotices } from './noticeModel';
 import { EMPTY, LARGE_IMPORT_BYTES, LOADING_FILE, RUN_LOCK, draftProblem, importRejectProblem, refusal, runErrorProblem, saveProblem, type ProblemCopy } from './problemCopy';
 import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';

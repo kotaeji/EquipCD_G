@@ -19,7 +19,7 @@ afterEach(async () => {
   localStorage.clear();
 });
 
-const tableCss = () => `${readFileSync('src/ui/styles.css', 'utf8')}\n${readFileSync('src/ui/data-table.css', 'utf8')}\n${readFileSync('src/ui/notices.css', 'utf8')}`;
+const tableCss = () => `${readFileSync('src/ui/styles.css', 'utf8')}\n${readFileSync('src/ui/data-table.css', 'utf8')}\n${readFileSync('src/ui/notice-stack.css', 'utf8')}`;
 
 async function mount() {
   document.body.innerHTML = '';
@@ -206,7 +206,7 @@ describe('TURN-068 notices', () => {
     expect(getComputedStyle(stack).position).toBe('fixed');
     expect(getComputedStyle(stack).left).toBe('var(--sp-4)');
     expect(getComputedStyle(stack).bottom).toBe('calc(var(--sp-6) + var(--sp-4) + var(--sp-2))');
-    const css = readFileSync('src/ui/notices.css', 'utf8');
+    const css = readFileSync('src/ui/notice-stack.css', 'utf8');
     expect(css).toMatch(/\.toast-stack\s*\{[^}]*left:\s*var\(--sp-4\)/);
     expect(css).toMatch(/bottom:\s*calc\(var\(--sp-6\) \+ var\(--sp-4\) \+ var\(--sp-2\)\)/);
     expect(css).not.toMatch(/\.toast-stack\s*\{[^}]*\bright\s*:/);

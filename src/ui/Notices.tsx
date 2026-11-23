@@ -1,7 +1,7 @@
 import { StatusMark } from './StatusMark';
 import { Problem } from './Problem';
-import { noticeBody, noticeClock, type NoticeItem } from './notices';
-import './notices.css';
+import { noticeBody, noticeClock, type NoticeItem } from './noticeModel';
+import './notice-stack.css';
 
 const KIND = {
   info: { status: 'pending' as const, word: '정보' },
