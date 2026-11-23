@@ -13,7 +13,7 @@ import { applyEdit, initHistory, jumpHistory, redo, redoTooltip, undo, undoToolt
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
 import { buildStarter, STARTER_NEXT, type StarterSpec } from '../model/starter';
 import type { AssetDefinition, AssetKind, ConfirmationEntry, Project, QuantityRef } from '../model/types';
-import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
+import { feedCountOf, FILE_FORMAT_VERSION, RUNTIME_RULES_VERSION } from '../model/types';
 import { applyLabVariant, type LabReport, type LabVariant } from '../model/lab';
 import { advance, createRuntime, pause, pauseSubstation, reset, resume, resumeSubstation, runToEnd, start, type Runtime } from '../runtime/engine';
 import { buildScrubIndex, seekScrub } from '../runtime/scrub';
@@ -65,8 +65,9 @@ import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
 import { TourBubble } from './TourBubble';
 import { isTourSample, TOUR_AGAIN, TOUR_BUTTON, TOUR_STEPS } from './tour';
-import { BrandMark } from './BrandMark';
 import { AppIcon, IconLabel } from './Icon';
+import { HeaderBar } from './HeaderBar';
+import { helpLayout, useViewportWidth } from './headerOverflow';
 import { TAB_ICON } from './icons';
 import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
@@ -159,7 +160,7 @@ function download(name: string, text: string, mime = 'application/json') {
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => { if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url); }, 1000);
 }
 
 /** onHistory: test seam (unit tests only) — receives the active tab's undo history after each change. No global exposure. */
@@ -1719,38 +1720,38 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     right: rightTab, runView: view.runView, runBlocked: screen === 'S62', libDetail,
   });
   const closeHelp = () => setView((v) => (v.helpOpen ? { ...v, helpOpen: false } : v));
+  const viewportWidth = useViewportWidth();
+  const helpPlace = helpLayout(viewportWidth);
   return (
     <ConfirmationGate.Provider value={requestConfirmation}>
     <TermHintsProvider value={view.termHints}>
-    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen} data-motion={runMotion ? 'on' : 'off'}>
-      <header className="header">
-        <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><BrandMark /><span className="title">{PRODUCT_NAME}</span></span>
-        <span className="subtitle">논리 시뮬레이션</span>
-        <span className="grow" />
-        <button type="button" className="btn-main secondary cmd-open" aria-label={PALETTE_LABEL} onClick={() => setPaletteOpen(true)}>
-          <IconLabel id="palette">{PALETTE_LABEL}</IconLabel><span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
-        </button>
-        <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}><IconLabel id="save">저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</IconLabel></button>
-        <div className="export-anchor">
-          <button type="button" className="btn-main secondary" aria-haspopup="menu" aria-expanded={exportOpen} aria-controls="export-menu" onClick={() => setExportOpen((v) => !v)}><IconLabel id="export-json">내보내기</IconLabel></button>
-          {exportOpen && <div id="export-menu" className="export-pop" role="menu" aria-label="내보내기">
-            <button type="button" role="menuitem" onClick={() => { setExportOpen(false); download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)); }}><IconLabel id="export-json">JSON 내보내기</IconLabel></button>
-            <button type="button" role="menuitem" onClick={() => { setExportOpen(false); setPrintOpen(true); }}><IconLabel id="print-view">인쇄용 보기</IconLabel></button>
-          </div>}
-        </div>
-        <button className="btn-main secondary" onClick={() => setViewOpen(true)}><IconLabel id="view-settings">보기 설정</IconLabel></button>
-        <button type="button" className="btn-main secondary" data-help-toggle aria-expanded={view.helpOpen} aria-label="도움말" onClick={(e) => { helpReturn.current = e.currentTarget; setView((v) => ({ ...v, helpOpen: !v.helpOpen })); }}><IconLabel id="help">도움말</IconLabel></button>
-        <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
-        <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title={undoTooltip(tab.history)} aria-label="실행 취소"><HistoryIcon dir="undo" /></button>
-        <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title={redoTooltip(tab.history)} aria-label="다시 실행"><HistoryIcon dir="redo" /></button>
-        <HistoryMenu history={tab.history} locked={locked} open={historyOpen} onOpenChange={setHistoryOpen} onJump={doJump} />
-      </header>
+    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen} data-help-layout={helpPlace} data-motion={runMotion ? 'on' : 'off'}>
+      <HeaderBar
+        viewportWidth={viewportWidth}
+        dirty={dirty}
+        helpOpen={view.helpOpen}
+        undo={<button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title={undoTooltip(tab.history)} aria-label="실행 취소"><HistoryIcon dir="undo" /></button>}
+        redo={<button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title={redoTooltip(tab.history)} aria-label="다시 실행"><HistoryIcon dir="redo" /></button>}
+        history={<HistoryMenu history={tab.history} locked={locked} open={historyOpen} onOpenChange={setHistoryOpen} onJump={doJump} />}
+        paletteLabel={PALETTE_LABEL}
+        paletteShortcut={shortcutText(commandById('palette')!, macShortcut)}
+        onPalette={() => setPaletteOpen(true)}
+        onSave={doSave}
+        exportOpen={exportOpen}
+        onToggleExport={() => setExportOpen((v) => !v)}
+        onExport={() => { setExportOpen(false); download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)); }}
+        onPrint={() => { setExportOpen(false); setPrintOpen(true); }}
+        onViewSettings={() => setViewOpen(true)}
+        onHelp={(el) => { helpReturn.current = el; setView((v) => ({ ...v, helpOpen: !v.helpOpen })); }}
+        fileRef={fileRef}
+        onImportFile={onImportFile}
+      />
       <div className="workbar" aria-label="현재 작업">
-        <button type="button" className="work-crumb" onClick={() => openExplorerTab('workspace')}><Terms text="Workspace" /> {curWs.name}</button>
+        <button type="button" className="work-crumb" title={`Workspace ${curWs.name}`} onClick={() => openExplorerTab('workspace')}><Terms text="Workspace" /> {curWs.name}</button>
         <span className="work-sep" aria-hidden="true">›</span>
-        <button type="button" className="work-crumb" onClick={() => openExplorerTab('project')}>Project {p.name}</button>
-        <span className="work-rev"><Terms text="rev" /> {p.revision}</span>
-        <span className={dirty ? 'save-chip dirty' : 'save-chip saved'}>{dirty ? '● 저장 안 됨' : '저장됨'}</span>
+        <button type="button" className="work-crumb" data-project-name={p.name} title={`Project ${p.name}`} onClick={() => openExplorerTab('project')}>Project {p.name}</button>
+        <span className="work-rev" title={`rev ${p.revision}`}><Terms text="rev" /> {p.revision}</span>
+        <span className={dirty ? 'save-chip dirty' : 'save-chip saved'} title={dirty ? '저장 안 됨' : '저장됨'}>{dirty ? '● 저장 안 됨' : '저장됨'}</span>
         {workTimes && <span className="work-times">{workTimes}</span>}
       </div>
       <div className="stepper" role="navigation" aria-label="단계" data-tour="stepbar">
@@ -2247,7 +2248,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {modal.body}
         <div className="modal-actions">{modal.actions.map((a) => <button key={a.label} type="button" autoFocus={a.focus} ref={a.focus ? (el) => { el?.focus(); } : undefined} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
       </StaticModalFrame>}
-      {view.helpOpen && <HelpPanel topic={helpTopic(helpId)} onClose={closeHelp} onTour={(el) => beginTour(el)} onShortcuts={() => setShortcutOpen(true)} />}
+      {view.helpOpen && <HelpPanel topic={helpTopic(helpId)} layout={helpPlace} side={view.helpSide} folded={view.helpFolded} onSide={(side) => setView((v) => (v.helpSide === side ? v : { ...v, helpSide: side }))} onFold={() => setView((v) => ({ ...v, helpFolded: !v.helpFolded }))} onClose={closeHelp} onTour={(el) => beginTour(el)} onShortcuts={() => setShortcutOpen(true)} />}
       {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
       {printOpen && <PrintView project={p} onClose={() => setPrintOpen(false)} />}
       {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onJump={(entry, stay) => { jumpToObject(entry, stay); setPaletteOpen(false); }} onClose={() => setPaletteOpen(false)} />}

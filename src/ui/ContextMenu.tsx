@@ -17,14 +17,17 @@ interface Props<A extends string> {
   x: number;
   y: number;
   kind: string;
-  items: MenuEntry<A>[];
+  items: readonly MenuEntry<A>[];
   returnFocus: HTMLElement | null;
+  /** A press on this element does not dismiss the menu, so its button can toggle. */
+  anchor?: HTMLElement | null;
+  menuLabel?: string;
   onRun: (id: A) => void;
   onClose: () => void;
 }
 
 /** Command menu. Arrow keys move, Enter runs, Esc and an outside press close. Focus returns on dismiss. */
-export function ContextMenu<A extends string>({ x, y, kind, items, returnFocus, onRun, onClose }: Props<A>) {
+export function ContextMenu<A extends string>({ x, y, kind, items, returnFocus, anchor, menuLabel = '명령', onRun, onClose }: Props<A>) {
   const ref = useRef<HTMLDivElement>(null);
   const acted = useRef(false);
   const estimated = menuHeight(items);
@@ -78,6 +81,7 @@ export function ContextMenu<A extends string>({ x, y, kind, items, returnFocus, 
       if (!root) return;
       if (e.button !== 0) return;
       if (root.contains(e.target as Node)) return;
+      if (anchor && anchor.contains(e.target as Node)) return;
       onClose();
     };
     window.addEventListener('keydown', onKey, true);
@@ -87,7 +91,7 @@ export function ContextMenu<A extends string>({ x, y, kind, items, returnFocus, 
       window.removeEventListener('pointerdown', onPtr, true);
       if (!acted.current) returnFocus?.focus();
     };
-  }, [onClose, returnFocus]);
+  }, [onClose, returnFocus, anchor]);
 
   return (
     <div
@@ -96,7 +100,7 @@ export function ContextMenu<A extends string>({ x, y, kind, items, returnFocus, 
       role="menu"
       data-ctx-menu
       data-ctx-kind={kind}
-      aria-label="명령"
+      aria-label={menuLabel}
       style={{ left: box.left, top: box.top }}
     >
       {items.map((item) => (

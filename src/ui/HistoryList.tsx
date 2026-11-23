@@ -4,12 +4,14 @@ import { UNDO_BLOCKED, historyRows, type History } from '../model/history';
 import { IconLabel } from './Icon';
 import './history-list.css';
 
-export function HistoryMenu({ history, locked, open, onOpenChange, onJump }: {
+export function HistoryMenu({ history, locked, open, onOpenChange, onJump, overflowHidden = false }: {
   history: History;
   locked: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onJump: (index: number) => void;
+  /** TURN-069: the header folds this control into 「더 보기」. The list itself stays usable. */
+  overflowHidden?: boolean;
 }) {
   const anchor = useRef<HTMLDivElement>(null);
   const rows = historyRows(history);
@@ -37,7 +39,8 @@ export function HistoryMenu({ history, locked, open, onOpenChange, onJump }: {
     <div className="hist-anchor" ref={anchor}>
       <button
         type="button"
-        className="hist-open"
+        className={overflowHidden ? 'hist-open header-overflow' : 'hist-open'}
+        data-overflow="undo-history"
         aria-label="실행 취소 이력"
         aria-expanded={open}
         aria-haspopup="dialog"
