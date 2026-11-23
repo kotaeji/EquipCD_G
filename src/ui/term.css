@@ -1,0 +1,25 @@
+/* TURN-056 glossary underline. Tokens only. */
+.ecd-term {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+.ecd-term:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ecd-term-tip {
+  position: fixed;
+  z-index: 80;
+  box-sizing: border-box;
+  width: 280px;
+  padding: var(--sp-2);
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  pointer-events: none;
+}

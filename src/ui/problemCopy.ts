@@ -115,6 +115,16 @@ export function draftProblem(why: string): ProblemCopy {
   return { tone: 'error', what: '임시 저장 실패', why, how: '저장본이 있으면 그 저장본을 여세요.' };
 }
 
+/** A bundle file that is not a workspace bundle. Storage is left untouched. */
+export function bundleRejectProblem(why: string): ProblemCopy {
+  return {
+    tone: 'error',
+    what: '묶음 파일을 열지 않았습니다',
+    why,
+    how: '이 앱에서 내보낸 .aurora-workspace.json 파일을 고르세요. 저장소는 바꾸지 않았습니다.',
+  };
+}
+
 export function importRejectProblem(fileName: string): ProblemCopy {
   return {
     tone: 'error',
@@ -155,8 +165,8 @@ export const SCREEN = {
     empty: '변형 안이 없습니다',
   },
   bundle: {
-    purpose: 'Workspace의 프로젝트와 에셋을 한 파일로 주고받는 화면입니다.',
-    instead: '지금은 프로젝트별 JSON 내보내기를 씁니다.',
+    purpose: '이 Workspace에 저장된 프로젝트를 파일 하나로 내보내고 가져옵니다.',
+    instead: '저장 안 된 변경, 임시 저장, 보기 설정, 격리 보관함은 파일에 넣지 않습니다.',
   },
   extract: {
     purpose: '자료에서 장비와 수치를 받아들이는 화면입니다.',

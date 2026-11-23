@@ -1,5 +1,6 @@
 // Interlock rules (TURN-046). A missing rule is the pre-TURN-046 file.
 // Only a confirmed allow or mutex rule is applied by the runtime.
+import { conditionsFormula } from './conditionFormula';
 import type { Condition, Constraint, InterlockRule, Project } from './types';
 
 export interface InterlockNotice {
@@ -30,18 +31,6 @@ function actionName(p: Project, id: string): string {
   return p.actions.find((a) => a.id === id)?.name ?? id;
 }
 
-function condText(p: Project, c: Condition): string {
-  if (c.kind === 'signal') {
-    const sig = p.signals.find((s) => s.id === c.signalId);
-    const dev = sig ? p.devices.find((d) => d.id === sig.deviceId) : undefined;
-    return `${dev?.name ?? '장치 없음'} · ${sig?.name ?? c.signalId} = ${c.equals ? '참' : '거짓'}`;
-  }
-  if (c.kind === 'materialAt') return `자재 위치 = ${p.units.find((u) => u.id === c.unitId)?.name ?? c.unitId}`;
-  if (c.kind === 'materialState') return `자재 상태 = ${c.state}`;
-  if (c.kind === 'materialHeldBy') return `자재 잡음 = ${c.deviceId ? (p.devices.find((d) => d.id === c.deviceId)?.name ?? c.deviceId) : '없음'}`;
-  return `미정: ${c.note}`;
-}
-
 /** One line a person can read next to the Interlock. */
 export function interlockSummary(p: Project, k: Constraint): string {
   const rule = k.rule;
@@ -49,7 +38,7 @@ export function interlockSummary(p: Project, k: Constraint): string {
   if (rule.form === 'undetermined') return `규칙 미정 — ${rule.note}`;
   const act = actionName(p, rule.actionId);
   if (rule.form === 'mutex') return `${act} — 동시 금지: ${actionName(p, rule.otherActionId)} 진행 중에는 시작하지 않음`;
-  const conds = rule.conditions.map((c) => condText(p, c)).join(', ') || '조건 없음';
+  const conds = conditionsFormula(p, rule.conditions) || '조건 없음';
   return `${act} — 허용 조건: ${conds}`;
 }
 
