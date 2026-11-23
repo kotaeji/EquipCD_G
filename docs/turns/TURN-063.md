@@ -34,6 +34,10 @@ Chrome. CSS 뷰포트 1280×800. 기기 픽셀 배율 1. 콘솔 오류 0. 문서
 - 실행 뒤 단계 표, 라이트: `TURN-063-steps-light-1280.png`
 - 실행 뒤 단계 표, 다크: `TURN-063-steps-dark-1280.png`
 
+## main 합침
+
+TURN-061 · 062 · 065 · 066 이 들어간 `origin/main` 을 merge 했다. rebase 는 하지 않았다. `tests/turn054.test.ts` 는 main 그대로다. 이 TURN 에서 새로 만든 「갈래 추가」는 뜻 표의 `action-add`(Plus), 「이 갈래 삭제」는 `delete`(X) 다. 갈래 줄의 「위로」「아래로」는 같은 표의 단계 옮기기 단추와 같이 글자만 둔다. 새 탭은 없다.
+
 ## 하지 않은 것
 
 - 조건식의 OR · 괄호 · 비교, 갈래 5개 이상, Substation 시퀀스 안의 분기, 흐름 위 여러 개체

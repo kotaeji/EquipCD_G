@@ -905,8 +905,8 @@ details[open] .fold-closed { display: none; }
 details[open] .fold-open { display: inline; }
 .palette-fold > summary { list-style: none; cursor: pointer; }
 .palette-fold > summary::-webkit-details-marker { display: none; }
-.palette-fold > summary::before { content: '▶ '; color: var(--muted); }
-.palette-fold[open] > summary::before { content: '▼ '; }
+.palette-fold > summary::before,
+.palette-fold[open] > summary::before { content: none; }
 
 /* TURN-009: one place under the palette for the card board and the diagram. The stage fills the workspace. */
 .app .ws-canvas > .stage.layout-stage { overflow: hidden; gap: var(--sp-1); padding: 2px var(--sp-4); }

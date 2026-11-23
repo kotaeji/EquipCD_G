@@ -64,7 +64,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
           </header>
           <table className="grid"><thead><tr><th>#</th><th>단계</th><th><Terms text="Device" /></th><th><Terms text="완료 Signal" /></th><th>시간</th><th></th></tr></thead><tbody>
             {q.steps.map((s, i) => { const a = p.actions.find((x) => x.id === s.actionId); const rec = lane?.steps[i]; return (
-              <tr key={s.id} className={rec?.status === 'active' ? 'active' : rec?.status === 'error' ? 'err' : ''}>
+              <tr key={s.id} data-jump={`step:${s.id}`} className={rec?.status === 'active' ? 'active' : rec?.status === 'error' ? 'err' : ''}>
                 <td className="mono">{i + 1}</td><td>{s.name}</td><td>{a ? devName(p, a.deviceId) : <Badge kind="err">Action 없음</Badge>}</td>
                 <td style={{ fontSize: 'var(--fs-xs)' }}>{a?.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
                 <td className="mono">{a?.duration.value ?? <StatusMark status="undetermined" />}s{a?.duration.assumption ? <> <StatusMark status="assumption" /></> : null}</td>

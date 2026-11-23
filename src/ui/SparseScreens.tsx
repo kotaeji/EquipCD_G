@@ -316,13 +316,14 @@ export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml,
   </div>;
 }
 
-export function BlockerSheet({ p, title, timeLabel, blockers, onGuide, onRecheck }: {
+export function BlockerSheet({ p, title, timeLabel, blockers, onGuide, onRecheck, emphasizeFirst }: {
   p: Project; title: string; timeLabel: string; blockers: Diagnostic[]; onGuide: (b: Diagnostic, g: BlockerGuide) => void; onRecheck: () => void;
+  emphasizeFirst?: boolean;
 }) {
   return <section className="sheet wide">
     <h2>{title}</h2>
     <p className="warn-note">실행 전 검사 · 차단 {blockers.length}건 · 가상 시간 {timeLabel}</p>
-    <BlockerList p={p} blockers={blockers} onGuide={onGuide} />
+    <BlockerList p={p} blockers={blockers} onGuide={onGuide} emphasizeFirst={emphasizeFirst} />
     <button type="button" onClick={onRecheck}>다시 검사</button>
   </section>;
 }

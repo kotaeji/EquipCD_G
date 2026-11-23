@@ -14,6 +14,7 @@ import { conditionFormula } from '../model/conditionFormula';
 import { ConditionMark } from './conditionMark';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
 import { Terms } from './Term';
+import { IconLabel } from './Icon';
 
 type Arm = 'then' | 'else' | 'body' | number;
 
@@ -173,15 +174,15 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
   };
   return <div>
     <div className="row wrap" style={{ gap: 'var(--sp-1)', marginBottom: 'var(--sp-1)' }}>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('branch', '분기로 묶기')}>분기로 묶기</button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('parallel', '병렬로 묶기')}>병렬로 묶기</button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('loop', '반복으로 묶기')}>반복으로 묶기</button>
-      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('retry', '재시도로 묶기')}>재시도로 묶기</button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('branch', '분기로 묶기')}><IconLabel id="wrap-branch">분기로 묶기</IconLabel></button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('parallel', '병렬로 묶기')}><IconLabel id="wrap-parallel">병렬로 묶기</IconLabel></button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('loop', '반복으로 묶기')}><IconLabel id="wrap-loop">반복으로 묶기</IconLabel></button>
+      <button type="button" disabled={locked || selected.length === 0} onClick={() => wrap('retry', '재시도로 묶기')}><IconLabel id="wrap-retry">재시도로 묶기</IconLabel></button>
       <select aria-label="Substation" disabled={locked} value={unitId} onChange={(e) => setUnitId(e.target.value)}>
         {p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
       </select>
-      <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}><Terms text="Substation 시퀀스 넣기" /></button>
-      <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}>신호 기다림 추가</button>
+      <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}><IconLabel id="add-substation"><Terms text="Substation 시퀀스 넣기" /></IconLabel></button>
+      <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}><IconLabel id="add-wait">신호 기다림 추가</IconLabel></button>
     </div>
     <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
     <p className="muted" style={{ fontSize: 'var(--fs-xs)' }}>병렬로 묶으면 고른 줄이 갈래마다 하나씩 나뉩니다.</p>
@@ -196,10 +197,10 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
           const live = row.stepId ? statusOf(rt, row.stepId) : null;
           const armIndex = typeof row.arm === 'number' ? row.arm : null;
-          const jump = row.armOf === 'branch' && row.blockId && typeof row.arm === 'number'
-            ? `flow:${row.blockId}:arm:${row.arm}`
-            : (row.kind === 'wait' || row.kind === 'branch' || row.kind === 'retry') && row.blockId ? `flow:${row.blockId}` : row.stepId ? `step:${row.stepId}` : undefined;
-          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-flow-arm={typeof row.arm === 'number' ? row.arm : undefined} data-arm-count={row.armCount} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
+          const jump = row.armOf === 'branch' && row.blockId && armIndex != null
+            ? `flow:${row.blockId}:arm:${armIndex}`
+            : row.stepId ? `step:${row.stepId}` : row.blockId && row.kind !== 'arm' ? `flow:${row.blockId}` : undefined;
+          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-flow-arm={armIndex ?? undefined} data-arm-count={row.armCount} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
             <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
@@ -216,7 +217,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
               {row.node?.kind === 'wait' && <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{condLabel(p, row.node.cond)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
               {row.node?.kind === 'branch' && row.armCount === 2 && <CondSelect p={p} cond={row.node.cond} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '분기 조건')} />}
               {row.node?.kind === 'branch' && row.armCount === 2 && <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{condLabel(p, row.node.cond)}<ConditionMark p={p} site={`flow:${row.blockId}`} /></div>}
-              {row.node?.kind === 'branch' && <button type="button" className="small" disabled={locked || (row.armCount ?? 0) >= MAX_BRANCH_ARMS} onClick={() => edit(C.addBranchArm(p, row.blockId!), '갈래 추가')}>갈래 추가</button>}
+              {row.node?.kind === 'branch' && <button type="button" className="small" disabled={locked || (row.armCount ?? 0) >= MAX_BRANCH_ARMS} onClick={() => edit(C.addBranchArm(p, row.blockId!), '갈래 추가')}><IconLabel id="action-add">갈래 추가</IconLabel></button>}
               {row.armOf === 'branch' && row.armCond && armIndex != null && <>
                 <CondSelect p={p} cond={row.armCond} disabled={locked} label={`${row.title} 조건`} onChange={(c) => edit(C.setBranchArmCondition(p, row.blockId!, armIndex, c), '갈래 조건')} />
                 <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{condLabel(p, row.armCond)}<ConditionMark p={p} site={`flow:${row.blockId}:arm:${armIndex}`} /></div>
@@ -233,7 +234,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
                 <button type="button" className="small" disabled={locked || row.node.lanes.length >= 4} onClick={() => edit(C.addParallelLane(p, row.blockId!), '갈래 추가')}>갈래 추가</button>
               </span>}
               {row.armOf === 'parallel' && armIndex != null && <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeParallelLane(p, row.blockId!, armIndex), '갈래 삭제')}>이 갈래 삭제</button>}
-              {row.armOf === 'branch' && (row.armCount ?? 0) > 2 && armIndex != null && <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeBranchArm(p, row.blockId!, armIndex), '이 갈래 삭제')}>이 갈래 삭제</button>}
+              {row.armOf === 'branch' && (row.armCount ?? 0) > 2 && armIndex != null && <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeBranchArm(p, row.blockId!, armIndex), '이 갈래 삭제')}><IconLabel id="delete">이 갈래 삭제</IconLabel></button>}
             </td>
             <td>{live ? <StatusMark status={phaseShape(live.phase).status} word={live.label} /> : ''}</td>
             <td style={{ whiteSpace: 'nowrap' }}>
@@ -242,7 +243,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowNode(p, id, 1), row.kind === 'step' ? '단계 아래로' : '블록 아래로')}>아래로</button>
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowOut(p, id), '블록 밖으로')}>밖으로</button>
               </>}
-              {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && row.kind !== 'wait' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}>블록 풀기</button>}
+              {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && row.kind !== 'wait' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}><IconLabel id="unwrap">블록 풀기</IconLabel></button>}
               {row.kind === 'wait' && row.blockId && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '신호 기다림 삭제')}>삭제</button>}
               {row.armOf === 'branch' && (row.armCount ?? 0) > 2 && armIndex != null && <>
                 <button type="button" className="small" disabled={locked || armIndex === 0} onClick={() => edit(C.moveBranchArm(p, row.blockId!, armIndex, -1), '갈래 위로')}>위로</button>
