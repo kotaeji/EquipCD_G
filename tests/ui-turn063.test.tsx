@@ -73,7 +73,7 @@ describe('TURN-063 flow table and SFC', () => {
   it('AC6 AC7 AC8 the condition table, the blocker jump, and the rule version', async () => {
     const u = await mount();
     await u.click(u.btn('흐름 예제'));
-    expect(u.el.textContent).toContain('seq-runtime/0.7.0');
+    expect(u.el.textContent).toContain('seq-runtime/0.8.0');
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]'));
     await u.click(u.btn('갈래 추가', u.branch()));
     await u.click(u.el.querySelector('.stepper [data-stepid="run"]'));

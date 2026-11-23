@@ -195,7 +195,8 @@ describe('TURN-040 multi-piece feed', () => {
     const wrapped = wrapFlow(flat, flat.sequence.steps.slice(0, 2).map((s) => s.id), 'loop');
     expect(wrapped.ok).toBe(true);
     if (!wrapped.ok) return;
-    expect(checkRunReadiness(wrapped.project).blockers.some((b) => b.code === 'MULTI_FLOW')).toBe(true);
+    expect(checkRunReadiness(wrapped.project).blockers.some((b) => b.code === 'MULTI_FLOW')).toBe(false);
+    expect(checkRunReadiness(wrapped.project).ok).toBe(true);
     const opened = unwrapFlow(wrapped.project, wrapped.note ?? '');
     expect(opened.ok).toBe(true);
     if (!opened.ok) return;
@@ -212,15 +213,15 @@ describe('TURN-040 multi-piece feed', () => {
     expect(rt.state.error?.stepId).toBe(second.id);
   });
 
-  it('AC10 parallel and flow samples are blocked when two pieces are requested', () => {
+  it('AC10 parallel and flow samples are not blocked when two pieces are requested', () => {
     for (const sample of [buildParallelSampleProject(), buildFlowSampleProject()]) {
       const ready = checkRunReadiness(fed(sample, 2, 2));
-      expect(ready.ok).toBe(false);
-      const hit = ready.blockers.find((b) => b.code === 'MULTI_FLOW');
-      expect(hit?.message).toContain('순차 시퀀스만');
-      const guide = resolveBlocker(sample, hit!, ready.blockers);
-      expect(guide.dest?.step).toBe('sequence');
+      expect(ready.blockers.some((b) => b.code === 'MULTI_FLOW')).toBe(false);
+      expect(ready.ok).toBe(true);
     }
+    const flow = runToEnd(createRuntime(fed(buildFlowSampleProject(), 2, 2)));
+    expect(flow.state.status).toBe('completed');
+    expect(flow.state.pieces).toHaveLength(2);
   });
 
   it('AC9 a missing interval blocks and points at the material', () => {
@@ -277,8 +278,8 @@ describe('TURN-040 multi-piece feed', () => {
   });
 
   it('AC15 the rules version moved to 0.4.0', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.7.0');
-    expect(runToEnd(createRuntime(buildSampleProject())).state.rulesVersion).toBe('seq-runtime/0.7.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.8.0');
+    expect(runToEnd(createRuntime(buildSampleProject())).state.rulesVersion).toBe('seq-runtime/0.8.0');
   });
 
   it('three pieces are drawn, and a waiting one is marked', () => {
