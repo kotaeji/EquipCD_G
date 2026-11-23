@@ -13,6 +13,7 @@ import type { ConfirmDelete, EditFn } from './Inspector';
 import { stepDeleteDetail, stepUsage, subSequenceDeleteDetail } from '../model/deleteImpact';
 import { devName, sigName } from './labels';
 import { fmtTime } from './Panels';
+import { Terms } from './Term';
 import { StatusMark } from './StatusMark';
 import { laneShape } from './status';
 import { Badge, TextInput } from './widgets';
@@ -61,7 +62,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
             {subSequenceDeleteDetail(p, q.id) && <span className="danger-note" data-delete-impact>{subSequenceDeleteDetail(p, q.id)}</span>}
             <button type="button" className="small danger" disabled={locked} onClick={() => { const detail = subSequenceDeleteDetail(p, q.id); const run = () => edit(C.deleteSubSequence(p, q.id), '시퀀스 삭제'); if (detail && confirmDelete) confirmDelete(`${q.name} 삭제`, detail, run); else run(); }} aria-label={`${q.name} 삭제`}>삭제</button>
           </header>
-          <table className="grid"><thead><tr><th>#</th><th>단계</th><th>Device</th><th>완료 Signal</th><th>시간</th><th></th></tr></thead><tbody>
+          <table className="grid"><thead><tr><th>#</th><th>단계</th><th><Terms text="Device" /></th><th><Terms text="완료 Signal" /></th><th>시간</th><th></th></tr></thead><tbody>
             {q.steps.map((s, i) => { const a = p.actions.find((x) => x.id === s.actionId); const rec = lane?.steps[i]; return (
               <tr key={s.id} className={rec?.status === 'active' ? 'active' : rec?.status === 'error' ? 'err' : ''}>
                 <td className="mono">{i + 1}</td><td>{s.name}</td><td>{a ? devName(p, a.deviceId) : <Badge kind="err">Action 없음</Badge>}</td>

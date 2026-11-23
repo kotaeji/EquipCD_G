@@ -19,6 +19,7 @@ import { EMPTY, RUN_LOCK } from './problemCopy';
 import type { ConfirmDelete, EditFn } from './Inspector';
 import { stepDeleteDetail, stepUsage } from '../model/deleteImpact';
 import { conditionsFormula } from '../model/conditionFormula';
+import { Terms } from './Term';
 import { devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
 import { RunSummary } from './RunSummary';
 import { SfcView } from './SfcView';
@@ -77,7 +78,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect, confirmDelete }: 
       </div>
       <div style={{ flex: 1, overflow: 'auto' }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => dropAt(e, p.sequence.steps.length)}>
         <table className="grid">
-          <thead><tr><th>#</th><th>단계</th><th>Unit / Device</th><th>완료 조건</th><th>타임아웃</th><th>자재 변화</th><th>출처</th><th>상태</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>단계</th><th><Terms text="Unit / Device" /></th><th><Terms text="완료 조건" /></th><th><Terms text="타임아웃" /></th><th>자재 변화</th><th>출처</th><th>상태</th><th></th></tr></thead>
           <tbody>
             {p.sequence.steps.map((s, i) => {
               const a = p.actions.find((x) => x.id === s.actionId);
@@ -340,10 +341,10 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
         <b style={{ fontSize: 'var(--fs-sm)' }}>상태전이 ↔ Action/post 연결 (F4-03)</b>
-        <table className="grid"><thead><tr><th>Action</th><th>전제</th><th>자재 변화</th><th>post 검증</th></tr></thead>
+        <table className="grid"><thead><tr><th><Terms text="Action" /></th><th>전제</th><th>자재 변화</th><th>post 검증</th></tr></thead>
           <tbody>{p.actions.filter((a) => a.effect.moveTo || a.effect.setState || a.effect.holder !== undefined).map((a) => <tr key={a.id}><td style={{ fontSize: 'var(--fs-sm)' }}>{a.name}</td><td style={{ fontSize: 'var(--fs-xs)' }}>{conditionsFormula(p, a.pre) || '-'}</td><td style={{ fontSize: 'var(--fs-xs)' }}>{effectLabel(p, a.effect)}</td><td style={{ fontSize: 'var(--fs-xs)' }}>{conditionsFormula(p, a.post) || '-'}</td></tr>)}</tbody></table>
         <b style={{ fontSize: 'var(--fs-sm)', display: 'block', marginTop: 'var(--sp-2)' }}>Unit 수용 능력</b>
-        <table className="grid"><thead><tr><th>Unit</th><th>수용 개수</th><th>허용 무게</th></tr></thead>
+        <table className="grid"><thead><tr><th><Terms text="Unit" /></th><th>수용 개수</th><th>허용 무게</th></tr></thead>
           <tbody>{p.units.map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.capacity.maxMaterials.value ?? <StatusMark status="undetermined" />}{u.capacity.maxMaterials.assumption ? <> <StatusMark status="assumption" /></> : null}</td><td>{u.capacity.maxWeight.value ?? <StatusMark status="undetermined" />} kg{u.capacity.maxWeight.assumption ? <> <StatusMark status="assumption" /></> : null}</td></tr>)}</tbody></table>
       </div>
     </div>
@@ -379,7 +380,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
         <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 6 }}>후보는 사람이 확인하기 전 모델에 반영되지 않습니다.</div>
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <table className="grid"><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th>소속 Unit</th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
+        <table className="grid"><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th><Terms text="소속 Unit" /></th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
           <tbody>{p.candidates.map((c) => <tr key={c.id} data-jump={`candidate:${c.id}`}>
             <td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{c.id}</td><td>{c.targetKind}</td><td>{c.name}</td><td>{c.deviceKind ?? '-'}</td>
             <td>{c.targetKind === 'device' ? <select disabled={locked || !!c.appliedObjectId} value={c.assignedUnitId ?? ''} onChange={(e) => setCand(c.id, { assignedUnitId: e.target.value || null })}><option value="">(미배정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select> : '-'}</td>
@@ -416,7 +417,7 @@ export function ExportPanel({ p }: { p: Project }) {
     <div>
       <div className="notice err">F8 매핑 <b>미리보기</b>. 대상 칸은 초안 형식의 자리 이름입니다. Aurora Core 스키마·버전은 확인되지 않아 Core 전송, SignalMap 생성, 실측 역매핑은 구현하지 않았습니다. 검증된 실제 연동이 아닙니다.</div>
       <p><button type="button" disabled title="미구현: Core 주소·스키마·역매핑이 확정되지 않았습니다">Core로 보내기</button> <span className="muted">버튼은 눌리지 않습니다. 아래 표는 이 프로젝트의 미리보기이며 전송 결과가 아닙니다.</span></p>
-      <table className="grid"><thead><tr><th>분류</th><th>원본 ID</th><th>이름</th><th>목적지(후보)</th><th>상태</th><th>비고/가정</th></tr></thead>
+      <table className="grid"><thead><tr><th>분류</th><th>원본 ID</th><th>이름</th><th>목적지(후보)</th><th>상태</th><th><Terms text="비고/가정" /></th></tr></thead>
         <tbody>{rows.map((r, i) => <tr key={i}><td>{r.category}</td><td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{r.sourceId}</td><td style={{ fontSize: 'var(--fs-sm)' }}>{r.name}</td><td style={{ fontSize: 'var(--fs-xs)' }}>{r.target}</td>
           <td><StatusMark status={exportStatusMark(r.status).status} word={exportStatusMark(r.status).word} /></td><td style={{ fontSize: 'var(--fs-xs)' }}>{r.note}</td></tr>)}</tbody></table>
     </div>

@@ -70,6 +70,8 @@ Headless Chrome. 1280×800. 기기 픽셀 배율 1. 문서 `scrollWidth` 1280 ·
 
 TURN-052 · TURN-055 가 들어간 `origin/main` 을 한 번 더 merge 했다. 조건 표시 · 명령 찾기 · 묶음 화면은 그대로 두고, 겹친 `FlowEditor.tsx` · `Inspector.tsx` · `Panels.tsx` 와 `.cond-head` 간격에 글자 · 간격 토큰만 올렸다.
 
+TURN-056 · TURN-058 이 들어간 `origin/main` 을 다시 merge 했다. `Library.tsx` · `Panels.tsx` 는 용어 표시와 글자 토큰을 둘 다 남겼다. `help-panel.css` · `term.css` · `lab.css` · `bundle-screen.css` 의 `font-size` 는 이미 토큰이었다.
+
 ## 확인 필요
 
 - 화면이 더 가지런한지, 축소한 도면에서 Unit 을 알아볼 수 있는지는 사람 검수(Matthew)다. 이 문서는 완료로 적지 않는다.

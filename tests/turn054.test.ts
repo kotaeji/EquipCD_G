@@ -17,6 +17,7 @@ import {
 } from '../src/scene/labels';
 
 const CSS_FILES = ['src/ui/styles.css', 'src/ui/run3d.css', 'src/ui/run-summary.css', 'src/ui/sparse-extra.css'];
+const FONT_CSS = [...CSS_FILES, 'src/ui/help-panel.css', 'src/ui/term.css', 'src/ui/lab.css', 'src/ui/bundle-screen.css'];
 
 /** Diagram glyphs that scale with the drawing, plus the 16px close mark locked by TURN-007. */
 const FONT_PX_OK = [
@@ -48,7 +49,7 @@ describe('TURN-054 type scale', () => {
     const tokens = [...root.matchAll(/--fs-[a-z0-9]+\s*:\s*[^;]+/g)].map((m) => m[0].split(':')[0].trim());
     expect(tokens).toEqual(['--fs-xs', '--fs-sm', '--fs-md', '--fs-lg', '--fs-h2', '--fs-h1']);
     const stray: string[] = [];
-    for (const file of CSS_FILES) {
+    for (const file of FONT_CSS) {
       for (const rule of rulesOf(readFileSync(file, 'utf8'))) {
         if (!/font-size:\s*\d+(?:\.\d+)?px/.test(rule.body)) continue;
         if (FONT_PX_OK.some((name) => rule.selector.includes(name))) continue;

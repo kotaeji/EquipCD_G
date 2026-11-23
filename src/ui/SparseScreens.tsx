@@ -11,6 +11,7 @@ import { checkRunReadiness, validateProject, type Diagnostic } from '../model/va
 import type { QuarantineEntry } from '../storage/localStore';
 import { xsdStatus, AmlLoadStatus } from './Library';
 import { Fold } from './Fold';
+import { Terms } from './Term';
 import { type BlockerGuide } from './blockerTarget';
 import { EmptyState } from './EmptyState';
 import { BlockerCards, BlockerList, Problem } from './Problem';
@@ -77,7 +78,7 @@ export function FilesSheet({ entries, onImport, onExport, onOpen, onNew, onSampl
     <p className="muted">JSON 가져오기는 원본을 덮어쓰지 않고 새 탭으로 엽니다. 거부된 원본은 격리합니다.</p>
     <section className="sheet wide">
       <h2>이 Workspace에 저장된 파일</h2>
-      <table className="grid plain"><thead><tr><th>이름</th><th>rev</th><th></th></tr></thead>
+      <table className="grid plain"><thead><tr><th>이름</th><th><Terms text="rev" /></th><th></th></tr></thead>
         <tbody>{entries.map((e) => <tr key={e.id}><td>{e.name}</td><td>{e.revision}</td><td><button type="button" onClick={() => onOpen(e.id)}>열기</button></td></tr>)}
           {entries.length === 0 && <tr><td colSpan={3}><EmptyState symbol="○" line={EMPTY.projects} actions={[
             { label: '새 프로젝트', onClick: onNew },
@@ -149,28 +150,7 @@ export function SearchSheet({ tabs, tree, onTab, onPick, onFold, onCanvas }: {
   </div>;
 }
 
-export function LabSheet({ revision, onInstead }: { revision: number; onInstead?: () => void }) {
-  return <div className="sparse-stack">
-    <NotReadyBanner hint="Gap 목록의 가정 시간 합계를 쓰세요" purpose={SCREEN.lab.purpose} instead={SCREEN.lab.instead} onInstead={onInstead} />
-    <div className="sparse-split">
-    <section className="sheet">
-      <h2>F7 변형 범위와 안전 한도</h2>
-      <label>원본 기준<input disabled value={`현재 모델 rev ${revision} · 변형하지 않음`} readOnly /></label>
-      <label>변형 허용 범위<input disabled value="미구현" readOnly /></label>
-      <label>평가 방식과 상한<input disabled value="미구현" readOnly /></label>
-      <p className="warn-note">외부 전송, 예산, 자동 결제는 없습니다. 실제 탐색을 실행하지 않습니다.</p>
-      <button type="button" disabled title="평가 방법과 예산이 정해지지 않았습니다">변형 차이 검토 예시</button>
-    </section>
-    <aside className="sheet">
-      <h2>세대와 후보</h2>
-      <table className="grid plain"><thead><tr><th>후보</th><th>평가</th><th>선택</th></tr></thead>
-        <tbody><tr><td colSpan={3}>후보 없음. 예시 점수를 만들지 않습니다.</td></tr></tbody></table>
-      <button type="button" disabled>선택 후보 명시 적용</button>
-      <button type="button" disabled>원본 유지 취소</button>
-    </aside>
-    </div>
-  </div>;
-}
+export { LabScreen as LabSheet } from './LabScreen';
 
 export function ExtendSheet() {
   return <div className="sparse-stack">
