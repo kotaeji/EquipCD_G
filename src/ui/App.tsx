@@ -18,7 +18,8 @@ import { selectAll, SELECT_HINT } from './selectAll';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector } from './Inspector';
 import { LibraryWorkspace } from './Library';
-import { evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
+import { focusJump, jumpCaption, jumpTarget } from './itemJump';
+import { BADGE_MARK, BADGE_TONE, BADGE_WORD, evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
 import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
 import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, SequencePanel, SfcPanel } from './Panels';
@@ -117,9 +118,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState('props');
   const [subTab, setSubTab] = useState<Record<StepId, string>>({ library: 'cards', canvas: '', attributes: '', sequence: 'sequence', check: 'gap', run: '' });
-  const [itemsOpen, setItemsOpen] = useState(false);
+  const [itemsStep, setItemsStep] = useState<StepId | null>(null);
+  const [actionFocus, setActionFocus] = useState<string | null>(null);
+  const [jumpTick, setJumpTick] = useState(0);
+  const jumpRef = useRef<StepItem['jump']>(null);
   const step = view.step;
-  const goStep = (s: StepId, sub?: string) => { setView((v) => ({ ...v, step: s, home: false })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsOpen(false); };
+  const goStep = (s: StepId, sub?: string) => { setView((v) => ({ ...v, step: s, home: false })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsStep(null); };
+  const toggleItems = (s: StepId) => setItemsStep((cur) => (cur === s ? null : s));
   const chooseTheme = (mode: 'light' | 'dark') => { const next = mode === 'dark' ? 'B' as const : 'A' as const; setView((v) => (v.theme === next ? v : { ...v, theme: next })); };
   const setBottomTab = (k: string) => {
     const map: Record<string, [StepId, string]> = { runtime: ['run', ''], material: ['sequence', 'material'], sequence: ['sequence', 'sequence'], diag: ['check', 'diag'], gap: ['check', 'gap'] };
@@ -567,15 +572,23 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setModal({ title: `${cur.no} ${cur.label}: 필수 데이터 누락 ${missing.length}건`, body: <div>
       {missing.slice(0, 10).map((m, i) => <div key={i} style={{ fontSize: 12, color: 'var(--danger)' }}>• {m.text}</div>)}
       <p className="muted">단계 확인(완료 표시)은 실제 데이터가 채워져야 됩니다. 다음 화면을 보는 것은 가능하지만 이 단계는 ‘필수 누락’으로 남고, 실행은 실행 전 검사에서 따로 차단됩니다.</p></div>,
-      actions: [{ label: '머무르며 수정', primary: true, run: () => setItemsOpen(true) }, { label: '확인 없이 다음 화면 보기', run: () => goStep(nx.id) }] });
+      actions: [{ label: '머무르며 수정', primary: true, run: () => setItemsStep(step) }, { label: '확인 없이 다음 화면 보기', run: () => goStep(nx.id) }] });
   };
   const goItem = (it: StepItem) => {
-    if (it.targetStep) { goStep(it.targetStep); return; }
-    if (!it.targetId) return;
-    if (p.materials.some((m) => m.id === it.targetId)) { goStep('sequence', 'material'); return; }
-    if (p.sequence.steps.some((s) => s.id === it.targetId)) { goStep('sequence', 'sequence'); return; }
-    const isNode = p.devices.some((d) => d.id === it.targetId) || p.units.some((u) => u.id === it.targetId);
-    if (isNode) { setSelection([it.targetId]); goStep(step === 'canvas' ? 'canvas' : 'attributes'); setRightTab(p.devices.some((d) => d.id === it.targetId) ? 'actions' : 'props'); }
+    const j = it.jump;
+    if (!j) { setItemsStep(null); return; }
+    if (j.selectId) {
+      setSelection([j.selectId]);
+      const unitId = p.units.find((u) => u.id === j.selectId)?.id ?? p.devices.find((d) => d.id === j.selectId)?.unitId;
+      if (unitId) setSubUnitPref(unitId);
+    }
+    if (j.rightTab) setRightTab(j.rightTab);
+    if (j.actionId) setActionFocus(j.actionId);
+    if (j.gapFilter) setGapFilter(j.gapFilter);
+    jumpRef.current = j;
+    setJumpTick((n) => n + 1);
+    if (j.save) setItemsStep(null);
+    else goStep(j.step, j.sub);
   };
   // TURN-001: 6단계 그룹 실행 차단 항목 → 원인 수정/확인 화면으로 이동 (보기 상태만 변경, 모델·Undo 불변).
   // 그룹 실행 대상(subUnitId)은 이동 전에 보기 선호값으로 고정해, 편집 대상 선택이 실행 Substation을 바꾸지 않게 한다.
@@ -585,7 +598,54 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (g.focus) { setSelection([g.focus.id]); setRightTab(g.focus.kind === 'device' ? 'actions' : 'props'); }
     goStep(g.dest.step, g.dest.sub);
   };
-  const BADGE = { ready: ['ok', '필수 충족'], blocked: ['err', '필수 누락'], recheck: ['warn', '재확인 필요'], confirmed: ['ok', '확인됨 ✓'] } as const;
+  const listEval = itemsStep ? evals[itemsStep] : null;
+  const listMeta = itemsStep ? STEPS.find((s) => s.id === itemsStep)! : null;
+  useEffect(() => {
+    const j = jumpRef.current;
+    if (!jumpTick || !j?.field) return;
+    const field = j.field;
+    const until = Date.now() + 2000;
+    let timer = 0;
+    let focused = false;
+    const paint = () => {
+      const el = jumpTarget(field);
+      if (!el) {
+        if (Date.now() < until) timer = window.setTimeout(paint, 30);
+        return;
+      }
+      if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'center', inline: 'nearest' });
+      el.classList.add('jump-flash');
+      if (!focused) { focused = true; focusJump(el); }
+      if (Date.now() < until) timer = window.setTimeout(paint, 80);
+      else el.classList.remove('jump-flash');
+    };
+    paint();
+    return () => {
+      window.clearTimeout(timer);
+      document.querySelectorAll('.jump-flash').forEach((n) => n.classList.remove('jump-flash'));
+    };
+  }, [jumpTick]);
+  useEffect(() => {
+    if (!itemsStep) return;
+    const pop = document.querySelector('.itemspop');
+    const first = pop?.querySelector<HTMLElement>('button.item-jump') ?? pop?.querySelector<HTMLElement>('button');
+    first?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setItemsStep(null); };
+    const onPtr = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t || t.closest('.itemspop') || t.closest('[data-step-badge]') || t.closest('[data-items-toggle]')) return;
+      setItemsStep(null);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPtr);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('pointerdown', onPtr); };
+  }, [itemsStep]);
+  const onItemKey = (e: React.KeyboardEvent, run: () => void) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    e.stopPropagation();
+    run();
+  };
   const sub = subTab[step];
   const Sub = ({ items }: { items: [string, string][] }) => <div className="tabs subtabs">{items.map(([k, l]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => setSubTab((t) => ({ ...t, [step]: k }))}>{l}</button>)}</div>;
   const subCount = (uid: string) => (p.substationSequences ?? []).filter((q) => q.unitId === uid).length;
@@ -735,7 +795,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
     <button className={view.visualMode === 'photo' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'photo' })} title="AI 생성 실사풍 이미지 표시 — 실제 촬영 사진 아님 (모델·연결·상태 불변)">실사풍(AI)</button></>;
   const runControls = <>
-    <button className="primary" onClick={doRun} disabled={running || rt?.status === 'paused'}>▶ 실행</button>
+    <button className="primary" data-jump="run-start" onClick={doRun} disabled={running || rt?.status === 'paused'}>▶ 실행</button>
     <button onClick={doPause} disabled={!running}>❚❚ 일시정지</button>
     <button onClick={doResume} disabled={rt?.status !== 'paused'}>재개</button>
     <button onClick={doStep} disabled={rt?.status !== 'paused'} title="일시정지 중 가상 0.1초 진행">+0.1s</button>
@@ -800,7 +860,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><BrandMark /><span className="title">{PRODUCT_NAME}</span></span>
         <span className="subtitle">논리 시뮬레이션</span>
         <span className="grow" />
-        <button className="btn-main primary" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}>저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</button>
+        <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}>저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</button>
         <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}>내보내기</button>
         <button className="btn-main secondary" onClick={() => setViewOpen(true)}>보기 설정</button>
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
@@ -815,22 +875,35 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className={dirty ? 'save-chip dirty' : 'save-chip saved'}>{dirty ? '● 저장 안 됨' : '저장됨'}</span>
       </div>
       <div className="stepper" role="navigation" aria-label="단계">
-        {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); return (
-          <button key={s.id} className={`st ${!view.home && step === s.id ? 'on' : ''}`} onClick={() => goStep(s.id)} data-stepid={s.id} aria-current={!view.home && step === s.id ? 'step' : undefined}>
-            <span>{s.no} {s.label}</span><span className={`badge ${BADGE[b][0]}`}>{BADGE[b][1]}</span></button>); })}
+        {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
+          <div key={s.id} className={`st ${on ? 'on' : ''}`} data-stepid={s.id} onClick={(e) => { if ((e.target as HTMLElement).closest('[data-step-badge]')) return; goStep(s.id); }}>
+            <button type="button" className="st-go" aria-current={on ? 'step' : undefined}>{s.no} {s.label}</button>
+            <button type="button" className={`badge ${BADGE_TONE[b]} st-badge`} data-step-badge={s.id} aria-haspopup="dialog" aria-expanded={itemsStep === s.id}
+              aria-label={`${s.no} ${s.label} ${BADGE_WORD[b]}, 남은 항목 ${n}`}
+              onClick={(e) => { e.stopPropagation(); toggleItems(s.id); }}
+              onKeyDown={(e) => onItemKey(e, () => toggleItems(s.id))}>
+              <span aria-hidden="true">{BADGE_MARK[b]}</span>
+              <span className="st-word">{BADGE_WORD[b]}</span>
+              <span className="st-count">{n}</span>
+            </button>
+          </div>); })}
         <div className="theme-toggle" role="radiogroup" aria-label="테마" onKeyDown={onThemeKey}>
           <button role="radio" aria-checked={appearance === 'light'} aria-label="라이트 테마" className={appearance === 'light' ? 'on' : ''} data-theme-choice="light" onClick={() => chooseTheme('light')}>라이트</button>
           <button role="radio" aria-checked={appearance === 'dark'} aria-label="다크 테마" className={appearance === 'dark' ? 'on' : ''} data-theme-choice="dark" onClick={() => chooseTheme('dark')}>다크</button>
         </div>
       </div>
       {explorer}
-      {itemsOpen && <div className="itemspop" style={style}>
-        <div className="row" style={{ justifyContent: 'space-between' }}><b>{cur.no} {cur.label} — 남은 항목 (실제 데이터 기준 재계산)</b><button className="small" onClick={() => setItemsOpen(false)}>닫기</button></div>
-        {curEval.items.length === 0 && <div className="muted">남은 항목 없음</div>}
-        {curEval.items.map((it, i) => <div key={i} className="row" style={{ minHeight: 22, fontSize: 12 }}>
-          <span className={`badge ${it.level === 'missing' ? 'err' : it.level === 'human' ? 'acc' : 'warn'}`}>{LEVEL_LABEL[it.level]}</span><span style={{ flex: 1 }}>{it.text}</span>
-          {(it.targetId || it.targetStep) && <button className="small" onClick={() => goItem(it)}>편집으로 이동</button>}</div>)}
-        {confirmed[step] && confirmed[step] !== curEval.fingerprint && <div className="notice warn">이 단계는 이전에 확인되었지만 관련 데이터가 바뀌었습니다 — 재확인 필요</div>}
+      {listEval && listMeta && <div className="itemspop" style={style} role="dialog" aria-label={`${listMeta.no} ${listMeta.label} 남은 항목`} data-items-step={listMeta.id}>
+        <div className="row" style={{ justifyContent: 'space-between' }}><b>{listMeta.no} {listMeta.label} — 남은 항목 (실제 데이터 기준 재계산)</b><button className="small" onClick={() => setItemsStep(null)}>닫기</button></div>
+        {listEval.items.length === 0 && <div className="muted">남은 항목 없음</div>}
+        {listEval.items.map((it, i) => <div key={i} className="item-row" data-item-kind={it.kind}>
+          <span className={`badge ${it.level === 'missing' ? 'err' : it.level === 'human' ? 'acc' : 'warn'}`}>{LEVEL_LABEL[it.level]}</span>
+          {it.jump
+            ? <button type="button" className="item-jump" onClick={() => goItem(it)} onKeyDown={(e) => onItemKey(e, () => goItem(it))}>{it.text}</button>
+            : <span className="item-jump-text">{it.text}</span>}
+          <span className="item-go">{jumpCaption(it.jump)}</span>
+        </div>)}
+        {itemsStep && confirmed[itemsStep] && confirmed[itemsStep] !== listEval.fingerprint && <div className="notice warn">이 단계는 이전에 확인되었지만 관련 데이터가 바뀌었습니다 — 재확인 필요</div>}
       </div>}
 
       {guide === 'files' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><FilesSheet entries={savedList.map((e) => ({ id: e.id, name: e.name, revision: e.revision }))} onImport={() => fileRef.current?.click()} onExport={() => download(`${p.name}.json`, serializeProject(p))} onOpen={(id) => { setGuide(null); openSaved(id); }} /></div></div>}
@@ -898,7 +971,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
           <Fold className="palette-fold" summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span></>}>
             <div className="palette">
-              <div className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
+              <div className="pi" data-jump="palette-unit" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
               {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
             </div>
           </Fold>
@@ -974,7 +1047,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             const sigs = p.signals.filter((s) => s.deviceId === d.id);
             const poss = p.positions.filter((x) => x.deviceId === d.id);
             const acts = p.actions.filter((a) => a.deviceId === d.id);
-            const act = acts[0];
+            const act = acts.find((a) => a.id === actionFocus) ?? acts[0];
             if (rightTab === 'signals' || rightTab === 'positions') return <div className="sparse-split">
               <section className="sheet">
                 <h2>개념 신호 역할</h2>
@@ -991,12 +1064,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <p className="warn-note">단위·방향·신호 참조는 보존합니다. 실주소와 실측 역매핑은 하지 않습니다.</p>
               </aside>
             </div>;
-            if (rightTab === 'actions' || rightTab === 'check') return <div className="sparse-split">
+            if (rightTab === 'actions' || rightTab === 'check') return <div className="sparse-split" data-jump={`device:${d.id}`}>
               <section className="sheet">
                 <h2>{act ? `${host?.code ?? ''} ${act.name}`.trim() : `${d.name} · Action 없음`}</h2>
                 {act ? <div className="form-grid">
                   <label>동작 시간<QtyInput q={act.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'duration' }, v, as), '동작 시간')} /></label>
-                  <label>타임아웃<QtyInput q={act.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as), '타임아웃')} /></label>
+                  <label data-jump={`timeout:${act.id}`}>타임아웃<QtyInput q={act.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: act.id, field: 'timeout' }, v, as), '타임아웃')} /></label>
                   <label>명령 신호<span className="field-ro">{signalCaption(p, act.commandSignalId)}</span></label>
                   <label>완료 신호<span className="field-ro">{signalCaption(p, act.completeSignalId)}</span></label>
                 </div> : <p>이 Device에 Action이 없습니다. 아래 접는 칸에서 추가합니다.</p>}
@@ -1017,9 +1090,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <button type="button" onClick={() => goStep('sequence', 'sequence')}>시퀀스 보기</button>
               </aside>
             </div>;
-            return <div className="sparse-split">
+            return <div className="sparse-split" data-jump="device-props">
               <section className="sheet">
-                <h2>{d.name} · 속성 편집</h2>
+                <h2 data-jump={`device:${d.id}`}>{d.name} · 속성 편집</h2>
                 <div className="form-grid">
                   <label>이름<TextInput value={d.name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, d.id, v), 'Device 이름')} /></label>
                   <label>소속 Substation
@@ -1028,7 +1101,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   {fields.map((pd) => {
                     const qv = d.properties[pd.key];
                     if (!qv) return null;
-                    return <label key={pd.key}>{pd.label}{qv.assumption ? ' · 가정값' : ''}
+                    return <label key={pd.key} data-jump={`prop:${d.id}:${pd.key}`}>{pd.label}{qv.assumption ? ' · 가정값' : ''}
                       <QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} />
                     </label>;
                   })}
@@ -1062,11 +1135,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <div className="bbody sparse-page">
           {sub === 'sequence' && <section className="sheet wide">
             <div className="tool-pills">
-              <button type="button" className="on" onClick={() => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); }}>Action 추가</button>
+              <button type="button" className="on" data-jump="sequence-add" onClick={() => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); }}>Action 추가</button>
               <button type="button" onClick={() => setSubTab((t) => ({ ...t, sequence: 'sfc' }))}>SFC 미리보기</button>
               <button type="button" onClick={() => setSubTab((t) => ({ ...t, sequence: 'subseq' }))}>Substation 시퀀스</button>
             </div>
-            <h2>Station 시퀀스 Draft</h2>
+            <h2 data-jump="sequence-steps">Station 시퀀스 Draft</h2>
+            {p.sequence.unresolved.length > 0 && <p className="warn-note" data-jump="sequence-unresolved">미해결: {p.sequence.unresolved.join(' · ')}</p>}
             <FlowEditor p={p} rt={rt} locked={locked} edit={edit} />
             <Fold className="fold-panel" summary="단계 편집, 구조화 문장, 순서 변경">
               <SequencePanel p={p} rt={rt} locked={locked} edit={edit} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />
@@ -1083,7 +1157,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <label>크기<span className="field-ro">{materialSize(p)}</span></label>
                 <label>무게<span className="field-ro">{p.materials[0].weight.value ?? '미정'} {p.materials[0].weight.unit}{p.materials[0].weight.assumption ? ' · 가정' : ''}</span></label>
                 <label>Unit 경로<span className="field-ro">{routeText(p)}</span></label>
-              </div> : <button type="button" disabled={locked} onClick={() => edit(C.addMaterial(p), '자재 추가')}>자재 추가</button>}
+              </div> : <button type="button" data-jump="material-add" disabled={locked} onClick={() => edit(C.addMaterial(p), '자재 추가')}>자재 추가</button>}
               <button type="button" className="btn-main primary" onClick={() => setSubTab((t) => ({ ...t, sequence: 'sequence' }))}>Station 시퀀스 작성</button>
             </section>
             <aside className="sheet">
@@ -1115,10 +1189,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <button type="button" className={gapFilter === 'human' ? 'on' : ''} onClick={() => setGapFilter('human')}>사람 확인 필요</button>
               <button type="button" className={gapFilter === 'hidden' ? 'on' : ''} onClick={() => setGapFilter('hidden')}>숨긴 항목</button>
             </div>
-            <h2>Gap 목록 · 기준 모델 rev {tab.analyzedRevision ?? p.revision}</h2>
+            <h2 data-jump="check-gaps">Gap 목록 · 기준 모델 rev {tab.analyzedRevision ?? p.revision}</h2>
             <table className="grid plain">
               <thead><tr><th>종류와 판정</th><th>근거</th><th>관련 대상</th><th>다음 행동</th></tr></thead>
-              <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id}><td>{g.title}</td><td>{g.evidence}</td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}
+              <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id} data-jump={`gap:${g.id}`}><td>{g.title}</td><td>{g.evidence}</td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}
                 {tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).length === 0 && <tr><td colSpan={4}>이 보기에 해당하는 항목이 없습니다.</td></tr>}</tbody>
             </table>
             <p className="warn-note">간섭 후보는 정밀 물리·안전 검증 결과가 아닙니다. 근거가 부족하면 문제 없음 대신 비교 불가로 둡니다.</p>
@@ -1163,7 +1237,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {locked && <span>실행 중 편집 잠금</span>}
         <span className="grow" />
         {!view.home && <>
-          <button className="small" onClick={() => setItemsOpen(!itemsOpen)}>남은 항목 {curEval.items.length}</button>
+          <button className="small" data-items-toggle onClick={() => toggleItems(step)}>남은 항목 {curEval.items.length}</button>
           <button className="btn-main secondary" disabled={cur.no === 1} onClick={() => goStep(STEPS[cur.no - 2].id)}>이전</button>
           <button className="btn-main primary" disabled={cur.no === 6} onClick={goNext}>다음 단계</button>
         </>}

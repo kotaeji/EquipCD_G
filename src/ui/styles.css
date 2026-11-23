@@ -860,3 +860,17 @@ button.on,
 tr.step-row.is-running td { background: var(--selected); font-weight: 700; }
 tr.step-row.is-error td:first-child { box-shadow: inset 2px 0 0 var(--danger); }
 tr.step-row.is-stopped td:first-child { box-shadow: inset 2px 0 0 var(--warning); }
+
+/* TURN-038: step badges stay visible. At 1280 the bar is one line and does not scroll. */
+.app > .stepper { overflow: hidden; flex-wrap: nowrap; }
+.app > .stepper .st { flex: 1 1 0; min-width: 0; height: auto; flex-direction: column; align-items: stretch; justify-content: center; gap: 2px; padding: 4px 8px; }
+.app > .stepper .st-go { height: auto; min-height: 0; padding: 0; border: 0; background: transparent; box-shadow: none; text-align: left; font-size: 13px; font-weight: 650; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: inherit; }
+.app > .stepper .st.on .st-go { color: var(--accent); }
+.app > .stepper .st .badge { position: static; width: auto; height: 22px; max-width: 100%; overflow: hidden; clip: auto; display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 11px; line-height: 1; padding: 0 6px; white-space: nowrap; }
+.app > .stepper .st .st-count { font-variant-numeric: tabular-nums; }
+.itemspop { top: 188px; }
+.itemspop .item-row { display: flex; align-items: flex-start; gap: 6px; min-height: 28px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.itemspop .item-jump { flex: 1; height: auto; min-height: 28px; padding: 2px 6px; text-align: left; white-space: normal; background: transparent; }
+.itemspop .item-jump-text { flex: 1; padding: 4px 0; }
+.itemspop .item-go { flex: none; max-width: 168px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.jump-flash { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 2px var(--accent); }

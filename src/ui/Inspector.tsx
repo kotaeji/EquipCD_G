@@ -72,13 +72,15 @@ function ActionEditor({ p, a, locked, edit, onAddStep }: { p: Project; a: Action
       <div className="row"><TextInput value={a.name} disabled={locked} width={220} onCommit={(v) => edit(C.renameObject(p, a.id, v), 'Action 이름')} /></div>
       <div className="row"><label>ID</label><span className="mono muted" style={{ fontSize: 11 }}>{a.id}</span></div>
       <div className="row"><label>동작 시간</label><QtyInput q={a.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'duration' }, v, as), '동작 시간')} /></div>
-      <div className="row"><label>타임아웃</label><QtyInput q={a.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'timeout' }, v, as), '타임아웃')} /></div>
+      <div className="row" data-jump={`timeout:${a.id}`}><label>타임아웃</label><QtyInput q={a.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'timeout' }, v, as), '타임아웃')} /></div>
       <div className="row"><label>명령 Signal</label><select disabled={locked} value={a.commandSignalId ?? ''} onChange={(e) => upd({ commandSignalId: e.target.value || null }, '명령 Signal')} style={{ width: 170 }}><option value="">(없음)</option>{devSignals.filter((s) => s.direction === 'in').map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-      <div className="row"><label>완료 조건</label><select disabled={locked} value={a.completeSignalId ?? ''} onChange={(e) => upd({ completeSignalId: e.target.value || null }, '완료 Signal')} style={{ width: 150 }}><option value="">(미정)</option>{devSignals.filter((s) => s.direction === 'out').map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><span className="mono muted">= true</span></div>
+      <div className="row" data-jump={`complete:${a.id}`}><label>완료 조건</label><select disabled={locked} value={a.completeSignalId ?? ''} onChange={(e) => upd({ completeSignalId: e.target.value || null }, '완료 Signal')} style={{ width: 150 }}><option value="">(미정)</option>{devSignals.filter((s) => s.direction === 'out').map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><span className="mono muted">= true</span></div>
       {!a.completeSignalId && <div className="notice warn">완료 조건 미정 — 실행 준비 검사에서 차단, Gap(부족 I/O) 표시</div>}
       <div className="row"><label>목표 Position</label><select disabled={locked} value={a.targetPositionId ?? ''} onChange={(e) => upd({ targetPositionId: e.target.value || null }, '목표 Position')} style={{ width: 170 }}><option value="">(없음)</option>{p.positions.filter((x) => x.deviceId === a.deviceId).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
-      <h4 style={{ marginTop: 8 }}>전제(pre) 조건</h4>
-      <ConditionEditor p={p} list={a.pre} disabled={locked} onChange={(l) => upd({ pre: l }, 'pre 조건')} />
+      <div data-jump={`pre:${a.id}`}>
+        <h4 style={{ marginTop: 8 }}>전제(pre) 조건</h4>
+        <ConditionEditor p={p} list={a.pre} disabled={locked} onChange={(l) => upd({ pre: l }, 'pre 조건')} />
+      </div>
       <h4 style={{ marginTop: 8 }}>완료 후(post) 검증 조건</h4>
       <ConditionEditor p={p} list={a.post} disabled={locked} onChange={(l) => upd({ post: l }, 'post 조건')} />
       <h4 style={{ marginTop: 8 }}>자재 변화 (완료 시)</h4>
@@ -174,7 +176,7 @@ export function Inspector(props: Props) {
     </div>
     <div className="tabs">{[['props', '속성'], ['signals', `신호 ${sigs.length}`], ['positions', `포지션 ${poss.length}`], ['actions', `Action ${acts.length}`], ['check', '정의 체크']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     {tab === 'props' && <div className="section">
-      {def.properties.map((pd) => { const qv = d.properties[pd.key]; return qv ? <div key={pd.key} className="row"><label>{pd.label}{pd.requiredForRun ? ' *' : ''}</label><QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} /></div> : null; })}
+      {def.properties.map((pd) => { const qv = d.properties[pd.key]; return qv ? <div key={pd.key} className="row" data-jump={`prop:${d.id}:${pd.key}`}><label>{pd.label}{pd.requiredForRun ? ' *' : ''}</label><QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} /></div> : null; })}
       <div className="muted" style={{ fontSize: 11 }}>* 실행/수용 판정에 필요 (비우면 미정 축 사양 Gap). 빈 값 = 미정, 0과 다름.</div>
       <button className="danger" style={{ marginTop: 8 }} disabled={locked} onClick={() => props.onDelete(d.id)}>Device 삭제(영향 확인)</button>
     </div>}
@@ -214,7 +216,7 @@ export function Inspector(props: Props) {
 
 function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked: boolean; edit: EditFn }) {
   const k = p.constraints.find((x) => x.id === id)!;
-  return <div style={{ borderBottom: '1px solid var(--border)', padding: '4px 0', fontSize: 12 }}>
+  return <div style={{ borderBottom: '1px solid var(--border)', padding: '4px 0', fontSize: 12 }} data-jump={`interlock:${k.id}`}>
     <div><b className="mono">{k.id}</b> {k.description}</div>
     <div className="row"><Badge kind={k.confirmation === 'confirmed' ? 'ok' : k.confirmation === 'rejected' ? 'err' : 'warn'}>{{ unconfirmed: '미확인 후보', confirmed: '사람 확인됨', rejected: '거절됨', needsRecheck: '재확인 필요' }[k.confirmation]}</Badge>
       <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'confirmed'), 'Interlock 확인')}>확인</button>

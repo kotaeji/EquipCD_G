@@ -153,9 +153,9 @@ export function LibraryWorkspace(props: Props) {
         <button onClick={props.onExportAml}>AML 라이브러리 내보내기</button>
       </div>
       {mode === 'photo' && <div className="notice warn" role="note"><b>{GENERATED_META.label}.</b> 도식과 같은 방향·구도로 생성한 종류 대표 이미지입니다 (생성: {GENERATED_META.generatedAt}). 표시 전환은 모델·배치·연결·선택을 바꾸지 않습니다. 생성 정보는 카드 상세에서 확인하세요.</div>}
-      <div className="cards">
+      <div className="cards" data-jump="library-cards">
         {defs.map((d) => { const g = resolveGenerated(d.kind); const x = xsdStatus(d); return (
-          <div key={d.id} className={`card ${sel === d.id ? 'sel' : ''}`} onClick={() => setSel(d.id)} data-kind={d.kind} role="button" tabIndex={0} aria-pressed={sel === d.id}
+          <div key={d.id} className={`card ${sel === d.id ? 'sel' : ''}`} onClick={() => setSel(d.id)} data-kind={d.kind} data-jump={`asset:${d.kind}`} role="button" tabIndex={0} aria-pressed={sel === d.id}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(d.id); } }}>
             <Visual def={d} mode={mode} />
             <div className="cname">{d.name}</div>

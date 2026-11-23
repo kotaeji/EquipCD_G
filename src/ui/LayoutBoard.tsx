@@ -48,7 +48,7 @@ export function LayoutBoard(props: Props) {
       const { kind } = take(e);
       if (kind === 'unit' || (kind && findAsset(kind)?.template)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
     }}>
-      {units.map((u) => <article key={u.id} className={`station-card ${selection.includes(u.id) ? 'on' : ''}`}
+      {units.map((u) => <article key={u.id} data-jump={`unit:${u.id}`} className={`station-card ${selection.includes(u.id) ? 'on' : ''}`}
         onClick={(e) => { if (mode === 'flow') props.onUnitConnectClick(u.id); else if (mode === 'signal') props.onSignalHint(); else props.onSelect(cardSelection(selection, u.id, e)); }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {

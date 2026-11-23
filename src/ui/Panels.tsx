@@ -101,7 +101,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
           </tbody>
         </table>
         <div className="dropzone" style={{ marginTop: 4 }}>여기로 Action을 드래그하면 끝에 추가 · 행을 드래그해 단계 목록 순서를 바꿉니다. 실행 순서는 위의 Station 흐름을 따릅니다.</div>
-        {p.sequence.unresolved.length > 0 && <div className="notice warn">미해결/모호 목록(보존): {p.sequence.unresolved.join(' · ')}</div>}
+        {p.sequence.unresolved.length > 0 && <div className="notice warn" data-jump="sequence-unresolved">미해결/모호 목록(보존): {p.sequence.unresolved.join(' · ')}</div>}
       </div>
       <div style={{ width: 270, borderLeft: '1px solid var(--border)', paddingLeft: 8, overflow: 'auto' }}>
         <b style={{ fontSize: 12 }}>구조화 문장 입력 (결정적 변환 · AI 미사용)</b>
@@ -254,7 +254,7 @@ export function GapPanel({ p, gaps, analyzedRevision, onReanalyze, onGo, onRevie
         <thead><tr><th>종류</th><th>판정</th><th>항목</th><th>근거</th><th>공정 단계</th><th>수정 제안</th><th>상태</th><th></th></tr></thead>
         <tbody>
           {gaps.map((g) => { const r = review[g.id]; if (r?.status === 'hidden') return null; return (
-            <tr key={g.id}>
+            <tr key={g.id} data-jump={`gap:${g.id}`}>
               <td><Badge kind={g.safety ? 'warn' : 'acc'}>{GAP_KIND_LABEL[g.kind]}</Badge></td>
               <td>{g.judgement === 'shortfall' ? <Badge kind="err">부족</Badge> : g.judgement === 'undetermined' ? <Badge kind="warn">미정/비교 불가</Badge> : <Badge kind="warn">사람 확인 후보</Badge>}</td>
               <td style={{ fontSize: 12 }}>{g.title}</td>
@@ -279,7 +279,7 @@ export function GapPanel({ p, gaps, analyzedRevision, onReanalyze, onGo, onRevie
 export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean; edit: EditFn }) {
   const m = p.materials[0];
   const [addUnit, setAddUnit] = useState('');
-  if (!m) return <div><div className="muted">자재 정의 없음</div><button disabled={locked} onClick={() => edit(C.addMaterial(p), '자재 추가')}>+ 자재 정의</button></div>;
+  if (!m) return <div data-jump="material-add"><div className="muted">자재 정의 없음</div><button disabled={locked} onClick={() => edit(C.addMaterial(p), '자재 추가')}>+ 자재 정의</button></div>;
   const route = m.route;
   const setRoute = (r: string[]) => edit(C.updateMaterial(p, m.id, { route: r }), '경로 변경');
   return (
@@ -293,12 +293,12 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
         <div className="row"><label>취급 조건</label><TextInput value={m.handling} disabled={locked} onCommit={(v) => edit(C.updateMaterial(p, m.id, { handling: v }), '취급 조건')} /></div>
         <div className="row"><label>투입 간격</label><QtyInput q={m.feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: 'feedInterval' }, v, as), '투입 간격')} /></div>
         <div className="row"><label>상태집합</label><TextInput value={m.states.join(', ')} width={210} disabled={locked} onCommit={(v) => edit(C.updateMaterial(p, m.id, { states: v.split(',').map((x) => x.trim()).filter(Boolean) }), '상태집합')} /></div>
-        <div className="row"><label>초기 상태</label><select disabled={locked} value={m.initialState ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialState: e.target.value || null }), '초기 상태')}><option value="">(미정)</option>{m.states.map((s) => <option key={s}>{s}</option>)}</select></div>
-        <div className="row"><label>초기 위치</label><select disabled={locked} value={m.initialLocation ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialLocation: e.target.value || null }), '초기 위치')}><option value="">(미정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+        <div className="row" data-jump="material-state"><label>초기 상태</label><select disabled={locked} value={m.initialState ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialState: e.target.value || null }), '초기 상태')}><option value="">(미정)</option>{m.states.map((s) => <option key={s}>{s}</option>)}</select></div>
+        <div className="row" data-jump="material-location"><label>초기 위치</label><select disabled={locked} value={m.initialLocation ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialLocation: e.target.value || null }), '초기 위치')}><option value="">(미정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
         <div className="muted" style={{ fontSize: 11 }}>설계 정의(Material)와 실행 중 개체(M#1)는 분리됩니다. 이번 시제품 실행은 자재 1개만 지원.</div>
       </div>
       <div style={{ width: 300, overflow: 'auto', borderRight: '1px solid var(--border)', paddingRight: 8 }}>
-        <b style={{ fontSize: 12 }}>Unit 경로 (순서)</b>
+        <b style={{ fontSize: 12 }} data-jump="material-route">Unit 경로 (순서)</b>
         {route.map((uid, i) => <div key={`${uid}-${i}`} className="row" style={{ minHeight: 24 }}><span className="mono">{i + 1}.</span><span style={{ flex: 1 }}>{unitName(p, uid)}</span>
           <button className="small" disabled={locked || i === 0} onClick={() => { const r = [...route]; [r[i - 1], r[i]] = [r[i], r[i - 1]]; setRoute(r); }}>↑</button>
           <button className="small" disabled={locked || i === route.length - 1} onClick={() => { const r = [...route]; [r[i + 1], r[i]] = [r[i], r[i + 1]]; setRoute(r); }}>↓</button>
@@ -348,7 +348,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
         <table className="grid"><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th>소속 Unit</th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
-          <tbody>{p.candidates.map((c) => <tr key={c.id}>
+          <tbody>{p.candidates.map((c) => <tr key={c.id} data-jump={`candidate:${c.id}`}>
             <td className="mono" style={{ fontSize: 10 }}>{c.id}</td><td>{c.targetKind}</td><td>{c.name}</td><td>{c.deviceKind ?? '-'}</td>
             <td>{c.targetKind === 'device' ? <select disabled={locked || !!c.appliedObjectId} value={c.assignedUnitId ?? ''} onChange={(e) => setCand(c.id, { assignedUnitId: e.target.value || null })}><option value="">(미배정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select> : '-'}</td>
             <td style={{ fontSize: 11 }}>{c.sourceRefs.map((s) => s.note ?? s.method).join(', ')}</td>
