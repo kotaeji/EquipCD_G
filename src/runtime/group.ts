@@ -14,7 +14,9 @@ import type { Action, Project, SequenceStep, SubstationSequence } from '../model
 import { feedCountOf, GROUP_RULES_VERSION } from '../model/types';
 import { checkLanes } from '../model/laneCheck';
 import { validateProject, type Diagnostic } from '../model/validate';
+import { interlockNotices } from '../model/interlock';
 import { applySensorSignals, evalCond, ms, signalLabel, unmetText, type LogEntry, type MaterialInstance } from './engine';
+import { judgeInterlock } from './interlock';
 
 export type GroupStatus = 'idle' | 'running' | 'paused' | 'completed' | 'error';
 export type LaneStatus = 'pending' | 'active' | 'done' | 'error' | 'stopped';
@@ -25,8 +27,10 @@ export interface Lane {
   stepIndex: number;
   status: LaneStatus;
   active: { startMs: number; completeAtMs: number | null; timeoutAtMs: number } | null;
-  steps: { stepId: string; status: 'pending' | 'active' | 'done' | 'error'; startMs?: number; endMs?: number }[];
+  steps: { stepId: string; status: 'pending' | 'active' | 'done' | 'error'; startMs?: number; endMs?: number; waitMs?: number; waitNote?: string }[];
   endMs?: number;
+  /** Mutex hold. The step has not started. */
+  wait?: { sinceMs: number; note: string; interlockId: string };
 }
 
 export interface GroupState {
@@ -56,7 +60,7 @@ export interface GroupReadiness { ok: boolean; blockers: Diagnostic[]; warnings:
 export function checkGroupReadiness(p: Project, unitId: string): GroupReadiness {
   const diags = validateProject(p);
   const blockers = diags.filter((d) => d.severity === 'error');
-  const warnings = diags.filter((d) => d.severity === 'warning');
+  const warnings = [...diags.filter((d) => d.severity === 'warning'), ...interlockNotices(p)];
   const b = (code: string, objectId: string, message: string) => blockers.push({ id: `${code}:${objectId}:${blockers.length}`, severity: 'error', code, objectId, message });
   if (blockers.length) return { ok: false, blockers, warnings, usesMaterial: false };
   const unit = p.units.find((u) => u.id === unitId);
@@ -144,12 +148,38 @@ function failGroup(s: GroupState, l: Lane, code: string, stepId: string, message
   L(s, 'error', 'GROUP_STOPPED', `보수적 그룹 정지 (설계 제안): ${l.name} 오류로 같은 Substation의 다른 시퀀스도 정지 — 이후 단계 진행 안 함`);
 }
 
-function activate(p: Project, s: GroupState, l: Lane) {
+function laneActiveActionIds(p: Project, s: GroupState, except: Lane): string[] {
+  const ids: string[] = [];
+  for (const other of s.lanes) {
+    if (other === except || !other.active) continue;
+    const step = stepOf(p, other).step;
+    ids.push(step.actionId);
+  }
+  return ids;
+}
+
+function activate(p: Project, s: GroupState, l: Lane): 'started' | 'wait' {
   applySensorSignals(p, s);
   const { step, a } = stepOf(p, l);
+  const concurrent = s.lanes.filter((lane) => lane.status === 'active' || lane.status === 'pending').length > 1;
+  const gate = judgeInterlock(
+    p, a.id, step.name, laneActiveActionIds(p, s, l), concurrent,
+    (c) => evalCond(c, s, p), unmetText,
+  );
+  if (gate.kind === 'block') {
+    failGroup(s, l, 'INTERLOCK_BLOCK', step.id, gate.hit.message);
+    return 'started';
+  }
+  if (gate.kind === 'wait') {
+    if (!l.wait || l.wait.note !== gate.wait.note) {
+      l.wait = { sinceMs: s.timeMs, note: gate.wait.note, interlockId: gate.wait.interlockId };
+      L(s, 'info', 'WAIT', `[${l.name}] ${step.name} 대기 — ${gate.wait.note}`, step.id);
+    }
+    return 'wait';
+  }
   for (const c of [...step.entry, ...a.pre]) {
     const r = evalCond(c, s, p);
-    if (!r.ok) { failGroup(s, l, 'PRE_UNMET', step.id, `${step.name}: 전제 조건 미충족 ${unmetText(r)} — 대기하지 않고 오류 처리 (동기화/대기 규칙 미정)`); return; }
+    if (!r.ok) { failGroup(s, l, 'PRE_UNMET', step.id, `${step.name}: 전제 조건 미충족 ${unmetText(r)} — 대기하지 않고 오류 처리 (동기화/대기 규칙 미정)`); return 'started'; }
   }
   if (a.completeSignalId) s.signals[a.completeSignalId] = false;
   if (a.commandSignalId) s.signals[a.commandSignalId] = true;
@@ -157,7 +187,15 @@ function activate(p: Project, s: GroupState, l: Lane) {
   const neverTrue = a.completeSignalId ? p.simSettings.faults.neverTrueSignalIds.includes(a.completeSignalId) : true;
   l.active = { startMs: s.timeMs, completeAtMs: neverTrue ? null : s.timeMs + ms(a.duration.value), timeoutAtMs: s.timeMs + ms(timeout) };
   const rec = l.steps[l.stepIndex]; rec.status = 'active'; rec.startMs = s.timeMs;
+  if (l.wait) {
+    const dt = s.timeMs - l.wait.sinceMs;
+    rec.waitMs = dt;
+    rec.waitNote = l.wait.note;
+    L(s, 'info', 'WAIT_END', `[${l.name}] ${step.name} 대기 끝 — ${l.wait.note} ${(dt / 1000).toFixed(3)}s`, step.id);
+    l.wait = undefined;
+  }
   L(s, 'info', 'STEP_START', `[${l.name}] ${step.name} 시작 (가정 ${a.duration.value}s, 타임아웃 ${timeout}s)`, step.id);
+  return 'started';
 }
 
 function complete(p: Project, s: GroupState, l: Lane) {
@@ -212,7 +250,8 @@ export function advanceGroup(rt: GroupRuntime, dtMs: number): GroupRuntime {
       if (l.status !== 'active' || l.active) continue;
       const q = (p.substationSequences ?? []).find((x) => x.id === l.seqId)!;
       if (l.stepIndex >= q.steps.length) { l.status = 'done'; l.endMs = s.timeMs; L(s, 'info', 'SEQ_COMPLETE', `[${l.name}] 시퀀스 완료`); changed = true; continue; }
-      activate(p, s, l); changed = true;
+      const outcome = activate(p, s, l);
+      if (outcome === 'started') changed = true;
     }
     if (s.status !== 'running') break;
     if (s.lanes.every((l) => l.status === 'done')) { s.status = 'completed'; L(s, 'info', 'GROUP_COMPLETE', `그룹 완료 — 시퀀스 ${s.lanes.length}개 모두 완주`); break; }
@@ -225,7 +264,12 @@ export function advanceGroup(rt: GroupRuntime, dtMs: number): GroupRuntime {
       const t = c ? l.active.completeAtMs! : l.active.timeoutAtMs;
       if (t < next) { next = t; who = l; isComplete = c; }
     }
-    if (!who || next > target) break;
+    if (!who) {
+      const held = s.lanes.find((l) => l.wait);
+      if (held) failGroup(s, held, 'DEADLOCK', stepOf(p, held).step.id, `${stepOf(p, held).step.name}: Interlock 동시 금지로 진행할 수 없음`);
+      break;
+    }
+    if (next > target) break;
     s.timeMs = next;
     if (isComplete) complete(p, s, who);
     else { const { step, a } = stepOf(p, who); failGroup(s, who, 'TIMEOUT', step.id, `${step.name}: 타임아웃 — 완료 신호 ${signalLabel(p, a.completeSignalId)} 미발생`); }

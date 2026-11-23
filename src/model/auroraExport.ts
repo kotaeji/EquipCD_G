@@ -2,7 +2,7 @@
 // The model → slot table lives in docs/turns/TURN-041.md. A later turn should only change that mapping.
 import { getAssetById } from '../assets/library';
 import { stableStringify } from '../storage/fileFormat';
-import type { Action, Condition, FlowNode, Project, Quantity, SequenceDraft, SequenceStep } from './types';
+import type { Action, Condition, FlowNode, InterlockRule, Project, Quantity, SequenceDraft, SequenceStep } from './types';
 import { APP_VERSION } from './types';
 
 export const AURORA_EXPORT_FORMAT = 'aurora-concept-designer/export-draft';
@@ -116,6 +116,8 @@ export interface ExportInterlock {
   description: string;
   relatedIds: string[];
   confirmation: 'confirmed';
+  /** Present when the confirmed Interlock has a machine-readable rule. */
+  rule?: InterlockRule;
 }
 
 export interface ExportExcluded {
@@ -251,7 +253,10 @@ export function buildAuroraExport(p: Project): AuroraExportFile {
   const excluded: ExportExcluded[] = [];
   for (const k of p.constraints) {
     if (k.kind === 'interlock-candidate' && k.confirmation === 'confirmed') {
-      interlocks.push({ id: k.id, description: k.description, relatedIds: [...k.relatedIds], confirmation: 'confirmed' });
+      interlocks.push({
+        id: k.id, description: k.description, relatedIds: [...k.relatedIds], confirmation: 'confirmed',
+        ...(k.rule ? { rule: structuredClone(k.rule) } : {}),
+      });
     } else if (k.kind === 'interlock-candidate') {
       excluded.push({ id: k.id, kind: 'interlock', name: k.description, reason: `확인되지 않은 Interlock (${k.confirmation}) — 확인된 것만 본문에 넣음` });
     } else {
@@ -432,7 +437,10 @@ function rowsOf(file: AuroraExportFile): Row[] {
     addFlowRows(rows, q.flow);
   }
   for (const k of file.interlocks ?? []) {
-    rows.push({ kind: 'interlock', id: k.id, name: k.description, fields: { 설명: k.description, 관련: (k.relatedIds ?? []).join('|') } });
+    rows.push({
+      kind: 'interlock', id: k.id, name: k.description,
+      fields: { 설명: k.description, 관련: (k.relatedIds ?? []).join('|'), 규칙: k.rule ? stableStringify(k.rule, 0) : '' },
+    });
   }
   for (const x of file.excluded ?? []) {
     rows.push({ kind: 'excluded', id: x.id, name: x.name, fields: { 종류: x.kind, 이름: x.name, 까닭: x.reason } });

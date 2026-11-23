@@ -11,7 +11,7 @@ import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject 
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
-import { activeDeviceIds as sceneActiveIds, faultDeviceIds } from '../scene/describe';
+import { activeDeviceIds as sceneActiveIds, faultDeviceIds, interlockFaultDeviceIds } from '../scene/describe';
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
@@ -19,7 +19,7 @@ import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type
 import { Canvas, type Mode } from './Canvas';
 import { selectAll, SELECT_HINT } from './selectAll';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
-import { Inspector, type ConfirmDelete } from './Inspector';
+import { Inspector, InterlockPanel, type ConfirmDelete } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { focusJump, jumpCaption, jumpTarget, runGapJump } from './itemJump';
 import { StatusMark } from './StatusMark';
@@ -705,6 +705,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   // TURN-001: 6단계 그룹 실행 차단 항목 → 원인 수정/확인 화면으로 이동 (보기 상태만 변경, 모델·Undo 불변).
   // 그룹 실행 대상(subUnitId)은 이동 전에 보기 선호값으로 고정해, 편집 대상 선택이 실행 Substation을 바꾸지 않게 한다.
+  const jumpInterlock = (id: string) => {
+    const k = p.constraints.find((c) => c.id === id);
+    const dev = k?.relatedIds.find((rid) => p.devices.some((d) => d.id === rid));
+    if (dev) {
+      setSelection([dev]);
+      const unitId = p.devices.find((d) => d.id === dev)?.unitId;
+      if (unitId) setSubUnitPref(unitId);
+    }
+    setRightTab('check');
+    jumpRef.current = { step: 'attributes', selectId: dev, rightTab: 'check', field: `interlock:${id}` };
+    setJumpTick((n) => n + 1);
+    goStep('attributes');
+  };
   const goBlocker = (_b: Diagnostic, g: BlockerGuide) => {
     if (!g.dest) return;
     if (subUnitId) setSubUnitPref(subUnitId);
@@ -766,6 +779,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const collapsed = view.treeCollapsed[p.id] ?? [];
   const setCollapsed = (ids: string[]) => setView((v) => ({ ...v, treeCollapsed: { ...v.treeCollapsed, [p.id]: ids } }));
   const faultIds = faultDeviceIds(p, rt);
+  const interlockIds = interlockFaultDeviceIds(p, rt);
   const runningIds = sceneActiveIds(p, rt);
   const statusOf = Object.fromEntries(p.devices.flatMap((d) => {
     const key = deviceDisplayStatus({
@@ -956,7 +970,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const activeDeviceIds = runningIds;
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
-  const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
+  const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
@@ -1252,6 +1266,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               </aside>
             </div>;
           })()}
+          <InterlockPanel p={p} locked={locked} edit={edit} />
           <Fold className="fold-panel" summary="신호, 포지션, Action, 정의 체크 자세히">
             <div className="fold-body">{inspectorEl}</div>
           </Fold>
@@ -1347,6 +1362,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <RunStepsPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} />
         <div className="run-center">
           <RunSummaryStrip p={p} rt={rt} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
+          {rt?.error?.code === 'INTERLOCK_BLOCK' && <section className="notice err" aria-label="실행이 막힐 때" data-interlock-guide="">
+            <p>{rt.error.message}</p>
+            <button type="button" onClick={() => {
+              const id = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
+              if (id) jumpInterlock(id);
+            }}>이동</button>
+          </section>}
           {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
           <div className="run-canvas">
             {view.runView === '3d' && scene3d
@@ -1354,7 +1376,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
               : <div className="diagram-canvas">{runCanvasEl}</div>}
           </div>
-          <RunDetails p={p} rt={rt} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} />
+          <RunDetails p={p} rt={rt} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock} />
         </div>
         <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}

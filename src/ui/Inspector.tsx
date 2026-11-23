@@ -3,7 +3,8 @@ import { findAsset } from '../assets/library';
 import { AI_BADGE, GENERATED_META, resolveGenerated } from '../assets/visuals';
 import * as C from '../model/commands';
 import type { Gap } from '../model/gaps';
-import type { Action, Condition, Project } from '../model/types';
+import { interlockSummary } from '../model/interlock';
+import type { Action, Condition, InterlockRule, Project } from '../model/types';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
 import { actionDeleteDetail, actionUsage, positionDeleteDetail, positionUsage, signalDeleteDetail, signalUsage } from '../model/deleteImpact';
@@ -224,16 +225,91 @@ export function Inspector(props: Props) {
   </div>;
 }
 
+function otherAction(p: Project, actionId: string, prefer?: string): string | undefined {
+  if (prefer && prefer !== actionId && p.actions.some((a) => a.id === prefer)) return prefer;
+  return p.actions.find((a) => a.id !== actionId)?.id;
+}
+
 function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked: boolean; edit: EditFn }) {
   const k = p.constraints.find((x) => x.id === id)!;
-  return <div style={{ borderBottom: '1px solid var(--border)', padding: '4px 0', fontSize: 12 }} data-jump={`interlock:${k.id}`}>
-    <div><b className="mono">{k.id}</b> {k.description}</div>
+  const rule = k.rule;
+  const usable = rule && rule.form !== 'undetermined' ? rule : null;
+  const actionId = usable?.actionId ?? '';
+  const setRule = (next: InterlockRule | null, label: string) => edit(C.setConstraintRule(p, k.id, next), label);
+  const onForm = (form: string) => {
+    if (form === 'none') { setRule(null, 'Interlock 규칙 해제'); return; }
+    if (form === 'undetermined') return;
+    const target = actionId || p.actions[0]?.id;
+    if (!target) return;
+    if (form === 'allow') setRule({ form: 'allow', actionId: target, conditions: rule?.form === 'allow' ? rule.conditions : [] }, 'Interlock 허용 조건');
+    else {
+      const other = otherAction(p, target, rule?.form === 'mutex' ? rule.otherActionId : undefined);
+      if (!other) return;
+      setRule({ form: 'mutex', actionId: target, otherActionId: other }, 'Interlock 동시 금지');
+    }
+  };
+  const onAction = (nextId: string) => {
+    if (!nextId) return;
+    if (!usable) { setRule({ form: 'allow', actionId: nextId, conditions: [] }, 'Interlock 대상'); return; }
+    if (usable.form === 'allow') setRule({ form: 'allow', actionId: nextId, conditions: usable.conditions }, 'Interlock 대상');
+    else {
+      const other = otherAction(p, nextId, usable.otherActionId);
+      if (!other) return;
+      setRule({ form: 'mutex', actionId: nextId, otherActionId: other }, 'Interlock 대상');
+    }
+  };
+  return <div style={{ borderBottom: '1px solid var(--border)', padding: '6px 0', fontSize: 12 }} data-jump={`interlock:${k.id}`} data-interlock={k.id}>
+    <div className="row">
+      <b className="mono">{k.id}</b>
+      <TextInput value={k.description} width={280} disabled={locked} onCommit={(v) => edit(C.setConstraintDescription(p, k.id, v), 'Interlock 설명')} />
+      <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.deleteConstraint(p, k.id), 'Interlock 삭제')}>삭제</button>
+    </div>
+    <div data-interlock-summary="">{interlockSummary(p, k)}</div>
     <div className="row"><Badge kind={k.confirmation === 'confirmed' ? 'ok' : k.confirmation === 'rejected' ? 'err' : 'warn'}>{{ unconfirmed: '미확인 후보', confirmed: '사람 확인됨', rejected: '거절됨', needsRecheck: '재확인 필요' }[k.confirmation]}</Badge>
       <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'confirmed'), 'Interlock 확인')}>확인</button>
       <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'rejected'), 'Interlock 거절')}>거절</button>
       <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'unconfirmed'), 'Interlock 되돌림')}>미확인</button></div>
-    <div className="muted" style={{ fontSize: 10 }}>로컬 표시용 확인 — 법적 안전 승인 아님. 자동 확정 없음.</div>
+    <div className="row" style={{ flexWrap: 'wrap' }}>
+      <label>막을 Action
+        <select aria-label={`${k.id} 막을 Action`} disabled={locked} value={actionId} onChange={(e) => onAction(e.target.value)}>
+          <option value="">선택</option>
+          {p.actions.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </label>
+      <label>꼴
+        <select aria-label={`${k.id} 규칙 꼴`} disabled={locked} value={usable?.form ?? (rule?.form === 'undetermined' ? 'undetermined' : 'none')} onChange={(e) => onForm(e.target.value)}>
+          <option value="none">규칙 없음</option>
+          {rule?.form === 'undetermined' && <option value="undetermined">미정</option>}
+          <option value="allow">허용 조건</option>
+          <option value="mutex">동시 금지</option>
+        </select>
+      </label>
+      {usable?.form === 'mutex' && <label>상대 Action
+        <select aria-label={`${k.id} 상대 Action`} disabled={locked} value={usable.otherActionId} onChange={(e) => {
+          const other = e.target.value;
+          if (!other || other === usable.actionId) return;
+          setRule({ form: 'mutex', actionId: usable.actionId, otherActionId: other }, 'Interlock 상대 Action');
+        }}>
+          {p.actions.filter((a) => a.id !== usable.actionId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </label>}
+    </div>
+    {usable?.form === 'allow' && <ConditionEditor p={p} list={usable.conditions} disabled={locked} onChange={(list) => setRule({ form: 'allow', actionId: usable.actionId, conditions: list }, 'Interlock 조건')} />}
+    <div className="muted" style={{ fontSize: 10 }}>로컬 표시용 확인 — 법적 안전 승인 아님. 자동 안전 승인은 없습니다.</div>
   </div>;
+}
+
+/** Step 3 list. Adding, deleting, and editing a rule is one revision each. */
+export function InterlockPanel({ p, locked, edit }: { p: Project; locked: boolean; edit: EditFn }) {
+  return (
+    <section className="sheet" aria-label="Interlock" data-interlock-panel="">
+      <h2>Interlock</h2>
+      <p className="warn-note">확인한 규칙만 실행을 막습니다. 자동 안전 승인은 없습니다.</p>
+      {p.constraints.map((k) => <InterlockRow key={k.id} p={p} id={k.id} locked={locked} edit={edit} />)}
+      {p.constraints.length === 0 && <p className="muted">Interlock 없음. 추가한 뒤 막을 Action과 꼴을 고르세요.</p>}
+      <button type="button" disabled={locked} onClick={() => edit(C.addConstraint(p), 'Interlock 추가')}>Interlock 추가</button>
+    </section>
+  );
 }
 
 function DefinitionCheck({ p, deviceId }: { p: Project; deviceId: string }) {

@@ -201,6 +201,9 @@ export function RunReadiness({ p, onGoBlocker }: { p: Project; onGoBlocker?: (b:
       {readiness.ok
         ? <p data-readiness="ok">실행 가능</p>
         : <p data-readiness="blocked">차단 {readiness.blockers.length}건</p>}
+      {readiness.warnings.filter((w) => w.code === 'INTERLOCK_NO_RULE' || w.code === 'INTERLOCK_UNDETERMINED').map((w) => (
+        <p key={w.id} className="notice" data-interlock-notice={w.objectId}>{w.message}</p>
+      ))}
       {!readiness.ok && <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
         <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
         <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
