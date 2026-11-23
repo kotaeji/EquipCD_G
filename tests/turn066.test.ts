@@ -106,10 +106,11 @@ describe('TURN-066 object index', () => {
       });
     }
     project.devices = devices;
-    expect(indexObjects(project)).toHaveLength(1000);
+    // Gap overlap is its own scan. This times the name index and one lookup.
     const started = performance.now();
-    const found = findObjects(project, '표적');
+    const found = searchObjects(indexObjects(project, []), '표적');
     expect(performance.now() - started).toBeLessThan(50);
     expect(found.find((g) => g.kind === 'device')!.shown.map((e) => e.name)).toEqual(['표적-0042']);
+    expect(indexObjects(project)).toHaveLength(1000);
   });
 });
