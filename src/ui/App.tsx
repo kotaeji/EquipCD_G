@@ -3,6 +3,8 @@ import { ASSET_LIBRARY, exportLibraryAml, findAsset, LOADED_LIBRARIES, registerI
 import { resolveGenerated } from '../assets/visuals';
 import * as C from '../model/commands';
 import { captureCopy, COPY_NEED_NODE, PASTE_EMPTY, PASTE_LOCKED, pasteClipboard, splitPasteNote, type Clipboard } from '../model/copyPaste';
+import { captureUnitTemplate, PLACE_LOCKED, placeUserTemplate, STORAGE_UNAVAILABLE, suggestTemplateName, templateIdFromDrag, templateNameKey, templateOriginText, templateSaveGate } from '../model/userTemplates';
+import { readTemplates, saveTemplate } from '../storage/userTemplates';
 import { emptyProject } from '../model/factory';
 import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { analyzeRunGaps } from '../model/runGaps';
@@ -32,6 +34,7 @@ import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } fr
 import { QtyInput, TextInput } from './widgets';
 import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RunGapSection, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
+import { PaletteTemplateGroup, SaveTemplateDialog } from './UserTemplates';
 import { SubSequencePanel } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
 import type { Diagnostic } from '../model/validate';
@@ -167,6 +170,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [selection, setSelection] = useState<string[]>([]);
   /** App-held copy of Units or Devices. Shared by every project tab. Not the OS clipboard. */
   const [clip, setClip] = useState<Clipboard | null>(null);
+  const [tplTick, setTplTick] = useState(0);
+  const [saveAsk, setSaveAsk] = useState<{ unitId: string; initial: string; notice: string } | null>(null);
   const [mode, setMode] = useState<Mode>('select');
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [ctx, setCtx] = useState<{ x: number; y: number; surface: ContextSurface; kind: MenuKind; focus: HTMLElement | null } | null>(null);
@@ -216,6 +221,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const subUnitId = (p.units.some((u) => u.id === subUnitPref) ? subUnitPref : selUnit ?? p.units.find((u) => (p.substationSequences ?? []).some((q) => q.unitId === u.id))?.id ?? p.units[0]?.id ?? '');
 
   useEffect(() => { saveView(kv, view); }, [kv, view]);
+  const templates = useMemo(() => readTemplates(kv).templates, [kv, tplTick]);
   const paletteRef = useRef<HTMLDivElement>(null);
   const [paletteHidden, setPaletteHidden] = useState(0);
   useEffect(() => {
@@ -238,7 +244,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     ro.observe(fold);
     fold.addEventListener('scroll', count);
     return () => { ro.disconnect(); fold.removeEventListener('scroll', count); };
-  }, [step, view.paletteOpen, view.layoutTab]);
+  }, [step, view.paletteOpen, view.layoutTab, templates.length]);
   useEffect(() => { if (wsInit?.warnings.length) say(wsInit.warnings.join(' / '), true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onHistory?.(tab.history); }, [onHistory, tab.history]);
   // N03: a project that is not active never keeps running in the background → pause (state kept, no auto resume)
@@ -412,7 +418,53 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
 
   // ---------- canvas handlers ----------
+  const placeTemplateById = (id: string, at: { x: number; y: number }) => {
+    if (locked) { say(PLACE_LOCKED, true); return; }
+    const template = templates.find((t) => t.id === id) ?? readTemplates(kv).templates.find((t) => t.id === id);
+    if (!template) { say('내 템플릿을 찾지 못했습니다', true); return; }
+    const r = placeUserTemplate(p, template, { x: Math.round(at.x), y: Math.round(at.y) });
+    if (edit(r, '내 템플릿 놓기') && r.ok) {
+      const { ids, message } = splitPasteNote(r.note);
+      setSelection(ids);
+      if (message) say(message);
+    }
+  };
+  const requestSaveTemplate = (unitId: string) => {
+    if (!kv) { say(STORAGE_UNAVAILABLE, true); return; }
+    const captured = captureUnitTemplate(p, unitId);
+    if (!captured.ok) { say(captured.reason, true); return; }
+    const unit = p.units.find((u) => u.id === unitId);
+    setSaveAsk({ unitId, initial: unit?.name ?? '', notice: captured.captured.notice });
+  };
+  const commitSaveTemplate = (name: string, overwriteId?: string, unitId = saveAsk?.unitId) => {
+    if (!kv || !unitId) return;
+    const captured = captureUnitTemplate(p, unitId);
+    if (!captured.ok) { say(captured.reason, true); return; }
+    const hit = templates.find((t) => templateNameKey(t.name) === templateNameKey(name));
+    if (hit && hit.id !== overwriteId) {
+      const notice = captured.captured.notice;
+      setSaveAsk(null);
+      setModal({
+        title: `같은 이름 「${name}」`,
+        body: <p>내 템플릿 「{name}」이 있습니다. 덮어쓰면 저장 내용만 바뀌고, 이미 놓은 Unit 은 그대로입니다.</p>,
+        actions: [
+          { label: '취소', focus: true, run: () => {} },
+          { label: '새 이름', run: () => setSaveAsk({ unitId, initial: suggestTemplateName(name, templates.map((t) => t.name)), notice }) },
+          { label: '덮어쓰기', primary: true, run: () => commitSaveTemplate(name, hit.id, unitId) },
+        ],
+      });
+      return;
+    }
+    const saved = saveTemplate(kv, captured.captured, name, { id: overwriteId ?? hit?.id });
+    if (!saved.ok) { say(saved.reason, true); return; }
+    setSaveAsk(null);
+    setTplTick((n) => n + 1);
+    const omitted = captured.captured.notice;
+    say(omitted ? `「${saved.template.name}」을 내 템플릿으로 저장했습니다. ${omitted}` : `「${saved.template.name}」을 내 템플릿으로 저장했습니다`);
+  };
   const onDropAsset = (kind: AssetKind | 'unit', at: { x: number; y: number }, unitId?: string) => {
+    const mine = templateIdFromDrag(String(kind));
+    if (mine) { placeTemplateById(mine, at); return; }
     if (locked) { say('실행 중에는 배치(모델 편집)가 차단됩니다', true); return; }
     if (kind === 'unit') { const r = C.addUnit(p, '', { x: Math.round(at.x - 108), y: Math.round(at.y - 20) }); if (edit(r, 'Unit 배치') && r.ok) setSelection([r.note!]); return; }
     const def = findAsset(kind);
@@ -441,10 +493,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const selectedNodeIds = selection.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
   const copyTitle = selectedNodeIds.length === 0 ? COPY_NEED_NODE : '복사 (Ctrl/Cmd+C)';
   const pasteTitle = locked ? PASTE_LOCKED : !clip ? PASTE_EMPTY : '붙여넣기 (Ctrl/Cmd+V)';
+  const saveGate = templateSaveGate({ storage: !!kv, selectedIds: selection, unitIds: p.units.map((u) => u.id) });
   const copyPasteButtons = () => (
     <>
       <button type="button" onClick={requestCopy} disabled={selectedNodeIds.length === 0} title={copyTitle}>복사</button>
       <button type="button" onClick={requestPaste} disabled={locked || !clip} title={pasteTitle}>붙여넣기</button>
+      <button type="button" data-save-template onClick={() => { const id = selection[0]; if (id) requestSaveTemplate(id); }} disabled={!saveGate.ok} title={saveGate.reason}>내 템플릿으로 저장</button>
     </>
   );
   const runArrange = (r: C.CmdResult, label: string) => {
@@ -628,6 +682,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     }
     if (id === 'copy') { requestCopy(); return; }
     if (id === 'paste') { requestPaste(); return; }
+    if (id === 'saveTemplate') {
+      const unitId = selection.find((x) => p.units.some((u) => u.id === x));
+      if (unitId) requestSaveTemplate(unitId);
+      return;
+    }
     if (id === 'duplicate') { requestDuplicate(); return; }
     if (id === 'arrange') { arrangeSelectedDevices(); return; }
     if (id === 'fit') { fitSelectedUnit(); return; }
@@ -1334,6 +1393,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     unitCount: menuNodes.filter((id) => p.units.some((u) => u.id === id)).length,
     allUnits: menuNodes.length >= 2 && menuNodes.every((id) => p.units.some((u) => u.id === id)),
     canViewProps: selection.some((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id) || p.connections.some((c) => c.id === id)),
+    saveTemplateReason: kv ? undefined : STORAGE_UNAVAILABLE,
   }) : [];
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} confirmDelete={confirmDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
@@ -1452,7 +1512,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion} detail={libDetail} setDetail={setLibDetail}
             detailWidth={view.panels.library} onDetailWidth={(n) => setPanel('library', n)}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}
-            onAdd={onAddFromLibrary} onImportAml={onImportAml} onExportAml={() => download('ecd-library-export.aml', exportLibraryAml(), 'application/xml')} />}
+            onAdd={onAddFromLibrary} onImportAml={onImportAml} onExportAml={() => download('ecd-library-export.aml', exportLibraryAml(), 'application/xml')}
+            templateKv={kv} onTemplatesChanged={() => setTplTick((n) => n + 1)} onTemplateMessage={(message, err) => say(message, !!err)}
+            onPlaceTemplate={(id) => {
+              const x = p.units.length ? Math.max(...p.units.map((u) => u.layout.x + u.layout.w)) + 40 : 40;
+              placeTemplateById(id, { x, y: 70 });
+            }} />}
       </div>}
 
       {!guide && !view.home && step === 'canvas' && <div className="workspace ws-canvas">
@@ -1476,6 +1541,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <div className="palette" ref={paletteRef}>
               <div className="pi" data-jump="palette-unit" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
               {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" data-jump={!a.template && a.kind === ASSET_LIBRARY.find((x) => !x.template)?.kind ? 'palette-device' : undefined} draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
+              <PaletteTemplateGroup templates={templates} />
             </div>
           </Fold>
           <div className="layout-tabs">
@@ -1526,6 +1592,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <h2>{d ? `${d.name} · ${def?.name ?? d.kind}` : host ? `${host.code} ${host.name}` : '선택 없음'}</h2>
             <p className="muted">{host ? `Station / ${host.code} ${host.name.replace(new RegExp(`^${host.code}\\s*`), '')}` : '왼쪽 또는 카드에서 고르세요.'}{d ? <><br />Device · {d.definitionRef.assetId}@{d.definitionRef.version}</> : null}</p>
             <p>속성 / 신호 / Action</p>
+            {!d && host?.lineage?.fromTemplate && <p data-template-lineage>{templateOriginText(host.lineage.fromTemplate.name)}</p>}
             {d && host && <p>소속 Substation<br />{host.name}</p>}
             {d && def && def.properties.slice(0, 3).map((pd) => {
               const qv = d.properties[pd.key];
@@ -1799,6 +1866,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </StaticModalFrame>}
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} kind={ctx.kind} items={menuItems} returnFocus={ctx.focus} onRun={runMenu} onClose={() => setCtx(null)} />}
       {nameDlg && <NameDialog key={nameDlg.title} {...nameDlg} onCancel={() => setNameDlg(null)} />}
+      {saveAsk && <SaveTemplateDialog key={`${saveAsk.unitId}:${saveAsk.initial}`} initial={saveAsk.initial} notice={saveAsk.notice} onCancel={() => setSaveAsk(null)} onSubmit={(name) => commitSaveTemplate(name)} />}
       {modal && <StaticModalFrame key={modal.title} title={modal.title} style={style} onCancel={() => setModal(null)}>
         {modal.body}
         <div className="modal-actions">{modal.actions.map((a) => <button key={a.label} type="button" autoFocus={a.focus} ref={a.focus ? (el) => { el?.focus(); } : undefined} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
