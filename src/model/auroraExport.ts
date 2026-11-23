@@ -2,7 +2,8 @@
 // The model → slot table lives in docs/turns/TURN-041.md. A later turn should only change that mapping.
 import { getAssetById } from '../assets/library';
 import { stableStringify } from '../storage/fileFormat';
-import type { Action, Condition, FlowNode, InterlockRule, Project, Quantity, SequenceDraft, SequenceStep } from './types';
+import { targetKey } from './confirmationLog';
+import type { Action, Condition, ConfirmationEntry, FlowNode, InterlockRule, Project, Quantity, SequenceDraft, SequenceStep } from './types';
 import { APP_VERSION } from './types';
 
 export const AURORA_EXPORT_FORMAT = 'aurora-concept-designer/export-draft';
@@ -128,6 +129,17 @@ export interface ExportExcluded {
   reason: string;
 }
 
+/** Optional. Omitted when the project has no confirmation rows, so older draft files stay valid. */
+export interface ExportConfirmation {
+  at: string;
+  by: string;
+  name: string;
+  from: string;
+  to: string;
+  targetKind: ConfirmationEntry['target']['kind'];
+  targetKey: string;
+}
+
 export interface AuroraExportFile {
   format: typeof AURORA_EXPORT_FORMAT;
   formatVersion: typeof AURORA_EXPORT_VERSION;
@@ -144,6 +156,8 @@ export interface AuroraExportFile {
   substationSequences: ExportSubstationSequence[];
   interlocks: ExportInterlock[];
   excluded: ExportExcluded[];
+  /** Present only when the project recorded at least one confirmation. */
+  confirmationLog?: ExportConfirmation[];
 }
 
 export interface ExportFlag {
@@ -269,6 +283,10 @@ export function buildAuroraExport(p: Project): AuroraExportFile {
     excluded.push({ id: m.id, kind: 'material', name: m.name, reason: '대상 자리 없음 — 자재는 원본 모델에 유지하고 Export 본문에 넣지 않음' });
   }
 
+  const confirmationLog: ExportConfirmation[] = (p.confirmationLog ?? []).map((e) => ({
+    at: e.at, by: e.by, name: e.name, from: e.from, to: e.to, targetKind: e.target.kind, targetKey: targetKey(e.target),
+  }));
+
   return {
     format: AURORA_EXPORT_FORMAT,
     formatVersion: AURORA_EXPORT_VERSION,
@@ -285,6 +303,7 @@ export function buildAuroraExport(p: Project): AuroraExportFile {
     substationSequences: (p.substationSequences ?? []).map((q) => ({ ...exportSequence(p, q), unitId: q.unitId })),
     interlocks,
     excluded,
+    ...(confirmationLog.length ? { confirmationLog } : {}),
   };
 }
 
@@ -321,6 +340,7 @@ export function parseAuroraExport(raw: string): ParseExportResult {
   if (!Array.isArray(data.substationSequences)) return { ok: false, reason: 'Substation 시퀀스 목록이 없습니다' };
   if (!Array.isArray(data.interlocks)) return { ok: false, reason: 'Interlock 목록이 없습니다' };
   if (!Array.isArray(data.excluded)) return { ok: false, reason: '제외 목록이 없습니다' };
+  if (data.confirmationLog !== undefined && !Array.isArray(data.confirmationLog)) return { ok: false, reason: '확인 이력은 목록이어야 합니다' };
   return { ok: true, file: data as unknown as AuroraExportFile };
 }
 
@@ -448,6 +468,10 @@ function rowsOf(file: AuroraExportFile): Row[] {
   for (const x of file.excluded ?? []) {
     rows.push({ kind: 'excluded', id: x.id, name: x.name, fields: { 종류: x.kind, 이름: x.name, 까닭: x.reason } });
   }
+  (file.confirmationLog ?? []).forEach((e, i) => rows.push({
+    kind: 'confirmation', id: String(i), name: e.name,
+    fields: { 시각: e.at, 확인자: e.by, 대상: e.name, 종류: e.targetKind, 위치: e.targetKey, 이전: e.from, 이후: e.to },
+  }));
   return rows;
 }
 
@@ -463,6 +487,7 @@ export const EXPORT_KIND_LABEL: Record<string, string> = {
   substationStep: 'Substation 단계',
   interlock: 'Interlock',
   excluded: '제외',
+  confirmation: '확인 이력',
 };
 
 const KIND_ORDER = Object.keys(EXPORT_KIND_LABEL);
@@ -527,7 +552,7 @@ export function compareAuroraExport(model: AuroraExportFile, file: AuroraExportF
     label: EXPORT_KIND_LABEL[kind],
     model: [...modelRows.values()].filter((r) => r.kind === kind).length,
     file: [...fileRows.values()].filter((r) => r.kind === kind).length,
-  }));
+  })).filter((c) => c.kind !== 'confirmation' || c.model > 0 || c.file > 0);
   const byId = (a: ExportDiff, b: ExportDiff) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id) || a.field.localeCompare(b.field);
   missing.sort(byId); removed.sort(byId); changed.sort(byId);
   return { missing, removed, changed, counts };

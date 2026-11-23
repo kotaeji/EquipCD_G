@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { ASSET_LIBRARY, exportLibraryAml } from '../assets/library';
 import { AmlLoadStatus } from './Library';
 import { applyCandidates, newCandidate, planCandidateApply } from '../model/candidates';
+import { candidateConfirmationChange, confirmedCaption, quantityOf, type ConfirmStamp } from '../model/confirmationLog';
 import * as C from '../model/commands';
 import { buildExportPreview } from '../model/exportPreview';
 import { GAP_KIND_LABEL, type Gap, type GapKind } from '../model/gaps';
 import { parseStructuredSequence, type ParsedLine } from '../model/structuredText';
-import { feedCountOf, type AssetKind, type Project } from '../model/types';
+import { feedCountOf, type AssetKind, type Project, type QuantityRef } from '../model/types';
 import { flowUsesSignal, hasFlow } from '../model/flow';
 import { checkRunReadiness, validateProject, type Diagnostic } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
@@ -25,7 +26,13 @@ import { RunSummary } from './RunSummary';
 import { SfcView } from './SfcView';
 import { StatusMark } from './StatusMark';
 import { exportStatusMark, gapJudgementMark, phaseShape } from './status';
+import { useConfirmationGate } from './confirmationGate';
 import { Badge, QtyInput, TextInput } from './widgets';
+
+function qtyNote(p: Project, ref: QuantityRef): string | null {
+  const qv = quantityOf(p, ref);
+  return confirmedCaption(p.confirmationLog, { kind: 'quantity', ref }, !!qv && qv.value !== null && !qv.assumption);
+}
 
 const fmt = (msv: number) => `${String(Math.floor(msv / 60000)).padStart(2, '0')}:${(Math.floor(msv / 1000) % 60).toString().padStart(2, '0')}.${(msv % 1000).toString().padStart(3, '0')}`;
 
@@ -91,7 +98,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect, confirmDelete }: 
                   <td><span style={{ cursor: 'pointer' }} onClick={() => a && onSelect(a.deviceId)}>{s.name}</span><div className="muted mono" style={{ fontSize: 'var(--fs-xs)' }}>{s.id}</div></td>
                   <td style={{ fontSize: 'var(--fs-xs)' }}>{a ? `${unitName(p, a.unitId)} / ${devName(p, a.deviceId)}` : <Badge kind="err">Action 없음</Badge>}</td>
                   <td style={{ fontSize: 'var(--fs-xs)' }}>{a?.completeSignalId ? `${sigName(p, a.completeSignalId)} = true` : <StatusMark status="undetermined" />}{a && (a.pre.length > 0 || s.entry.length > 0) && <div className="muted" data-step-cond="">{conditionsFormula(p, [...a.pre, ...s.entry])}</div>}</td>
-                  <td>{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as), '단계 타임아웃')} />}</td>
+                  <td data-jump={`step-timeout:${s.id}`}>{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" note={s.timeoutOverride ? qtyNote(p, { kind: 'stepTimeout', id: s.id }) : null} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as, stamp), '단계 타임아웃')} />}</td>
                   <td style={{ fontSize: 'var(--fs-xs)' }}>{a ? effectLabel(p, a.effect) : ''}</td>
                   <td style={{ fontSize: 'var(--fs-xs)' }} className="muted">{s.origin}{s.sourceText ? `: "${s.sourceText}"` : ''}</td>
                   <td>{sequenceStatus(view)}</td>
@@ -271,7 +278,8 @@ export function GapPanel({ p, gaps, analyzedRevision, onReanalyze, onGo, onRevie
               <td style={{ fontSize: 'var(--fs-xs)' }}>{g.suggestion}</td>
               <td style={{ fontSize: 'var(--fs-xs)' }}>{r ? ({ open: '열림', needsHuman: '사람 확인 필요', humanConfirmed: '사람 확인됨', resolved: '해결', hidden: '숨김' } as const)[r.status] : '미분석'}</td>
               <td style={{ whiteSpace: 'nowrap' }}><button className="small" onClick={() => onGo(g)}>이동</button>
-                {g.safety && <button className="small" onClick={() => onReview(g.id, 'humanConfirmed')}>사람 확인</button>}
+                {g.safety && <button className="small" aria-label={`${g.title} 사람 확인`} onClick={() => onReview(g.id, 'humanConfirmed')}>사람 확인</button>}
+                {g.safety && p.gapReview[g.id]?.status === 'humanConfirmed' && confirmedCaption(p.confirmationLog, { kind: 'gap', id: g.id }, true) && <span className="confirm-note" data-confirm-note>{confirmedCaption(p.confirmationLog, { kind: 'gap', id: g.id }, true)}</span>}
                 <button className="small" onClick={() => onReview(g.id, 'hidden')}>숨김</button></td>
             </tr>); })}
           {vanishedSafety.map(([id, r]) => <tr key={id}><td><Badge kind="warn">간섭 후보</Badge></td><td><Badge kind="warn">조건 변경</Badge></td><td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{id}</td><td style={{ fontSize: 'var(--fs-xs)' }}>{r.lastEvidence}</td><td /><td style={{ fontSize: 'var(--fs-xs)' }}>자동 종료 안 함 — 사람이 확인</td><td>사람 확인 필요</td><td><button className="small" onClick={() => onReview(id, 'humanConfirmed')}>사람 확인</button></td></tr>)}
@@ -320,11 +328,11 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
         <div className="row"><label>자재 이름</label><TextInput value={m.name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, m.id, v), '자재 이름')} /><span className="mono muted">{m.id}</span></div>
         <div className="row"><label>종류</label><select disabled={locked} value={m.kind} onChange={(e) => edit(C.updateMaterial(p, m.id, { kind: e.target.value as 'individual' | 'carrier' }), '자재 종류')}><option value="individual">개별 자재</option><option value="carrier">캐리어</option></select><span className="muted" style={{ fontSize: 'var(--fs-xs)' }}>캐리어-적재 관계 편집 미구현</span></div>
         <div className="row"><label>크기 W/L/H</label></div>
-        {(['w', 'l', 'h'] as const).map((k) => <div key={k} className="row"><label style={{ textAlign: 'right' }}>{k.toUpperCase()}</label><QtyInput q={m.size[k]} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: k }, v, as), '자재 크기')} /></div>)}
-        <div className="row"><label>무게</label><QtyInput q={m.weight} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: 'weight' }, v, as), '자재 무게')} /></div>
+        {(['w', 'l', 'h'] as const).map((k) => <div key={k} className="row" data-jump={`material:${m.id}:${k}`}><label style={{ textAlign: 'right' }}>{k.toUpperCase()}</label><QtyInput q={m.size[k]} disabled={locked} note={qtyNote(p, { kind: 'material', id: m.id, field: k })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: k }, v, as, stamp), '자재 크기')} /></div>)}
+        <div className="row" data-jump={`material:${m.id}:weight`}><label>무게</label><QtyInput q={m.weight} disabled={locked} note={qtyNote(p, { kind: 'material', id: m.id, field: 'weight' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: 'weight' }, v, as, stamp), '자재 무게')} /></div>
         <div className="row"><label>취급 조건</label><TextInput value={m.handling} disabled={locked} onCommit={(v) => edit(C.updateMaterial(p, m.id, { handling: v }), '취급 조건')} /></div>
         <div className="row"><label>투입 개수</label><input key={feedCountOf(m)} type="number" aria-label="자재 투입 개수" className="num" min={1} step={1} disabled={locked} defaultValue={feedCountOf(m)} onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== feedCountOf(m)) edit(C.setFeedCount(p, m.id, n), '투입 개수'); else e.target.value = String(feedCountOf(m)); }} /></div>
-        <div className="row"><label>투입 간격</label><QtyInput q={m.feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: 'feedInterval' }, v, as), '투입 간격')} /></div>
+        <div className="row" data-jump="feed-interval"><label>투입 간격</label><QtyInput q={m.feedInterval} disabled={locked} note={qtyNote(p, { kind: 'material', id: m.id, field: 'feedInterval' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'material', id: m.id, field: 'feedInterval' }, v, as, stamp), '투입 간격')} /></div>
         <div className="row"><label>상태집합</label><TextInput value={m.states.join(', ')} width={210} disabled={locked} onCommit={(v) => edit(C.updateMaterial(p, m.id, { states: v.split(',').map((x) => x.trim()).filter(Boolean) }), '상태집합')} /></div>
         <div className="row" data-jump="material-state"><label>초기 상태</label><select disabled={locked} value={m.initialState ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialState: e.target.value || null }), '초기 상태')}><option value="">(미정)</option>{m.states.map((s) => <option key={s}>{s}</option>)}</select></div>
         <div className="row" data-jump="material-location"><label>초기 위치</label><select disabled={locked} value={m.initialLocation ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialLocation: e.target.value || null }), '초기 위치')}><option value="">(미정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
@@ -353,6 +361,7 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
 
 // ---------------- F1 Input Hub ----------------
 export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean; edit: EditFn }) {
+  const gate = useConfirmationGate();
   const [targetKind, setTargetKind] = useState<'unit' | 'device'>('device');
   const [name, setName] = useState('');
   const [kind, setKind] = useState<AssetKind>('sensor');
@@ -360,8 +369,12 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
   const [level, setLevel] = useState<'direct' | 'low' | 'medium' | 'high'>('direct');
   const [preview, setPreview] = useState(false);
   const setCand = (id: string, patch: Partial<Project['candidates'][number]>) => {
-    const n = structuredClone(p); const c = n.candidates.find((x) => x.id === id)!; Object.assign(c, patch); n.revision += 1;
-    edit({ ok: true, project: n }, '후보 변경');
+    const cur = p.candidates.find((x) => x.id === id);
+    const next = patch.confirmation;
+    const logged = !!cur && next !== undefined && candidateConfirmationChange(cur.confirmation, next);
+    const run = (stamp?: ConfirmStamp) => edit(C.updateCandidate(p, id, patch, stamp), '후보 변경');
+    if (logged) gate((stamp) => run(stamp));
+    else run();
   };
   const plan = planCandidateApply(p);
   return (
@@ -396,7 +409,8 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
             <td style={{ fontSize: 'var(--fs-xs)' }}>{c.sourceRefs.map((s) => s.note ?? s.method).join(', ')}</td>
             <td style={{ fontSize: 'var(--fs-xs)' }}>{c.confidence.level} · {c.confidence.basis}</td>
             <td style={{ whiteSpace: 'nowrap' }}><Badge kind={c.confirmation === 'confirmed' ? 'ok' : c.confirmation === 'rejected' ? 'err' : 'warn'}>{c.confirmation}</Badge>
-              {!c.appliedObjectId && <><button className="small" disabled={locked} onClick={() => setCand(c.id, { confirmation: 'confirmed' })}>확인</button><button className="small" disabled={locked} onClick={() => setCand(c.id, { confirmation: 'rejected' })}>거절</button></>}</td>
+              {c.confirmation === 'confirmed' && confirmedCaption(p.confirmationLog, { kind: 'candidate', id: c.id }, true) && <span className="confirm-note" data-confirm-note>{confirmedCaption(p.confirmationLog, { kind: 'candidate', id: c.id }, true)}</span>}
+              {!c.appliedObjectId && <><button className="small" disabled={locked} aria-label={`${c.name} 확인`} onClick={() => setCand(c.id, { confirmation: 'confirmed' })}>확인</button><button className="small" disabled={locked} aria-label={`${c.name} 거절`} onClick={() => setCand(c.id, { confirmation: 'rejected' })}>거절</button></>}</td>
             <td className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{c.appliedObjectId ?? '-'}</td></tr>)}
             {p.candidates.length === 0 && <tr><td colSpan={9}><EmptyState symbol="○" line={EMPTY.candidates} actions={[{ label: '후보 추가', disabled: locked, reason: locked ? RUN_LOCK : '이름을 입력하면 후보표에 넣습니다.', onClick: () => { const input = document.querySelector<HTMLInputElement>('[data-jump="candidate-name"]'); input?.focus(); } }]} /></td></tr>}</tbody></table>
         <div className="row" style={{ marginTop: 6 }}><button disabled={locked || plan.length === 0} onClick={() => setPreview(true)}>반영 미리보기</button></div>
