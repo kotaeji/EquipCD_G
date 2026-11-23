@@ -661,9 +661,17 @@ export function addAction(p0: Project, deviceId: string, idOf: (s: string) => st
 
 export function deleteAction(p0: Project, id: string): CmdResult {
   if (!p0.actions.some((a) => a.id === id)) return no('Action 없음');
-  const used = [...p0.sequence.steps, ...(p0.substationSequences ?? []).flatMap((q) => q.steps)].filter((s) => s.actionId === id);
-  if (used.length) return no(`사용 중인 Action입니다. 영향 단계: ${used.map((s) => s.name).join(', ')} — 먼저 단계를 제거하세요`);
-  const p = clone(p0); p.actions = p.actions.filter((a) => a.id !== id); return ok(p);
+  const p = clone(p0);
+  const removed = new Set(p.sequence.steps.filter((s) => s.actionId === id).map((s) => s.id));
+  p.sequence.steps = p.sequence.steps.filter((s) => s.actionId !== id);
+  if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, removed, new Set(), (c) => c);
+  for (const q of p.substationSequences ?? []) {
+    const gone = new Set(q.steps.filter((s) => s.actionId === id).map((s) => s.id));
+    q.steps = q.steps.filter((s) => s.actionId !== id);
+    if (q.flow && gone.size) q.flow = scrubFlow(q.flow, gone, new Set(), (c) => c);
+  }
+  p.actions = p.actions.filter((a) => a.id !== id);
+  return ok(p);
 }
 
 export function addSignal(p0: Project, deviceId: string, direction: 'in' | 'out', role: Signal['role'], idOf: (s: string) => string = newId): CmdResult {
@@ -681,11 +689,20 @@ export function updateSignal(p0: Project, id: string, patch: Partial<Pick<Signal
 }
 
 export function deleteSignal(p0: Project, id: string): CmdResult {
-  const users = p0.actions.filter((a) => a.commandSignalId === id || a.completeSignalId === id || a.pre.concat(a.post).some((c) => c.kind === 'signal' && c.signalId === id));
-  if (users.length) return no(`사용 중인 Signal입니다: ${users.map((a) => a.name).join(', ')}`);
-  const p = clone(p0); p.signals = p.signals.filter((s) => s.id !== id);
+  const p = clone(p0);
+  const fix = (c: Condition): Condition => (c.kind === 'signal' && c.signalId === id ? { kind: 'undefined', note: `삭제된 Signal ${id} 참조 해제됨` } : c);
+  for (const a of p.actions) {
+    if (a.commandSignalId === id) a.commandSignalId = null;
+    if (a.completeSignalId === id) a.completeSignalId = null;
+    a.pre = a.pre.map(fix);
+    a.post = a.post.map(fix);
+  }
+  for (const s of p.sequence.steps) s.entry = s.entry.map(fix);
+  for (const q of p.substationSequences ?? []) for (const s of q.steps) s.entry = s.entry.map(fix);
+  p.signals = p.signals.filter((s) => s.id !== id);
   p.connections = p.connections.filter((c) => c.from.signalId !== id && c.to.signalId !== id);
-  if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, new Set(), new Set(), (c) => c.kind === 'signal' && c.signalId === id ? { kind: 'undefined', note: `삭제된 Signal ${id} 참조 해제됨` } : c);
+  if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, new Set(), new Set(), fix);
+  for (const q of p.substationSequences ?? []) if (q.flow) q.flow = scrubFlow(q.flow, new Set(), new Set(), fix);
   return ok(p);
 }
 
@@ -697,9 +714,10 @@ export function addPosition(p0: Project, deviceId: string, idOf: (s: string) => 
 }
 
 export function deletePosition(p0: Project, id: string): CmdResult {
-  const users = p0.actions.filter((a) => a.targetPositionId === id);
-  if (users.length) return no(`사용 중인 Position입니다: ${users.map((a) => a.name).join(', ')}`);
-  const p = clone(p0); p.positions = p.positions.filter((x) => x.id !== id); return ok(p);
+  const p = clone(p0);
+  for (const a of p.actions) if (a.targetPositionId === id) a.targetPositionId = null;
+  p.positions = p.positions.filter((x) => x.id !== id);
+  return ok(p);
 }
 
 // ---- sequence (F5) ----

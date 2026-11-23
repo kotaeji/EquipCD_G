@@ -131,10 +131,14 @@ describe('sequence (F5)', () => {
     const ids = res.slice(0, 2).map((r) => r.actionId);
     expect(ids).toEqual([p.sequence.steps[0].actionId, p.sequence.steps[2].actionId]);
   });
-  it('deleting an action used by a step is refused with impact', () => {
-    const p = buildSampleProject();
-    const r = C.deleteAction(p, p.sequence.steps[0].actionId);
-    expect(r.ok).toBe(false);
+  it('deleting an action used by a step removes that action and the steps that called it', () => {
+    const p0 = buildSampleProject();
+    const id = p0.sequence.steps[0].actionId;
+    const gone = p0.sequence.steps.filter((s) => s.actionId === id).map((s) => s.id);
+    const p = okp(C.deleteAction(p0, id));
+    expect(p.actions.some((a) => a.id === id)).toBe(false);
+    expect(p.sequence.steps.some((s) => gone.includes(s.id))).toBe(false);
+    expect(p.sequence.steps.length).toBe(p0.sequence.steps.length - gone.length);
   });
 });
 

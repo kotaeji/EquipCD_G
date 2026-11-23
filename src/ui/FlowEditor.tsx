@@ -180,7 +180,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
               {row.node?.kind === 'parallel' && <span>갈래 {row.node.lanes.length}
                 <button type="button" className="small" disabled={locked || row.node.lanes.length >= 4} onClick={() => edit(C.addParallelLane(p, row.blockId!), '갈래 추가')}>갈래 추가</button>
               </span>}
-              {row.kind === 'arm' && typeof row.arm === 'number' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.removeParallelLane(p, row.blockId!, row.arm as number), '갈래 삭제')}>이 갈래 삭제</button>}
+              {row.kind === 'arm' && typeof row.arm === 'number' && <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.removeParallelLane(p, row.blockId!, row.arm as number), '갈래 삭제')}>이 갈래 삭제</button>}
             </td>
             <td>{live ? <StatusMark status={phaseShape(live.phase).status} word={live.label} /> : ''}</td>
             <td style={{ whiteSpace: 'nowrap' }}>

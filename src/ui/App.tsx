@@ -17,7 +17,7 @@ import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type
 import { Canvas, type Mode } from './Canvas';
 import { selectAll, SELECT_HINT } from './selectAll';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
-import { Inspector } from './Inspector';
+import { Inspector, type ConfirmDelete } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { focusJump, jumpCaption, jumpTarget } from './itemJump';
 import { StatusMark } from './StatusMark';
@@ -394,7 +394,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <p>연결 {imp.connections.length}개 제거. 자재 경로 영향: {imp.materials.map((m) => m.name).join(', ') || '없음'} {imp.materials.length > 0 && <b style={{ color: 'var(--danger)' }}>(경로 단절 — 정상 흐름 아님)</b>}</p>
         <p>다른 Action에서 참조하던 조건은 “미정” 조건으로 바뀌어 실행이 차단되고 Gap에 표시됩니다 (임의 true 처리 안 함).</p>
         <p className="muted">Undo로 되돌릴 수 있습니다.</p></div>,
-      actions: [{ label: '참조 해제 후 삭제', danger: true, run: () => { if (edit(C.deleteNode(p, id), `${name} 삭제`)) setSelection([]); } }, { label: '취소', run: () => {} }],
+      actions: [{ label: '취소', focus: true, run: () => {} }, { label: '참조 해제 후 삭제', danger: true, run: () => { if (edit(C.deleteNode(p, id), `${name} 삭제`)) setSelection([]); } }],
     });
   };
   const requestDeleteMany = (ids: string[]) => {
@@ -409,7 +409,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <p>Action {imp.actions}개, 시퀀스 단계 {imp.steps}개, 연결 {imp.connections}개, Substation 시퀀스 {imp.subSequences}개.</p>
         <p>다른 Action에서 참조하던 조건은 “미정” 조건으로 바뀌어 실행이 차단되고 Gap에 표시됩니다 (임의 true 처리 안 함).</p>
         <p className="muted">한 번에 지워지고, Undo 한 번에 돌아옵니다.</p></div>,
-      actions: [{ label: '참조 해제 후 삭제', danger: true, run: () => { if (edit(C.deleteNodes(p, targets), '여러 개 삭제')) setSelection([]); } }, { label: '취소', run: () => {} }],
+      actions: [{ label: '취소', focus: true, run: () => {} }, { label: '참조 해제 후 삭제', danger: true, run: () => { if (edit(C.deleteNodes(p, targets), '여러 개 삭제')) setSelection([]); } }],
+    });
+  };
+  const confirmDelete: ConfirmDelete = (title, detail, run) => {
+    if (locked) { say('실행 중에는 삭제가 차단됩니다', true); return; }
+    if (!detail) { run(); return; }
+    setModal({
+      title,
+      body: <div><p data-delete-detail>{detail}</p><p className="muted">확인해야 지워집니다. Undo로 되돌릴 수 있습니다.</p></div>,
+      actions: [{ label: '취소', focus: true, run: () => {} }, { label: '삭제', danger: true, run }],
     });
   };
   const requestDuplicate = () => {
@@ -893,7 +902,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
-    onDelete={requestDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
+    onDelete={requestDelete} confirmDelete={confirmDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
   const screen = screenOf({ home: !!view.home, step, sub, rightTab, runMode, groupBlocked: false, stationError: rt?.status === 'error' || (rt?.blockers.length ?? 0) > 0, libDetail, guide });
   const onThemeKey = (e: React.KeyboardEvent) => {
@@ -1055,7 +1064,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}>크기 맞춤</button>
                   <button type="button" onClick={arrangeSelectedDevices} disabled={locked || !('unitId' in arrangeTarget)} title={arrangeDevicesTitle}>자동 정렬</button>
                   <button type="button" onClick={requestDuplicate} disabled={selectedDeviceIds.length === 0 || locked} title={selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : '선택한 Device 복제 (Ctrl+D)'}>복제</button>
-                  <button className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}>삭제</button>
+                  <button type="button" className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}>삭제</button>
                 </div>
                 <div className="diagram-canvas">{canvasEl}</div>
               </> },
@@ -1079,9 +1088,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               return <p key={pd.key}>{pd.label}<br />{qv.value === null ? <StatusMark status="undetermined" /> : qv.value} {qv.unit}{qv.assumption ? <> <StatusMark status="assumption" /></> : null}</p>;
             })}
             {!d && host && <button type="button" className="btn-main secondary" onClick={fitSelectedUnit}>크기 맞춤</button>}
-            <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); setRightTab('actions'); goStep('attributes'); }}>Action 편집</button>
             {missingComplete && <p className="warn-note"><StatusMark status="undetermined" /> 완료 신호 · 실행 차단<br />필수 값은 임의로 채우지 않습니다.</p>}
-            <button type="button" className="btn-main secondary" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}>삭제 영향 확인</button>
+            <div className="prop-actions">
+              <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); setRightTab('actions'); goStep('attributes'); }}>Action 편집</button>
+              <button type="button" className="danger" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}>삭제 영향 확인</button>
+            </div>
             <Fold className="prop-more" summary="속성 자세히">{inspectorEl}</Fold>
           </div>;
         })()}</div></div>
@@ -1196,7 +1207,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             {p.sequence.unresolved.length > 0 && <p className="warn-note" data-jump="sequence-unresolved">미해결: {p.sequence.unresolved.join(' · ')}</p>}
             <FlowEditor p={p} rt={rt} locked={locked} edit={edit} />
             <Fold className="fold-panel" summary="단계 편집, 구조화 문장, 순서 변경">
-              <SequencePanel p={p} rt={rt} locked={locked} edit={edit} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />
+              <SequencePanel p={p} rt={rt} locked={locked} edit={edit} confirmDelete={confirmDelete} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />
             </Fold>
           </section>}
           {sub === 'material' && <div className="sparse-split">
@@ -1225,7 +1236,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           </div>}
           {sub === 'subseq' && <section className="sheet wide">
             <h2>Substation 시퀀스</h2>
-            <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} gs={null} />
+            <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} confirmDelete={confirmDelete} gs={null} />
           </section>}
           {sub === 'sfc' && <section className="sheet wide"><h2>SFC 미리보기</h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · Substation 단계를 읽기 전용으로 그립니다.</p><SfcPanel p={p} rt={rt} /></section>}
           {sub === 'extend' && <><ExtendSheet /><Fold className="fold-panel" summary="미구현 안내"><ExtendPanel /></Fold></>}
@@ -1318,7 +1329,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {nameDlg && <NameDialog key={nameDlg.title} {...nameDlg} onCancel={() => setNameDlg(null)} />}
       {modal && <StaticModalFrame key={modal.title} title={modal.title} style={style} onCancel={() => setModal(null)}>
         {modal.body}
-        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>{modal.actions.map((a) => <button key={a.label} autoFocus={a.focus} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
+        <div className="modal-actions">{modal.actions.map((a) => <button key={a.label} type="button" autoFocus={a.focus} ref={a.focus ? (el) => { el?.focus(); } : undefined} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
       </StaticModalFrame>}
       {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
     </div>

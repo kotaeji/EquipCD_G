@@ -6,7 +6,8 @@ import { GROUP_RULES_VERSION } from '../model/types';
 import type { Diagnostic } from '../model/validate';
 import { checkGroupReadiness, type GroupState } from '../runtime/group';
 import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
-import type { EditFn } from './Inspector';
+import type { ConfirmDelete, EditFn } from './Inspector';
+import { stepDeleteDetail, stepUsage, subSequenceDeleteDetail } from '../model/deleteImpact';
 import { devName, sigName } from './labels';
 import { fmtTime } from './Panels';
 import { StatusMark } from './StatusMark';
@@ -26,7 +27,7 @@ export function SubstationSelect({ p, value, onChange }: { p: Project; value: st
 }
 
 
-export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs }: { p: Project; unitId: string; setUnitId: (id: string) => void; locked: boolean; edit: EditFn; gs: GroupState | null }) {
+export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confirmDelete }: { p: Project; unitId: string; setUnitId: (id: string) => void; locked: boolean; edit: EditFn; gs: GroupState | null; confirmDelete?: ConfirmDelete }) {
   const unit = p.units.find((u) => u.id === unitId);
   const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === unitId);
   const acts = p.actions.filter((a) => p.devices.find((d) => d.id === a.deviceId)?.unitId === unitId);
@@ -54,7 +55,8 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs }: { p
             {lane && <StatusMark status={laneShape(lane.status).status} word={laneShape(lane.status).word} />}
             <span className="grow" />
             <span className="mono muted" style={{ fontSize: 10 }}>{q.id}</span>
-            <button className="small danger" disabled={locked} onClick={() => edit(C.deleteSubSequence(p, q.id), '시퀀스 삭제')} aria-label={`${q.name} 삭제`}>삭제</button>
+            {subSequenceDeleteDetail(p, q.id) && <span className="danger-note" data-delete-impact>{subSequenceDeleteDetail(p, q.id)}</span>}
+            <button type="button" className="small danger" disabled={locked} onClick={() => { const detail = subSequenceDeleteDetail(p, q.id); const run = () => edit(C.deleteSubSequence(p, q.id), '시퀀스 삭제'); if (detail && confirmDelete) confirmDelete(`${q.name} 삭제`, detail, run); else run(); }} aria-label={`${q.name} 삭제`}>삭제</button>
           </header>
           <table className="grid"><thead><tr><th>#</th><th>단계</th><th>Device</th><th>완료 Signal</th><th>시간</th><th></th></tr></thead><tbody>
             {q.steps.map((s, i) => { const a = p.actions.find((x) => x.id === s.actionId); const rec = lane?.steps[i]; return (
@@ -62,10 +64,11 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs }: { p
                 <td className="mono">{i + 1}</td><td>{s.name}</td><td>{a ? devName(p, a.deviceId) : <Badge kind="err">Action 없음</Badge>}</td>
                 <td style={{ fontSize: 11 }}>{a?.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
                 <td className="mono">{a?.duration.value ?? <StatusMark status="undetermined" />}s{a?.duration.assumption ? <> <StatusMark status="assumption" /></> : null}</td>
-                <td style={{ whiteSpace: 'nowrap' }}>
+                <td className="danger-row">
                   <button className="small" disabled={locked || i === 0} onClick={() => edit(C.moveSubStep(p, q.id, i, i - 1), '단계 위로')} aria-label="위로">↑</button>
                   <button className="small" disabled={locked || i === q.steps.length - 1} onClick={() => edit(C.moveSubStep(p, q.id, i, i + 1), '단계 아래로')} aria-label="아래로">↓</button>
-                  <button className="small danger" disabled={locked} onClick={() => edit(C.removeSubStep(p, q.id, s.id), '단계 삭제')} aria-label="단계 삭제">×</button></td>
+                  {stepUsage(p, s.id) && <span className="danger-note" data-delete-impact>{stepUsage(p, s.id)}</span>}
+                  <button type="button" className="small danger" disabled={locked} onClick={() => { const detail = stepDeleteDetail(p, s.id); const run = () => edit(C.removeSubStep(p, q.id, s.id), '단계 삭제'); if (detail && confirmDelete) confirmDelete(`${s.name} 삭제`, detail, run); else run(); }} aria-label="단계 삭제">삭제</button></td>
               </tr>); })}
             {q.steps.length === 0 && <tr><td colSpan={6} className="muted">단계 없음 — 아래에서 Action을 추가하세요 (단계 없는 시퀀스는 실행 차단)</td></tr>}
           </tbody></table>
