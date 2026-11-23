@@ -40,7 +40,8 @@ export type MenuAction =
   | 'matchW'
   | 'matchH'
   | 'lockPosition'
-  | 'unlockPosition';
+  | 'unlockPosition'
+  | 'saveTemplate';
 
 export interface MenuItem {
   id: MenuAction;
@@ -135,6 +136,8 @@ export interface MenuBuildInput {
   canViewProps: boolean;
   /** The one Unit under the pointer is position-locked. Multi menus ignore this. */
   unitLocked?: boolean;
+  /** Set when 「내 템플릿으로 저장」 cannot run. Omit when it can. Saving does not edit the project. */
+  saveTemplateReason?: string;
 }
 
 function dim(reason: string | undefined): Pick<MenuItem, 'disabled' | 'reason'> {
@@ -205,6 +208,7 @@ export function buildContextMenu(input: MenuBuildInput): MenuItem[] {
     { id: 'rename', label: '이름 변경', ...dim(lock) },
     { id: 'copy', label: '복사', shortcut: SHORTCUT.copy },
     { id: 'paste', label: '붙여넣기(이 Unit 에)', shortcut: SHORTCUT.paste, ...dim(input.pasteReason) },
+    { id: 'saveTemplate', label: '내 템플릿으로 저장', ...dim(input.saveTemplateReason) },
     { id: 'arrange', label: '자동 정렬', ...dim(arrange) },
     { id: 'fit', label: '크기 맞춤', ...dim(lock) },
     { id: 'lockPosition', label: input.unitLocked ? '위치 잠금 해제' : '위치 잠금', ...dim(lock) },

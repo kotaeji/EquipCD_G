@@ -106,8 +106,11 @@ export interface Unit {
   capacity: { maxMaterials: Quantity; maxWeight: Quantity };
   /** set when the unit was created from a unit template (definition pinned) */
   templateRef?: { assetId: Id; version: string };
-  /** set when this Unit was pasted from another Unit */
-  lineage?: { duplicatedFrom: Id };
+  /**
+   * Paste records `duplicatedFrom`. A placed 「내 템플릿」 records `fromTemplate`
+   * with the name at that moment. Neither field is a live link, and older files omit both.
+   */
+  lineage?: { duplicatedFrom?: Id; fromTemplate?: { id: Id; name: string } };
   /**
    * Position lock. Absent on files saved before TURN-059, which means unlocked.
    * A locked Unit does not move or resize; Devices inside it still edit.
@@ -298,10 +301,19 @@ export interface SubstationSequence extends SequenceDraft { unitId: Id }
 
 export interface Candidate {
   id: Id;
-  targetKind: 'unit' | 'device';
+  targetKind: 'unit' | 'device' | 'signal';
   name: string;
   deviceKind: AssetKind | null;
   assignedUnitId: Id | null;
+  /** Spreadsheet unit name. Apply creates that unit first when it is confirmed in the same batch. */
+  assignedUnitName?: string | null;
+  /** Device name a signal candidate belongs to. */
+  signalDeviceName?: string | null;
+  signalDirection?: 'in' | 'out' | null;
+  signalAddress?: string | null;
+  signalMemo?: string | null;
+  /** Same name is already in the model or the candidate table. Left unconfirmed, so apply skips it. */
+  alreadyExists?: boolean;
   sourceRefs: SourceRef[];
   confidence: { level: 'direct' | 'low' | 'medium' | 'high'; basis: string };
   confirmation: Confirmation;

@@ -15,7 +15,8 @@ import { Terms } from './Term';
 import { type BlockerGuide } from './blockerTarget';
 import { EmptyState } from './EmptyState';
 import { BlockerCards, BlockerList, Problem } from './Problem';
-import { EMPTY, SCREEN, exportBlockedProblem } from './problemCopy';
+import { XlsxIntake, type XlsxIntakeProps } from './XlsxIntake';
+import { EMPTY, exportBlockedProblem } from './problemCopy';
 import { checkConditions, type ConditionFinding } from '../model/conditionCheck';
 import { devName, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
@@ -48,28 +49,8 @@ export function AmlResultSheet({ onCandidates }: { onCandidates: () => void }) {
   </section>;
 }
 
-export function ExtractSheet({ onInstead }: { onInstead?: () => void } = {}) {
-  return <div className="sparse-stack">
-    <NotReadyBanner hint="입력 후보표의 직접 입력과 AML 라이브러리를 쓰세요" purpose={SCREEN.extract.purpose} instead={SCREEN.extract.instead} onInstead={onInstead} />
-    <div className="sparse-split">
-    <section className="sheet">
-      <h2>자료 접수 · 후속 설계</h2>
-      <table className="grid plain"><thead><tr><th>형식</th><th>지원 상태</th></tr></thead><tbody>
-        {['PDF', 'DWG', 'XLSX', 'USD'].map((f) => <tr key={f}><td>{f}</td><td>추출 미구현</td></tr>)}
-      </tbody></table>
-      <button type="button" disabled title="문서에서 장비나 수치를 뽑지 않습니다">자료 선택 예시</button>
-      <p className="warn-note">업로드와 외부 전송은 하지 않습니다. 예시 표를 추출 성공으로 보여 주지 않습니다.</p>
-    </section>
-    <aside className="sheet">
-      <h2>원문 대조와 후보</h2>
-      <label>원문 위치<input disabled placeholder="추출기가 없습니다" /></label>
-      <label>후보와 근거<input disabled placeholder="후보를 만들지 않습니다" /></label>
-      <button type="button" disabled>후보표 검토</button>
-      <button type="button" disabled>자료 제거 확인</button>
-      <p className="muted">지금 넣을 수 있는 것은 입력 후보표의 직접 입력과 AML 라이브러리 파일입니다.</p>
-    </aside>
-    </div>
-  </div>;
+export function ExtractSheet(props: XlsxIntakeProps) {
+  return <XlsxIntake {...props} />;
 }
 
 export function FilesSheet({ entries, onImport, onExport, onOpen, onNew, onSample }: { entries: { id: string; name: string; revision: number }[]; onImport: () => void; onExport: () => void; onOpen: (id: string) => void; onNew?: () => void; onSample?: () => void }) {

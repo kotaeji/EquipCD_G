@@ -1,0 +1,59 @@
+/* TURN-060. Loaded by XlsxIntake. Not styles.css. */
+
+.xlsx-intake {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--text);
+}
+
+.xlsx-lead,
+.xlsx-note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.xlsx-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.xlsx-tools label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.xlsx-scroll {
+  overflow: auto;
+  max-width: 100%;
+  max-height: 168px;
+}
+
+.xlsx-scroll table {
+  font-size: var(--fs-sm);
+}
+
+.xlsx-scroll tr.is-header td {
+  font-weight: 700;
+}
+
+.xlsx-guess {
+  margin-left: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text);
+}
+
+.xlsx-block {
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
