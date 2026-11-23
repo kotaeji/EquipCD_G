@@ -1,0 +1,17 @@
+/* TURN-069. Header stays one line. Less-used actions leave the bar instead of wrapping or clipping. */
+.app.app { min-width: 1024px; }
+.app > .header { flex-wrap: nowrap; min-width: 0; }
+.app > .header > .brand,
+.app > .header > .subtitle,
+.app > .header > button { flex: none; }
+.app > .header > button.header-overflow { display: none; }
+
+/* Project name, rev, and the save chip share the work line. The name ellipsizes; the rest stay whole. */
+.app > .workbar .work-crumb {
+  min-width: 0;
+  flex: 1 1 0;
+}
+.app > .workbar .work-sep,
+.app > .workbar .work-rev,
+.app > .workbar .save-chip,
+.app > .workbar .work-times { flex: none; }

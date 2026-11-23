@@ -1,23 +1,36 @@
 import { useEffect, useRef, useState } from 'react';
-import { clampMenu, MENU_WIDTH, menuHeight, type MenuAction, type MenuItem, type MenuKind } from './contextMenuModel';
+import { clampMenu, MENU_WIDTH, menuHeight, type MenuItem } from './contextMenuModel';
 import { IconLabel } from './Icon';
 import { menuIconId } from './icons';
 
-interface Props {
+interface MenuRow<Id extends string> {
+  id: Id;
+  label: string;
+  shortcut?: string;
+  danger?: boolean;
+  disabled?: boolean;
+  reason?: string;
+  separatorBefore?: boolean;
+}
+
+interface Props<Id extends string> {
   x: number;
   y: number;
-  kind: MenuKind;
-  items: MenuItem[];
+  kind: string;
+  items: readonly MenuRow<Id>[];
   returnFocus: HTMLElement | null;
-  onRun: (id: MenuAction) => void;
+  /** A press on this element does not dismiss the menu, so its button can toggle. */
+  anchor?: HTMLElement | null;
+  menuLabel?: string;
+  onRun: (id: Id) => void;
   onClose: () => void;
 }
 
 /** Command menu. Arrow keys move, Enter runs, Esc and an outside press close. Focus returns on dismiss. */
-export function ContextMenu({ x, y, kind, items, returnFocus, onRun, onClose }: Props) {
+export function ContextMenu<Id extends string>({ x, y, kind, items, returnFocus, anchor, menuLabel = '명령', onRun, onClose }: Props<Id>) {
   const ref = useRef<HTMLDivElement>(null);
   const acted = useRef(false);
-  const estimated = menuHeight(items);
+  const estimated = menuHeight(items as unknown as MenuItem[]);
   const view = () => ({ w: window.innerWidth || 1280, h: window.innerHeight || 800 });
   const [box, setBox] = useState(() => clampMenu(x, y, MENU_WIDTH, estimated, view().w, view().h));
 
@@ -68,6 +81,7 @@ export function ContextMenu({ x, y, kind, items, returnFocus, onRun, onClose }: 
       if (!root) return;
       if (e.button !== 0) return;
       if (root.contains(e.target as Node)) return;
+      if (anchor && anchor.contains(e.target as Node)) return;
       onClose();
     };
     window.addEventListener('keydown', onKey, true);
@@ -77,7 +91,7 @@ export function ContextMenu({ x, y, kind, items, returnFocus, onRun, onClose }: 
       window.removeEventListener('pointerdown', onPtr, true);
       if (!acted.current) returnFocus?.focus();
     };
-  }, [onClose, returnFocus]);
+  }, [onClose, returnFocus, anchor]);
 
   return (
     <div
@@ -86,7 +100,7 @@ export function ContextMenu({ x, y, kind, items, returnFocus, onRun, onClose }: 
       role="menu"
       data-ctx-menu
       data-ctx-kind={kind}
-      aria-label="명령"
+      aria-label={menuLabel}
       style={{ left: box.left, top: box.top }}
     >
       {items.map((item) => (

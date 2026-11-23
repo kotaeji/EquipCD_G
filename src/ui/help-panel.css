@@ -1,10 +1,8 @@
-/* TURN-056 help dock. Sits in the app grid so 1280×800 does not grow the document. */
-.app.help-open {
+/* TURN-056 help dock. TURN-069: beside the workspace from 1440, overlay below that. */
+.app.help-open[data-help-layout="beside"] {
   grid-template-columns: var(--exw, 224px) minmax(0, 1fr) 320px;
 }
 .help-panel {
-  grid-row: 4;
-  grid-column: 3;
   box-sizing: border-box;
   width: 320px;
   min-width: 0;
@@ -27,10 +25,52 @@
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+.app[data-help-layout="beside"] > .help-panel {
+  grid-row: 4;
+  grid-column: 3;
+  position: relative;
+  width: 320px;
+}
+.app[data-help-layout="overlay"] > .help-panel {
+  position: fixed;
+  z-index: 35;
+  top: 180px;
+  right: 0;
+  bottom: 48px;
+  left: auto;
+  width: 320px;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 18%, transparent);
+}
+.app[data-help-layout="overlay"] > .help-panel[data-help-side="left"] {
+  left: 0;
+  right: auto;
+  border-left: 0;
+  border-right: 1px solid var(--border);
+}
+.app[data-help-layout="overlay"] > .help-panel.is-folded {
+  bottom: auto;
+  height: auto;
+}
+.app[data-help-layout="overlay"] > .help-panel.is-folded > :not(.help-head) {
+  display: none;
+}
+.app[data-help-layout="overlay"] > .help-panel .help-head {
+  cursor: grab;
+  touch-action: none;
+}
 .help-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: var(--sp-2);
+}
+.help-head-actions {
+  display: flex;
+  flex: none;
   gap: var(--sp-2);
 }
 .help-head h2 {

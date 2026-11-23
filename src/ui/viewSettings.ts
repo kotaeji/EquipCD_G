@@ -62,6 +62,10 @@ export interface UserView {
   helpOpen: boolean;
   /** TURN-056: dotted glossary on titles, tabs, the step bar, and table headers. Default on. */
   termHints: boolean;
+  /** TURN-069: overlay help edge. Ignored while the dock sits beside the workspace. */
+  helpSide: 'left' | 'right';
+  /** TURN-069: overlay help shows only its head line. */
+  helpFolded: boolean;
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -116,7 +120,7 @@ function cleanPanels(v: unknown): PanelWidths {
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
   step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
   explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false, autoDraft: true,
-  paletteOpen: true, minimap: { layout: true, run: false }, helpOpen: false, termHints: true };
+  paletteOpen: true, minimap: { layout: true, run: false }, helpOpen: false, termHints: true, helpSide: 'right', helpFolded: false };
 
 function cleanMinimap(v: unknown): { layout: boolean; run: boolean } {
   const o = v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
@@ -164,7 +168,9 @@ export function loadView(kv: KV | null): UserView {
       minimap: cleanMinimap(o.minimap),
       // missing helpOpen stays closed. missing termHints stays on.
       helpOpen: o.helpOpen === true,
-      termHints: o.termHints === false ? false : true };
+      termHints: o.termHints === false ? false : true,
+      helpSide: o.helpSide === 'left' ? 'left' : 'right',
+      helpFolded: o.helpFolded === true };
   } catch { return DEFAULT_VIEW; }
 }
 export function saveView(kv: KV | null, v: UserView) { if (!kv) return; try { kv.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* ignore */ } }
