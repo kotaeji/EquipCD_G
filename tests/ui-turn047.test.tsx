@@ -165,6 +165,63 @@ describe('TURN-047 autosave and recovery', () => {
     expect(u.el.textContent).not.toContain('저장 안 된 작업');
   });
 
+  it('an unsaved draft asks on reopen even when home is false, and stays until answered', async () => {
+    vi.useFakeTimers();
+    const u = await mount();
+    await u.click(u.btn('시작하기'));
+    await u.rename('복구될 예제');
+    const id = u.history().present.id;
+    const rev = u.history().present.revision;
+    await advance(DRAFT_DELAY_MS);
+    const draftBody = localStorage.getItem(DRAFT_KEY(id));
+    const view = JSON.parse(localStorage.getItem('ecd.v1.userView')!);
+    view.home = false;
+    view.step = 'attributes';
+    localStorage.setItem('ecd.v1.userView', JSON.stringify(view));
+    await u.remount();
+    expect(u.el.querySelector('.app')!.classList.contains('is-home')).toBe(false);
+    expect(u.el.querySelector('.app')!.getAttribute('data-step')).toBe('attributes');
+    const dlg = u.modal();
+    expect(dlg?.textContent).toContain('저장 안 된 변경이 있습니다');
+    expect(dlg?.textContent).toContain('저장본은 없습니다');
+    expect(dlg?.textContent).toContain(`rev ${rev}`);
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    expect(u.modal()).toBeNull();
+    await u.rename('다른 편집');
+    await advance(DRAFT_DELAY_MS);
+    expect(localStorage.getItem(DRAFT_KEY(id))).toBe(draftBody);
+    expect(u.history().present.name).toBe('다른 편집');
+    await u.remount();
+    await u.click(u.btn('복구', u.modal()!));
+    expect(u.history().present.name).toBe('복구될 예제');
+    expect(u.history().present.revision).toBe(rev);
+    expect(u.history().past).toEqual([]);
+    expect(u.chip().textContent).toBe('● 저장 안 됨');
+  });
+
+  it('several unsaved drafts are listed, and 나중에 leaves every draft in place', async () => {
+    vi.useFakeTimers();
+    const u = await mount();
+    await u.rename('첫째 작업');
+    await advance(DRAFT_DELAY_MS);
+    await u.click(u.btn('프로젝트 추가'));
+    await u.click(u.btn('5공정 예제'));
+    await u.rename('둘째 작업');
+    await advance(DRAFT_DELAY_MS);
+    const keys = draftKeys();
+    const before = Object.fromEntries(keys.map((k) => [k, localStorage.getItem(k)]));
+    await u.remount();
+    const dlg = u.modal()!;
+    expect(dlg.querySelectorAll('[data-recovery-id]')).toHaveLength(2);
+    expect(dlg.textContent).toContain('첫째 작업');
+    expect(dlg.textContent).toContain('둘째 작업');
+    await u.click(u.btn('나중에', dlg));
+    expect(u.modal()).toBeNull();
+    await u.rename('덮어쓰면 안 됨');
+    await advance(DRAFT_DELAY_MS);
+    for (const k of keys) expect(localStorage.getItem(k)).toBe(before[k]);
+  });
+
   it('AC5 save, close without saving, and delete each remove the draft', async () => {
     vi.useFakeTimers();
     const u = await mount();

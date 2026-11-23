@@ -231,6 +231,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const kvRef = useRef(kv); kvRef.current = kv;
   const autoRef = useRef(view.autoDraft); autoRef.current = view.autoDraft;
   const recoveryArmed = useRef(false);
+  /** Drafts the user has not recovered or discarded. This session must not overwrite them. */
+  const protectedDrafts = useRef<Set<string>>(new Set());
   const draftTimers = useRef<number[]>([]);
   const clearDraftTimers = () => { for (const id of draftTimers.current) window.clearTimeout(id); draftTimers.current = []; };
   // TURN-047: one draft per tab, measured from the last edit. Running and paused tabs wait.
@@ -254,6 +256,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         const cur = tabsRef.current.find((x) => x.key === key);
         const storage = kvRef.current;
         if (!cur || cur.history.present.revision !== rev || runBusy(cur) || !draftDue(cur)) return;
+        if (protectedDrafts.current.has(cur.history.present.id) && !cur.sessionDraft) return;
         if (!storage) { updTab(key, (x) => ({ ...x, draftError: true, draftTriedRevision: rev })); return; }
         const written = saveDraft(storage, cur.history.present, new Date());
         if (!written.ok) { updTab(key, (x) => ({ ...x, draftError: true, draftTriedRevision: rev })); return; }
@@ -642,38 +645,54 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const entry = kv ? readIndex(kv).find((e) => e.id === id) : undefined;
     return entry ? { revision: entry.revision, savedAt: entry.savedAt } : null;
   };
-  const askRecovery = (tabKey: string, id: string, draft: DraftMeta, saved: { revision: number; savedAt: string }) => {
+  type SavedStamp = { revision: number; savedAt: string };
+  const releaseDraft = (id: string) => { protectedDrafts.current.delete(id); };
+  const askRecovery = (id: string, draft: DraftMeta, saved: SavedStamp | null) => {
     setModal({
       title: '저장 안 된 변경이 있습니다',
-      body: <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>,
+      body: saved
+        ? <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>
+        : <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 없습니다.</p>,
       actions: [
-        { label: '복구', primary: true, focus: true, run: () => recoverInto(tabKey, id, saved) },
-        { label: '버리기', danger: true, run: () => dropDraft(id, tabKey) },
+        { label: '복구', primary: true, focus: true, run: () => recoverInto(id, saved) },
+        { label: '버리기', danger: true, run: () => dropDraft(id) },
       ],
     });
   };
-  const recoverInto = (tabKey: string, id: string, saved: { revision: number; savedAt: string }) => {
+  const recoverInto = (id: string, saved: SavedStamp | null) => {
     if (!kv) return;
     const loaded = loadDraft(kv, id);
     if (!loaded.ok) {
       if (loaded.raw) setQlist((l) => quarantine(kv, { at: new Date().toLocaleString(), label: `draft:${id}`, raw: loaded.raw, errors: loaded.errors.map((e) => e.message) }, l));
       discardDraft(kv, id);
+      releaseDraft(id);
       setDrafts(readDraftList(kv));
-      say('임시 저장을 열지 못했습니다. 저장본을 유지합니다.', true);
+      say(saved ? '임시 저장을 열지 못했습니다. 저장본을 유지합니다.' : '임시 저장을 열지 못했습니다.', true);
       return;
     }
     const meta = readDraftList(kv).find((d) => d.id === id);
-    const next = makeTab(loaded.project, { rev: saved.revision, at: saved.savedAt }, meta ? { at: meta.savedAt, revision: loaded.project.revision } : null);
-    setTabs((ts) => ts.map((t) => (t.key === tabKey ? { ...next, key: tabKey } : t)));
-    setActiveKey(tabKey); setSelection([]); setView((v) => ({ ...v, home: false }));
+    const draftInfo = meta ? { at: meta.savedAt, revision: loaded.project.revision } : null;
+    const next = makeTab(loaded.project, saved ? { rev: saved.revision, at: saved.savedAt } : null, draftInfo);
+    releaseDraft(id);
+    const tabKey = tabsRef.current.find((t) => t.history.present.id === id)?.key ?? null;
+    if (tabKey) {
+      setTabs((ts) => ts.map((t) => (t.key === tabKey ? { ...next, key: tabKey } : t)));
+      setActiveKey(tabKey);
+    } else {
+      setTabs((ts) => [...ts, next]);
+      setActiveKey(next.key);
+    }
+    setSelection([]); setView((v) => ({ ...v, home: false }));
   };
   const dropDraft = (id: string, tabKey?: string) => {
     clearDraftTimers();
     if (!kv) return;
     const r = discardDraft(kv, id);
     if (!r.ok) { say(r.reason, true); return; }
+    releaseDraft(id);
     setDrafts(readDraftList(kv));
-    if (tabKey) updTab(tabKey, (t) => ({ ...t, ...noDraft }));
+    const key = tabKey ?? tabsRef.current.find((t) => t.history.present.id === id)?.key;
+    if (key) updTab(key, (t) => ({ ...t, ...noDraft }));
   };
   const openDraft = (id: string) => {
     if (!kv) return;
@@ -681,6 +700,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!loaded.ok) {
       if (loaded.raw) setQlist((l) => quarantine(kv, { at: new Date().toLocaleString(), label: `draft:${id}`, raw: loaded.raw, errors: loaded.errors.map((e) => e.message) }, l));
       discardDraft(kv, id);
+      releaseDraft(id);
       setDrafts(readDraftList(kv));
       say('임시 저장을 열지 못했습니다.', true);
       return;
@@ -690,6 +710,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const existing = tabs.find((t) => t.history.present.id === id);
     const untouched = !!existing && existing.history.past.length === 0 && existing.history.future.length === 0 && existing.savedRevision === null && existing.history.present.revision === existing.baselineRevision;
     if (existing && !untouched) { setActiveKey(existing.key); setView((v) => ({ ...v, home: false })); return; }
+    releaseDraft(id);
     const next = makeTab(loaded.project, null, draftInfo);
     if (existing && untouched) {
       setTabs((ts) => ts.map((t) => (t.key === existing.key ? { ...next, key: existing.key } : t)));
@@ -699,15 +720,33 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     }
     setSelection([]); setView((v) => ({ ...v, home: false }));
   };
+  const promptDrafts = (items: { draft: DraftMeta; saved: SavedStamp | null }[]) => {
+    if (items.length === 0) { setModal(null); return; }
+    if (items.length === 1) { askRecovery(items[0].draft.id, items[0].draft, items[0].saved); return; }
+    setModal({
+      title: '저장 안 된 변경이 있습니다',
+      body: <div>
+        <p>임시 저장 {items.length}개가 있습니다. 복구하거나 버리기 전에는 같은 프로젝트의 새 편집이 이 임시 저장을 덮어쓰지 않습니다.</p>
+        {items.map((item) => <div key={item.draft.id} className="home-recent" data-recovery-id={item.draft.id}>
+          <div><b>{item.draft.name}</b><div className="muted">임시 저장 {formatClock(item.draft.savedAt)} · rev {item.draft.revision}{item.saved ? ` · 저장본 rev ${item.saved.revision}` : ' · 저장본 없음'}</div></div>
+          <button type="button" className="btn-main danger" aria-label={`${item.draft.name} 임시 저장 버리기`} onClick={() => { dropDraft(item.draft.id); promptDrafts(items.filter((x) => x.draft.id !== item.draft.id)); }}>버리기</button>
+          <button type="button" className="btn-main primary" aria-label={`${item.draft.name} 임시 저장 복구`} onClick={() => { recoverInto(item.draft.id, item.saved); promptDrafts(items.filter((x) => x.draft.id !== item.draft.id)); }}>복구</button>
+        </div>)}
+      </div>,
+      actions: [{ label: '나중에', focus: true, run: () => {} }],
+    });
+  };
   useEffect(() => {
     if (recoveryArmed.current) return;
     recoveryArmed.current = true;
-    const t = tabsRef.current[0];
-    if (!t || !kv) return;
-    const saved = savedStamp(t.history.present.id);
-    const draft = drafts.find((d) => d.id === t.history.present.id);
-    if (!draft || !saved || !draftOffersRecovery(draft, saved)) return;
-    askRecovery(t.key, t.history.present.id, draft, saved);
+    if (!kv) return;
+    const pending: { draft: DraftMeta; saved: SavedStamp | null }[] = [];
+    for (const draft of drafts) {
+      const saved = savedStamp(draft.id);
+      if (saved ? draftOffersRecovery(draft, saved) : true) pending.push({ draft, saved });
+    }
+    for (const item of pending) protectedDrafts.current.add(item.draft.id);
+    promptDrafts(pending);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const openSaved = (id: string) => {
     const existing = tabs.find((t) => t.history.present.id === id);
@@ -715,7 +754,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const draft = drafts.find((d) => d.id === id);
     if (existing) {
       setActiveKey(existing.key); setView((v) => ({ ...v, home: false }));
-      if (draft && saved && draftOffersRecovery(draft, saved)) { askRecovery(existing.key, id, draft, saved); return; }
+      if (draft && saved && draftOffersRecovery(draft, saved)) { protectedDrafts.current.add(id); askRecovery(id, draft, saved); return; }
       say('이미 열린 프로젝트입니다 — 기존 탭으로 이동했습니다'); return;
     }
     const r = loadProject(kv!, id);
@@ -726,7 +765,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const entry = readIndex(kv!).find((e) => e.id === id);
     const t = makeTab(r.project, { rev: r.project.revision, at: entry?.savedAt ?? '' });
     setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]); setView((v) => ({ ...v, home: false }));
-    if (draft && saved && draftOffersRecovery(draft, { revision: r.project.revision, savedAt: saved.savedAt })) askRecovery(t.key, id, draft, { revision: r.project.revision, savedAt: saved.savedAt });
+    if (draft && saved && draftOffersRecovery(draft, { revision: r.project.revision, savedAt: saved.savedAt })) { protectedDrafts.current.add(id); askRecovery(id, draft, { revision: r.project.revision, savedAt: saved.savedAt }); }
     else if (r.warnings.length) say(`경고 ${r.warnings.length}: ${r.warnings[0].message}`);
   };
   const openExplorerTab = (id: ExplorerTab) => {
