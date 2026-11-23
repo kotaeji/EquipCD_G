@@ -24,7 +24,8 @@ import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type
 import { Canvas, type Mode } from './Canvas';
 import { BackgroundTools } from './BackgroundTools';
 import { UnitLockTools } from './UnitLock';
-import { CommandPaletteDialog, ShortcutSheet } from './CommandPalette';
+import { CommandPaletteDialog, PALETTE_LABEL, ShortcutSheet } from './CommandPalette';
+import type { ObjectEntry } from './objectFind';
 import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
 import { ContextMenu } from './ContextMenu';
 import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
@@ -60,6 +61,8 @@ import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFr
 import { TourBubble } from './TourBubble';
 import { isTourSample, TOUR_AGAIN, TOUR_BUTTON, TOUR_STEPS } from './tour';
 import { BrandMark } from './BrandMark';
+import { AppIcon, IconLabel } from './Icon';
+import { TAB_ICON } from './icons';
 import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
@@ -140,19 +143,7 @@ const noDraft = { draftAt: null, draftedRevision: null, draftTriedRevision: null
 
 /** Header undo / redo. A 24px stroke sits inside the 44px button; currentColor follows the button. */
 function HistoryIcon({ dir }: { dir: 'undo' | 'redo' }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M8 4.5 3.5 9.5 8 14.5M4 9.5h10a5.5 5.5 0 1 1 0 11H9"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        transform={dir === 'redo' ? 'translate(24 0) scale(-1 1)' : undefined}
-      />
-    </svg>
-  );
+  return <AppIcon id={dir} size="md" width="24" height="24" strokeWidth="2" />;
 }
 
 function download(name: string, text: string, mime = 'application/json') {
@@ -218,7 +209,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [helpScope, setHelpScope] = useState<'main' | 'explorer'>('main');
   const helpReturn = useRef<HTMLElement | null>(null);
   const helpWas = useRef(false);
-  const goStep = (s: StepId, sub?: string) => { setHelpScope('main'); setView((v) => ({ ...v, step: s, home: false })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsStep(null); };
+  const pendingBlockerReturn = useRef(false);
+  const [nextBlocker, setNextBlocker] = useState(false);
+  const goStep = (s: StepId, sub?: string) => {
+    setHelpScope('main');
+    setView((v) => ({ ...v, step: s, home: false }));
+    if (sub) setSubTab((t) => ({ ...t, [s]: sub }));
+    setItemsStep(null);
+    if (s === 'run' && pendingBlockerReturn.current) {
+      pendingBlockerReturn.current = false;
+      setNextBlocker(true);
+    } else if (s !== 'run') setNextBlocker(false);
+  };
   const pickRight = (k: string) => { setHelpScope('main'); setRightTab(k); };
   const toggleItems = (s: StepId) => setItemsStep((cur) => (cur === s ? null : s));
   const chooseTheme = (mode: 'light' | 'dark') => { const next = mode === 'dark' ? 'B' as const : 'A' as const; setView((v) => (v.theme === next ? v : { ...v, theme: next })); };
@@ -553,9 +555,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const saveGate = templateSaveGate({ storage: !!kv, selectedIds: selection, unitIds: p.units.map((u) => u.id) });
   const copyPasteButtons = () => (
     <>
-      <button type="button" onClick={requestCopy} disabled={selectedNodeIds.length === 0} title={copyTitle}>복사</button>
-      <button type="button" onClick={requestPaste} disabled={locked || !clip} title={pasteTitle}>붙여넣기</button>
-      <button type="button" data-save-template onClick={() => { const id = selection[0]; if (id) requestSaveTemplate(id); }} disabled={!saveGate.ok} title={saveGate.reason}>내 템플릿으로 저장</button>
+      <button type="button" onClick={requestCopy} disabled={selectedNodeIds.length === 0} title={copyTitle}><IconLabel id="copy">복사</IconLabel></button>
+      <button type="button" onClick={requestPaste} disabled={locked || !clip} title={pasteTitle}><IconLabel id="paste">붙여넣기</IconLabel></button>
+      <button type="button" data-save-template onClick={() => { const id = selection[0]; if (id) requestSaveTemplate(id); }} disabled={!saveGate.ok} title={saveGate.reason}><IconLabel id="save-template">내 템플릿으로 저장</IconLabel></button>
     </>
   );
   const runArrange = (r: C.CmdResult, label: string) => {
@@ -581,12 +583,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (scale == null) { say('실제 거리가 올바르지 않습니다', true); return; }
     if (edit(updateDiagramBackground(p, { scale }), '배경 배율')) setBgPoints(null);
   };
-  const arrangeItems: { label: string; min: number; undo: string; run: () => C.CmdResult }[] = [
-    { label: '가로 간격 같게', min: 3, undo: '가로 간격 같게', run: () => C.distributeUnits(p, selection, 'x') },
-    { label: '세로 간격 같게', min: 3, undo: '세로 간격 같게', run: () => C.distributeUnits(p, selection, 'y') },
-    { label: '너비 같게', min: 2, undo: '너비 같게', run: () => C.matchUnitSize(p, selection, 'w') },
-    { label: '높이 같게', min: 2, undo: '높이 같게', run: () => C.matchUnitSize(p, selection, 'h') },
-    { label: '겹침 풀기', min: 2, undo: '겹침 풀기', run: () => C.spreadUnits(p, selection, C.UNIT_SPREAD_GAP) },
+  const arrangeItems: { label: string; icon: string; min: number; undo: string; run: () => C.CmdResult }[] = [
+    { label: '가로 간격 같게', icon: 'gap-x', min: 3, undo: '가로 간격 같게', run: () => C.distributeUnits(p, selection, 'x') },
+    { label: '세로 간격 같게', icon: 'gap-y', min: 3, undo: '세로 간격 같게', run: () => C.distributeUnits(p, selection, 'y') },
+    { label: '너비 같게', icon: 'match-w', min: 2, undo: '너비 같게', run: () => C.matchUnitSize(p, selection, 'w') },
+    { label: '높이 같게', icon: 'match-h', min: 2, undo: '높이 같게', run: () => C.matchUnitSize(p, selection, 'h') },
+    { label: '겹침 풀기', icon: 'spread', min: 2, undo: '겹침 풀기', run: () => C.spreadUnits(p, selection, C.UNIT_SPREAD_GAP) },
   ];
   /** Library card "프로젝트에 추가" (C03-AC5): the only path from the library that changes the model. */
   const onAddFromLibrary = (def: AssetDefinition, unitId: string | null) => {
@@ -1204,6 +1206,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!j) return;
     goItem({ level: 'human', kind: 'gap-human', text: entry.name, jump: j });
   };
+  // TURN-066. Same flash as a wizard item. Shift+Enter only changes the selection.
+  const jumpToObject = (entry: ObjectEntry, stay: boolean) => {
+    const j = entry.jump;
+    if (j.selectId) {
+      setSelection([j.selectId]);
+      const unitId = p.units.find((u) => u.id === j.selectId)?.id ?? p.devices.find((d) => d.id === j.selectId)?.unitId;
+      if (unitId) setSubUnitPref(unitId);
+    }
+    if (entry.flowId) setFlowPicked([entry.flowId]);
+    if (stay) return;
+    if (j.rightTab) pickRight(j.rightTab);
+    if (j.actionId) setActionFocus(j.actionId);
+    if (j.gapFilter) setGapFilter(j.gapFilter);
+    if (j.step === 'canvas') setView((v) => (v.layoutTab === 'diagram' ? v : { ...v, layoutTab: 'diagram' }));
+    jumpRef.current = j;
+    setJumpTick((n) => n + 1);
+    goStep(j.step, j.sub);
+  };
   // TURN-001: 6단계 그룹 실행 차단 항목 → 원인 수정/확인 화면으로 이동 (보기 상태만 변경, 모델·Undo 불변).
   // 그룹 실행 대상(subUnitId)은 이동 전에 보기 선호값으로 고정해, 편집 대상 선택이 실행 Substation을 바꾸지 않게 한다.
   const jumpInterlock = (id: string) => {
@@ -1221,6 +1241,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const goBlocker = (_b: Diagnostic, g: BlockerGuide) => {
     if (!g.dest) return;
+    if (step === 'run') pendingBlockerReturn.current = true;
     if (subUnitId) setSubUnitPref(subUnitId);
     if (g.focus) { setSelection([g.focus.id]); pickRight(g.focus.kind === 'device' ? 'actions' : 'props'); }
     if (g.actionId) setActionFocus(g.actionId);
@@ -1296,7 +1317,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     run();
   };
   const sub = subTab[step];
-  const Sub = ({ items }: { items: [string, string][] }) => <div className="tabs subtabs">{items.map(([k, l]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, [step]: k })); }}><Terms text={l} /></button>)}</div>;
+  const Sub = ({ items }: { items: [string, string][] }) => <div className="tabs subtabs">{items.map(([k, l]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, [step]: k })); }}><IconLabel id={TAB_ICON[k] ?? k}><Terms text={l} /></IconLabel></button>)}</div>;
   const subCount = (uid: string) => (p.substationSequences ?? []).filter((q) => q.unitId === uid).length;
   const pick = (id: string) => { setSelection([id]); const u = p.units.find((x) => x.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; if (u) setSubUnitPref(u); };
   const collapsed = view.treeCollapsed[p.id] ?? [];
@@ -1451,22 +1472,22 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   </div>;
   const explorer = <aside className={`explorer ${explorerOpen ? '' : 'collapsed'}`} aria-label="Workspace / Project 탐색기">
     {explorerOpen && <PanelSplit kind="explorer" value={view.panels.explorer} onChange={(n) => setPanel('explorer', n)} label="탐색기 너비" />}
-    <div className="exhead"><button className="small icon" onClick={toggleExplorer} aria-expanded={explorerOpen} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}>{explorerOpen ? '⟨' : '⟩'}</button>{explorerOpen && <b>탐색기</b>}</div>
+    <div className="exhead"><button className="small icon" onClick={toggleExplorer} aria-expanded={explorerOpen} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}><IconLabel id="explorer" glyph={explorerOpen ? '⟨' : '⟩'} /></button>{explorerOpen && <b>탐색기</b>}</div>
     {explorerOpen && <Tabs label="탐색기" idBase="explorer" value={view.explorerTab} onChange={openExplorerTab} tabs={[
-      { id: 'workspace', label: 'Workspace', panel: workspacePanel },
-      { id: 'project', label: 'Project', panel: projectPanel },
+      { id: 'workspace', label: 'Workspace', icon: 'workspace', panel: workspacePanel },
+      { id: 'project', label: 'Project', icon: 'project', panel: projectPanel },
     ]} />}
   </aside>;
   const visualToggle = <>
-    <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
-    <button className={view.visualMode === 'photo' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'photo' })} title="AI 생성 실사풍 이미지 표시 — 실제 촬영 사진 아님 (모델·연결·상태 불변)">실사풍(AI)</button></>;
+    <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}><IconLabel id="schematic">도식</IconLabel></button>
+    <button className={view.visualMode === 'photo' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'photo' })} title="AI 생성 실사풍 이미지 표시 — 실제 촬영 사진 아님 (모델·연결·상태 불변)"><IconLabel id="photo">실사풍(AI)</IconLabel></button></>;
   const runControls = <>
-    <button className="primary" data-jump="run-start" data-tour="run" onClick={doRun} disabled={running || rt?.status === 'paused'}>▶ 실행</button>
-    <button onClick={doPause} disabled={!running}>❚❚ 일시정지</button>
-    <button onClick={doResume} disabled={rt?.status !== 'paused'}>재개</button>
-    <button onClick={doStep} disabled={rt?.status !== 'paused'} title="일시정지 중 가상 0.1초 진행">+0.1s</button>
-    <button onClick={doReset} disabled={!tab.runtime || rt?.status === 'idle'}>⟲ 초기화</button>
-    <button onClick={doToEnd} disabled={!running} title="실행 중(▶ 실행 후)에만 활성 — 남은 단계를 즉시 계산">끝까지</button>
+    <button className="primary" data-jump="run-start" data-tour="run" onClick={doRun} disabled={running || rt?.status === 'paused'}><IconLabel id="run" glyph="▶ ">실행</IconLabel></button>
+    <button onClick={doPause} disabled={!running}><IconLabel id="pause" glyph="❚❚ ">일시정지</IconLabel></button>
+    <button onClick={doResume} disabled={rt?.status !== 'paused'}><IconLabel id="resume">재개</IconLabel></button>
+    <button onClick={doStep} disabled={rt?.status !== 'paused'} title="일시정지 중 가상 0.1초 진행"><IconLabel id="step-time">+0.1s</IconLabel></button>
+    <button onClick={doReset} disabled={!tab.runtime || rt?.status === 'idle'}><IconLabel id="reset" glyph="⟲ ">초기화</IconLabel></button>
+    <button onClick={doToEnd} disabled={!running} title="실행 중(▶ 실행 후)에만 활성 — 남은 단계를 즉시 계산"><IconLabel id="to-end">끝까지</IconLabel></button>
     <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{[0.25, 0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}x</option>)}</select>
     <span className="mono" style={{ minWidth: 80 }}>{fmtTime(rt?.timeMs ?? 0)}</span></>;
   const setRunView = (runView: 'diagram' | '3d') => { setHelpScope('main'); setView((v) => (v.runView === runView ? v : { ...v, runView })); };
@@ -1596,7 +1617,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     },
     toggleExplorer,
     openViewSettings: () => setViewOpen(true),
-    startTour: () => beginTour(document.querySelector<HTMLElement>('[aria-label="명령 찾기"]')),
+    startTour: () => beginTour(document.querySelector<HTMLElement>(`[aria-label="${PALETTE_LABEL}"]`)),
     openShortcuts: () => setShortcutOpen(true),
     openPalette: () => setPaletteOpen(true),
   };
@@ -1621,13 +1642,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><BrandMark /><span className="title">{PRODUCT_NAME}</span></span>
         <span className="subtitle">논리 시뮬레이션</span>
         <span className="grow" />
-        <button type="button" className="btn-main secondary cmd-open" aria-label="명령 찾기" onClick={() => setPaletteOpen(true)}>
-          명령 찾기<span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
+        <button type="button" className="btn-main secondary cmd-open" aria-label={PALETTE_LABEL} onClick={() => setPaletteOpen(true)}>
+          <IconLabel id="palette">{PALETTE_LABEL}</IconLabel><span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
         </button>
-        <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}>저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</button>
-        <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}>내보내기</button>
-        <button className="btn-main secondary" onClick={() => setViewOpen(true)}>보기 설정</button>
-        <button type="button" className="btn-main secondary" data-help-toggle aria-expanded={view.helpOpen} aria-label="도움말" onClick={(e) => { helpReturn.current = e.currentTarget; setView((v) => ({ ...v, helpOpen: !v.helpOpen })); }}><span className="help-mark" aria-hidden="true">?</span>도움말</button>
+        <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}><IconLabel id="save">저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</IconLabel></button>
+        <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}><IconLabel id="export-json">내보내기</IconLabel></button>
+        <button className="btn-main secondary" onClick={() => setViewOpen(true)}><IconLabel id="view-settings">보기 설정</IconLabel></button>
+        <button type="button" className="btn-main secondary" data-help-toggle aria-expanded={view.helpOpen} aria-label="도움말" onClick={(e) => { helpReturn.current = e.currentTarget; setView((v) => ({ ...v, helpOpen: !v.helpOpen })); }}><IconLabel id="help">도움말</IconLabel></button>
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
         <button className="icon" onClick={doUndo} disabled={!tab.history.past.length || locked} title="실행 취소 (Ctrl/Cmd+Z)" aria-label="실행 취소"><HistoryIcon dir="undo" /></button>
         <button className="icon" onClick={doRedo} disabled={!tab.history.future.length || locked} title="다시 실행 (Ctrl/Cmd+Shift+Z)" aria-label="다시 실행"><HistoryIcon dir="redo" /></button>
@@ -1660,7 +1681,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>
       {explorer}
       {listEval && listMeta && <div className="itemspop" style={style} role="dialog" aria-label={`${listMeta.no} ${listMeta.label} 남은 항목`} data-items-step={listMeta.id}>
-        <div className="row" style={{ justifyContent: 'space-between' }}><b>{listMeta.no} {listMeta.label} — 남은 항목 (실제 데이터 기준 재계산)</b><button className="small" onClick={() => setItemsStep(null)}>닫기</button></div>
+        <div className="row" style={{ justifyContent: 'space-between' }}><b>{listMeta.no} {listMeta.label} — 남은 항목 (실제 데이터 기준 재계산)</b><button className="small" onClick={() => setItemsStep(null)}><IconLabel id="close">닫기</IconLabel></button></div>
         {listEval.items.length === 0 && <div className="muted">남은 항목 없음</div>}
         {listEval.items.map((it, i) => <div key={i} className="item-row" data-item-kind={it.kind}>
           <StatusMark status={ITEM_LEVEL_STATUS[it.level].status} word={ITEM_LEVEL_STATUS[it.level].word} />
@@ -1672,9 +1693,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {itemsStep && confirmed[itemsStep] && confirmed[itemsStep] !== listEval.fingerprint && <div className="notice warn">이 단계는 이전에 확인되었지만 관련 데이터가 바뀌었습니다 — 재확인 필요</div>}
       </div>}
 
-      {guide === 'files' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><FilesSheet entries={savedList.map((e) => ({ id: e.id, name: e.name, revision: e.revision }))} onImport={() => fileRef.current?.click()} onExport={() => download(`${p.name}.json`, serializeProject(p))} onOpen={(id) => { setGuide(null); openSaved(id); }} onNew={() => { setGuide(null); newProject('blank'); }} onSample={() => { setGuide(null); newProject('sample'); }} /></div></div>}
-      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><BundleSheet kv={kv} reg={reg} dirtyNames={tabs.filter((t) => t.savedRevision !== t.history.present.revision).map((t) => t.history.present.name)} openIds={[...openIds]} storageReason={kv ? null : storage.reason ?? '저장소 없음'} onDownload={(name, text) => download(name, text)} onCommitted={(r) => { setReg(r.reg); if (r.quarantine.length) setQlist((list) => r.quarantine.reduce((acc, entry) => quarantine(kv, entry, acc), list)); }} onSwitch={requestSwitch} /></div></div>}
-      {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button>
+      {guide === 'files' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}><IconLabel id="close">닫기</IconLabel></button><FilesSheet entries={savedList.map((e) => ({ id: e.id, name: e.name, revision: e.revision }))} onImport={() => fileRef.current?.click()} onExport={() => download(`${p.name}.json`, serializeProject(p))} onOpen={(id) => { setGuide(null); openSaved(id); }} onNew={() => { setGuide(null); newProject('blank'); }} onSample={() => { setGuide(null); newProject('sample'); }} /></div></div>}
+      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}><IconLabel id="close">닫기</IconLabel></button><BundleSheet kv={kv} reg={reg} dirtyNames={tabs.filter((t) => t.savedRevision !== t.history.present.revision).map((t) => t.history.present.name)} openIds={[...openIds]} storageReason={kv ? null : storage.reason ?? '저장소 없음'} onDownload={(name, text) => download(name, text)} onCommitted={(r) => { setReg(r.reg); if (r.quarantine.length) setQlist((list) => r.quarantine.reduce((acc, entry) => quarantine(kv, entry, acc), list)); }} onSwitch={requestSwitch} /></div></div>}
+      {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}><IconLabel id="close">닫기</IconLabel></button>
         <SearchSheet tabs={tabs.map((t) => ({ key: t.key, name: t.history.present.name, active: t.key === tab.key }))}
           tree={p.units.flatMap((u) => [{ id: u.id, label: u.name, depth: 0 }, ...u.deviceIds.map((id) => ({ id, label: devName(p, id), depth: 1 }))])}
           onTab={(key) => switchTab(key)} onPick={(id) => { setSelection([id]); setGuide(null); goStep('canvas'); }} onFold={() => setView((v) => ({ ...v, explorerOpen: false }))} onCanvas={() => { setGuide(null); goStep('canvas'); }} />
@@ -1741,14 +1762,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <div className="stage-head">
             <h1 className="stage-title"><span data-tour="canvas"><Terms text="배치·연결" /></span></h1>
             <div className="tool-pills">
-              <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
-              <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결"><Terms text="물류 연결" /></button>
-              <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트를 입력 포트로 끌어 연결합니다. 이 모드에서는 두 번 눌러서도 됩니다. 포트는 도면 도식 탭에 있습니다"><Terms text="신호 연결" /></button>
-              <div className="layerbox"><button className={layerOpen ? 'on' : ''} onClick={() => setLayerOpen(!layerOpen)}>레이어</button>
+              <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}><IconLabel id="select">선택/이동</IconLabel></button>
+              <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결"><IconLabel id="mode-flow"><Terms text="물류 연결" /></IconLabel></button>
+              <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트를 입력 포트로 끌어 연결합니다. 이 모드에서는 두 번 눌러서도 됩니다. 포트는 도면 도식 탭에 있습니다"><IconLabel id="mode-signal"><Terms text="신호 연결" /></IconLabel></button>
+              <div className="layerbox"><button className={layerOpen ? 'on' : ''} onClick={() => setLayerOpen(!layerOpen)}><IconLabel id="layers">레이어</IconLabel></button>
                 {layerOpen && <div className="layerpop">{([['background', '배경'], ['units', 'Substation'], ['axis', '축·이송'], ['io', '포트·신호선'], ['positions', '포지션'], ['flow', '물류·자재']] as [LayerId, string][]).map(([k, l]) =>
                   <label key={k}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
                   <div className="muted">숨김은 삭제가 아니고 실행에서도 빼지 않습니다.</div></div>}</div>
-              <span className="zoom-pill"><button type="button" aria-label="축소" onClick={() => setView({ ...view, zoom: Math.max(0.5, +(view.zoom - 0.1).toFixed(2)) })}>−</button><span>{Math.round(view.zoom * 100)}%</span><button type="button" aria-label="확대" onClick={() => setView({ ...view, zoom: Math.min(2, +(view.zoom + 0.1).toFixed(2)) })}>+</button></span>
+              <span className="zoom-pill"><span>{Math.round(view.zoom * 100)}%</span><button type="button" aria-label="축소" onClick={() => setView({ ...view, zoom: Math.max(0.5, +(view.zoom - 0.1).toFixed(2)) })}><IconLabel id="zoom-out" glyph="−" /></button><button type="button" aria-label="확대" onClick={() => setView({ ...view, zoom: Math.min(2, +(view.zoom + 0.1).toFixed(2)) })}><IconLabel id="zoom-in" glyph="+" /></button></span>
             </div>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
@@ -1761,7 +1782,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           </Fold>
           <div className="layout-tabs">
             <Tabs label="배치·연결" idBase="layout" value={view.layoutTab} onChange={openLayoutTab} tabs={[
-              { id: 'board', label: '카드 보드', panel: <>
+              { id: 'board', label: '카드 보드', icon: 'tab-board', panel: <>
                 <div className="copy-tools">{copyPasteButtons()}</div>
                 <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
                   onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick}
@@ -1771,25 +1792,25 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   onStartFlow={() => { setMode('flow'); setConnectFrom(null); }} />
                 <p className="path-note">{p.connections.some((c) => c.kind === 'flow') ? <>{flowSummary(p)}<br /></> : null}카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 도면 도식 탭에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
               </> },
-              { id: 'diagram', label: '도면 도식', panel: <>
+              { id: 'diagram', label: '도면 도식', icon: 'tab-diagram', panel: <>
                 <div className="diagram-tools">
                   <p className="diagram-hint" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>물류: Unit 오른쪽 손잡이를 다른 Unit으로 끌기 · 신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
                   {visualToggle}
-                  <button onClick={() => runArrange(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
-                  <button onClick={() => runArrange(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
+                  <button onClick={() => runArrange(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}><IconLabel id="align-left">좌 정렬</IconLabel></button>
+                  <button onClick={() => runArrange(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}><IconLabel id="align-top">상 정렬</IconLabel></button>
                   <div className="layerbox arrange-menu">
-                    <button type="button" className={arrangeOpen ? 'on' : ''} aria-expanded={arrangeOpen} aria-haspopup="menu" aria-controls="arrange-menu" title="고른 Unit의 간격·크기·겹침" onClick={() => setArrangeOpen((v) => !v)}>배치 ▾</button>
+                    <button type="button" className={arrangeOpen ? 'on' : ''} aria-expanded={arrangeOpen} aria-haspopup="menu" aria-controls="arrange-menu" title="고른 Unit의 간격·크기·겹침" onClick={() => setArrangeOpen((v) => !v)}><IconLabel id="arrange-menu">배치 ▾</IconLabel></button>
                     {arrangeOpen && <div className="layerpop arrange-pop" id="arrange-menu" role="menu">
                       {arrangeItems.map((item) => {
                         const reason = selectedUnitCount < item.min ? (item.min >= 3 ? C.ARRANGE_NEED_3 : C.ARRANGE_NEED_2) : undefined;
-                        return <button key={item.label} type="button" role="menuitem" disabled={!!reason} title={reason} onClick={() => runArrange(item.run(), item.undo)}>{item.label}</button>;
+                        return <button key={item.label} type="button" role="menuitem" disabled={!!reason} title={reason} onClick={() => runArrange(item.run(), item.undo)}><IconLabel id={item.icon}>{item.label}</IconLabel></button>;
                       })}
                     </div>}
                   </div>
-                  <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}>크기 맞춤</button>
-                  <button type="button" onClick={arrangeSelectedDevices} disabled={locked || !('unitId' in arrangeTarget)} title={arrangeDevicesTitle}>자동 정렬</button>
+                  <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}><IconLabel id="fit-unit">크기 맞춤</IconLabel></button>
+                  <button type="button" onClick={arrangeSelectedDevices} disabled={locked || !('unitId' in arrangeTarget)} title={arrangeDevicesTitle}><IconLabel id="arrange">자동 정렬</IconLabel></button>
                   {copyPasteButtons()}
-                  <button type="button" onClick={requestDuplicate} disabled={selectedDeviceIds.length === 0 || locked} title={selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : '선택한 Device 복제 (Ctrl+D)'}>복제</button>
+                  <button type="button" onClick={requestDuplicate} disabled={selectedDeviceIds.length === 0 || locked} title={selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : '선택한 Device 복제 (Ctrl+D)'}><IconLabel id="duplicate">복제</IconLabel></button>
                   <BackgroundTools
                     bg={readDiagramBackground(p)}
                     disabled={locked}
@@ -1812,7 +1833,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                     onLockSelected={(on) => edit(C.setUnitPositionLock(p, selection, on), on ? '위치 잠금' : '위치 잠금 해제')}
                     onLockAll={(on) => edit(C.setAllUnitPositionLock(p, on), on ? '모두 잠금' : '모두 풀기')}
                   />
-                  <button type="button" className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}>삭제</button>
+                  <button type="button" className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}><IconLabel id="delete">삭제</IconLabel></button>
                 </div>
                 <div className="diagram-canvas">{canvasEl}</div>
               </> },
@@ -1837,11 +1858,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               const note = qtyNote(p, { kind: 'device', id: d.id, key: pd.key });
               return <p key={pd.key}>{pd.label}<br />{qv.value === null ? <StatusMark status="undetermined" /> : qv.value} {qv.unit}{qv.assumption ? <> <StatusMark status="assumption" /></> : null}{note && <span className="confirm-note" data-confirm-note>{note}</span>}</p>;
             })}
-            {!d && host && <button type="button" className="btn-main secondary" onClick={fitSelectedUnit}>크기 맞춤</button>}
+            {!d && host && <button type="button" className="btn-main secondary" onClick={fitSelectedUnit}><IconLabel id="fit-unit">크기 맞춤</IconLabel></button>}
             {missingComplete && <p className="warn-note"><StatusMark status="undetermined" /> 완료 신호 · 실행 차단<br />필수 값은 임의로 채우지 않습니다.</p>}
             <div className="prop-actions">
-              <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); pickRight('actions'); goStep('attributes'); }}>Action 편집</button>
-              <button type="button" className="danger" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}>삭제 영향 확인</button>
+              <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); pickRight('actions'); goStep('attributes'); }}><IconLabel id="to-actions">Action 편집</IconLabel></button>
+              <button type="button" className="danger" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}><IconLabel id="delete">삭제 영향 확인</IconLabel></button>
             </div>
             <Fold className="prop-more" summary="속성 자세히" open={propsFold} onToggle={setPropsFold}>{inspectorEl}</Fold>
           </div>;
@@ -1890,8 +1911,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <label>완료 후 조건<span className="field-ro cond-line" data-jump={`post:${act.id}`} data-cond-formula="">{conditionsFormula(p, act.post) || '없음'}<ConditionMark p={p} site={`action:${act.id}:post`} /></span></label>
                 </div> : <p>이 Device에 Action이 없습니다. 아래 접는 칸에서 추가합니다.</p>}
                 <div className="tool-pills">
-                  <button type="button" className="on" disabled={!act || locked} onClick={() => act && edit(C.addStep(p, act.id), '단계 추가')}>시퀀스 끝에 추가</button>
-                  <button type="button" onClick={() => pickRight('props')}>속성으로</button>
+                  <button type="button" className="on" disabled={!act || locked} onClick={() => act && edit(C.addStep(p, act.id), '단계 추가')}><IconLabel id="add-step">시퀀스 끝에 추가</IconLabel></button>
+                  <button type="button" onClick={() => pickRight('props')}><IconLabel id="to-props">속성으로</IconLabel></button>
                 </div>
               </section>
               <aside className="sheet">
@@ -1903,7 +1924,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <li>실제 주소 · {sigs.some((s) => s.address) ? '있음' : <StatusMark status="undetermined" />}</li>
                 </ul>
                 <p className="warn-note">Interlock 후보는 사람이 확인합니다. 자동 안전 승인은 없습니다.</p>
-                <button type="button" onClick={() => goStep('sequence', 'sequence')}>시퀀스 보기</button>
+                <button type="button" onClick={() => goStep('sequence', 'sequence')}><IconLabel id="step-sequence">시퀀스 보기</IconLabel></button>
               </aside>
             </div>;
             return <div className="sparse-split" data-jump="device-props">
@@ -1924,9 +1945,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <label>정의 버전<span className="field-ro">{d.definitionRef.assetId}@{d.definitionRef.version}</span></label>
                 </div>
                 <div className="tool-pills">
-                  <button type="button" className="on" onClick={() => pickRight('actions')}>Action 편집</button>
-                  <button type="button" onClick={() => pickRight('signals')}>신호·포지션</button>
-                  <button type="button" className="danger" disabled={locked} onClick={() => requestDelete(d.id)}>삭제 영향 확인</button>
+                  <button type="button" className="on" onClick={() => pickRight('actions')}><IconLabel id="to-actions">Action 편집</IconLabel></button>
+                  <button type="button" onClick={() => pickRight('signals')}><IconLabel id="to-signals">신호·포지션</IconLabel></button>
+                  <button type="button" className="danger" disabled={locked} onClick={() => requestDelete(d.id)}><IconLabel id="delete">삭제 영향 확인</IconLabel></button>
                 </div>
               </section>
               <aside className="sheet">
@@ -1934,7 +1955,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <p>{host ? `${host.code} ${host.name}` : '소속 없음'} / {d.name}</p>
                 <p className="muted">제공 Action</p>
                 <ul className="check-list">{p.actions.filter((a) => a.deviceId === d.id).slice(0, 4).map((a) => <li key={a.id}>{a.name}</li>)}</ul>
-                <button type="button" onClick={() => pickRight('check')}>정의 체크</button>
+                <button type="button" onClick={() => pickRight('check')}><IconLabel id="to-check-def">정의 체크</IconLabel></button>
                 <p className="muted">능력 표 전체는 아래 접는 칸에 있습니다.</p>
               </aside>
             </div>;
@@ -1952,9 +1973,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <div className="bbody sparse-page">
           {sub === 'sequence' && <section className="sheet wide">
             <div className="tool-pills">
-              <button type="button" className="on" data-jump="sequence-add" onClick={() => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); }}><Terms text="Action 추가" /></button>
-              <button type="button" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'sfc' })); }}><Terms text="SFC 미리보기" /></button>
-              <button type="button" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'subseq' })); }}><Terms text="Substation 시퀀스" /></button>
+              <button type="button" className="on" data-jump="sequence-add" onClick={() => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); }}><IconLabel id="action-add"><Terms text="Action 추가" /></IconLabel></button>
+              <button type="button" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'sfc' })); }}><IconLabel id="tab-sfc"><Terms text="SFC 미리보기" /></IconLabel></button>
+              <button type="button" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'subseq' })); }}><IconLabel id="tab-subseq"><Terms text="Substation 시퀀스" /></IconLabel></button>
             </div>
             <h2 data-jump="sequence-steps"><Terms text="Station 시퀀스 Draft" /></h2>
             {p.sequence.steps.length === 0 && <EmptyState symbol="○" line={EMPTY.steps} actions={[{ label: '단계 추가', disabled: locked || !p.actions[0], reason: locked ? RUN_LOCK : !p.actions[0] ? 'Action이 없습니다. 3단계 Action을 먼저 만드세요.' : undefined, onClick: () => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); } }]} />}
@@ -1968,7 +1989,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <section className="sheet">
               <h2>{p.materials[0] ? `${p.materials[0].name} · 정의와 초기 조건` : '자재 없음'}</h2>
               {p.materials[0] ? <div className="form-grid">
-                <label>이름<TextInput value={p.materials[0].name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, p.materials[0].id, v), '자재 이름')} /></label>
+                <label data-jump={`material:${p.materials[0].id}`}>이름<TextInput value={p.materials[0].name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, p.materials[0].id, v), '자재 이름')} /></label>
                 <label>투입 개수<input key={feedCountOf(p.materials[0])} type="number" aria-label="자재 화면 투입 개수" className="num" min={1} step={1} disabled={locked} defaultValue={feedCountOf(p.materials[0])} onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== feedCountOf(p.materials[0])) edit(C.setFeedCount(p, p.materials[0].id, n), '투입 개수'); else e.target.value = String(feedCountOf(p.materials[0])); }} /></label>
                 <label data-jump="feed-interval">투입 간격<QtyInput q={p.materials[0].feedInterval} disabled={locked} note={qtyNote(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, v, as, stamp), '투입 간격')} /></label>
                 <label>초기 위치<span className="field-ro">{p.materials[0].initialLocation ? unitName(p, p.materials[0].initialLocation) : '미정'}</span></label>
@@ -2003,10 +2024,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <div className="bbody sparse-page">
           {sub === 'gap' && <section className="sheet wide">
             <div className="tool-pills">
-              <button type="button" className={gapFilter === 'all' ? 'on' : ''} onClick={() => { setGapFilter('all'); reanalyze(); }}>재분석</button>
-              <button type="button" className={gapFilter === 'shortfall' ? 'on' : ''} onClick={() => setGapFilter('shortfall')}>차단 항목만</button>
-              <button type="button" className={gapFilter === 'human' ? 'on' : ''} onClick={() => setGapFilter('human')}>사람 확인 필요</button>
-              <button type="button" className={gapFilter === 'hidden' ? 'on' : ''} onClick={() => setGapFilter('hidden')}>숨긴 항목</button>
+              <button type="button" className={gapFilter === 'all' ? 'on' : ''} onClick={() => { setGapFilter('all'); reanalyze(); }}><IconLabel id="reanalyze">재분석</IconLabel></button>
+              <button type="button" className={gapFilter === 'shortfall' ? 'on' : ''} onClick={() => setGapFilter('shortfall')}><IconLabel id="filter-block">차단 항목만</IconLabel></button>
+              <button type="button" className={gapFilter === 'human' ? 'on' : ''} onClick={() => setGapFilter('human')}><IconLabel id="filter-human">사람 확인 필요</IconLabel></button>
+              <button type="button" className={gapFilter === 'hidden' ? 'on' : ''} onClick={() => setGapFilter('hidden')}><IconLabel id="filter-hidden">숨긴 항목</IconLabel></button>
             </div>
             <h2 data-jump="check-gaps"><Terms text={`Gap 목록 · 기준 모델 rev ${tab.analyzedRevision ?? p.revision}`} /></h2>
             <RunGapSection gaps={runGaps} ran={!!runRecord} stale={runStale} onGo={goGap} />
@@ -2033,7 +2054,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${foldSteps ? 'fold-steps' : ''} ${foldCond ? 'fold-cond' : ''} ${view.runStripFolded ? 'fold-strip' : ''}`} data-run-view={view.runView}>
         <h1 className="stage-title run-title"><Terms text={screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'} /></h1>
         <div className="toolbar tool-pills">
-          {runControls}<div className="sep" />{runViewToggle}<div className="sep" />{visualToggle}<div className="sep" /><button onClick={doSave}>저장</button>
+          {runControls}<div className="sep" />{runViewToggle}<div className="sep" />
+          <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
+          <button className={view.visualMode === 'photo' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'photo' })} title="AI 생성 실사풍 이미지 표시 — 실제 촬영 사진 아님 (모델·연결·상태 불변)">실사풍(AI)</button>
+          <div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
           <span className="badge">실행 전 검사 {checkRunReadiness(p).ok ? '통과' : '미통과'}</span></div>
@@ -2045,8 +2069,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             const interlockId = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
             const rule = p.constraints.find((k) => k.id === interlockId)?.rule;
             const phrase = runBlockFormula(p, rt.error.code, rt.error.stepId, rule?.form === 'allow' ? rule.conditions : undefined);
-            const base = runErrorProblem(rt.error.code, rt.error.message, named);
-            const copy = base && phrase ? { ...base, why: `${base.why} ${phrase}` } : base;
+            const base = runErrorProblem(rt.error.code, rt.error.message, named, phrase);
+            const copy = base && phrase && rt.error.code !== 'WAIT_TIMEOUT' ? { ...base, why: `${base.why} ${phrase}` } : base;
             if (!copy) return null;
             const jump = rt.error.code === 'INTERLOCK_BLOCK'
               ? () => {
@@ -2058,9 +2082,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <Problem copy={copy} onJump={jump} />
             </section>;
           })()}
-          {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
+          {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} emphasizeFirst={nextBlocker} />}
           {propPeek && <section className="run-prop-peek" data-prop-peek aria-label="속성 보기">
-            <div className="row"><b>속성 보기</b><button type="button" className="small" onClick={() => setPropPeek(false)}>닫기</button></div>
+            <div className="row"><b>속성 보기</b><button type="button" className="small" onClick={() => setPropPeek(false)}><IconLabel id="close">닫기</IconLabel></button></div>
             <Inspector project={p} selectedId={selection[0] ?? null} locked gaps={tab.gaps} edit={edit} onAddStep={() => {}} onDelete={() => {}} confirmDelete={() => {}} onReparent={() => {}} tab="props" setTab={() => {}} visualMode={view.visualMode} />
           </section>}
           <div className="run-canvas">
@@ -2074,7 +2098,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
         <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
-          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} />
+          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} emphasizeFirst={nextBlocker} />
       </div>}
 
       <div className="statusbar">
@@ -2123,7 +2147,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           }}>{view.tourSeen ? TOUR_AGAIN : TOUR_BUTTON}</button>
         </div>
         <p className="muted">화면 {screen} · 단계 {cur.no} {cur.label} · 확대 {Math.round(view.zoom * 100)}%</p>
-        <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn-main secondary" onClick={() => setViewOpen(false)}>닫기</button></div>
+        <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn-main secondary" onClick={() => setViewOpen(false)}><IconLabel id="close">닫기</IconLabel></button></div>
       </StaticModalFrame>}
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} kind={ctx.kind} items={menuItems} returnFocus={ctx.focus} onRun={runMenu} onClose={() => setCtx(null)} />}
       {nameDlg && <NameDialog key={nameDlg.title} {...nameDlg} onCancel={() => setNameDlg(null)} />}
@@ -2134,7 +2158,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </StaticModalFrame>}
       {view.helpOpen && <HelpPanel topic={helpTopic(helpId)} onClose={closeHelp} onTour={(el) => beginTour(el)} onShortcuts={() => setShortcutOpen(true)} />}
       {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
-      {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onClose={() => setPaletteOpen(false)} />}
+      {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onJump={(entry, stay) => { jumpToObject(entry, stay); setPaletteOpen(false); }} onClose={() => setPaletteOpen(false)} />}
       {shortcutOpen && <ShortcutSheet state={commandState} mac={macShortcut} onClose={() => setShortcutOpen(false)} />}
     </div>
     </TermHintsProvider>

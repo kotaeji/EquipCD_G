@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GLOSSARY, GLOSSARY_ORDER, splitTerms } from '../src/ui/glossary';
-import { HELP_ROOT_IDS, HELP_TOPICS, STEP_TABS, helpTopic, resolveHelpId } from '../src/ui/helpCopy';
+import { HELP_ROOT_IDS, HELP_TOPICS, STEP_TABS, helpTopic, manualLine, resolveHelpId } from '../src/ui/helpCopy';
 import { STEPS, type StepId } from '../src/ui/wizard';
 import { MemoryKV, VIEW_KEY } from '../src/storage/localStore';
 import { loadView } from '../src/ui/viewSettings';
@@ -57,6 +57,9 @@ describe('TURN-056 help copy', () => {
     for (const t of HELP_TOPICS) {
       const hit = found.some((h) => h.section === t.manual.section && h.title === t.manual.title);
       expect(hit, `${t.id} → ${t.manual.section} ${t.manual.title}`).toBe(true);
+      const line = manualLine(t.manual);
+      expect(line, t.id).not.toContain('`');
+      expect(line, t.id).not.toMatch(/FL-\d+/);
     }
   });
 

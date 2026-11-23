@@ -1,10 +1,13 @@
 import { useRef } from 'react';
+import { IconLabel } from './Icon';
 import { Terms } from './Term';
 
 /** One tab in the shared underline tab list. TURN-009 reuses this for the layout board and the diagram. */
 export interface TabSpec<T extends string> {
   id: T;
   label: string;
+  /** Icon id from the meaning table. The label text stays. */
+  icon?: string;
   panel: React.ReactNode;
 }
 
@@ -51,7 +54,7 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idBase = 
               aria-controls={`${idBase}-panel-${t.id}`}
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(t.id)}
-            ><Terms text={t.label} /></button>
+            >{t.icon ? <IconLabel id={t.icon}><Terms text={t.label} /></IconLabel> : <Terms text={t.label} />}</button>
           );
         })}
       </div>

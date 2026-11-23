@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CONFIRMER_NAME_MAX, normalizeConfirmerName } from '../model/confirmationLog';
+import { IconLabel } from './Icon';
 import './confirmation-log.css';
 import { StaticModalFrame } from './WorkspacePanels';
 
@@ -18,8 +19,8 @@ export function ConfirmerDialog({ onSubmit, onCancel }: { onSubmit: (name: strin
             onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
         </label>
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: 'var(--sp-3)' }}>
-          <button type="button" onClick={onCancel}>취소</button>
-          <button type="button" className="primary" disabled={!name} onClick={submit}>이 이름으로 확인</button>
+          <button type="button" onClick={onCancel}><IconLabel id="close">취소</IconLabel></button>
+          <button type="button" className="primary" disabled={!name} onClick={submit}><IconLabel id="confirm">이 이름으로 확인</IconLabel></button>
         </div>
       </div>
     </StaticModalFrame>

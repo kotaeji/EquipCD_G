@@ -1,5 +1,6 @@
 import { confirmationClock, sortedConfirmationLog, targetLive } from '../model/confirmationLog';
 import type { ConfirmationEntry, Project } from '../model/types';
+import { IconLabel } from './Icon';
 import './confirmation-log.css';
 
 export function ConfirmationLog({ p, onJump }: { p: Project; onJump: (entry: ConfirmationEntry) => void }) {
@@ -20,7 +21,7 @@ export function ConfirmationLog({ p, onJump }: { p: Project; onJump: (entry: Con
                 <td>
                   {e.name}
                   {live
-                    ? <button type="button" className="small" aria-label={`${e.name} 이동`} onClick={() => onJump(e)}>이동</button>
+                    ? <button type="button" className="small" aria-label={`${e.name} 이동`} onClick={() => onJump(e)}><IconLabel id="jump">이동</IconLabel></button>
                     : <span className="confirm-gone" data-confirmation-gone>삭제됨</span>}
                 </td>
                 <td>{e.from} → {e.to}</td>

@@ -1,6 +1,7 @@
 /** TURN-002 — live dialogs for Workspace / project management (re-render with current props, unlike the static modal). */
 import { useEffect, useRef, useState } from 'react';
 import { NAME_MAX, normalizeName, type Workspace } from '../storage/workspaces';
+import { IconLabel } from './Icon';
 
 /** true while any dialog layer (management overlay or static confirm) is open — background shortcuts must not act */
 export const dialogOpen = () => typeof document !== 'undefined' && document.querySelector('.modal-bg') !== null;
@@ -220,7 +221,7 @@ export function ProjectList({ rows, kv, wsName, onActivate, onCreate, onImport, 
         <button type="button" className="danger" disabled={detail.open} title={detail.open ? '열린 프로젝트는 삭제할 수 없습니다 — 먼저 탭을 닫으세요' : '영구 삭제'}
           aria-label={detail.open ? `${detail.name} 삭제 불가: 열린 프로젝트` : `${detail.name} 영구 삭제`}
           onClick={() => onDelete(detail.id)}>삭제</button>
-        <button type="button" onClick={() => setDetailId(null)}>닫기</button>
+        <button type="button" onClick={() => setDetailId(null)}><IconLabel id="close">닫기</IconLabel></button>
       </div>
       <p className="muted ex-note">탭 닫기는 저장 데이터를 지우지 않습니다. 새 프로젝트는 저장할 때 이 Workspace에 들어옵니다.</p>
     </Overlay>}

@@ -16,6 +16,16 @@ function topic(id: string, title: string, does: string, tasks: string[], stuck: 
   return { id, title, does, tasks, stuck, manual: { section, title: manualTitle } };
 }
 
+/** Drop a trailing feature-id parenthesis. The stored title still matches the manual heading. */
+export function manualVisibleTitle(title: string): string {
+  return title.replace(/\s+\([^)]*`[^)]*\)\s*$/, '').trim();
+}
+
+/** What the help dock shows: section number and heading, without feature ids or backticks. */
+export function manualLine(manual: ManualRef): string {
+  return `매뉴얼 ${manual.section} ${manualVisibleTitle(manual.title)}`;
+}
+
 const M = {
   home: ['2.3', '처음 열면'],
   workspace: ['4.1', 'Workspace 탭 (`FL-05`, `S01`)'],

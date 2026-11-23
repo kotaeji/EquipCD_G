@@ -30,6 +30,7 @@ import {
 import '@xyflow/react/dist/base.css';
 import { findAsset } from '../assets/library';
 import { AI_BADGE, resolveGenerated } from '../assets/visuals';
+import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 import { STATUS, waitingLead } from './status';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
@@ -368,6 +369,7 @@ function UnitNode({ data }: NodeProps) {
   }, []);
   return (
     <div
+      data-jump={`unit:${d.unitId}`}
       className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.flowFrom ? ' is-flow-from' : ''}${d.flowTarget ? ' is-flow-target' : ''}${d.paused ? ' is-paused' : ''}${d.tone}`}
       style={{ width: d.w, height: d.h }}
       onPointerDown={(e) => {
@@ -410,6 +412,7 @@ function DeviceNode({ data }: NodeProps) {
   const photo = d.photo ? resolveGenerated(dev.kind) : null;
   return (
     <div
+      data-jump={`device:${dev.id}`}
       className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.paused ? ' is-paused' : d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}${d.tone}`}
       style={{ width: dev.layout.w, height: dev.layout.h }}
       onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
@@ -1284,7 +1287,7 @@ function FlowCanvas(props: Props) {
             aria-pressed={minimapOpen}
             aria-label={minimapOpen ? '미니맵 접기' : '미니맵 펼치기'}
             onClick={() => propsRef.current.onMinimapChange?.(frame, !minimapOpen)}
-          >{minimapOpen ? '접기' : '미니맵'}</button>
+          >{minimapOpen ? <IconLabel id="fold">접기</IconLabel> : <IconLabel id="minimap">미니맵</IconLabel>}</button>
         </Panel>
         {props.connectNote && <Panel position="top-left" className="notice rf-connect-note nopan" style={{ position: 'absolute', top: 48, pointerEvents: 'none' }}>{props.connectNote}</Panel>}
         <Panel position="top-left" className="rf-legend nopan" title={`배경: 격자 · 배경 도면은 있으면 레이어와 함께 · 배경 없이도 동작 · Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>

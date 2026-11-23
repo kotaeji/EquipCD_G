@@ -49,6 +49,10 @@ Chrome, CSS 뷰포트 1280×800, devicePixelRatio 1. 콘솔 오류 0. 5공정 �
 | 형식 검사 | 로컬 `npx tsc --noEmit` 통과 |
 | Chrome | 1280×800, devicePixelRatio 1. 위 네 장. 콘솔 오류 0 |
 
+## main 합침
+
+TURN-061 · 062 · 065 · 066 이 들어간 `origin/main` 을 merge 했다. rebase 는 하지 않았다. `tests/turn054.test.ts` 는 main 그대로다. 새 단추는 뜻 표의 `confirm`(확인) · `jump`(이동) · `undo`(되돌림) · `close`(취소) 를 쓴다.
+
 ## 확인 필요
 
 - AC9는 Matthew 검수 전이다. 이 표가 검토 회의에서 쓸 만한지는 사람 검수다.

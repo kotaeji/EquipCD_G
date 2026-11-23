@@ -40,14 +40,16 @@ export function jumpCaption(j: ItemJump | null): string {
   return `${s.no} ${s.label}`;
 }
 
-/** First visible node with this data-jump. Prefer a node outside a collapsed fold. */
+/** First visible node with this data-jump. Skip a hidden tab, then prefer a node outside a collapsed fold. */
 export function jumpTarget(field: string, root: ParentNode = document): HTMLElement | null {
   const nodes = [...root.querySelectorAll<HTMLElement>('[data-jump]')].filter((el) => el.getAttribute('data-jump') === field);
-  const open = nodes.filter((el) => {
+  const shown = nodes.filter((el) => !el.closest('[hidden]'));
+  const visible = shown.length ? shown : nodes;
+  const open = visible.filter((el) => {
     const det = el.closest('details');
     return !det || det.open;
   });
-  const pool = open.length ? open : nodes;
+  const pool = open.length ? open : visible;
   const outside = pool.filter((el) => !el.closest('details'));
   return (outside.length ? outside : pool)[0] ?? null;
 }

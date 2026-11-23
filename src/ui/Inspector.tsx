@@ -15,6 +15,7 @@ import { conditionsFormula } from '../model/conditionFormula';
 import { StatusMark } from './StatusMark';
 import { actionDeleteDetail, actionUsage, positionDeleteDetail, positionUsage, signalDeleteDetail, signalUsage } from '../model/deleteImpact';
 import { useConfirmationGate } from './confirmationGate';
+import { IconLabel } from './Icon';
 import { Badge, QtyInput, TextInput } from './widgets';
 import { Terms } from './Term';
 
@@ -253,7 +254,7 @@ function AddressConfirm({ p, id, next, label, edit, locked }: { p: Project; id: 
   if (!s) return null;
   const logged = s.addressStatus !== next && (next === 'confirmed' || s.addressStatus === 'confirmed');
   const run = (stamp?: ConfirmStamp) => edit(C.updateSignal(p, id, { addressStatus: next }, stamp), label === '되돌림' ? '주소 확인 되돌림' : '주소 확인');
-  return <button type="button" className="small" disabled={locked} aria-label={`${s.name} ${label}`} onClick={() => { if (logged) gate((stamp) => run(stamp)); else run(); }}>{label}</button>;
+  return <button type="button" className="small" disabled={locked} aria-label={`${s.name} ${label}`} onClick={() => { if (logged) gate((stamp) => run(stamp)); else run(); }}><IconLabel id={next === 'confirmed' ? 'confirm' : 'undo'}>{label}</IconLabel></button>;
 }
 
 function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked: boolean; edit: EditFn }) {

@@ -1,0 +1,31 @@
+/* TURN-066. Object rows in the command palette. Tokens only. */
+.cmd-panel.cmd-find {
+  width: min(680px, calc(100vw - var(--sp-4) * 2));
+}
+.cmd-section,
+.cmd-kind {
+  margin: var(--sp-2) 0 var(--sp-1);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+}
+.cmd-kind { margin-top: var(--sp-1); }
+.cmd-row.is-object {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+}
+.cmd-code {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.cmd-where {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmd-more { color: var(--accent); }
+.cmd-hints .cmd-hint { margin: 0; }
+.cmd-hints .cmd-hint + .cmd-hint { margin-top: var(--sp-1); }

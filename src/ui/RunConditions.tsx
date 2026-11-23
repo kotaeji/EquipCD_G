@@ -5,6 +5,7 @@ import { NeverTrueFaults, ReadFailFaults, RunReadiness } from './Panels';
 import type { Diagnostic } from '../model/validate';
 import type { BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
+import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
@@ -139,7 +140,7 @@ function SceneOption({ label, checked, enabled, onChange }: { label: string; che
 }
 
 /** Right column of the run step, shared by the diagram and the 3D view. */
-export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, equipmentMotion, setEquipmentMotion, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold, sceneOptions, onGoBlocker }: {
+export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, equipmentMotion, setEquipmentMotion, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold, sceneOptions, onGoBlocker, emphasizeFirst }: {
   p: Project;
   locked: boolean;
   edit: EditFn;
@@ -160,12 +161,14 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
   /** Name, emphasis, and motion options apply only while the center canvas is 3D. */
   sceneOptions: boolean;
   onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void;
+  /** First remaining pre-run blocker, after coming back from a jump. */
+  emphasizeFirst?: boolean;
 }) {
   return (
     <aside className={`run-conditions ${folded ? 'is-folded' : ''}`} aria-label="가동 조건">
       <div className="run3d-head">
         <h2>가동 조건</h2>
-        <button type="button" className="small" aria-label={folded ? '가동 조건 펼치기' : '가동 조건 접기'} onClick={onToggleFold}>{folded ? '펼치기' : '접기'}</button>
+        <button type="button" className="small" aria-label={folded ? '가동 조건 펼치기' : '가동 조건 접기'} onClick={onToggleFold}><IconLabel id={folded ? 'unfold' : 'fold'}>{folded ? '펼치기' : '접기'}</IconLabel></button>
       </div>
       {!folded && <>
       <label className="run3d-field">배속
@@ -183,7 +186,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
       <SceneOption label="이름 표시" checked={showNames} enabled={sceneOptions} onChange={setShowNames} />
       <SceneOption label="동작 강조" checked={emphasize} enabled={sceneOptions} onChange={setEmphasize} />
       <SceneOption label="설비 동작" checked={equipmentMotion} enabled={sceneOptions} onChange={setEquipmentMotion} />
-      <RunReadiness p={p} onGoBlocker={onGoBlocker} />
+      <RunReadiness p={p} onGoBlocker={onGoBlocker} emphasizeFirst={emphasizeFirst} />
       <h3>동작 시간 · 타임아웃</h3>
       {locked && <p className="run3d-lock" data-duration-locked="true" data-timeout-locked="true">실행 중 · 일시정지 중에는 동작 시간과 타임아웃을 바꿀 수 없습니다. 초기화한 뒤 편집하세요.</p>}
       {p.units.map((unit) => {
