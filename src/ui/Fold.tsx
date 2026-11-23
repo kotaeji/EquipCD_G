@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { IconLabel } from './Icon';
+import './fold.css';
 
 /**
  * Collapsible block. Without `open`, it starts open and the choice stays in this component.
@@ -14,12 +16,12 @@ export function Fold({ className, summary, children, open: openProp, onToggle }:
   const [inner, setInner] = useState(true);
   const open = openProp ?? inner;
   return (
-    <details className={className} open={open} onToggle={(e) => {
+    <details className={className ? `ecd-fold ${className}` : 'ecd-fold'} open={open} onToggle={(e) => {
       const next = (e.currentTarget as HTMLDetailsElement).open;
       if (onToggle) onToggle(next);
       else setInner((v) => (v === next ? v : next));
     }}>
-      <summary>{summary}</summary>
+      <summary><IconLabel id={open ? 'fold' : 'unfold'}>{summary}</IconLabel></summary>
       {children}
     </details>
   );

@@ -4,6 +4,7 @@ import type { RuntimeState } from '../runtime/engine';
 import { chartPlotWidth, timingChart, type TimingBar, type TimingLane, type TimingRow } from '../runtime/timingChart';
 import { formatMs } from '../scene/runInfo';
 import { EmptyState } from './EmptyState';
+import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 import { STATUS } from './status';
 import './timing-chart.css';
@@ -68,7 +69,7 @@ export function TimingChart({ p, rt, onPick, onRun, runDisabled, runReason }: {
   if (model.empty) {
     return (
       <div className="timing-chart" data-timing-empty="">
-        <EmptyState symbol={STATUS.pending.mark} line="실행 기록이 없습니다." actions={[{ label: '실행', onClick: onRun, disabled: runDisabled, reason: runReason }]} />
+        <EmptyState symbol={STATUS.pending.mark} line="실행 기록이 없습니다." actions={[{ label: '실행', icon: 'run', onClick: onRun, disabled: runDisabled, reason: runReason }]} />
       </div>
     );
   }
@@ -83,15 +84,15 @@ export function TimingChart({ p, rt, onPick, onRun, runDisabled, runReason }: {
       <div className="timing-tools">
         <div role="radiogroup" aria-label="타이밍 줄">
           {([
-            ['unit', 'Unit 별'],
-            ['device', 'Device 별'],
-            ['piece', '개체 별'],
-          ] as const).filter(([id]) => model.lanes.includes(id)).map(([id, label]) => (
-            <button key={id} type="button" className="small" role="radio" aria-checked={model.lane === id} data-timing-lane={id} onClick={() => setRequested(id)}>{label}</button>
+            ['unit', 'Unit 별', 'object-unit'],
+            ['device', 'Device 별', 'object-device'],
+            ['piece', '개체 별', 'run-piece'],
+          ] as const).filter(([id]) => model.lanes.includes(id)).map(([id, label, icon]) => (
+            <button key={id} type="button" className="small" role="radio" aria-checked={model.lane === id} data-timing-lane={id} onClick={() => setRequested(id)}><IconLabel id={icon}>{label}</IconLabel></button>
           ))}
         </div>
-        <button type="button" className="small" aria-label="축소" disabled={zoom <= 1} onClick={zoomDown}>축소</button>
-        <button type="button" className="small" aria-label="확대" disabled={zoom >= 4} onClick={zoomUp}>확대</button>
+        <button type="button" className="small" aria-label="축소" disabled={zoom <= 1} onClick={zoomDown}><IconLabel id="zoom-out">축소</IconLabel></button>
+        <button type="button" className="small" aria-label="확대" disabled={zoom >= 4} onClick={zoomUp}><IconLabel id="zoom-in">확대</IconLabel></button>
         <span className="timing-zoom">{zoom}×</span>
         <span className="muted">가정 시간 · 실제 택트 아님</span>
       </div>

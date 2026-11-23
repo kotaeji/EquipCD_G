@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { clampMenu, MENU_WIDTH, menuHeight, type MenuAction, type MenuItem, type MenuKind } from './contextMenuModel';
+import { IconLabel } from './Icon';
+import { menuIconId } from './icons';
 
 interface Props {
   x: number;
@@ -99,7 +101,7 @@ export function ContextMenu({ x, y, kind, items, returnFocus, onRun, onClose }: 
             title={item.reason}
             onClick={() => { acted.current = true; onRun(item.id); }}
           >
-            <span>{item.label}</span>
+            <span className="ctx-label"><IconLabel id={menuIconId(item.id, item.label) ?? item.id}>{item.label}</IconLabel></span>
             {item.shortcut && <span className="ctx-key">{item.shortcut}</span>}
           </button>
         </div>

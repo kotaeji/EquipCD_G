@@ -2,9 +2,10 @@
 // The shortcut sheet is TURN-053. This panel only opens it.
 import { useEffect, useRef } from 'react';
 import { GLOSSARY, GLOSSARY_ORDER } from './glossary';
-import type { HelpTopic } from './helpCopy';
+import { manualLine, type HelpTopic } from './helpCopy';
 import { TOUR_AGAIN } from './tour';
 import { dialogOpen } from './WorkspacePanels';
+import { IconLabel } from './Icon';
 import './help-panel.css';
 
 export function HelpPanel({ topic, onClose, onTour, onShortcuts }: {
@@ -38,7 +39,7 @@ export function HelpPanel({ topic, onClose, onTour, onShortcuts }: {
     >
       <div className="help-head">
         <h2 id="help-title">{topic.title}</h2>
-        <button type="button" className="btn-main secondary" data-help-close onClick={onClose}>닫기</button>
+        <button type="button" className="btn-main secondary" data-help-close onClick={onClose}><IconLabel id="close">닫기</IconLabel></button>
       </div>
       <section>
         <h3>이 화면에서 하는 일</h3>
@@ -52,7 +53,7 @@ export function HelpPanel({ topic, onClose, onTour, onShortcuts }: {
         <h3>막힐 때</h3>
         <ul>{topic.stuck.map((line) => <li key={line}>{line}</li>)}</ul>
       </section>
-      <p className="help-manual" data-help-manual={`${topic.manual.section} ${topic.manual.title}`}>매뉴얼 {topic.manual.section} {topic.manual.title}</p>
+      <p className="help-manual" data-help-manual={manualLine(topic.manual)}>{manualLine(topic.manual)}</p>
       <div className="help-actions">
         <button type="button" className="btn-main secondary" data-help-tour onClick={(e) => onTour(e.currentTarget)}>{TOUR_AGAIN}</button>
         <button type="button" className="btn-main secondary" data-help-shortcuts onClick={onShortcuts}>단축키 목록</button>
