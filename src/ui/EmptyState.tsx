@@ -1,10 +1,12 @@
 import { useEffect, useState, type ButtonHTMLAttributes } from 'react';
-import { EmptyMark } from './Icon';
+import { EmptyMark, IconLabel } from './Icon';
 
 type ButtonExtra = ButtonHTMLAttributes<HTMLButtonElement> & Record<`data-${string}`, string | undefined>;
 
 export interface EmptyButton {
   label: string;
+  /** Icon id from the meaning table. The label stays the accessible name. */
+  icon?: string;
   onClick?: () => void;
   disabled?: boolean;
   reason?: string;
@@ -25,7 +27,7 @@ export function EmptyState({ symbol = '○', line, actions = [], attrs }: {
       {actions.length > 0 && (
         <div className="empty-actions">
           {actions.map((a) => (
-            <button key={a.label} type="button" disabled={a.disabled} title={a.disabled ? a.reason : undefined} onClick={a.onClick} {...a.attrs}>{a.label}</button>
+            <button key={a.label} type="button" disabled={a.disabled} title={a.disabled ? a.reason : undefined} onClick={a.onClick} {...a.attrs}>{a.icon ? <IconLabel id={a.icon}>{a.label}</IconLabel> : a.label}</button>
           ))}
         </div>
       )}
