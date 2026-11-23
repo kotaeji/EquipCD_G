@@ -16,7 +16,7 @@ type Arm = 'then' | 'else' | 'body' | number;
 interface Row {
   key: string;
   depth: number;
-  kind: 'step' | 'branch' | 'parallel' | 'loop' | 'retry' | 'substation' | 'arm';
+  kind: 'step' | 'branch' | 'parallel' | 'loop' | 'retry' | 'wait' | 'substation' | 'arm';
   title: string;
   stepId?: string;
   blockId?: string;
@@ -50,6 +50,8 @@ function flatten(p: Project, nodes: FlowNode[], depth: number): Row[] {
     } else if (n.kind === 'retry') {
       out.push({ key: n.id, depth, kind: 'retry', title: flowBlockWord('retry'), blockId: n.id, node: n });
       out.push(...flatten(p, n.body, depth + 1));
+    } else if (n.kind === 'wait') {
+      out.push({ key: n.id, depth, kind: 'wait', title: flowBlockWord('wait'), blockId: n.id, node: n });
     } else {
       const unit = p.units.find((u) => u.id === n.unitId);
       out.push({ key: n.id, depth, kind: 'substation', title: `Substation ${unit?.name ?? n.unitId}`, blockId: n.id, node: n });
@@ -87,7 +89,7 @@ function CondSelect({ p, cond, disabled, onChange }: { p: Project; cond: Conditi
 }
 
 function isBlockKind(kind: Row['kind']): kind is FlowBlockKind {
-  return kind === 'branch' || kind === 'parallel' || kind === 'loop' || kind === 'retry';
+  return kind === 'branch' || kind === 'parallel' || kind === 'loop' || kind === 'retry' || kind === 'wait';
 }
 
 function nodeIdOf(row: Row): string | null {
@@ -120,7 +122,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
   const rows = flatten(p, nodes, 0);
   const toggle = (id: string) => setPicked((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
   const selected = rows.map(nodeIdOf).filter((id): id is string => !!id && picked.includes(id));
-  const wrap = (kind: FlowBlockKind, label: string) => {
+  const wrap = (kind: C.WrapKind, label: string) => {
     if (edit(C.wrapFlow(p, selected, kind), label)) setPicked([]);
   };
   const onKey = (e: React.KeyboardEvent<HTMLTableRowElement>, row: Row) => {
@@ -146,6 +148,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
         {p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
       </select>
       <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}>Substation 시퀀스 넣기</button>
+      <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}>신호 기다림 추가</button>
     </div>
     <p className="muted" style={{ fontSize: 11 }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>
     <p className="muted" style={{ fontSize: 11 }}>병렬로 묶으면 고른 줄이 갈래마다 하나씩 나뉩니다.</p>
@@ -159,7 +162,8 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
           const blockName = row.node && 'name' in row.node ? row.node.name : '';
           const selectLabel = isBlockKind(row.kind) ? flowBlockTitle(row.kind, blockName) : row.title;
           const live = row.stepId ? statusOf(rt, row.stepId) : null;
-          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-jump={row.stepId ? `step:${row.stepId}` : undefined} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
+          const jump = row.kind === 'wait' && row.blockId ? `flow:${row.blockId}` : row.stepId ? `step:${row.stepId}` : undefined;
+          return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
             <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={picked.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
@@ -168,6 +172,12 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
               {row.kind === 'arm' && <span className="muted"> {row.title === '참' ? '(조건이 참)' : row.title === '거짓' ? '(조건이 거짓)' : ''}</span>}
             </td>
             <td>
+              {row.node?.kind === 'wait' && <div className="row" style={{ gap: 4 }}>
+                <CondSelect p={p} cond={row.node.cond} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '기다림 조건')} />
+                <label style={{ whiteSpace: 'nowrap' }}>타임아웃 <input aria-label="기다림 타임아웃" type="number" min={0} step={0.1} disabled={locked} value={row.node.timeout.value ?? ''} style={{ width: 64 }}
+                  onChange={(e) => edit(C.setWaitTimeout(p, row.blockId!, e.target.value === '' ? null : Number(e.target.value)), '기다림 타임아웃')} />s</label>
+              </div>}
+              {row.node?.kind === 'wait' && <div className="muted" style={{ fontSize: 11 }}>{condLabel(p, row.node.cond)}</div>}
               {row.node?.kind === 'branch' && <CondSelect p={p} cond={row.node.cond} disabled={locked} onChange={(c) => edit(C.setFlowCondition(p, row.blockId!, c), '분기 조건')} />}
               {row.node?.kind === 'branch' && <div className="muted" style={{ fontSize: 11 }}>{condLabel(p, row.node.cond)}</div>}
               {row.node?.kind === 'retry' && <div className="row" style={{ gap: 4 }}>
@@ -189,7 +199,8 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowNode(p, id, 1), row.kind === 'step' ? '단계 아래로' : '블록 아래로')}>아래로</button>
                 <button type="button" className="small" disabled={locked || !p.sequence.flow} onClick={() => edit(C.moveFlowOut(p, id), '블록 밖으로')}>밖으로</button>
               </>}
-              {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}>블록 풀기</button>}
+              {row.blockId && row.kind !== 'arm' && row.kind !== 'step' && row.kind !== 'wait' && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '블록 풀기')}>블록 풀기</button>}
+              {row.kind === 'wait' && row.blockId && <button type="button" className="small" disabled={locked} onClick={() => edit(C.unwrapFlow(p, row.blockId!), '신호 기다림 삭제')}>삭제</button>}
               {row.kind === 'arm' && row.arm != null && selected.length > 0 && <button type="button" className="small" disabled={locked} onClick={() => { if (edit(C.moveFlowInto(p, selected[0], row.blockId!, row.arm as Arm), '갈래로 옮기기')) setPicked(selected.slice(1)); }}>선택 넣기</button>}
             </td>
           </tr>;

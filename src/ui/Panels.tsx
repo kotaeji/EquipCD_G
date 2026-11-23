@@ -204,6 +204,9 @@ export function RunReadiness({ p, onGoBlocker }: { p: Project; onGoBlocker?: (b:
       {readiness.warnings.filter((w) => w.code === 'INTERLOCK_NO_RULE' || w.code === 'INTERLOCK_UNDETERMINED').map((w) => (
         <p key={w.id} className="notice" data-interlock-notice={w.objectId}>{w.message}</p>
       ))}
+      {readiness.warnings.filter((w) => w.code === 'WAIT_UNREACHABLE').map((w) => (
+        <p key={w.id} className="notice" data-wait-notice={w.objectId}>{w.message}</p>
+      ))}
       {!readiness.ok && <ul className="diaglist blockers">{readiness.blockers.map((b) => { const g = resolveBlocker(p, b, readiness.blockers); const c = guideCopy(b.code, g); return <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
         <div className="err-text"><span className="mono">[{b.code}]</span> {b.message}</div>
         <div className="blocker-go">{c.badge && <span className="badge warn">{c.badge}</span>}<span>{c.lead}</span>
@@ -400,7 +403,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
 export function SfcPanel({ p, rt }: { p: Project; rt: RuntimeState | null }) {
   return (
     <div>
-      <div className="notice">Station 흐름의 SFC 미리보기입니다. 분기는 갈래 조건 글자, 병렬은 이중 가로선, 반복은 되돌림과 횟수, 재시도는 되돌림과 최대 횟수, Substation 단계는 시퀀스 이름이 든 병렬로 보입니다.</div>
+      <div className="notice">Station 흐름의 SFC 미리보기입니다. 분기는 갈래 조건 글자, 병렬은 이중 가로선, 반복은 되돌림과 횟수, 재시도는 되돌림과 최대 횟수, 신호 기다림은 조건이 적힌 둥근 칸, Substation 단계는 시퀀스 이름이 든 병렬로 보입니다.</div>
       <SfcView p={p} rt={rt} />
     </div>
   );

@@ -42,14 +42,15 @@ export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: Runtim
                 {summary.steps.map((step, i) => {
                   const longest = summary.longest?.stepId === step.stepId && summary.longest.elapsedMs === step.elapsedMs
                     && summary.steps.findIndex((s) => s.stepId === step.stepId && s.elapsedMs === step.elapsedMs) === i;
-                  const where = [step.lane, step.pass != null ? `${step.pass}회` : ''].filter(Boolean).join(' · ');
-                  const shape = phaseShape(step.status);
+                  const where = [step.lane, step.pass != null ? `${step.pass}회` : '', step.condText].filter(Boolean).join(' · ');
+                  const shape = step.wait && step.status === 'active' ? phaseShape('pending') : phaseShape(step.status);
+                  const word = step.wait && step.status === 'active' ? '대기' : shape.word;
                   const tone = step.status === 'error' ? 'run-summary-error' : step.status === 'stopped' ? 'run-summary-stopped' : undefined;
                   return (
                     <tr key={`${step.stepId}:${i}`} className={`${stepLiveClass(step.status)}${longest ? ' is-longest' : ''}`} data-step-id={step.stepId}>
                       <td>{step.name}{longest && <span className="run-summary-tag">가장 김</span>}</td>
                       <td>{where || '—'}</td>
-                      <td><StatusMark status={shape.status} word={shape.word} wordAttrs={tone ? { className: tone } : undefined} /></td>
+                      <td><StatusMark status={shape.status} word={word} wordAttrs={tone ? { className: tone } : undefined} /></td>
                       <td className="mono">{dash(step.startMs)}</td>
                       <td className="mono">{dash(step.endMs)}</td>
                       <td className="mono">{dash(step.elapsedMs)}</td>

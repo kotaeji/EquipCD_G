@@ -604,6 +604,9 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   outline: 2px solid var(--status-active, var(--accent));
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-active, var(--accent)) 25%, transparent);
 }
+.rf-device.is-paused,
+.rf-unit.is-paused { outline: 2px dashed var(--status-pending); }
+.rf-paused-word { font-size: 11px; font-weight: 700; color: var(--status-pending); margin-left: 4px; }
 .rf-device.is-fault { outline: 2px solid var(--status-error, var(--danger)); }
 .rf-run-mark { position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%); z-index: 3; pointer-events: none; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .rf-interlock-word { font-size: 11px; font-weight: 700; color: var(--status-error); }

@@ -325,12 +325,13 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
     if (photo) {
       for (const part of photoPartsFor(solid.shape, solid.draw.w, solid.draw.d)) group.add(styledMesh(part, deltaFor(part.motion)));
       if (emphasize && solid.highlight !== 'none') {
-        group.add(markerRing(solid.draw.w, solid.draw.d, solid.highlight === 'fault' ? palette.fault : palette.active));
+        group.add(markerRing(solid.draw.w, solid.draw.d, solid.highlight === 'fault' ? palette.fault : solid.highlight === 'paused' ? palette.pending : palette.active));
       }
     } else {
       const color = solid.highlight === 'fault' && emphasize ? palette.fault
-        : solid.highlight === 'active' && emphasize ? palette.active
-          : palette.solid;
+        : solid.highlight === 'paused' && emphasize ? palette.pending
+          : solid.highlight === 'active' && emphasize ? palette.active
+            : palette.solid;
       for (const part of solid.parts) group.add(partMesh(part, color, deltaFor(part.motion)));
     }
     root.add(group);
@@ -400,7 +401,9 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   const kept = cullOverlappingLabels(boxes).filter((label) => label.kind !== 'unit');
   layer.replaceChildren(...kept.map((label) => {
     const el = document.createElement('div');
-    const marker = label.kind === 'marker' ? (label.text === markerText('fault') ? ' fault' : ' active') : '';
+    const marker = label.kind === 'marker'
+      ? (label.text.includes('일시정지') ? ' paused' : label.text.includes(markerText('fault')) || label.text.includes('오류') ? ' fault' : ' active')
+      : '';
     const waiting = label.kind === 'material' && label.text.startsWith(`${waitingLead()}`);
     el.className = `scene3d-label ${label.kind}${marker}${waiting ? ' waiting' : ''}`;
     el.textContent = label.text;

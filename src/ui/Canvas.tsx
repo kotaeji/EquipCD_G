@@ -33,6 +33,7 @@ import { StatusMark } from './StatusMark';
 import { STATUS, waitingLead } from './status';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
+import { pausedDeviceIds, pausedUnitIds } from '../scene/describe';
 import { Symbol } from './Symbols';
 import { overlappingUnitIds, rectsOverlap, unitMinSize, type Box } from '../model/unitLayout';
 import {
@@ -211,10 +212,11 @@ type UnitData = {
   unitId: string; code: string; name: string; meta: string; w: number; h: number;
   selected: boolean; from: boolean; off: boolean; overlap: boolean; tone: string;
   showResize: boolean; minW: number; minH: number; api: DragApi;
+  paused?: boolean;
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
-  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean; fault: boolean; interlock: boolean; tone: string;
+  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean; fault: boolean; interlock: boolean; paused: boolean; tone: string;
   extended: boolean; raised: boolean; holding: boolean; photo: boolean;
   signals: Signal[]; onIds: string[]; positions: { id: string; name: string; assumption: boolean; current: boolean }[];
   showPositions: boolean; mode: Mode; link: SignalLink | null; api: DragApi;
@@ -271,7 +273,7 @@ function UnitNode({ data }: NodeProps) {
   }, []);
   return (
     <div
-      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.tone}`}
+      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.paused ? ' is-paused' : ''}${d.tone}`}
       style={{ width: d.w, height: d.h }}
       onPointerDown={(e) => {
         if ((e.target as HTMLElement).closest('.react-flow__resize-control')) { e.stopPropagation(); return; }
@@ -293,6 +295,7 @@ function UnitNode({ data }: NodeProps) {
       <div className="rf-unit-head">
         <span className="rf-code">{d.code}</span>
         <span className="rf-unit-name">{d.name}</span>
+        {d.paused && <span className="rf-paused-word" data-unit-paused={d.unitId}>일시정지</span>}
         <span className="rf-unit-meta">{d.meta}</span>
       </div>
       <Handle type="target" position={Position.Left} id="flow-in" isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
@@ -311,7 +314,7 @@ function DeviceNode({ data }: NodeProps) {
   const photo = d.photo ? resolveGenerated(dev.kind) : null;
   return (
     <div
-      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}${d.tone}`}
+      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.paused ? ' is-paused' : d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}${d.tone}`}
       style={{ width: dev.layout.w, height: dev.layout.h }}
       onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
       onPointerMove={(e) => d.api.move(e, nodeIdOf(e.currentTarget))}
@@ -325,7 +328,7 @@ function DeviceNode({ data }: NodeProps) {
           <rect width={dev.layout.w} height={dev.layout.h} rx={3} fill="none" stroke="var(--border)" strokeWidth={1} />
         </svg>
         : <svg width={dev.layout.w} height={dev.layout.h}><Symbol kind={dev.kind} w={dev.layout.w} h={dev.layout.h} st={{ active: d.active, extended: d.extended, raised: d.raised, holding: d.holding }} /></svg>}
-      {(d.fault || d.active) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : 'active'} />{d.interlock && <span className="rf-interlock-word">Interlock</span>}</div>}
+      {(d.fault || d.paused || d.active) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : d.paused ? 'assumption' : 'active'} word={d.paused ? '일시정지' : undefined} />{d.interlock && <span className="rf-interlock-word">Interlock</span>}</div>}
       <div className="rf-dev-name">{dev.name}</div>
       {d.photo && <div className={`rf-photo-note ${photo?.status === 'available' ? 'ok' : 'miss'}`}>{photo?.status === 'available' ? `${AI_BADGE} 실사풍·실제 사진 아님` : 'AI 이미지 미준비→도식'}</div>}
       {d.showPositions && d.positions.length > 0 && (
@@ -615,6 +618,8 @@ function FlowCanvas(props: Props) {
     const toName = toDev?.name ?? c.to.nodeId;
     return signalCaption(fromName, portWord(fromName, fromSig?.name, fromSig?.portKey), toName, portWord(toName, toSig?.name, toSig?.portKey));
   };
+  const pausedUnits = new Set(pausedUnitIds(rt));
+  const pausedDevices = new Set(pausedDeviceIds(p, rt));
   const nodes: Node[] = [];
   for (const u of p.units) {
     const box = boxes.find((b) => b.id === u.id)!;
@@ -632,7 +637,7 @@ function FlowCanvas(props: Props) {
         w: box.w, h: box.h, selected, from: connectFrom === u.id,
         off: !L.units, overlap: overlap.has(u.id), tone: toneOf(u.id),
         showResize: selected && mode === 'select' && !props.locked && L.units,
-        minW: min.w, minH: min.h, api,
+        minW: min.w, minH: min.h, api, paused: pausedUnits.has(u.id),
       } satisfies UnitData,
     });
   }
@@ -655,6 +660,7 @@ function FlowCanvas(props: Props) {
         active: activeDevice === d.id || pieceDevices.has(d.id) || !!props.activeDeviceIds?.includes(d.id),
         fault: !!props.faultDeviceIds?.includes(d.id),
         interlock: !!props.interlockDeviceIds?.includes(d.id),
+        paused: pausedDevices.has(d.id),
         extended: d.kind === 'cylinder' ? sigOn(d.id, 'cmdFwd') || sigOn(d.id, 'fwdDone')
           : d.kind === 'pusher' ? sigOn(d.id, 'cmdPush') || sigOn(d.id, 'pushDone')
           : d.kind === 'gantry' ? (rt?.devicePositions?.[d.id] ?? null) !== null || sigOn(d.id, 'cmdMove') : false,

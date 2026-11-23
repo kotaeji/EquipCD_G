@@ -10,7 +10,7 @@ import { applyEdit, initHistory, redo, undo, type History } from '../model/histo
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
-import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
+import { advance, createRuntime, pause, pauseSubstation, reset, resume, resumeSubstation, runToEnd, start, type Runtime } from '../runtime/engine';
 import { activeDeviceIds as sceneActiveIds, faultDeviceIds, interlockFaultDeviceIds } from '../scene/describe';
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
@@ -325,6 +325,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const doReset = () => updTab(tab.key, (t) => (t.runtime ? { ...t, runtime: reset(t.runtime), runRecord: null } : t));
   const doStep = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'paused' ? keepRun(t, pause(advance(resume(t.runtime), 100))) : t));
   const doToEnd = () => updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? keepRun(t, runToEnd(t.runtime)) : t));
+  const doPauseSub = (nodeId: string) => updTab(tab.key, (t) => (t.runtime ? keepRun(t, pauseSubstation(t.runtime, nodeId)) : t));
+  const doResumeSub = (nodeId: string) => updTab(tab.key, (t) => (t.runtime ? keepRun(t, resumeSubstation(t.runtime, nodeId)) : t));
 
   const onActionQuantity = (actionId: string, field: 'duration' | 'timeout', value: number) => {
     const action = p.actions.find((a) => a.id === actionId);
@@ -937,6 +939,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!g.dest) return;
     if (subUnitId) setSubUnitPref(subUnitId);
     if (g.focus) { setSelection([g.focus.id]); setRightTab(g.focus.kind === 'device' ? 'actions' : 'props'); }
+    if (g.field) {
+      jumpRef.current = { step: g.dest.step, sub: g.dest.sub, field: g.field };
+      setJumpTick((n) => n + 1);
+    }
     goStep(g.dest.step, g.dest.sub);
   };
   const listEval = itemsStep ? evals[itemsStep] : null;
@@ -1546,7 +1552,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <h2>Substation 시퀀스</h2>
             <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} confirmDelete={confirmDelete} gs={null} />
           </section>}
-          {sub === 'sfc' && <section className="sheet wide"><h2>SFC 미리보기</h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · Substation 단계를 읽기 전용으로 그립니다.</p><SfcPanel p={p} rt={rt} /></section>}
+          {sub === 'sfc' && <section className="sheet wide"><h2>SFC 미리보기</h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · 신호 기다림 · Substation 단계를 읽기 전용으로 그립니다.</p><SfcPanel p={p} rt={rt} /></section>}
           {sub === 'extend' && <><ExtendSheet /><Fold className="fold-panel" summary="미구현 안내"><ExtendPanel /></Fold></>}
         </div>
       </div>}
@@ -1587,7 +1593,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
           <span className="badge">실행 전 검사 {evals.check.items.some((i) => i.level === 'missing') ? '미통과' : '통과'}</span></div>
-        <RunStepsPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} />
+        <RunStepsPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} onPauseSubstation={doPauseSub} onResumeSubstation={doResumeSub} />
         <div className="run-center">
           <RunSummaryStrip p={p} rt={rt} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
           {rt?.error?.code === 'INTERLOCK_BLOCK' && <section className="notice err" aria-label="실행이 막힐 때" data-interlock-guide="">

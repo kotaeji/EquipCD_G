@@ -28,8 +28,10 @@ function deviceState(p: Project, rt: RuntimeState | null, deviceId: string): { s
   return { status: shape.status, word: stepStatusLabel(last.status) };
 }
 
-function barMark(bar: { status: string; statusLabel: string; stepId?: string }, rt: RuntimeState | null): { status: StatusKey; word: string } {
+function barMark(bar: { status: string; statusLabel: string; stepId?: string; wait?: boolean; substationPaused?: boolean }, rt: RuntimeState | null): { status: StatusKey; word: string } {
   if (bar.statusLabel === '가정') return { status: 'assumption', word: '가정' };
+  if (bar.substationPaused) return { status: 'assumption', word: '일시정지' };
+  if (bar.wait && bar.status === 'active') return { status: 'pending', word: '대기' };
   const shape = phaseShape(bar.status);
   const blocked = rt?.error?.code === 'INTERLOCK_BLOCK' && bar.status === 'error'
     && (rt.error.stepId === bar.stepId || (rt.interlockBlocks ?? []).some((row) => row.stepId === bar.stepId));
@@ -113,16 +115,18 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
 }
 
 function whereText(bar: RunInfoBar): string {
-  return [bar.lane, bar.pass != null ? `${bar.pass}회` : ''].filter(Boolean).join(' · ');
+  return [bar.lane, bar.pass != null ? `${bar.pass}회` : '', bar.condText].filter(Boolean).join(' · ');
 }
 
 /** Left column: step times, unit totals, and the selected device. */
-export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold }: {
+export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold, onPauseSubstation, onResumeSubstation }: {
   p: Project;
   rt: RuntimeState | null;
   selectedId: string | null;
   folded: boolean;
   onToggleFold: () => void;
+  onPauseSubstation?: (nodeId: string) => void;
+  onResumeSubstation?: (nodeId: string) => void;
 }) {
   const info = describeRunInfo(p, rt);
   const listRef = useRef<HTMLUListElement>(null);
@@ -152,16 +156,24 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold }: {
               </li>
             ))}
           </ul>}
+          {(rt?.pausedSubstations?.length ?? 0) > 0 && <p className="notice" data-sub-hold="">{`Substation ${rt!.pausedSubstations!.length}개 일시정지 중`}</p>}
           <ul className="run3d-bars run-steps-scroll" ref={listRef}>
-            {info.bars.map((bar) => (
-              <li key={bar.key} className={`${stepLiveClass(bar.status)}${bar.longest ? ' is-longest' : ''}`} data-step-id={bar.stepId} data-step-key={bar.key} data-elapsed={bar.timeText}>
+            {info.bars.map((bar) => {
+              const mark = barMark(bar, rt);
+              const canToggle = rt?.status === 'running' && bar.substationNodeId && bar.status === 'active';
+              return (
+              <li key={bar.key} className={`${stepLiveClass(bar.substationPaused ? 'stopped' : bar.status)}${bar.longest ? ' is-longest' : ''}${bar.wait ? ' is-wait' : ''}`} data-step-id={bar.stepId} data-step-key={bar.key} data-elapsed={bar.timeText} data-wait={bar.wait ? 'true' : undefined} data-substation={bar.substationNodeId}>
                 <span className="run3d-bar-name" title={bar.name}>{bar.name}</span>
                 <span className="run3d-bar-where" data-lane={bar.lane ?? ''} data-pass={bar.pass != null ? String(bar.pass) : ''}>{whereText(bar) || '—'}</span>
-                <span className="run3d-bar-status"><StatusMark status={barMark(bar, rt).status} word={barMark(bar, rt).word} /></span>
+                <span className="run3d-bar-status"><StatusMark status={mark.status} word={mark.word} /></span>
+                {canToggle && (bar.substationPaused
+                  ? <button type="button" className="small" data-sub-resume={bar.substationNodeId} onClick={() => onResumeSubstation?.(bar.substationNodeId!)}>재개</button>
+                  : <button type="button" className="small" data-sub-pause={bar.substationNodeId} onClick={() => onPauseSubstation?.(bar.substationNodeId!)}>이 Substation 일시정지</button>)}
                 <span className="run3d-bar-track" aria-hidden="true"><span className="run3d-bar-fill" style={{ width: `${Math.min(100, (bar.widthMs / maxMs) * 100)}%` }} /></span>
                 <span className="mono run3d-bar-time">{bar.timeText}</span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </section>
         <section className="run-steps-units" aria-label="Unit 별 합계">

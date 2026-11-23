@@ -1,13 +1,14 @@
 import { findAsset } from '../assets/library';
 import type { Condition, MaterialEffect, Project } from '../model/types';
 
-export type FlowBlockKind = 'branch' | 'parallel' | 'loop' | 'retry';
+export type FlowBlockKind = 'branch' | 'parallel' | 'loop' | 'retry' | 'wait';
 
 const FLOW_BLOCK_WORD: Record<FlowBlockKind, string> = {
   branch: '분기',
   parallel: '병렬',
   loop: '반복',
   retry: '재시도',
+  wait: '신호 기다림',
 };
 
 /** Shared block heading for the flow table and the SFC. The kind word is not repeated when it is already the name. */
