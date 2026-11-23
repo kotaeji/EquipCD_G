@@ -6,6 +6,7 @@ import { fmtTime } from './Panels';
 import { RunSummary } from './RunSummary';
 import { EmptyState } from './EmptyState';
 import { Problem } from './Problem';
+import { runBlockFormula } from '../model/conditionFormula';
 import { EMPTY, runErrorProblem } from './problemCopy';
 import { StatusMark } from './StatusMark';
 import { piecePhaseStatus } from './status';
@@ -116,7 +117,8 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
       </div>
       {open && <div className="run-details-body">
         {rt?.error && (() => {
-          const copy = runErrorProblem(rt.error.code, rt.error.message, null);
+          const phrase = runBlockFormula(p, rt.error.code, rt.error.stepId);
+          const copy = runErrorProblem(rt.error.code, rt.error.message, null, phrase);
           return copy ? <Problem copy={{ ...copy, jump: onJumpError ? copy.jump : undefined }} onJump={onJumpError} /> : null;
         })()}
         <InterlockHistory rows={rt?.interlockBlocks ?? []} onJump={onJumpInterlock} />

@@ -7,6 +7,7 @@ import type { Diagnostic } from '../model/validate';
 import { resolveBlocker, type BlockerGuide } from './blockerTarget';
 import { blockerProblem, type ProblemCopy } from './problemCopy';
 import { StatusMark } from './StatusMark';
+import './problem.css';
 
 /** Shared problem: 무엇 · 왜 · 어떻게, plus a jump when there is a place to go. */
 export function Problem({ copy, onJump, compact, badge, buttonLabel, buttonAria, buttonAttrs }: {
@@ -39,28 +40,34 @@ export function Problem({ copy, onJump, compact, badge, buttonLabel, buttonAria,
 }
 
 /** Readiness rows. The code stays visible so the existing gate tests can find it. */
-export function BlockerList({ p, blockers, onGuide }: {
+export function BlockerList({ p, blockers, onGuide, emphasizeFirst }: {
   p: Project;
   blockers: Diagnostic[];
   onGuide?: (b: Diagnostic, g: BlockerGuide) => void;
+  /** After a jump away from step 6, mark the first row that is still blocking. */
+  emphasizeFirst?: boolean;
 }) {
   return (
-    <ul className="diaglist blockers">
-      {blockers.map((b) => {
-        const g = resolveBlocker(p, b, blockers);
-        const copy0 = blockerProblem(b.message, b.code, g);
-        const phrase = b.code === 'CONDITION_UNDEFINED' ? undefinedFormula(p, b.objectId) : '';
-        const copy = phrase ? { ...copy0, why: `${copy0.why} ${phrase}` } : copy0;
-        return (
-          <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
-            <span className="mono">[{b.code}]</span>
-            <Problem copy={copy} badge={copy.badge} buttonLabel={copy.jump} buttonAria={copy.jumpAria}
-              onJump={onGuide && copy.jump ? () => onGuide(b, g) : undefined}
-              buttonAttrs={{ 'data-blocker-code': b.code, 'data-guide-kind': g.kind }} />
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      {blockers.length >= 2 && <p className="blocker-remain" data-blocker-remain={blockers.length}>남은 차단 {blockers.length}개</p>}
+      <ul className="diaglist blockers">
+        {blockers.map((b, index) => {
+          const g = resolveBlocker(p, b, blockers);
+          const copy0 = blockerProblem(b.message, b.code, g);
+          const phrase = b.code === 'CONDITION_UNDEFINED' ? undefinedFormula(p, b.objectId) : '';
+          const copy = phrase ? { ...copy0, why: `${copy0.why} ${phrase}` } : copy0;
+          const next = !!emphasizeFirst && index === 0;
+          return (
+            <li key={b.id} className={`blocker-item${next ? ' is-next' : ''}`} data-guide-kind={g.kind} data-next-blocker={next ? '1' : undefined}>
+              <span className="mono">[{b.code}]</span>
+              <Problem copy={copy} badge={copy.badge} buttonLabel={copy.jump} buttonAria={copy.jumpAria}
+                onJump={onGuide && copy.jump ? () => onGuide(b, g) : undefined}
+                buttonAttrs={{ 'data-blocker-code': b.code, 'data-guide-kind': g.kind }} />
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 

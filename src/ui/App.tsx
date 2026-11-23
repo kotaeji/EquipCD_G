@@ -209,7 +209,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [helpScope, setHelpScope] = useState<'main' | 'explorer'>('main');
   const helpReturn = useRef<HTMLElement | null>(null);
   const helpWas = useRef(false);
-  const goStep = (s: StepId, sub?: string) => { setHelpScope('main'); setView((v) => ({ ...v, step: s, home: false })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsStep(null); };
+  const pendingBlockerReturn = useRef(false);
+  const [nextBlocker, setNextBlocker] = useState(false);
+  const goStep = (s: StepId, sub?: string) => {
+    setHelpScope('main');
+    setView((v) => ({ ...v, step: s, home: false }));
+    if (sub) setSubTab((t) => ({ ...t, [s]: sub }));
+    setItemsStep(null);
+    if (s === 'run' && pendingBlockerReturn.current) {
+      pendingBlockerReturn.current = false;
+      setNextBlocker(true);
+    } else if (s !== 'run') setNextBlocker(false);
+  };
   const pickRight = (k: string) => { setHelpScope('main'); setRightTab(k); };
   const toggleItems = (s: StepId) => setItemsStep((cur) => (cur === s ? null : s));
   const chooseTheme = (mode: 'light' | 'dark') => { const next = mode === 'dark' ? 'B' as const : 'A' as const; setView((v) => (v.theme === next ? v : { ...v, theme: next })); };
@@ -1193,6 +1204,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const goBlocker = (_b: Diagnostic, g: BlockerGuide) => {
     if (!g.dest) return;
+    if (step === 'run') pendingBlockerReturn.current = true;
     if (subUnitId) setSubUnitPref(subUnitId);
     if (g.focus) { setSelection([g.focus.id]); pickRight(g.focus.kind === 'device' ? 'actions' : 'props'); }
     if (g.actionId) setActionFocus(g.actionId);
@@ -2015,8 +2027,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             const interlockId = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
             const rule = p.constraints.find((k) => k.id === interlockId)?.rule;
             const phrase = runBlockFormula(p, rt.error.code, rt.error.stepId, rule?.form === 'allow' ? rule.conditions : undefined);
-            const base = runErrorProblem(rt.error.code, rt.error.message, named);
-            const copy = base && phrase ? { ...base, why: `${base.why} ${phrase}` } : base;
+            const base = runErrorProblem(rt.error.code, rt.error.message, named, phrase);
+            const copy = base && phrase && rt.error.code !== 'WAIT_TIMEOUT' ? { ...base, why: `${base.why} ${phrase}` } : base;
             if (!copy) return null;
             const jump = rt.error.code === 'INTERLOCK_BLOCK'
               ? () => {
@@ -2028,7 +2040,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <Problem copy={copy} onJump={jump} />
             </section>;
           })()}
-          {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
+          {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} emphasizeFirst={nextBlocker} />}
           {propPeek && <section className="run-prop-peek" data-prop-peek aria-label="속성 보기">
             <div className="row"><b>속성 보기</b><button type="button" className="small" onClick={() => setPropPeek(false)}>닫기</button></div>
             <Inspector project={p} selectedId={selection[0] ?? null} locked gaps={tab.gaps} edit={edit} onAddStep={() => {}} onDelete={() => {}} confirmDelete={() => {}} onReparent={() => {}} tab="props" setTab={() => {}} visualMode={view.visualMode} />
@@ -2044,7 +2056,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
         <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
-          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} />
+          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} emphasizeFirst={nextBlocker} />
       </div>}
 
       <div className="statusbar">
