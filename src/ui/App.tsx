@@ -18,6 +18,8 @@ import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDraft, readDraftList, saveDraft, sweepDrafts, workTimesLabel, type DraftMeta } from '../storage/drafts';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
+import { CommandPaletteDialog, ShortcutSheet } from './CommandPalette';
+import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
 import { ContextMenu } from './ContextMenu';
 import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
 import { selectAll, SELECT_HINT } from './selectAll';
@@ -164,7 +166,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   });
   const [nameDlg, setNameDlg] = useState<NameDlg | null>(null);
   const [activeKey, setActiveKey] = useState(() => tabs[0].key);
+  useEffect(() => { setFlowPicked([]); }, [activeKey]);
   const [selection, setSelection] = useState<string[]>([]);
+  /** Station flow checkboxes. Kept here so a command from another step still sees them. */
+  const [flowPicked, setFlowPicked] = useState<string[]>([]);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutOpen, setShortcutOpen] = useState(false);
   /** App-held copy of Units or Devices. Shared by every project tab. Not the OS clipboard. */
   const [clip, setClip] = useState<Clipboard | null>(null);
   const [mode, setMode] = useState<Mode>('select');
@@ -660,18 +667,37 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   // ---------- keyboard ----------
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      const tag = (e.target as HTMLElement)?.tagName;
-      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-      // Bookmark (Ctrl/Cmd+D) is always swallowed. Duplicate itself still follows the dialog / input rule.
-      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'd') {
+      const target = e.target instanceof Element ? e.target : null;
+      const tag = target?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || isTextField(target);
+      const cmd = commandForEvent(e);
+      const blocked = dialogOpen() || tourIndex !== null;
+      // Ctrl/Cmd+K opens the palette from an input too. It does not open over a dialog or the tour.
+      if (cmd?.id === 'palette') {
         e.preventDefault();
-        if (dialogOpen() || typing) return;
+        if (paletteOpen) { setPaletteOpen(false); return; }
+        if (blocked) return;
+        setCtx(null);
+        setPaletteOpen(true);
+        return;
+      }
+      // `?` is a character while a field is focused. The sheet is not a model edit.
+      if (cmd?.id === 'shortcuts') {
+        if (typing) return;
+        if (blocked || paletteOpen) return;
+        e.preventDefault();
+        setShortcutOpen(true);
+        return;
+      }
+      // Bookmark (Ctrl/Cmd+D) is always swallowed. Duplicate itself still follows the dialog / input rule.
+      if (cmd?.id === 'duplicate') {
+        e.preventDefault();
+        if (blocked || typing) return;
         if (step === 'canvas' || step === 'attributes') requestDuplicate();
         return;
       }
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
-      if (dialogOpen()) return;
+      if (blocked) return;
       if (typing) return;
       if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
         const el = e.target as HTMLElement | null;
@@ -697,14 +723,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       // TURN-044. Step 2, and the explorer tree. An input already returned, so text copy stays native.
       const inTree = !!(e.target as HTMLElement | null)?.closest?.('.tree');
       const onCanvas = !view.home && !guide && step === 'canvas';
-      if (mod && !e.shiftKey && !e.altKey && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'v') && (onCanvas || inTree)) {
+      if ((cmd?.id === 'copy' || cmd?.id === 'paste') && (onCanvas || inTree)) {
         e.preventDefault();
-        if (e.key.toLowerCase() === 'c') requestCopy();
+        if (cmd.id === 'copy') requestCopy();
         else requestPaste();
         return;
       }
       // TURN-027. Step 2 only. Inputs and dialogs already returned, so the browser keeps its own Ctrl+A.
-      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+      if (cmd?.id === 'select-all') {
         if (view.home || guide || step !== 'canvas') return;
         e.preventDefault();
         const hit = selectAll(p, selection);
@@ -712,9 +738,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         else setSelection(hit.ids);
         return;
       }
-      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
-      else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); doRedo(); }
-      else if ((e.key === 'Delete' || e.key === 'Backspace') && (step === 'canvas' || step === 'attributes')) {
+      if (cmd?.id === 'undo') { e.preventDefault(); doUndo(); }
+      else if (cmd?.id === 'redo') { e.preventDefault(); doRedo(); }
+      else if (cmd?.id === 'delete' && (step === 'canvas' || step === 'attributes')) {
         if (selectedNodeIds.length >= 2) { e.preventDefault(); requestDeleteMany(selectedNodeIds); }
         else if (selection.length === 1) { e.preventDefault(); requestDelete(selection[0]); }
       }
@@ -1343,6 +1369,81 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); chooseTheme('dark'); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); chooseTheme('light'); }
   };
+  const macShortcut = usesMacShortcut();
+  const commandState: CommandState = {
+    step, home: !!view.home, locked, running, paused: rt?.status === 'paused',
+    idle: !rt || rt.status === 'idle', hasRuntime: !!tab.runtime,
+    canUndo: tab.history.past.length > 0, canRedo: tab.history.future.length > 0,
+    project: p, selection, hasClip: !!clip, flowPicked,
+    appearance, showNames, explorerOpen, minimapLayout: view.minimap.layout, minimapRun: view.minimap.run,
+    tourSeen: view.tourSeen,
+  };
+  const commandActions: CommandActions = {
+    goStep,
+    setLayoutTab: openLayoutTab,
+    setRunView,
+    save: doSave,
+    exportJson: () => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)),
+    importJson: () => fileRef.current?.click(),
+    newProject,
+    undo: doUndo,
+    redo: doRedo,
+    copy: requestCopy,
+    paste: requestPaste,
+    duplicate: requestDuplicate,
+    deleteSelection: () => {
+      if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds);
+      else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]);
+      else if (selection.length === 1) requestDelete(selection[0]);
+    },
+    selectAll: () => {
+      const hit = selectAll(p, selection);
+      if ('keep' in hit) say(hit.message, true);
+      else setSelection(hit.ids);
+    },
+    align: (mode) => { edit(C.alignNodes(p, selection, mode), mode === 'left' ? '왼쪽 정렬' : '위 정렬'); },
+    distribute: (axis) => runArrange(C.distributeUnits(p, selection, axis), axis === 'x' ? '가로 간격 같게' : '세로 간격 같게'),
+    matchSize: (axis) => runArrange(C.matchUnitSize(p, selection, axis), axis === 'w' ? '너비 같게' : '높이 같게'),
+    spread: () => runArrange(C.spreadUnits(p, selection, C.UNIT_SPREAD_GAP), '겹침 풀기'),
+    arrangeDevices: arrangeSelectedDevices,
+    fitUnit: fitSelectedUnit,
+    connectMode: (next) => { setMode(next); setConnectFrom(null); if (next === 'signal') openLayoutTab('diagram'); },
+    wrapFlow: (kind) => {
+      const label = kind === 'branch' ? '분기로 묶기' : kind === 'parallel' ? '병렬로 묶기' : kind === 'loop' ? '반복으로 묶기' : '재시도로 묶기';
+      if (edit(C.wrapFlow(p, flowPicked, kind), label)) setFlowPicked([]);
+    },
+    unwrapFlow: () => { const id = flowPicked[0]; if (id) edit(C.unwrapFlow(p, id), '블록 풀기'); },
+    addWait: () => { edit(C.addWaitNode(p), '신호 기다림 추가'); },
+    addSubstation: () => {
+      const unitId = p.units.find((u) => selection.includes(u.id))?.id ?? p.units[0]?.id;
+      if (unitId) edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기');
+    },
+    run: doRun,
+    pause: doPause,
+    resume: doResume,
+    stepTime: doStep,
+    reset: doReset,
+    toEnd: doToEnd,
+    fitView: () => setFitToken((n) => n + 1),
+    theme: chooseTheme,
+    toggleNames: () => setShowNames((v) => !v),
+    toggleMinimap: () => {
+      const frame = step === 'run' ? 'run' : 'layout';
+      onMinimapChange(frame, !view.minimap[frame]);
+    },
+    toggleExplorer,
+    openViewSettings: () => setViewOpen(true),
+    startTour: () => beginTour(document.querySelector<HTMLElement>('[aria-label="명령 찾기"]')),
+    openShortcuts: () => setShortcutOpen(true),
+    openPalette: () => setPaletteOpen(true),
+  };
+  const runCommand = (id: string) => {
+    const cmd = commandById(id);
+    if (!cmd || !cmd.available(commandState).ok) return;
+    setPaletteOpen(false);
+    setShortcutOpen(false);
+    cmd.run(commandActions, commandState);
+  };
 
   return (
     <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen}>
@@ -1350,6 +1451,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><BrandMark /><span className="title">{PRODUCT_NAME}</span></span>
         <span className="subtitle">논리 시뮬레이션</span>
         <span className="grow" />
+        <button type="button" className="btn-main secondary cmd-open" aria-label="명령 찾기" onClick={() => setPaletteOpen(true)}>
+          명령 찾기<span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
+        </button>
         <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}>저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</button>
         <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}>내보내기</button>
         <button className="btn-main secondary" onClick={() => setViewOpen(true)}>보기 설정</button>
@@ -1652,7 +1756,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <h2 data-jump="sequence-steps">Station 시퀀스 Draft</h2>
             {p.sequence.steps.length === 0 && <EmptyState symbol="○" line={EMPTY.steps} actions={[{ label: '단계 추가', disabled: locked || !p.actions[0], reason: locked ? RUN_LOCK : !p.actions[0] ? 'Action이 없습니다. 3단계 Action을 먼저 만드세요.' : undefined, onClick: () => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); } }]} />}
             {p.sequence.unresolved.length > 0 && <p className="warn-note" data-jump="sequence-unresolved">미해결: {p.sequence.unresolved.join(' · ')}</p>}
-            <FlowEditor p={p} rt={rt} locked={locked} edit={edit} />
+            <FlowEditor p={p} rt={rt} locked={locked} edit={edit} picked={flowPicked} onPicked={setFlowPicked} />
             <Fold className="fold-panel" summary="단계 편집, 구조화 문장, 순서 변경">
               <SequencePanel p={p} rt={rt} locked={locked} edit={edit} confirmDelete={confirmDelete} onSelect={(id) => { setSelection([id]); setRightTab('actions'); goStep('attributes'); }} />
             </Fold>
@@ -1804,6 +1908,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <div className="modal-actions">{modal.actions.map((a) => <button key={a.label} type="button" autoFocus={a.focus} ref={a.focus ? (el) => { el?.focus(); } : undefined} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
       </StaticModalFrame>}
       {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
+      {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onClose={() => setPaletteOpen(false)} />}
+      {shortcutOpen && <ShortcutSheet state={commandState} mac={macShortcut} onClose={() => setShortcutOpen(false)} />}
     </div>
   );
 }
