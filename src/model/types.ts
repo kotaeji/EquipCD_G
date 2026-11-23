@@ -5,7 +5,7 @@ export const FILE_FORMAT_ID = 'equipment-concept-designer/project';
 export const FILE_FORMAT_VERSION = '0.3.0'; // file format version (separate from app / asset / model revision). 0.1.x and 0.2.x files open as-is; `flow` is optional.
 export const APP_VERSION = '0.3.0-prototype';
 export const PRODUCT_NAME = 'Aurora Concept Designer';
-export const RUNTIME_RULES_VERSION = 'seq-runtime/0.6.0';
+export const RUNTIME_RULES_VERSION = 'seq-runtime/0.7.0';
 /** Extra tries after the first body run. 2 → at most 3 executions. */
 export const DEFAULT_MAX_RETRIES = 2;
 /** Substation group runtime rules (v0.3 설계 제안): shared virtual clock, fixed lane order at equal instants, conservative group stop on error. Sensor signals follow the same unit rule as the station runtime. */
@@ -302,10 +302,20 @@ export interface SequenceStep {
 /**
  * Control structure over the flat `steps` list. A step id appears at most once.
  * Absent `flow` means "run `steps` in order" (0.1.x / 0.2.x files and the 5-step example).
+ * A branch has 2–4 arms. The first arm is `cond` / `then`. The last arm is `else`
+ * (no condition: 「거짓」 when there are two arms, 「그 밖」 when there are more).
+ * `cases` holds the conditional arms in between and is omitted for two arms,
+ * so files saved before TURN-063 stay byte-identical.
  */
+/** One conditional arm between the first (`cond` / `then`) and the final else. */
+export interface BranchCase {
+  cond: Condition;
+  body: FlowNode[];
+}
+
 export type FlowNode =
   | { kind: 'step'; stepId: Id }
-  | { kind: 'branch'; id: Id; name: string; cond: Condition; then: FlowNode[]; else: FlowNode[] }
+  | { kind: 'branch'; id: Id; name: string; cond: Condition; then: FlowNode[]; else: FlowNode[]; cases?: BranchCase[] }
   | { kind: 'parallel'; id: Id; name: string; lanes: FlowNode[][] }
   | { kind: 'loop'; id: Id; name: string; count: number; body: FlowNode[] }
   | { kind: 'retry'; id: Id; name: string; until: Condition; maxRetries: number; body: FlowNode[] }

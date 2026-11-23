@@ -3,6 +3,7 @@
 // not exist. Navigation only: never changes the model, the group gate rules, or run blocking.
 import type { Diagnostic } from '../model/validate';
 import type { Condition, Project, SubstationSequence } from '../model/types';
+import { findById } from '../model/flow';
 import { STEPS, type StepId } from './wizard';
 
 /** fix = the cause is edited at the destination; inspect = the destination only shows the cause / context;
@@ -52,6 +53,17 @@ export function isParallelLaneBlocker(b: { objectId: string; message?: string })
   return b.objectId === 'parallel' || (b.message ?? '').includes('갈래');
 }
 
+/** Flow-table field for a branch arm named in the blocker, or the branch header when the arm is the two-way condition. */
+export function branchArmField(p: Project, b: { objectId: string; message?: string }): string | null {
+  const flow = p.sequence.flow;
+  if (!flow) return null;
+  const hit = findById(flow, b.objectId);
+  if (!hit || hit.node.kind !== 'branch') return null;
+  const match = /갈래 (\d+)/.exec(b.message ?? '');
+  if (!match) return `flow:${b.objectId}`;
+  return `flow:${b.objectId}:arm:${Number(match[1]) - 1}`;
+}
+
 export function resolveBlocker(p: Project, b: { code: string; objectId: string; message?: string }, all: readonly Pick<Diagnostic, 'code' | 'objectId'>[]): BlockerGuide {
   const code = b.code;
   if ((VALIDATE_ERROR_CODES as readonly string[]).includes(code)) return { kind: 'inspect', dest: DIAG, note: '참조 무결성 오류 — 진단 목록에서 원인 객체를 확인하세요' };
@@ -59,10 +71,20 @@ export function resolveBlocker(p: Project, b: { code: string; objectId: string; 
   switch (code) {
     case 'NO_SUB_SEQUENCES': case 'DEVICE_OUTSIDE_SUBSTATION':
       return { kind: 'fix', dest: SUBSEQ };
-    case 'NO_STEPS': case 'DEVICE_CONFLICT': case 'SHARED_MATERIAL_CONFLICT': case 'EMPTY_LANE': case 'LANE_RANGE':
+    case 'NO_STEPS': case 'DEVICE_CONFLICT': case 'SHARED_MATERIAL_CONFLICT':
       return { kind: 'fix', dest: laneDest };
-    case 'NO_COMPLETE_SIGNAL': case 'DURATION_UNDEFINED': case 'TIMEOUT_UNDEFINED': case 'CONDITION_UNDEFINED': case 'CAPACITY_UNDEFINED':
+    case 'EMPTY_LANE': case 'LANE_RANGE': {
+      const field = branchArmField(p, b);
+      if (field) return { kind: 'fix', dest: STATION_SEQ, field };
+      return { kind: 'fix', dest: laneDest };
+    }
+    case 'NO_COMPLETE_SIGNAL': case 'DURATION_UNDEFINED': case 'TIMEOUT_UNDEFINED': case 'CAPACITY_UNDEFINED':
       return resolveStepValue(p, b, all);
+    case 'CONDITION_UNDEFINED': {
+      const field = branchArmField(p, b);
+      if (field) return { kind: 'fix', dest: STATION_SEQ, field };
+      return resolveStepValue(p, b, all);
+    }
     case 'MATERIAL_COUNT':
       if (p.materials.length === 0) return { kind: 'fix', dest: MATERIAL };
       return { kind: 'unsupported', note: `자재 정의가 ${p.materials.length}개입니다. 이 시제품 실행은 1개만 지원하며, 현재 화면은 첫 자재만 편집하고 자재 삭제 기능이 없어 화면에서 개수를 줄일 수 없습니다.` };
