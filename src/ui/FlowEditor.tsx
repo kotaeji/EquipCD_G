@@ -117,13 +117,27 @@ function statusOf(rt: RuntimeState | null, stepId: string) {
   return aggregateStepStatus(rt?.steps.filter((r) => r.stepId === stepId) ?? []);
 }
 
-export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeState | null; locked: boolean; edit: EditFn }) {
-  const [picked, setPicked] = useState<string[]>([]);
+export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
+  p: Project;
+  rt: RuntimeState | null;
+  locked: boolean;
+  edit: EditFn;
+  /** Controlled row checkboxes. Omit to keep the selection inside this table. */
+  picked?: string[];
+  onPicked?: (ids: string[]) => void;
+}) {
+  const [innerPicked, setInnerPicked] = useState<string[]>([]);
+  const pickedIds = picked ?? innerPicked;
+  const setPicked = (next: string[] | ((cur: string[]) => string[])) => {
+    const value = typeof next === 'function' ? next(pickedIds) : next;
+    if (onPicked) onPicked(value);
+    else setInnerPicked(value);
+  };
   const [unitId, setUnitId] = useState(p.units[0]?.id ?? '');
   const nodes = p.sequence.flow ?? p.sequence.steps.map((s) => ({ kind: 'step' as const, stepId: s.id }));
   const rows = flatten(p, nodes, 0);
   const toggle = (id: string) => setPicked((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
-  const selected = rows.map(nodeIdOf).filter((id): id is string => !!id && picked.includes(id));
+  const selected = rows.map(nodeIdOf).filter((id): id is string => !!id && pickedIds.includes(id));
   const wrap = (kind: C.WrapKind, label: string) => {
     if (edit(C.wrapFlow(p, selected, kind), label)) setPicked([]);
   };
@@ -166,7 +180,7 @@ export function FlowEditor({ p, rt, locked, edit }: { p: Project; rt: RuntimeSta
           const live = row.stepId ? statusOf(rt, row.stepId) : null;
           const jump = (row.kind === 'wait' || row.kind === 'branch' || row.kind === 'retry') && row.blockId ? `flow:${row.blockId}` : row.stepId ? `step:${row.stepId}` : undefined;
           return <tr key={row.key} className={row.stepId ? stepLiveClass(live?.phase ?? 'pending') : undefined} data-flow-kind={row.kind} data-flow-id={row.blockId ?? row.stepId} data-jump={jump} tabIndex={0} onKeyDown={(e) => onKey(e, row)}>
-            <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={picked.includes(id)} onChange={() => toggle(id)} />}</td>
+            <td>{id && <input type="checkbox" aria-label={`${selectLabel} 선택`} disabled={locked} checked={pickedIds.includes(id)} onChange={() => toggle(id)} />}</td>
             <td style={{ paddingLeft: 8 + row.depth * 16 }}>
               <b>{row.title}</b>
               {isBlockKind(row.kind) && <BlockName name={blockName} word={flowBlockWord(row.kind)} disabled={locked} onCommit={(v) => edit(C.renameFlowBlock(p, row.blockId!, v), '블록 이름')} />}
