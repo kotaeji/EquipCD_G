@@ -198,7 +198,7 @@ export function RunStatusExtras({ p, rt }: { p: Project; rt: RuntimeState | null
 }
 
 /** Readiness and the blocker list with move buttons. Shared by the run conditions column. */
-export function RunReadiness({ p, onGoBlocker }: { p: Project; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
+export function RunReadiness({ p, onGoBlocker, emphasizeFirst }: { p: Project; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void; emphasizeFirst?: boolean }) {
   const readiness = checkRunReadiness(p);
   return (
     <section className="run-readiness" aria-label="준비 검사">
@@ -212,16 +212,16 @@ export function RunReadiness({ p, onGoBlocker }: { p: Project; onGoBlocker?: (b:
       {readiness.warnings.filter((w) => w.code === 'WAIT_UNREACHABLE').map((w) => (
         <p key={w.id} className="notice" data-wait-notice={w.objectId}>{w.message}</p>
       ))}
-      {!readiness.ok && <BlockerList p={p} blockers={readiness.blockers} onGuide={onGoBlocker} />}
+      {!readiness.ok && <BlockerList p={p} blockers={readiness.blockers} onGuide={onGoBlocker} emphasizeFirst={emphasizeFirst} />}
     </section>
   );
 }
 
 /** Readiness, blocker moves, and fault injection. Kept for the older runtime panel. */
-export function RunInspectPanel({ p, locked, edit, onGoBlocker }: { p: Project; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void }) {
+export function RunInspectPanel({ p, locked, edit, onGoBlocker, emphasizeFirst }: { p: Project; locked: boolean; edit: EditFn; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void; emphasizeFirst?: boolean }) {
   return (
     <div className="run-inspect">
-      <RunReadiness p={p} onGoBlocker={onGoBlocker} />
+      <RunReadiness p={p} onGoBlocker={onGoBlocker} emphasizeFirst={emphasizeFirst} />
       <h4 style={{ margin: '10px 0 4px', fontSize: 'var(--fs-sm)' }}>검증용 오류 주입 (시뮬 설정)</h4>
       <ReadFailFaults p={p} locked={locked} edit={edit} />
       <NeverTrueFaults p={p} locked={locked} edit={edit} />
