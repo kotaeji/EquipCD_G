@@ -161,8 +161,8 @@ export const EMPTY = {
 
 export const SCREEN = {
   lab: {
-    purpose: '변형을 비교하는 화면입니다.',
-    instead: '지금은 6단계 가동 조건에서 값을 바꿔 다시 실행해 비교합니다.',
+    limit: '논리 시뮬레이션 비교입니다. 자동 탐색 · 최적화 · AI 는 쓰지 않습니다.',
+    empty: '변형 안이 없습니다',
   },
   bundle: {
     purpose: '이 Workspace에 저장된 프로젝트를 파일 하나로 내보내고 가져옵니다.',
