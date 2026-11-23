@@ -32,6 +32,7 @@ import { ContextMenu } from './ContextMenu';
 import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
 import { selectAll, SELECT_HINT } from './selectAll';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
+import { BulkEdit } from './BulkEdit';
 import { Inspector, InterlockPanel, type ConfirmDelete } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { focusJump, jumpCaption, jumpTarget, runGapJump } from './itemJump';
@@ -186,6 +187,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [activeKey, setActiveKey] = useState(() => tabs[0].key);
   useEffect(() => { setFlowPicked([]); }, [activeKey]);
   const [selection, setSelection] = useState<string[]>([]);
+  const attributesEntry = useRef<string | null>(null);
+  const bulkDevices = useRef<string[]>([]);
   /** Station flow checkboxes. Kept here so a command from another step still sees them. */
   const [flowPicked, setFlowPicked] = useState<string[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -557,6 +560,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const selectedUnitCount = p.units.filter((u) => selection.includes(u.id)).length;
   const selectedDeviceIds = selection.filter((id) => p.devices.some((d) => d.id === id));
+  if (attributesEntry.current !== step) {
+    attributesEntry.current = step;
+    if (step === 'attributes') bulkDevices.current = selectedDeviceIds;
+  }
   const selectedNodeIds = selection.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
   const copyTitle = selectedNodeIds.length === 0 ? COPY_NEED_NODE : '복사 (Ctrl/Cmd+C)';
   const pasteTitle = locked ? PASTE_LOCKED : !clip ? PASTE_EMPTY : '붙여넣기 (Ctrl/Cmd+V)';
@@ -1971,6 +1978,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>;
           })()}
           <InterlockPanel p={p} locked={locked} edit={edit} />
+          <Fold className="fold-panel" summary="일괄 편집">
+            <BulkEdit project={p} locked={locked} deviceIds={bulkDevices.current} onApply={(r) => edit(r, '일괄 편집')} />
+          </Fold>
           <Fold className="fold-panel" summary="신호, 포지션, Action, 정의 체크 자세히">
             <div className="fold-body">{inspectorEl}</div>
           </Fold>
