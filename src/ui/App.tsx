@@ -71,6 +71,7 @@ import { EMPTY, LARGE_IMPORT_BYTES, LOADING_FILE, RUN_LOCK, draftProblem, import
 import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';
 import { HelpPanel } from './HelpPanel';
+import { PrintView } from './PrintView';
 import { helpTopic, resolveHelpId } from './helpCopy';
 import { TermHintsProvider, Terms } from './Term';
 
@@ -223,6 +224,17 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [arrangeOpen, setArrangeOpen] = useState(false);
   const [bgPoints, setBgPoints] = useState<{ x: number; y: number }[] | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  useEffect(() => {
+    if (!exportOpen) return;
+    const close = (e: PointerEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (!t?.closest('.export-anchor')) setExportOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [exportOpen]);
   const [tourIndex, setTourIndex] = useState<number | null>(null);
   const tourReturn = useRef<HTMLElement | null>(null);
   const tourIndexRef = useRef<number | null>(null);
@@ -786,6 +798,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || isTextField(target);
       const cmd = commandForEvent(e);
       const blocked = dialogOpen() || tourIndex !== null;
+      if (printOpen) {
+        if (e.key === 'Escape') { e.preventDefault(); setPrintOpen(false); }
+        return;
+      }
+      if (exportOpen && e.key === 'Escape') {
+        e.preventDefault();
+        setExportOpen(false);
+        return;
+      }
       // Ctrl/Cmd+K opens the palette from an input too. It does not open over a dialog or the tour.
       if (cmd?.id === 'palette') {
         e.preventDefault();
@@ -1540,6 +1561,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setRunView,
     save: doSave,
     exportJson: () => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)),
+    openPrint: () => { setExportOpen(false); setPrintOpen(true); },
     importJson: () => fileRef.current?.click(),
     newProject,
     undo: doUndo,
@@ -1617,7 +1639,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <IconLabel id="palette">{PALETTE_LABEL}</IconLabel><span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
         </button>
         <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}><IconLabel id="save">저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</IconLabel></button>
-        <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}><IconLabel id="export-json">내보내기</IconLabel></button>
+        <div className="export-anchor">
+          <button type="button" className="btn-main secondary" aria-haspopup="menu" aria-expanded={exportOpen} aria-controls="export-menu" onClick={() => setExportOpen((v) => !v)}><IconLabel id="export-json">내보내기</IconLabel></button>
+          {exportOpen && <div id="export-menu" className="export-pop" role="menu" aria-label="내보내기">
+            <button type="button" role="menuitem" onClick={() => { setExportOpen(false); download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)); }}><IconLabel id="export-json">JSON 내보내기</IconLabel></button>
+            <button type="button" role="menuitem" onClick={() => { setExportOpen(false); setPrintOpen(true); }}><IconLabel id="print-view">인쇄용 보기</IconLabel></button>
+          </div>}
+        </div>
         <button className="btn-main secondary" onClick={() => setViewOpen(true)}><IconLabel id="view-settings">보기 설정</IconLabel></button>
         <button type="button" className="btn-main secondary" data-help-toggle aria-expanded={view.helpOpen} aria-label="도움말" onClick={(e) => { helpReturn.current = e.currentTarget; setView((v) => ({ ...v, helpOpen: !v.helpOpen })); }}><IconLabel id="help">도움말</IconLabel></button>
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }} />
@@ -2116,6 +2144,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </StaticModalFrame>}
       {view.helpOpen && <HelpPanel topic={helpTopic(helpId)} onClose={closeHelp} onTour={(el) => beginTour(el)} onShortcuts={() => setShortcutOpen(true)} />}
       {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
+      {printOpen && <PrintView project={p} onClose={() => setPrintOpen(false)} />}
       {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onJump={(entry, stay) => { jumpToObject(entry, stay); setPaletteOpen(false); }} onClose={() => setPaletteOpen(false)} />}
       {shortcutOpen && <ShortcutSheet state={commandState} mac={macShortcut} onClose={() => setShortcutOpen(false)} />}
     </div>

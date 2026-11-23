@@ -69,6 +69,7 @@ export interface CommandActions {
   setRunView: (view: 'diagram' | '3d') => void;
   save: () => void;
   exportJson: () => void;
+  openPrint: () => void;
   importJson: () => void;
   newProject: (kind: 'blank' | 'sample' | 'parallel' | 'flow') => void;
   undo: () => void;
@@ -212,6 +213,7 @@ export const COMMANDS: readonly CommandDef[] = [
 
   { id: 'save', name: '저장', group: '파일', available: yes, run: (a) => a.save() },
   { id: 'export-json', name: 'JSON 내보내기', group: '파일', available: yes, run: (a) => a.exportJson() },
+  { id: 'print-view', name: '인쇄용 보기', group: '파일', available: yes, run: (a) => a.openPrint() },
   { id: 'import-json', name: 'JSON 가져오기', group: '파일', available: yes, run: (a) => a.importJson() },
   { id: 'new-project', name: '새 프로젝트', group: '파일', available: yes, run: (a) => a.newProject('blank') },
   { id: 'sample', name: '예제 열기', group: '파일', available: yes, run: (a) => a.newProject('sample') },
