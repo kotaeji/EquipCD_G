@@ -1,10 +1,11 @@
 // TURN-073. Flow-table menu contents. Building the menu does not edit the project.
 import * as C from '../model/commands';
 import type { CmdResult } from '../model/commands';
-import type { FlowNode, Project } from '../model/types';
+import type { Condition, FlowNode, Project } from '../model/types';
+import { armLabel, branchArms } from '../model/flow';
 import { flowBlockWord } from './labels';
 import { EDIT_LOCKED } from './contextMenuModel';
-import { ROOT_LIST, listKeyFor } from './flowDrag';
+import { ROOT_LIST, branchListKey, listKeyFor } from './flowDrag';
 
 export type FlowArm = 'then' | 'else' | 'body' | number;
 
@@ -16,6 +17,10 @@ export interface FlowRow {
   stepId?: string;
   blockId?: string;
   arm?: FlowArm;
+  armOf?: 'branch' | 'parallel';
+  armCount?: number;
+  /** Set on a multi-way arm. Null is 「그 밖」. Omitted on a two-arm branch. */
+  armCond?: Condition | null;
   node?: FlowNode;
   id: string | null;
   listKey: string;
@@ -49,15 +54,21 @@ export function flattenFlowRows(p: Project, nodes: FlowNode[], depth: number, li
     }
     const id = n.id;
     if (n.kind === 'branch') {
-      out.push({ key: id, depth, kind: 'branch', title: flowBlockWord('branch'), blockId: id, id, listKey, index, node: n });
-      out.push({ key: `${id}:then`, depth: depth + 1, kind: 'arm', title: '참', blockId: id, arm: 'then', id: null, listKey: listKeyFor(id, 'then'), index: -1 });
-      out.push(...flattenFlowRows(p, n.then, depth + 2, listKeyFor(id, 'then')));
-      out.push({ key: `${id}:else`, depth: depth + 1, kind: 'arm', title: '거짓', blockId: id, arm: 'else', id: null, listKey: listKeyFor(id, 'else'), index: -1 });
-      out.push(...flattenFlowRows(p, n.else, depth + 2, listKeyFor(id, 'else')));
+      const arms = branchArms(n);
+      out.push({ key: id, depth, kind: 'branch', title: flowBlockWord('branch'), blockId: id, id, listKey, index, node: n, armCount: arms.length });
+      arms.forEach((arm, i) => {
+        out.push({
+          key: `${id}:arm${i}`, depth: depth + 1, kind: 'arm', title: armLabel(arms.length, i),
+          blockId: id, arm: i, armOf: 'branch', armCount: arms.length,
+          armCond: arms.length > 2 ? arm.cond : undefined,
+          id: null, listKey: branchListKey(id, i), index: -1,
+        });
+        out.push(...flattenFlowRows(p, arm.body, depth + 2, branchListKey(id, i)));
+      });
     } else if (n.kind === 'parallel') {
       out.push({ key: id, depth, kind: 'parallel', title: flowBlockWord('parallel'), blockId: id, id, listKey, index, node: n });
       n.lanes.forEach((lane, i) => {
-        out.push({ key: `${id}:lane${i}`, depth: depth + 1, kind: 'arm', title: `갈래 ${i + 1}`, blockId: id, arm: i, id: null, listKey: listKeyFor(id, i), index: -1 });
+        out.push({ key: `${id}:lane${i}`, depth: depth + 1, kind: 'arm', title: `갈래 ${i + 1}`, blockId: id, arm: i, armOf: 'parallel', id: null, listKey: listKeyFor(id, i), index: -1 });
         out.push(...flattenFlowRows(p, lane, depth + 2, listKeyFor(id, i)));
       });
     } else if (n.kind === 'loop') {
@@ -106,6 +117,10 @@ export function buildFlowMenu(input: { p: Project; row: FlowRow; ordered: string
   const editLock = locked ? EDIT_LOCKED : undefined;
   const delLock = locked ? '실행 중에는 삭제가 차단됩니다' : undefined;
   const moveReason = (delta: number) => {
+    if (row.kind === 'arm' && row.armOf === 'branch' && typeof row.arm === 'number' && row.blockId && (row.armCount ?? 0) > 2) {
+      if (editLock) return editLock;
+      return fail(C.moveBranchArm(p, row.blockId, row.arm, delta as -1 | 1));
+    }
     if (!row.id) return '갈래는 옮기지 않습니다';
     if (editLock) return editLock;
     return fail(C.moveFlowNode(p, row.id, delta));
@@ -128,7 +143,8 @@ export function buildFlowMenu(input: { p: Project; row: FlowRow; ordered: string
   if (delLock) deleteReason = delLock;
   else if (row.kind === 'step' && row.stepId) deleteReason = fail(C.removeStep(p, row.stepId));
   else if (row.kind === 'wait' && row.blockId) deleteReason = fail(C.unwrapFlow(p, row.blockId));
-  else if (row.kind === 'arm' && typeof row.arm === 'number' && row.blockId) deleteReason = fail(C.removeParallelLane(p, row.blockId, row.arm));
+  else if (row.kind === 'arm' && row.armOf === 'branch' && typeof row.arm === 'number' && row.blockId) deleteReason = fail(C.removeBranchArm(p, row.blockId, row.arm));
+  else if (row.kind === 'arm' && row.armOf === 'parallel' && typeof row.arm === 'number' && row.blockId) deleteReason = fail(C.removeParallelLane(p, row.blockId, row.arm));
   else if (row.kind === 'arm') deleteReason = '참·거짓 갈래는 지울 수 없습니다';
   else deleteReason = '블록은 「블록 풀기」로 안의 줄을 남깁니다';
   return [

@@ -1,0 +1,51 @@
+/* TURN-078. Run-diagram state. The bar and the one-shot outline are the only motion. */
+.rf-progress {
+  position: absolute;
+  left: var(--sp-1);
+  right: var(--sp-1);
+  bottom: var(--sp-1);
+  height: var(--sp-1);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--status-active) 22%, transparent);
+  pointer-events: none;
+  overflow: hidden;
+}
+.rf-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--status-active);
+  border-radius: var(--r-sm);
+}
+.rf-progress-pct {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--status-active);
+}
+.rf-device.is-done,
+.rf-device.is-just-done {
+  outline: 2px solid var(--status-done);
+  outline-offset: 2px;
+}
+.rf-device.is-just-done {
+  animation: rf-just-done var(--dur-3) var(--ease-enter) 1;
+}
+@keyframes rf-just-done {
+  from {
+    outline-color: var(--status-active);
+    box-shadow: 0 0 0 var(--sp-1) color-mix(in srgb, var(--status-active) 35%, transparent);
+  }
+  to {
+    outline-color: var(--status-done);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.rf-device.is-wait,
+.rf-unit.is-wait {
+  outline: 2px dashed var(--status-pending);
+  outline-offset: 2px;
+  opacity: 0.72;
+}
+.rf-wait-mark {
+  margin-left: var(--sp-1);
+}

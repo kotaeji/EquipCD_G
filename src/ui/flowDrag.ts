@@ -1,7 +1,7 @@
 // TURN-073. One drag uses the same flow tree and the same refusal sentences as moveFlow*.
 import type { CmdResult } from '../model/commands';
 import {
-  containsList, containsParallel, findById, listInsideParallel, nodeKey, walk,
+  armLists, containsList, containsParallel, findById, listInsideParallel, nodeKey, walk,
 } from '../model/flow';
 import type { FlowNode, Project } from '../model/types';
 
@@ -11,42 +11,52 @@ export function listKeyFor(blockId: string, arm: 'then' | 'else' | 'body' | numb
   return typeof arm === 'number' ? `${blockId}::lane::${arm}` : `${blockId}::${arm}`;
 }
 
+/** One branch arm, including the arms between 「참」 and 「그 밖」. */
+export function branchListKey(blockId: string, index: number): string {
+  return `${blockId}::barm::${index}`;
+}
+
 export function listOf(flow: FlowNode[], key: string): FlowNode[] | null {
   if (key === ROOT_LIST) return flow;
   const lane = /^(.*)::lane::(\d+)$/.exec(key);
-  const arm = lane ? null : /^(.*)::(then|else|body)$/.exec(key);
-  const id = lane?.[1] ?? arm?.[1];
+  const barm = lane ? null : /^(.*)::barm::(\d+)$/.exec(key);
+  const arm = lane || barm ? null : /^(.*)::(then|else|body)$/.exec(key);
+  const id = lane?.[1] ?? barm?.[1] ?? arm?.[1];
   if (!id) return null;
   const hit = findById(flow, id);
   if (!hit) return null;
   const n = hit.node;
   if (lane && n.kind === 'parallel') return n.lanes[Number(lane[2])] ?? null;
-  if (arm?.[2] === 'then' && n.kind === 'branch') return n.then;
-  if (arm?.[2] === 'else' && n.kind === 'branch') return n.else;
+  if (barm && n.kind === 'branch') return armLists(n)[Number(barm[2])] ?? null;
+  if (arm?.[2] === 'then' && n.kind === 'branch') return armLists(n)[0] ?? null;
+  if (arm?.[2] === 'else' && n.kind === 'branch') { const lists = armLists(n); return lists[lists.length - 1] ?? null; }
   if (arm?.[2] === 'body' && (n.kind === 'loop' || n.kind === 'retry')) return n.body;
   return null;
 }
 
 function blockIdOfList(key: string): string | null {
-  const lane = /^(.*)::lane::\d+$/.exec(key);
+  const lane = /^(.*)::(?:lane|barm)::\d+$/.exec(key);
   if (lane) return lane[1];
   const arm = /^(.*)::(then|else|body)$/.exec(key);
   return arm ? arm[1] : null;
 }
 
 function childKeys(n: FlowNode): string[] {
-  if (n.kind === 'branch') return [listKeyFor(n.id, 'then'), listKeyFor(n.id, 'else')];
+  if (n.kind === 'branch') return armLists(n).map((_, i) => branchListKey(n.id, i));
   if (n.kind === 'parallel') return n.lanes.map((_, i) => listKeyFor(n.id, i));
   if (n.kind === 'loop' || n.kind === 'retry') return [listKeyFor(n.id, 'body')];
   return [];
 }
 
+function childListsOf(node: FlowNode): FlowNode[][] {
+  if (node.kind === 'branch') return armLists(node);
+  if (node.kind === 'parallel') return node.lanes;
+  if (node.kind === 'loop' || node.kind === 'retry') return [node.body];
+  return [];
+}
+
 function nodeHas(node: FlowNode, id: string): boolean {
-  const lists: FlowNode[][] = [];
-  if (node.kind === 'branch') lists.push(node.then, node.else);
-  else if (node.kind === 'parallel') lists.push(...node.lanes);
-  else if (node.kind === 'loop' || node.kind === 'retry') lists.push(node.body);
-  return lists.some((list) => list.some((n) => nodeKey(n) === id || nodeHas(n, id)));
+  return childListsOf(node).some((list) => list.some((n) => nodeKey(n) === id || nodeHas(n, id)));
 }
 
 /** Checked rows move together only when they are one contiguous sibling run. A block carries its body. */

@@ -41,6 +41,7 @@ export const COMMAND_ICONS = {
 
   undo: 'Undo2',
   redo: 'Redo2',
+  'undo-history': 'History',
   copy: 'Copy',
   paste: 'ClipboardPaste',
   duplicate: 'CopyPlus',
@@ -119,6 +120,8 @@ export const COMMAND_ICONS = {
   workspace: 'Folders',
   project: 'Folder',
   'add-step': 'ListPlus',
+  confirm: 'BadgeCheck',
+  jump: 'ArrowUpRight',
   'to-actions': 'Bolt',
   'to-signals': 'Radio',
   'to-props': 'SlidersVertical',

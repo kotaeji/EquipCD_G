@@ -8,7 +8,7 @@ import { nodeKey } from '../src/model/flow';
 import type { History } from '../src/model/history';
 import type { FlowNode } from '../src/model/types';
 import { App } from '../src/ui/App';
-import { dropSlots, listKeyFor, nearestSlot, readMeasuredRow } from '../src/ui/flowDrag';
+import { branchListKey, dropSlots, nearestSlot, readMeasuredRow } from '../src/ui/flowDrag';
 import { EDIT_LOCKED } from '../src/ui/contextMenuModel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -146,7 +146,7 @@ describe('TURN-073 flow table menu', () => {
     expect((u.rows('step')[1].querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(true);
     await u.key('Escape');
 
-    const arm = u.rows('arm').find((r) => r.dataset.listKey === listKeyFor('FLW-BRANCH', 'else'))!;
+    const arm = u.rows('arm').find((r) => r.dataset.listKey === branchListKey('FLW-BRANCH', 1))!;
     await u.right(arm);
     expect(u.menu()?.getAttribute('data-ctx-kind')).toBe('flow-arm');
     expect(u.action('up')!.title).toBe('갈래는 옮기지 않습니다');
@@ -296,7 +296,7 @@ describe('TURN-073 flow table drag', () => {
     const rootId = rootStep.dataset.nodeId!;
     u.stack();
     const rowsNow = [...u.flowTable().querySelectorAll<HTMLTableRowElement>('tbody tr')].map(readMeasuredRow);
-    const elseKey = listKeyFor('FLW-BRANCH', 'else');
+    const elseKey = branchListKey('FLW-BRANCH', 1);
     const into = dropSlots(rowsNow, u.project().sequence.flow!, [rootId]).find((s) => s.listKey === elseKey && s.valid && !s.noop && s.index === 1);
     expect(into).toBeTruthy();
     await u.point(rootStep.querySelector('[data-flow-grip]')!, 'pointerdown', into!.y, 240);

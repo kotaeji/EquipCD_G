@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { findAsset } from '../assets/library';
 import { AI_BADGE, GENERATED_META, resolveGenerated } from '../assets/visuals';
+import { confirmedCaption, interlockConfirmationChange, quantityOf, type ConfirmStamp } from '../model/confirmationLog';
 import * as C from '../model/commands';
 import type { Gap } from '../model/gaps';
 import { interlockSummary } from '../model/interlock';
-import type { Action, Condition, InterlockRule, Project } from '../model/types';
+import type { Action, Condition, InterlockRule, Project, QuantityRef } from '../model/types';
 import { EmptyState } from './EmptyState';
 import { EMPTY, RUN_LOCK } from './problemCopy';
 import { templateOriginText } from '../model/userTemplates';
@@ -13,8 +14,15 @@ import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
 import { conditionsFormula } from '../model/conditionFormula';
 import { StatusMark } from './StatusMark';
 import { actionDeleteDetail, actionUsage, positionDeleteDetail, positionUsage, signalDeleteDetail, signalUsage } from '../model/deleteImpact';
+import { useConfirmationGate } from './confirmationGate';
+import { IconLabel } from './Icon';
 import { Badge, QtyInput, TextInput } from './widgets';
 import { Terms } from './Term';
+
+function qtyNote(p: Project, ref: QuantityRef): string | null {
+  const qv = quantityOf(p, ref);
+  return confirmedCaption(p.confirmationLog, { kind: 'quantity', ref }, !!qv && qv.value !== null && !qv.assumption);
+}
 
 export type ConfirmDelete = (title: string, detail: string | null, run: () => void) => void;
 
@@ -83,8 +91,8 @@ function ActionEditor({ p, a, locked, edit, onAddStep, confirmDelete }: { p: Pro
     <div className="section">
       <div className="row"><TextInput value={a.name} disabled={locked} width={220} onCommit={(v) => edit(C.renameObject(p, a.id, v), 'Action 이름')} /></div>
       <div className="row"><label>ID</label><span className="mono muted" style={{ fontSize: 'var(--fs-xs)' }}>{a.id}</span></div>
-      <div className="row"><label>동작 시간</label><QtyInput q={a.duration} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'duration' }, v, as), '동작 시간')} /></div>
-      <div className="row" data-jump={`timeout:${a.id}`}><label>타임아웃</label><QtyInput q={a.timeout} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'timeout' }, v, as), '타임아웃')} /></div>
+      <div className="row" data-jump={`duration:${a.id}`}><label>동작 시간</label><QtyInput q={a.duration} disabled={locked} note={qtyNote(p, { kind: 'action', id: a.id, field: 'duration' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'duration' }, v, as, stamp), '동작 시간')} /></div>
+      <div className="row" data-jump={`timeout:${a.id}`}><label>타임아웃</label><QtyInput q={a.timeout} disabled={locked} note={qtyNote(p, { kind: 'action', id: a.id, field: 'timeout' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'action', id: a.id, field: 'timeout' }, v, as, stamp), '타임아웃')} /></div>
       <div className="row"><label>명령 Signal</label><select disabled={locked} value={a.commandSignalId ?? ''} onChange={(e) => upd({ commandSignalId: e.target.value || null }, '명령 Signal')} style={{ width: 170 }}><option value="">(없음)</option>{devSignals.filter((s) => s.direction === 'in').map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
       <div className="row" data-jump={`complete:${a.id}`}><label>완료 조건</label><select disabled={locked} value={a.completeSignalId ?? ''} onChange={(e) => upd({ completeSignalId: e.target.value || null }, '완료 Signal')} style={{ width: 150 }}><option value="">(미정)</option>{devSignals.filter((s) => s.direction === 'out').map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><span className="mono muted">= true</span></div>
       {!a.completeSignalId && <div className="notice warn">완료 조건 미정 — 실행 준비 검사에서 차단, Gap(부족 I/O) 표시</div>}
@@ -163,8 +171,8 @@ export function Inspector(props: Props) {
         <div className="row"><label>소속</label>{p.equipment.name} &gt; {unit.name}</div>
         {unit.templateRef && <div className="row"><label>유닛 템플릿</label><span className="mono" style={{ fontSize: 'var(--fs-xs)' }}>{unit.templateRef.assetId}@{unit.templateRef.version} (고정, 인스턴스별 독립 편집)</span></div>}
         {unit.lineage?.fromTemplate && <div className="row" data-template-lineage><label>근거</label><span>{templateOriginText(unit.lineage.fromTemplate.name)}</span></div>}
-        <div className="row"><label>수용 개수</label><QtyInput q={unit.capacity.maxMaterials} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxMaterials' }, v, as), '수용 개수')} /></div>
-        <div className="row"><label>허용 무게</label><QtyInput q={unit.capacity.maxWeight} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxWeight' }, v, as), '허용 무게')} /></div>
+        <div className="row" data-jump={`unitcap:${unit.id}:maxMaterials`}><label>수용 개수</label><QtyInput q={unit.capacity.maxMaterials} disabled={locked} note={qtyNote(p, { kind: 'unitCap', id: unit.id, field: 'maxMaterials' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxMaterials' }, v, as, stamp), '수용 개수')} /></div>
+        <div className="row" data-jump={`unitcap:${unit.id}:maxWeight`}><label>허용 무게</label><QtyInput q={unit.capacity.maxWeight} disabled={locked} note={qtyNote(p, { kind: 'unitCap', id: unit.id, field: 'maxWeight' })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxWeight' }, v, as, stamp), '허용 무게')} /></div>
         <div className="row"><label>Device</label><span>{unit.deviceIds.map((d) => devName(p, d)).join(', ') || '(없음)'}</span></div>
         <div className="row"><label htmlFor={`lock-${unit.id}`}>위치 잠금</label><input id={`lock-${unit.id}`} type="checkbox" aria-label={`${unit.code} 위치 잠금`} checked={unit.positionLocked === true} disabled={locked} onChange={(e) => edit(C.setUnitPositionLock(p, [unit.id], e.target.checked), e.target.checked ? '위치 잠금' : '위치 잠금 해제')} /></div>
         <div className="danger-row"><button type="button" className="danger" disabled={locked} onClick={() => props.onDelete(unit.id)}>Unit 삭제(영향 확인)</button></div>
@@ -192,18 +200,18 @@ export function Inspector(props: Props) {
     </div>
     <div className="tabs">{[['props', '속성'], ['signals', `신호 ${sigs.length}`], ['positions', `포지션 ${poss.length}`], ['actions', `Action ${acts.length}`], ['check', '정의 체크']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><Terms text={l} /></button>)}</div>
     {tab === 'props' && <div className="section">
-      {def.properties.map((pd) => { const qv = d.properties[pd.key]; return qv ? <div key={pd.key} className="row" data-jump={`prop:${d.id}:${pd.key}`}><label>{pd.label}{pd.requiredForRun ? ' *' : ''}</label><QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} /></div> : null; })}
+      {def.properties.map((pd) => { const qv = d.properties[pd.key]; return qv ? <div key={pd.key} className="row" data-jump={`prop:${d.id}:${pd.key}`}><label>{pd.label}{pd.requiredForRun ? ' *' : ''}</label><QtyInput q={qv} disabled={locked} note={qtyNote(p, { kind: 'device', id: d.id, key: pd.key })} onCommit={(v, as, stamp) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as, stamp), `${pd.label} 변경`)} /></div> : null; })}
       <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>* 실행/수용 판정에 필요 (비우면 미정 축 사양 Gap). 빈 값 = 미정, 0과 다름.</div>
       <div className="danger-row" style={{ marginTop: 'var(--sp-2)' }}><button type="button" className="danger" disabled={locked} onClick={() => props.onDelete(d.id)}>Device 삭제(영향 확인)</button></div>
     </div>}
     {tab === 'signals' && <div className="section">
-      {sigs.map((s) => <div key={s.id} style={{ borderBottom: '1px solid var(--border)', padding: 'var(--sp-1) 0' }}>
+      {sigs.map((s) => <div key={s.id} data-jump={`signal:${s.id}`} style={{ borderBottom: '1px solid var(--border)', padding: 'var(--sp-1) 0' }}>
         <div className="row"><TextInput value={s.name} disabled={locked} width={160} onCommit={(v) => edit(C.renameObject(p, s.id, v), 'Signal 이름')} />
           <Badge kind={s.direction === 'in' ? 'acc' : undefined}>{s.direction === 'in' ? '입력 in' : '출력 out'}</Badge><Badge>{s.role}</Badge></div>
         <div className="row danger-row"><label>실제 주소</label><TextInput value={s.address ?? ''} width={90} disabled={locked} onCommit={(v) => edit(C.updateSignal(p, s.id, { address: v }), 'Signal 주소')} />
           {!s.address && <><StatusMark status="undetermined" /> <span className="muted">개념 신호</span></>}
-          {s.address && s.addressStatus === 'assumed' && <StatusMark status="assumption" />}
-          {s.address && s.addressStatus === 'confirmed' && <Badge kind="ok">{s.addressStatus}</Badge>}
+          {s.address && s.addressStatus === 'assumed' && <><StatusMark status="assumption" /><AddressConfirm p={p} id={s.id} next="confirmed" label="주소 확인" edit={edit} locked={locked} /></>}
+          {s.address && s.addressStatus === 'confirmed' && <><Badge kind="ok">확인</Badge>{confirmedCaption(p.confirmationLog, { kind: 'signalAddress', id: s.id }, true) && <span className="confirm-note" data-confirm-note>{confirmedCaption(p.confirmationLog, { kind: 'signalAddress', id: s.id }, true)}</span>}<AddressConfirm p={p} id={s.id} next="assumed" label="되돌림" edit={edit} locked={locked} /></>}
           {s.address && s.addressStatus === 'unassigned' && <StatusMark status="undetermined" />}
           {signalUsage(p, s.id) && <span className="danger-note" data-delete-impact>{signalUsage(p, s.id)}</span>}
           <button type="button" className="small danger" disabled={locked} onClick={() => props.confirmDelete(`${s.name} 삭제`, signalDeleteDetail(p, s.id), () => edit(C.deleteSignal(p, s.id), 'Signal 삭제'))}>삭제</button></div>
@@ -216,8 +224,8 @@ export function Inspector(props: Props) {
       <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>실제 I/O 주소가 없어도 역할 기반 개념 신호로 설계 가능 (주소 = 미정 유지).</div>
     </div>}
     {tab === 'positions' && <div className="section">
-      {poss.map((x) => <div key={x.id} className="row danger-row"><TextInput value={x.name} width={120} disabled={locked} onCommit={(v) => edit(C.renameObject(p, x.id, v), 'Position 이름')} />
-        <QtyInput q={x.value} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'position', id: x.id }, v, as), 'Position 값')} />
+      {poss.map((x) => <div key={x.id} className="row danger-row" data-jump={`position:${x.id}`}><TextInput value={x.name} width={120} disabled={locked} onCommit={(v) => edit(C.renameObject(p, x.id, v), 'Position 이름')} />
+        <QtyInput q={x.value} disabled={locked} note={qtyNote(p, { kind: 'position', id: x.id })} onCommit={(v, as, stamp) => edit(C.setQuantity(p, { kind: 'position', id: x.id }, v, as, stamp), 'Position 값')} />
         {positionUsage(p, x.id) && <span className="danger-note" data-delete-impact>{positionUsage(p, x.id)}</span>}
         <button type="button" className="small danger" disabled={locked} onClick={() => props.confirmDelete(`${x.name} 삭제`, positionDeleteDetail(p, x.id), () => edit(C.deletePosition(p, x.id), 'Position 삭제'))}>삭제</button></div>)}
       <button className="small" disabled={locked} onClick={() => edit(C.addPosition(p, d.id), 'Position 추가')}>+ Position</button>
@@ -240,7 +248,17 @@ function otherAction(p: Project, actionId: string, prefer?: string): string | un
   return p.actions.find((a) => a.id !== actionId)?.id;
 }
 
+function AddressConfirm({ p, id, next, label, edit, locked }: { p: Project; id: string; next: 'confirmed' | 'assumed'; label: string; edit: EditFn; locked: boolean }) {
+  const gate = useConfirmationGate();
+  const s = p.signals.find((x) => x.id === id);
+  if (!s) return null;
+  const logged = s.addressStatus !== next && (next === 'confirmed' || s.addressStatus === 'confirmed');
+  const run = (stamp?: ConfirmStamp) => edit(C.updateSignal(p, id, { addressStatus: next }, stamp), label === '되돌림' ? '주소 확인 되돌림' : '주소 확인');
+  return <button type="button" className="small" disabled={locked} aria-label={`${s.name} ${label}`} onClick={() => { if (logged) gate((stamp) => run(stamp)); else run(); }}><IconLabel id={next === 'confirmed' ? 'confirm' : 'undo'}>{label}</IconLabel></button>;
+}
+
 function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked: boolean; edit: EditFn }) {
+  const gate = useConfirmationGate();
   const k = p.constraints.find((x) => x.id === id)!;
   const rule = k.rule;
   const usable = rule && rule.form !== 'undetermined' ? rule : null;
@@ -276,9 +294,14 @@ function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked:
     </div>
     <div data-interlock-summary="" className="cond-head"><span>{interlockSummary(p, k)}</span>{k.rule?.form === 'allow' && <ConditionMark p={p} site={`interlock:${k.id}`} />}</div>
     <div className="row"><Badge kind={k.confirmation === 'confirmed' ? 'ok' : k.confirmation === 'rejected' ? 'err' : 'warn'}>{{ unconfirmed: '미확인 후보', confirmed: '사람 확인됨', rejected: '거절됨', needsRecheck: '재확인 필요' }[k.confirmation]}</Badge>
-      <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'confirmed'), 'Interlock 확인')}>확인</button>
-      <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'rejected'), 'Interlock 거절')}>거절</button>
-      <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'unconfirmed'), 'Interlock 되돌림')}>미확인</button></div>
+      {k.confirmation === 'confirmed' && confirmedCaption(p.confirmationLog, { kind: 'interlock', id: k.id }, true) && <span className="confirm-note" data-confirm-note>{confirmedCaption(p.confirmationLog, { kind: 'interlock', id: k.id }, true)}</span>}
+      {(['confirmed', 'rejected', 'unconfirmed'] as const).map((next) => {
+        const word = next === 'confirmed' ? '확인' : next === 'rejected' ? '거절' : '미확인';
+        const label = next === 'confirmed' ? 'Interlock 확인' : next === 'rejected' ? 'Interlock 거절' : 'Interlock 되돌림';
+        const run = (stamp?: ConfirmStamp) => edit(C.setConstraintConfirmation(p, k.id, next, stamp), label);
+        return <button key={next} className="small" disabled={locked} aria-label={`${k.id} ${word}`} onClick={() => { if (interlockConfirmationChange(k.confirmation, next)) gate((stamp) => run(stamp)); else run(); }}>{word}</button>;
+      })}
+    </div>
     <div className="row" style={{ flexWrap: 'wrap' }}>
       <label>막을 Action
         <select aria-label={`${k.id} 막을 Action`} disabled={locked} value={actionId} onChange={(e) => onAction(e.target.value)}>

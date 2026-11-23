@@ -32,10 +32,12 @@ import { findAsset } from '../assets/library';
 import { AI_BADGE, resolveGenerated } from '../assets/visuals';
 import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
-import { STATUS, waitingLead } from './status';
+import { STATUS } from './status';
 import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { pausedDeviceIds, pausedUnitIds } from '../scene/describe';
+import { deviceRunMarks, materialPoses, waitSpots, type DeviceRunMark } from './runDiagram';
+import './run-diagram.css';
 import { Symbol } from './Symbols';
 import { overlappingUnitIds, rectsOverlap, unitMinSize, type Box } from '../model/unitLayout';
 import {
@@ -112,6 +114,11 @@ interface Props {
    * `run` fits the station into the stage-6 pane and refits when that pane changes.
    */
   frame?: 'layout' | 'run';
+  /**
+   * Diagram travel (progress bar, material along the flow line, the one-shot completion).
+   * Off under reduced motion or when 「동작 강조」 / 「설비 동작」 is off. Status marks stay.
+   */
+  runMotion?: boolean;
 }
 
 const BLOCKED = '실행 중에는 배치 이동(모델 편집)이 차단됩니다. 선택·보기만 가능합니다.';
@@ -289,8 +296,9 @@ type UnitData = {
   flowFrom: boolean; flowTarget: boolean;
   showResize: boolean; minW: number; minH: number; api: DragApi;
   paused?: boolean;
+  waiting?: boolean;
   positionLocked?: boolean;
-  nameShown: string; nameTitle: string; nameHidden: boolean; nameFont: number; showPause: boolean;
+  nameShown: string; nameTitle: string; nameHidden: boolean; nameFont: number; showPause: boolean; showWait: boolean;
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
@@ -300,8 +308,13 @@ type DeviceData = {
   showPositions: boolean; mode: Mode; link: SignalLink | null; api: DragApi;
   nameShown: string; nameTitle: string; nameHidden: boolean; showStatus: boolean;
   portLabels: { id: string; text: string; title: string; top: number; side: 'in' | 'out' }[];
+  progress: number | null;
+  waiting: boolean;
+  justDone: boolean;
+  done: boolean;
+  motion: boolean;
 };
-type MatData = { label: string; waiting?: boolean; pieceId?: string };
+type MatData = { label: string; waiting?: boolean; pieceId?: string; x: number; y: number; travel: number | null };
 type EdgeView = { on?: boolean; tone: EdgeTone; caption: string; hover: boolean };
 
 function edgePaint(kind: 'flow' | 'signal', tone: EdgeTone, selected: boolean, liveColor: string) {
@@ -370,7 +383,8 @@ function UnitNode({ data }: NodeProps) {
   return (
     <div
       data-jump={`unit:${d.unitId}`}
-      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.flowFrom ? ' is-flow-from' : ''}${d.flowTarget ? ' is-flow-target' : ''}${d.paused ? ' is-paused' : ''}${d.tone}`}
+      data-wait={d.waiting && !d.paused ? 'true' : 'false'}
+      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.flowFrom ? ' is-flow-from' : ''}${d.flowTarget ? ' is-flow-target' : ''}${d.paused ? ' is-paused' : d.waiting ? ' is-wait' : ''}${d.tone}`}
       style={{ width: d.w, height: d.h }}
       onPointerDown={(e) => {
         if ((e.target as HTMLElement).closest('.react-flow__resize-control')) { e.stopPropagation(); return; }
@@ -393,6 +407,7 @@ function UnitNode({ data }: NodeProps) {
         <span className="rf-code">{d.code}</span>
         <span className={`rf-unit-name${d.nameHidden ? ' is-culled' : ''}`} style={{ fontSize: d.nameFont }} title={d.nameTitle}>{d.nameShown}</span>
         {d.showPause && d.paused && <span className="rf-paused-word" data-unit-paused={d.unitId}>일시정지</span>}
+        {d.showWait && d.waiting && !d.paused && <span className="rf-wait-mark" data-unit-wait={d.unitId}><StatusMark status="pending" /></span>}
         <span className="rf-unit-meta">{d.meta}</span>
       </div>
       {d.positionLocked && <UnitLockMark unitId={d.unitId} />}
@@ -413,7 +428,11 @@ function DeviceNode({ data }: NodeProps) {
   return (
     <div
       data-jump={`device:${dev.id}`}
-      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.paused ? ' is-paused' : d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}${d.tone}`}
+      data-progress={d.progress === null ? '' : String(d.progress)}
+      data-just-done={d.justDone ? 'true' : 'false'}
+      data-done={d.done || d.justDone ? 'true' : 'false'}
+      data-wait={d.waiting && !d.fault && !d.paused && !d.active ? 'true' : 'false'}
+      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.paused ? ' is-paused' : d.active ? ' is-active' : d.waiting ? ' is-wait' : d.justDone && d.motion ? ' is-just-done' : d.justDone || d.done ? ' is-done' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}${d.tone}`}
       style={{ width: dev.layout.w, height: dev.layout.h }}
       onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
       onPointerMove={(e) => d.api.move(e, nodeIdOf(e.currentTarget))}
@@ -427,7 +446,8 @@ function DeviceNode({ data }: NodeProps) {
           <rect width={dev.layout.w} height={dev.layout.h} rx={3} fill="none" stroke="var(--border)" strokeWidth={1} />
         </svg>
         : <svg width={dev.layout.w} height={dev.layout.h}><Symbol kind={dev.kind} w={dev.layout.w} h={dev.layout.h} st={{ active: d.active, extended: d.extended, raised: d.raised, holding: d.holding }} /></svg>}
-      {d.showStatus && (d.fault || d.paused || d.active) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : d.paused ? 'assumption' : 'active'} word={d.paused ? '일시정지' : undefined} />{d.interlock && <span className="rf-interlock-word">Interlock</span>}</div>}
+      {d.showStatus && (d.fault || d.paused || d.active || d.waiting || d.justDone || d.done) && <div className="rf-run-mark"><StatusMark status={d.fault ? 'error' : d.paused ? 'assumption' : d.active ? 'active' : d.waiting ? 'pending' : 'done'} word={d.paused ? '일시정지' : undefined} />{d.progress !== null && <span className="rf-progress-pct">{Math.round(d.progress * 100)}%</span>}{d.interlock && <span className="rf-interlock-word">Interlock</span>}</div>}
+      {d.motion && d.progress !== null && <div className="rf-progress" role="progressbar" aria-valuenow={Math.round(d.progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="진행률"><span className="rf-progress-fill" style={{ width: `${d.progress * 100}%` }} /></div>}
       <div className={`rf-dev-name${d.nameHidden ? ' is-culled' : ''}`} title={d.nameTitle}>{d.nameShown}</div>
       {d.portLabels.map((port) => <span key={port.id} className={`rf-port-name ${port.side}`} style={{ top: port.top }} title={port.title}>{port.text}</span>)}
       {d.photo && <div className={`rf-photo-note ${photo?.status === 'available' ? 'ok' : 'miss'}`}>{photo?.status === 'available' ? `${AI_BADGE} 실사풍·실제 사진 아님` : 'AI 이미지 미준비→도식'}</div>}
@@ -464,7 +484,7 @@ function DeviceNode({ data }: NodeProps) {
 function MaterialNode({ data }: NodeProps) {
   const d = data as MatData;
   return (
-    <div className={`rf-mat nopan${d.waiting ? ' is-waiting' : ''}`} data-waiting={d.waiting ? 'true' : 'false'} data-piece={d.pieceId ?? ''}>
+    <div className={`rf-mat nopan${d.waiting ? ' is-waiting' : ''}`} data-waiting={d.waiting ? 'true' : 'false'} data-piece={d.pieceId ?? ''} data-x={d.x} data-y={d.y} data-travel={d.travel === null ? '' : String(d.travel)}>
       <div className="rf-mat-box" />
       <div className="rf-mat-label">{d.label}</div>
     </div>
@@ -507,7 +527,7 @@ function SignalEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
 }
 
 function FlowCanvas(props: Props) {
-  const { project: p, rt, view, selection, mode, connectFrom, frame = 'layout' } = props;
+  const { project: p, rt, view, selection, mode, connectFrom, frame = 'layout', runMotion = true } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -738,7 +758,13 @@ function FlowCanvas(props: Props) {
 
   const activeDevice = rt?.active ? p.actions.find((a) => a.id === p.sequence.steps[rt.active!.stepIndex]?.actionId)?.deviceId : undefined;
   const pieceDevices = new Set((rt?.pieces ?? []).flatMap((pc) => {
-    if (!pc.active) return [];
+    if (!pc.active || pc.active.hold) return [];
+    const step = p.sequence.steps[pc.active.stepIndex];
+    const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
+    return action ? [action.deviceId] : [];
+  }));
+  const heldDevices = new Set((rt?.pieces ?? []).flatMap((pc) => {
+    if (!pc.active?.hold) return [];
     const step = p.sequence.steps[pc.active.stepIndex];
     const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
     return action ? [action.deviceId] : [];
@@ -784,6 +810,15 @@ function FlowCanvas(props: Props) {
   };
   const pausedUnits = new Set(pausedUnitIds(rt));
   const pausedDevices = new Set(pausedDeviceIds(p, rt));
+  const runMarks = new Map<string, DeviceRunMark>(deviceRunMarks(p, rt).map((row) => [row.deviceId, row]));
+  const waits = waitSpots(p, rt);
+  const waitUnits = new Set(waits.filter((row) => row.kind === 'unit').map((row) => row.id));
+  const waitDevices = new Set(waits.filter((row) => row.kind === 'device').map((row) => row.id));
+  const deviceLive = (id: string) => {
+    if (runMarks.get(id)?.progress != null) return true;
+    if (heldDevices.has(id)) return false;
+    return activeDevice === id || pieceDevices.has(id) || !!props.activeDeviceIds?.includes(id);
+  };
   const nameFont = unitNameFontPx(vpZoom);
   const sx = (x: number) => x * vpZoom + vpX;
   const sy = (y: number) => y * vpZoom + vpY;
@@ -795,9 +830,9 @@ function FlowCanvas(props: Props) {
       id: `unit:${u.id}`, kind: 'unit', fullText: short, selected: selection.includes(u.id), alert: false,
       x: sx(box.x + 36), y: sy(box.y + 6), w: Math.max(28, short.length * 12 * vpZoom), h: 16 * vpZoom,
     });
-    if (pausedUnits.has(u.id)) {
+    if (pausedUnits.has(u.id) || waitUnits.has(u.id)) {
       diagramLabels.push({
-        id: `status:${u.id}`, kind: 'status', fullText: '일시정지', selected: false, alert: true,
+        id: `status:${u.id}`, kind: 'status', fullText: pausedUnits.has(u.id) ? '일시정지' : '대기', selected: false, alert: true,
         x: sx(box.x + box.w - 72), y: sy(box.y + 6), w: 64 * vpZoom, h: 16 * vpZoom,
       });
     }
@@ -811,8 +846,10 @@ function FlowCanvas(props: Props) {
       id: `device:${d.id}`, kind: 'device', fullText: d.name, selected: selection.includes(d.id), alert,
       x: sx(x), y: sy(y + d.layout.h + 2), w: Math.max(28, d.name.length * 11 * vpZoom), h: 14 * vpZoom,
     });
-    if (alert || activeDevice === d.id || pieceDevices.has(d.id) || !!props.activeDeviceIds?.includes(d.id)) {
-      const word = props.faultDeviceIds?.includes(d.id) ? '오류' : pausedDevices.has(d.id) ? '일시정지' : '진행 중';
+    const devMark = runMarks.get(d.id);
+    const devWaiting = waitDevices.has(d.id) && !deviceLive(d.id);
+    if (alert || deviceLive(d.id) || devWaiting || devMark?.justDone || devMark?.done) {
+      const word = props.faultDeviceIds?.includes(d.id) ? '오류' : pausedDevices.has(d.id) ? '일시정지' : deviceLive(d.id) ? '진행 중' : devWaiting ? '대기' : '완료';
       diagramLabels.push({
         id: `status:${d.id}`, kind: 'status', fullText: word, selected: false, alert,
         x: sx(x), y: sy(y - 18), w: 72 * vpZoom, h: 16 * vpZoom,
@@ -857,7 +894,9 @@ function FlowCanvas(props: Props) {
         showResize: selected && mode === 'select' && !props.locked && L.units && u.positionLocked !== true,
         minW: min.w, minH: min.h, api, paused: pausedUnits.has(u.id), positionLocked: u.positionLocked === true,
         nameShown: unitLabel.text, nameTitle: unitLabel.title, nameHidden: unitLabel.hidden,
-        nameFont, showPause: pausedUnits.has(u.id) && shown(`status:${u.id}`, '일시정지').hidden === false,
+        nameFont, showPause: pausedUnits.has(u.id),
+        waiting: waitUnits.has(u.id),
+        showWait: waitUnits.has(u.id) && !pausedUnits.has(u.id),
       } satisfies UnitData,
     });
   }
@@ -881,10 +920,15 @@ function FlowCanvas(props: Props) {
       className: 'nopan',
       data: {
         device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked, tone: toneOf(d.id),
-        active: activeDevice === d.id || pieceDevices.has(d.id) || !!props.activeDeviceIds?.includes(d.id),
+        active: deviceLive(d.id),
         fault: !!props.faultDeviceIds?.includes(d.id),
         interlock: !!props.interlockDeviceIds?.includes(d.id),
         paused: pausedDevices.has(d.id),
+        progress: runMarks.get(d.id)?.progress ?? null,
+        waiting: waitDevices.has(d.id),
+        justDone: !!runMarks.get(d.id)?.justDone,
+        done: !!runMarks.get(d.id)?.done,
+        motion: runMotion,
         extended: d.kind === 'cylinder' ? sigOn(d.id, 'cmdFwd') || sigOn(d.id, 'fwdDone')
           : d.kind === 'pusher' ? sigOn(d.id, 'cmdPush') || sigOn(d.id, 'pushDone')
           : d.kind === 'gantry' ? (rt?.devicePositions?.[d.id] ?? null) !== null || sigOn(d.id, 'cmdMove') : false,
@@ -896,7 +940,7 @@ function FlowCanvas(props: Props) {
         signals: devSignals, onIds, positions, showPositions: L.positions,
         mode, link, api,
         nameShown: devLabel.text, nameTitle: devLabel.title, nameHidden: devLabel.hidden,
-        showStatus: shown(`status:${d.id}`, '').hidden === false,
+        showStatus: !!props.faultDeviceIds?.includes(d.id) || pausedDevices.has(d.id) || deviceLive(d.id) || waitDevices.has(d.id) || !!runMarks.get(d.id),
         portLabels: devSignals.flatMap((s) => {
           const row = shown(`port:${s.id}`, portWord(d.name, s.name, s.portKey));
           if (row.hidden) return [];
@@ -907,7 +951,7 @@ function FlowCanvas(props: Props) {
     });
   }
 
-  for (const mat of materialMarkers(p, rt, off)) {
+  for (const mat of materialMarkers(p, rt, off, runMotion)) {
     if (!L.flow) break;
     nodes.push({
       id: mat.id, type: 'material', zIndex: 8,
@@ -916,7 +960,7 @@ function FlowCanvas(props: Props) {
       draggable: false, selectable: false, connectable: false, deletable: false, focusable: false,
       className: 'nopan',
       style: { pointerEvents: 'none' },
-      data: { label: mat.label, waiting: mat.waiting, pieceId: mat.pieceId } satisfies MatData,
+      data: { label: mat.label, waiting: mat.waiting, pieceId: mat.pieceId, x: mat.x, y: mat.y, travel: mat.travel } satisfies MatData,
     });
   }
 
@@ -991,7 +1035,7 @@ function FlowCanvas(props: Props) {
 
   const fitRunTo = useCallback((width: number, height: number) => {
     if (width <= 40 || height <= 40) return;
-    const bounds = unionBounds(runEquipmentBoxes(propsRef.current.project, propsRef.current.rt));
+    const bounds = unionBounds(runEquipmentBoxes(propsRef.current.project, propsRef.current.rt, propsRef.current.runMotion !== false));
     if (!bounds) return;
     const units = propsRef.current.project.units.map((u) => ({ x: u.layout.x, y: u.layout.y, w: u.layout.w }));
     const legend = legendInPane(hostRef.current);
@@ -1199,7 +1243,7 @@ function FlowCanvas(props: Props) {
     };
   })();
   return (
-    <div ref={hostRef} className="rf-host" tabIndex={-1} data-mode={mode} data-frame={frame} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} data-flow-drag={flowDrag ? '1' : '0'} data-label-tier={zoomTier(vpZoom)} onPointerDownCapture={onBandDown} onContextMenuCapture={openContext} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div ref={hostRef} className="rf-host" tabIndex={-1} data-mode={mode} data-frame={frame} data-run-motion={runMotion ? 'on' : 'off'} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} data-flow-drag={flowDrag ? '1' : '0'} data-label-tier={zoomTier(vpZoom)} onPointerDownCapture={onBandDown} onContextMenuCapture={openContext} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -1334,105 +1378,17 @@ function FlowCanvas(props: Props) {
   );
 }
 
-function materialMarkers(p: Project, rt: RuntimeState | null, off: (id: string, unitId?: string) => { dx: number; dy: number }): { id: string; x: number; y: number; label: string; waiting: boolean; pieceId?: string }[] {
-  if (rt?.pieces && rt.pieces.length > 1) {
-    const live = rt.pieces.filter((pc) => pc.phase !== 'queued' && pc.material.location !== 'EXIT' && pc.material.location !== '');
-    const byUnit = new Map<string, typeof live>();
-    for (const pc of live) {
-      const list = byUnit.get(pc.material.location) ?? [];
-      list.push(pc);
-      byUnit.set(pc.material.location, list);
-    }
-    const out: { id: string; x: number; y: number; label: string; waiting: boolean; pieceId?: string }[] = [];
-    for (const pc of live) {
-      const mates = byUnit.get(pc.material.location) ?? [pc];
-      const i = mates.indexOf(pc);
-      const span = Math.max(1, mates.length - 1);
-      const shift = mates.length > 1 ? (i - span / 2) * 26 : 0;
-      let pos = unitAnchor(p, off, pc.material.location as string | 'EXIT');
-      if (pc.material.holder) {
-        const d = p.devices.find((x) => x.id === pc.material.holder);
-        if (d) { const o = off(d.id, d.unitId); pos = { x: d.layout.x + o.dx + d.layout.w / 2, y: d.layout.y + o.dy + d.layout.h + 10 }; }
-      }
-      if (pc.active && !pc.active.hold && pc.active.completeAtMs !== null) {
-        const step = p.sequence.steps[pc.active.stepIndex];
-        const a = p.actions.find((x) => x.id === step?.actionId);
-        if (a?.effect.moveTo && a.duration.value && pos) {
-          const to = a.effect.moveTo === 'EXIT' ? unitAnchor(p, off, 'EXIT') : unitAnchor(p, off, a.effect.moveTo);
-          const f = Math.min(1, Math.max(0, (rt.timeMs - pc.active.startMs) / (a.duration.value * 1000)));
-          if (to) pos = { x: pos.x + (to.x - pos.x) * f, y: pos.y + (to.y - pos.y) * f };
-        }
-      }
-      if (!pos) continue;
-      pos = { x: pos.x + shift, y: pos.y };
-      out.push({
-        id: pc.index === 1 ? 'runtime-material' : `runtime-material-${pc.instanceId}`,
-        x: pos.x, y: pos.y,
-        label: `${pc.phase === 'waiting' ? `${waitingLead()} · ` : ''}개체 ${pc.index} · ${pc.material.state}`,
-        waiting: pc.phase === 'waiting',
-        pieceId: pc.instanceId,
-      });
-    }
-    return out;
-  }
-  const one = materialMarker(p, rt, off);
-  return one ? [{ id: 'runtime-material', x: one.x, y: one.y, label: one.label, waiting: false }] : [];
-}
-
-function unitAnchor(p: Project, off: (id: string, unitId?: string) => { dx: number; dy: number }, uid: string | 'EXIT') {
-  if (uid === 'EXIT') {
-    const last = p.units[p.units.length - 1];
-    if (!last) return { x: 20, y: 20 };
-    const o = off(last.id);
-    return { x: last.layout.x + o.dx + last.layout.w + 40, y: last.layout.y + o.dy + last.layout.h - 34 };
-  }
-  const u = p.units.find((x) => x.id === uid);
-  if (!u) return null;
-  const o = off(u.id);
-  return { x: u.layout.x + o.dx + u.layout.w / 2, y: u.layout.y + o.dy + u.layout.h - 34 };
-}
-
-function materialMarker(p: Project, rt: RuntimeState | null, off: (id: string, unitId?: string) => { dx: number; dy: number }) {
-  const m0 = p.materials[0];
-  const mi = rt?.material ?? (m0 && m0.initialLocation ? { location: m0.initialLocation, state: m0.initialState ?? '', holder: null as string | null, instanceId: `${m0.id}#1` } : null);
-  const unitAnchor = (uid: string | 'EXIT') => {
-    if (uid === 'EXIT') {
-      const last = p.units[p.units.length - 1];
-      if (!last) return { x: 20, y: 20 };
-      const o = off(last.id);
-      return { x: last.layout.x + o.dx + last.layout.w + 40, y: last.layout.y + o.dy + last.layout.h - 34 };
-    }
-    const u = p.units.find((x) => x.id === uid);
-    if (!u) return null;
-    const o = off(u.id);
-    return { x: u.layout.x + o.dx + u.layout.w / 2, y: u.layout.y + o.dy + u.layout.h - 34 };
-  };
-  if (!mi) return null;
-  let pos = unitAnchor(mi.location as string | 'EXIT');
-  if (mi.holder) {
-    const d = p.devices.find((x) => x.id === mi.holder);
-    if (d) { const o = off(d.id, d.unitId); pos = { x: d.layout.x + o.dx + d.layout.w / 2, y: d.layout.y + o.dy + d.layout.h + 10 }; }
-  }
-  if (rt?.active) {
-    const step = p.sequence.steps[rt.active.stepIndex];
-    const a = p.actions.find((x) => x.id === step?.actionId);
-    if (a?.effect.moveTo && a.duration.value) {
-      const to = a.effect.moveTo === 'EXIT' ? unitAnchor('EXIT') : unitAnchor(a.effect.moveTo);
-      const f = Math.min(1, Math.max(0, (rt.timeMs - rt.active.startMs) / (a.duration.value * 1000)));
-      if (pos && to && rt.active.completeAtMs !== null) pos = { x: pos.x + (to.x - pos.x) * f, y: pos.y + (to.y - pos.y) * f };
-    }
-  }
-  if (!pos) return null;
-  return { ...pos, label: `${m0?.name.split(' ')[0] ?? 'M'} · ${mi.state}` };
+function materialMarkers(p: Project, rt: RuntimeState | null, off: (id: string, unitId?: string) => { dx: number; dy: number }, motion = true) {
+  return materialPoses(p, rt, motion, off);
 }
 
 /** Units, devices, and the runtime material marker. Stage-6 fit uses this box. */
-export function runEquipmentBoxes(project: Project, rt: RuntimeState | null): PlanBox[] {
+export function runEquipmentBoxes(project: Project, rt: RuntimeState | null, motion = true): PlanBox[] {
   const boxes: PlanBox[] = [
     ...project.units.map((u) => ({ x: u.layout.x, y: u.layout.y, w: u.layout.w, h: u.layout.h })),
     ...project.devices.map((d) => ({ x: d.layout.x, y: d.layout.y, w: d.layout.w, h: d.layout.h })),
   ];
-  for (const mat of materialMarkers(project, rt, () => ({ dx: 0, dy: 0 }))) boxes.push({ x: mat.x - 11, y: mat.y - 11, w: 22, h: 22 });
+  for (const mat of materialMarkers(project, rt, () => ({ dx: 0, dy: 0 }), motion)) boxes.push({ x: mat.x - 11, y: mat.y - 11, w: 22, h: 22 });
   return boxes;
 }
 
