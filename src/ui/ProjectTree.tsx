@@ -11,6 +11,7 @@ import chevronFolded from './slots/e5f85.svg?url';
 import { devName } from './labels';
 import { StatusMark } from './StatusMark';
 import type { StatusKey } from './status';
+import { isTextField, type ContextRequest } from './contextMenu';
 
 export interface ProjectTreeProps {
   p: Project;
@@ -21,12 +22,19 @@ export interface ProjectTreeProps {
   subCount: (unitId: string) => number;
   /** Device id → status chip. Missing ids show no chip. */
   statusOf?: Record<string, StatusKey>;
+  onContextMenu?: (req: ContextRequest) => void;
 }
 
 /** "모두 접기" = Station and every Substation (with devices) folded; unfolding the Station then shows folded Substations. */
 export const collapseAllIds = (p: Project) => [...(p.units.length ? [p.equipment.id] : []), ...p.units.filter((u) => u.deviceIds.length > 0).map((u) => u.id)];
 
-export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick, subCount, statusOf }: ProjectTreeProps) {
+export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick, subCount, statusOf, onContextMenu }: ProjectTreeProps) {
+  const ask = (e: React.MouseEvent<HTMLElement>, hit: ContextRequest['hit']) => {
+    if (!onContextMenu || isTextField(e.target as Element)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onContextMenu({ x: e.clientX, y: e.clientY, hit, surface: 'tree', focus: e.currentTarget });
+  };
   const ref = useRef<HTMLDivElement>(null);
   const isCol = (id: string) => collapsed.includes(id);
   const setCol = (id: string, fold: boolean) => {
@@ -74,6 +82,7 @@ export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick
           const hiddenSel = !open && u.deviceIds.some((d) => selection.includes(d));
           return <div key={u.id} role="treeitem" tabIndex={0} data-tree-id={u.id} aria-level={2} aria-selected={sel} aria-expanded={kids ? open : undefined}
             className="titem tunit" onClick={(e) => own(e, () => onPick(u.id))}
+            onContextMenu={(e) => ask(e, { kind: 'unit', id: u.id })}
             onKeyDown={(e) => onKey(e, u.id, { expandable: kids, open, parent: stationId, select: () => onPick(u.id) })} title={`${u.name} — Substation(Unit) ${u.id}`}>
             <div className={`tnode ${sel ? 'sel' : ''}`} style={{ paddingLeft: 14 }}>
               {kids ? <Twisty id={u.id} open={open} label={u.name} /> : leafPad}
@@ -83,6 +92,7 @@ export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick
                 const dsel = selection.includes(d);
                 return <div key={d} role="treeitem" tabIndex={0} data-tree-id={d} aria-level={3} aria-selected={dsel} className={`tnode ${dsel ? 'sel' : ''}`}
                   style={{ paddingLeft: 44, fontSize: 12 }} onClick={(e) => own(e, () => onPick(d))}
+                  onContextMenu={(e) => ask(e, { kind: 'device', id: d })}
                   onKeyDown={(e) => onKey(e, d, { expandable: false, open: false, parent: u.id, select: () => onPick(d) })}>
                   {devName(p, d)} {statusOf?.[d] && <StatusMark status={statusOf[d]} compact />} <span className="muted">{findAsset(p.devices.find((x) => x.id === d)?.kind ?? '')?.name ?? '정의 없음'}</span></div>;
               })}

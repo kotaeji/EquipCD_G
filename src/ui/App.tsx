@@ -18,6 +18,8 @@ import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDraft, readDraftList, saveDraft, sweepDrafts, workTimesLabel, type DraftMeta } from '../storage/drafts';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
+import { ContextMenu } from './ContextMenu';
+import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenu';
 import { selectAll, SELECT_HINT } from './selectAll';
 import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector, InterlockPanel, type ConfirmDelete } from './Inspector';
@@ -163,6 +165,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [clip, setClip] = useState<Clipboard | null>(null);
   const [mode, setMode] = useState<Mode>('select');
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
+  const [ctx, setCtx] = useState<{ x: number; y: number; surface: ContextSurface; kind: MenuKind; focus: HTMLElement | null } | null>(null);
+  const [propsFold, setPropsFold] = useState(true);
+  const [propPeek, setPropPeek] = useState(false);
+  const [fitToken, setFitToken] = useState(0);
   const [rightTab, setRightTab] = useState('props');
   const [subTab, setSubTab] = useState<Record<StepId, string>>({ library: 'cards', canvas: '', attributes: '', sequence: 'sequence', check: 'gap', run: '' });
   const [itemsStep, setItemsStep] = useState<StepId | null>(null);
@@ -509,6 +515,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (edit(r, '신호 연결')) say('신호 연결 추가');
     setConnectFrom(null);
   };
+  const onFlowConnect = (fromId: string, toId: string) => {
+    const r = C.addConnection(p, 'flow', fromId, toId);
+    if (edit(r, '물류 연결')) say('물류 연결 추가');
+    setConnectFrom(null);
+  };
   const onConnectCancel = () => setConnectFrom(null);
   const requestDelete = (id: string) => {
     if (locked) { say('실행 중에는 삭제가 차단됩니다', true); return; }
@@ -579,6 +590,59 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setModal({ title: `${d.name} 소속을 ${u.name}(으)로 변경`, body: <p>영향 Action {imp.actions.length}개, 시퀀스 단계 {imp.steps.length}개. 좌표는 새 Unit 안쪽으로 옮깁니다.</p>,
       actions: [{ label: '변경', primary: true, run: () => { edit(C.reparentDevice(p, deviceId, unitId, { x: u.layout.x + 20, y: u.layout.y + 40 }), 'Device 소속 변경'); } }, { label: '취소', run: () => {} }] });
   };
+  const openContext = (req: ContextRequest) => {
+    const plan = planContext(p, selection, req.hit);
+    const same = plan.selection.length === selection.length && plan.selection.every((id, i) => id === selection[i]);
+    if (!same) setSelection(plan.selection);
+    setCtx({ x: req.x, y: req.y, surface: req.surface, kind: plan.kind, focus: req.focus });
+  };
+  const runMenu = (id: MenuAction) => {
+    setCtx(null);
+    if (id === 'props') {
+      setPropPeek(false);
+      setPropsFold(true);
+      setRightTab('props');
+      if (step !== 'canvas' && step !== 'attributes') goStep('canvas');
+      return;
+    }
+    if (id === 'propsView') { setPropPeek(true); return; }
+    if (id === 'fitView') { setFitToken((n) => n + 1); return; }
+    if (id === 'selectAll') {
+      const hit = selectAll(p, selection);
+      if ('keep' in hit) say(hit.message, true);
+      else setSelection(hit.ids);
+      return;
+    }
+    if (id === 'copy') { requestCopy(); return; }
+    if (id === 'paste') { requestPaste(); return; }
+    if (id === 'duplicate') { requestDuplicate(); return; }
+    if (id === 'arrange') { arrangeSelectedDevices(); return; }
+    if (id === 'fit') { fitSelectedUnit(); return; }
+    if (id === 'rename') {
+      const u = p.units.find((x) => x.id === selection[0]);
+      if (!u || locked) return;
+      setNameDlg({
+        title: `Unit 이름 변경 — ${u.name}`,
+        initial: u.name,
+        submitLabel: '이름 변경',
+        hint: 'Unit 이름입니다. 한 번에 rev +1, Undo 한 번.',
+        validate: (n) => (n.trim() ? null : '이름은 비울 수 없습니다'),
+        onSubmit: (n) => { if (edit(C.renameObject(p, u.id, n), 'Unit 이름')) setNameDlg(null); },
+      });
+      return;
+    }
+    if (id === 'delete') {
+      if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds);
+      else if (selection.length >= 1) requestDelete(selection[0]);
+      return;
+    }
+    if (id === 'alignLeft') { edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬'); return; }
+    if (id === 'alignTop') { edit(C.alignNodes(p, selection, 'top'), '위 정렬'); return; }
+    if (id === 'gapX') { const r = C.distributeUnits(p, selection, 'x'); runArrange(r, '가로 간격 같게'); return; }
+    if (id === 'gapY') { runArrange(C.distributeUnits(p, selection, 'y'), '세로 간격 같게'); return; }
+    if (id === 'matchW') { runArrange(C.matchUnitSize(p, selection, 'w'), '너비 같게'); return; }
+    if (id === 'matchH') { runArrange(C.matchUnitSize(p, selection, 'h'), '높이 같게'); return; }
+  };
 
   // ---------- keyboard ----------
   useEffect(() => {
@@ -596,6 +660,27 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
       if (dialogOpen()) return;
       if (typing) return;
+      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        const el = e.target as HTMLElement | null;
+        if (!el || isTextField(el) || el.closest('.ctx-menu')) return;
+        const treeItem = el.closest<HTMLElement>('[data-tree-id]');
+        if (treeItem) {
+          const id = treeItem.dataset.treeId ?? '';
+          const hit = p.units.some((u) => u.id === id) ? { kind: 'unit' as const, id } : p.devices.some((d) => d.id === id) ? { kind: 'device' as const, id } : null;
+          if (!hit) return;
+          e.preventDefault();
+          const r = treeItem.getBoundingClientRect();
+          openContext({ x: r.left, y: r.bottom, hit, surface: 'tree', focus: treeItem });
+          return;
+        }
+        const host = el.closest<HTMLElement>('.rf-host, .board');
+        if (!host || view.home || guide) return;
+        e.preventDefault();
+        const rect = host.getBoundingClientRect();
+        const surface: ContextSurface = step === 'run' ? 'run' : host.classList.contains('board') ? 'board' : 'diagram';
+        openContext({ x: rect.left + 8, y: rect.top + 8, hit: hitFromSelection(p, selection), surface, focus: el });
+        return;
+      }
       // TURN-044. Step 2, and the explorer tree. An input already returned, so text copy stays native.
       const inTree = !!(e.target as HTMLElement | null)?.closest?.('.tree');
       const onCanvas = !view.home && !guide && step === 'canvas';
@@ -1005,7 +1090,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     });
     return key ? [[d.id, key]] : [];
   }));
-  const tree = <ProjectTree p={p} selection={selection} collapsed={collapsed} onCollapsedChange={setCollapsed} onPick={pick} subCount={subCount} statusOf={statusOf} />;
+  const tree = <ProjectTree p={p} selection={selection} collapsed={collapsed} onCollapsedChange={setCollapsed} onPick={pick} subCount={subCount} statusOf={statusOf} onContextMenu={openContext} />;
 
   // ---------- TURN-002: workspace / project management ----------
   const curWs = W.activeWs(reg);
@@ -1193,12 +1278,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
   const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
-    onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
+    onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
   const canvasEl = <Canvas project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
-    onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
+    onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
+  const menuNodes = selection.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
+  const menuItems = ctx ? buildContextMenu({
+    surface: ctx.surface,
+    kind: ctx.kind,
+    locked,
+    pasteReason: pasteBlockReason(locked, !!clip, selection.filter((id) => p.units.some((u) => u.id === id)).length),
+    canArrange: 'unitId' in arrangeTarget,
+    arrangeReason: 'unitId' in arrangeTarget ? undefined : arrangeTarget.reason,
+    unitCount: menuNodes.filter((id) => p.units.some((u) => u.id === id)).length,
+    allUnits: menuNodes.length >= 2 && menuNodes.every((id) => p.units.some((u) => u.id === id)),
+    canViewProps: selection.some((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id) || p.connections.some((c) => c.id === id)),
+  }) : [];
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} confirmDelete={confirmDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
@@ -1349,12 +1446,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
                   onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick}
                   onSignalHint={() => say('신호 연결은 도면 도식 탭의 포트에서 합니다')} onReparent={requestReparent}
-                  connectNote={connectNote} />
+                  connectNote={connectNote} onContextMenu={openContext} />
                 <p className="path-note">{flowSummary(p)}<br />카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 도면 도식 탭에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
               </> },
               { id: 'diagram', label: '도면 도식', panel: <>
                 <div className="diagram-tools">
-                  <p className="diagram-hint" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
+                  <p className="diagram-hint" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>물류: Unit 오른쪽 손잡이를 다른 Unit으로 끌기 · 신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
                   {visualToggle}
                   <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
                   <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
@@ -1400,7 +1497,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); setRightTab('actions'); goStep('attributes'); }}>Action 편집</button>
               <button type="button" className="danger" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}>삭제 영향 확인</button>
             </div>
-            <Fold className="prop-more" summary="속성 자세히">{inspectorEl}</Fold>
+            <Fold className="prop-more" summary="속성 자세히" open={propsFold} onToggle={setPropsFold}>{inspectorEl}</Fold>
           </div>;
         })()}</div></div>
       </div>}
@@ -1598,6 +1695,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             }}>이동</button>
           </section>}
           {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
+          {propPeek && <section className="run-prop-peek" data-prop-peek aria-label="속성 보기">
+            <div className="row"><b>속성 보기</b><button type="button" className="small" onClick={() => setPropPeek(false)}>닫기</button></div>
+            <Inspector project={p} selectedId={selection[0] ?? null} locked gaps={tab.gaps} edit={edit} onAddStep={() => {}} onDelete={() => {}} confirmDelete={() => {}} onReparent={() => {}} tab="props" setTab={() => {}} visualMode={view.visualMode} />
+          </section>}
           <div className="run-canvas">
             {view.runView === '3d' && scene3d
               ? <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} equipmentMotion={equipmentMotion} running={rt?.status === 'running'} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
@@ -1644,6 +1745,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <p className="muted">화면 {screen} · 단계 {cur.no} {cur.label} · 확대 {Math.round(view.zoom * 100)}%</p>
         <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn-main secondary" onClick={() => setViewOpen(false)}>닫기</button></div>
       </StaticModalFrame>}
+      {ctx && <ContextMenu x={ctx.x} y={ctx.y} kind={ctx.kind} items={menuItems} returnFocus={ctx.focus} onRun={runMenu} onClose={() => setCtx(null)} />}
       {nameDlg && <NameDialog key={nameDlg.title} {...nameDlg} onCancel={() => setNameDlg(null)} />}
       {modal && <StaticModalFrame key={modal.title} title={modal.title} style={style} onCancel={() => setModal(null)}>
         {modal.body}

@@ -16,6 +16,7 @@ import {
   getSmoothStepPath,
   useReactFlow,
   useStoreApi,
+  useViewport,
   type Connection,
   type Edge,
   type EdgeProps,
@@ -46,6 +47,7 @@ import {
   type EdgeTone,
 } from './edgeFocus';
 import { pointerSelection, SELECT_HINT } from './selectAll';
+import { EDIT_LOCKED as EDIT_LOCKED_MSG, FLOW_UNIT_ONLY, isTextField, type ContextRequest } from './contextMenu';
 import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
 import './canvas-select.css';
 
@@ -71,8 +73,14 @@ interface Props {
   onPortClick: (signalId: string) => void;
   /** Drag from an out port onto an in port. Model update stays in addConnection. */
   onSignalConnect: (fromSignalId: string, toSignalId: string) => void;
+  /** Drag a Unit flow handle onto another Unit. Model update stays in addConnection. */
+  onFlowConnect: (fromUnitId: string, toUnitId: string) => void;
   /** Drag released on empty space, or Esc while a line is out. No model change. */
   onConnectCancel: () => void;
+  /** Right-click on the diagram. The menu itself lives in App. */
+  onContextMenu?: (req: ContextRequest) => void;
+  /** Increments when the user asks the diagram to fit. 0 does nothing. */
+  fitToken?: number;
   onUnitConnectClick: (unitId: string) => void;
   onBlocked: (msg: string) => void;
   /** Bottom-right handle released. One resizeUnit command. */
@@ -92,7 +100,7 @@ interface Props {
 
 const BLOCKED = '실행 중에는 배치 이동(모델 편집)이 차단됩니다. 선택·보기만 가능합니다.';
 /** Same sentence as applyEdit when a model edit is refused while running. */
-const EDIT_LOCKED = '실행 중(또는 일시정지 중)에는 모델 편집이 차단됩니다. 초기화 후 편집하세요. (화면 이동·선택·테마·레이어는 허용)';
+const EDIT_LOCKED = EDIT_LOCKED_MSG;
 const START_OUT = '출력(out) 포트에서 시작하세요';
 const FIT_MIN_ZOOM = 0.5;
 const FIT_LEFT = 52;
@@ -210,6 +218,7 @@ type DragApi = {
 type UnitData = {
   unitId: string; code: string; name: string; meta: string; w: number; h: number;
   selected: boolean; from: boolean; off: boolean; overlap: boolean; tone: string;
+  flowFrom: boolean; flowTarget: boolean;
   showResize: boolean; minW: number; minH: number; api: DragApi;
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
@@ -259,6 +268,22 @@ function nodeIdOf(el: Element) {
   return (el.closest('.react-flow__node') as HTMLElement | null)?.dataset.id ?? '';
 }
 
+/** What a flow-handle drop landed on. An empty miss changes nothing. */
+function flowDropAt(project: Project, x: number, y: number): { kind: 'empty' } | { kind: 'unit'; id: string } | { kind: 'other' } {
+  const el = (document.elementFromPoint?.(x, y) ?? null) as Element | null;
+  if (!el) return { kind: 'empty' };
+  const handleId = el.closest?.('[data-flow-handle]')?.getAttribute('data-flow-handle') ?? '';
+  if (handleId && project.units.some((u) => u.id === handleId)) return { kind: 'unit', id: handleId };
+  const node = el.closest?.('.react-flow__node');
+  const id = node?.getAttribute('data-id') ?? '';
+  if (id && project.units.some((u) => u.id === id)) return { kind: 'unit', id };
+  // A Device is drawn on its Unit. Dropping there connects that Unit.
+  const device = project.devices.find((d) => d.id === id);
+  if (device) return { kind: 'unit', id: device.unitId };
+  if (id) return { kind: 'other' };
+  return { kind: 'empty' };
+}
+
 function UnitNode({ data }: NodeProps) {
   const d = data as UnitData;
   const live = useRef(d);
@@ -271,7 +296,7 @@ function UnitNode({ data }: NodeProps) {
   }, []);
   return (
     <div
-      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.tone}`}
+      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.flowFrom ? ' is-flow-from' : ''}${d.flowTarget ? ' is-flow-target' : ''}${d.tone}`}
       style={{ width: d.w, height: d.h }}
       onPointerDown={(e) => {
         if ((e.target as HTMLElement).closest('.react-flow__resize-control')) { e.stopPropagation(); return; }
@@ -296,9 +321,9 @@ function UnitNode({ data }: NodeProps) {
         <span className="rf-unit-meta">{d.meta}</span>
       </div>
       <Handle type="target" position={Position.Left} id="flow-in" isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
-        className="rf-flow-anchor" style={{ top: d.h - 18, left: 0, right: 'auto', transform: 'translate(-50%, -50%)' }} />
+        className="rf-flow-anchor" style={{ top: '50%', left: 0, right: 'auto', transform: 'translate(-50%, -50%)' }} />
       <Handle type="source" position={Position.Right} id="flow-out" isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
-        className="rf-flow-anchor" style={{ top: d.h - 18, right: 0, left: 'auto', transform: 'translate(50%, -50%)' }} />
+        className="rf-flow-anchor" style={{ top: '50%', right: 0, left: 'auto', transform: 'translate(50%, -50%)' }} />
     </div>
   );
 }
@@ -413,6 +438,10 @@ function FlowCanvas(props: Props) {
   flowRef.current = screenToFlowPosition;
   const dragRef = useRef<{ ids: string[]; sx: number; sy: number; origin: string } | null>(null);
   const abortRef = useRef(false);
+  const flowDragRef = useRef<{ fromId: string; x: number; y: number; sx: number; sy: number } | null>(null);
+  const flowListeners = useRef<(() => void) | null>(null);
+  const [flowDrag, setFlowDrag] = useState<{ fromId: string; x: number; y: number } | null>(null);
+  const { x: vpX, y: vpY, zoom: vpZoom } = useViewport();
   const [preview, setPreview] = useState<{ ids: string[]; dx: number; dy: number } | null>(null);
   const [resizePreview, setResizePreview] = useState<{ id: string; w: number; h: number } | null>(null);
   const [dragFrom, setDragFrom] = useState<string | null>(null);
@@ -425,7 +454,7 @@ function FlowCanvas(props: Props) {
   const store = useStoreApi();
   const L = view.layers;
 
-  useEffect(() => () => { bandListeners.current?.(); bandLive.current = false; }, []);
+  useEffect(() => () => { bandListeners.current?.(); bandLive.current = false; flowListeners.current?.(); }, []);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.key === 'Shift') setShiftHeld(true); };
@@ -448,6 +477,12 @@ function FlowCanvas(props: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (flowDragRef.current) {
+        flowDragRef.current = null;
+        setFlowDrag(null);
+        flowListeners.current?.();
+        flowListeners.current = null;
+      }
       abortRef.current = true;
       store.getState().cancelConnection();
       setDragFrom(null);
@@ -494,6 +529,7 @@ function FlowCanvas(props: Props) {
 
   const api: DragApi = {
     down: (e, id) => {
+      if (e.button !== 0) return;
       if (!id) return;
       const cur = propsRef.current;
       if (cur.mode === 'flow') {
@@ -561,6 +597,54 @@ function FlowCanvas(props: Props) {
       if (cur.connectFrom === signalId) return;
       cur.onPortClick(signalId);
     },
+  };
+
+  const endFlowDrag = (ev: PointerEvent | null, commit: boolean) => {
+    const d = flowDragRef.current;
+    if (!d && !flowListeners.current) return;
+    flowDragRef.current = null;
+    setFlowDrag(null);
+    const detach = flowListeners.current;
+    flowListeners.current = null;
+    detach?.();
+    if (!commit || !ev || !d) return;
+    if (Math.abs(ev.clientX - d.sx) + Math.abs(ev.clientY - d.sy) < 3) return;
+    const cur = propsRef.current;
+    if (cur.locked) { cur.onBlocked(EDIT_LOCKED); return; }
+    const hit = flowDropAt(cur.project, ev.clientX, ev.clientY);
+    if (hit.kind === 'empty') return;
+    if (hit.kind === 'other') { cur.onBlocked(FLOW_UNIT_ONLY); return; }
+    cur.onFlowConnect(d.fromId, hit.id);
+  };
+
+  const startFlow = (e: React.PointerEvent, unitId: string) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const cur = propsRef.current;
+    if (cur.locked) { cur.onBlocked(EDIT_LOCKED); return; }
+    flowListeners.current?.();
+    const origin = { fromId: unitId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
+    flowDragRef.current = origin;
+    const move = (ev: PointerEvent) => {
+      const live = flowDragRef.current;
+      if (!live) return;
+      const next = { ...live, x: ev.clientX, y: ev.clientY };
+      flowDragRef.current = next;
+      if (Math.abs(next.x - next.sx) + Math.abs(next.y - next.sy) < 1) return;
+      setFlowDrag({ fromId: next.fromId, x: next.x, y: next.y });
+    };
+    const up = (ev: PointerEvent) => endFlowDrag(ev, true);
+    const cancel = () => endFlowDrag(null, false);
+    const detach = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+    };
+    flowListeners.current = detach;
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
   };
 
   const off = (id: string, unitId?: string) => {
@@ -631,6 +715,8 @@ function FlowCanvas(props: Props) {
         unitId: u.id, code: u.code, name: short, meta: `${u.deviceIds.length} dev · cap ${u.capacity.maxMaterials.value ?? '?'}`,
         w: box.w, h: box.h, selected, from: connectFrom === u.id,
         off: !L.units, overlap: overlap.has(u.id), tone: toneOf(u.id),
+        flowFrom: flowDrag?.fromId === u.id,
+        flowTarget: !!flowDrag && flowDrag.fromId !== u.id && !p.connections.some((c) => c.kind === 'flow' && c.from.nodeId === flowDrag.fromId && c.to.nodeId === u.id),
         showResize: selected && mode === 'select' && !props.locked && L.units,
         minW: min.w, minH: min.h, api,
       } satisfies UnitData,
@@ -811,6 +897,21 @@ function FlowCanvas(props: Props) {
     noteUserViewport(event, vp);
   }, [noteUserViewport]);
 
+  const fittedToken = useRef(0);
+  useEffect(() => {
+    const token = props.fitToken ?? 0;
+    if (!token || token === fittedToken.current) return;
+    fittedToken.current = token;
+    if (propsRef.current.frame === 'run') {
+      const rect = hostRef.current?.getBoundingClientRect();
+      const width = rect && rect.width > 40 ? rect.width : lastSize.current.width;
+      const height = rect && rect.height > 40 ? rect.height : lastSize.current.height;
+      fitRunTo(width, height);
+      return;
+    }
+    void fitCanvas();
+  }, [props.fitToken, fitCanvas, fitRunTo]);
+
   const onRunFitClick = () => {
     const el = hostRef.current;
     const rect = el?.getBoundingClientRect();
@@ -831,7 +932,7 @@ function FlowCanvas(props: Props) {
     const cur = propsRef.current;
     if (cur.mode !== 'select' || !e.shiftKey) return;
     const t = e.target as HTMLElement;
-    if (t.closest('.react-flow__node, .react-flow__edge, .react-flow__handle, .react-flow__controls, .react-flow__minimap, .rf-legend, .rf-connect-note, .react-flow__attribution, .react-flow__panel')) return;
+    if (t.closest('.react-flow__node, .react-flow__edge, .react-flow__handle, .react-flow__controls, .react-flow__minimap, .rf-legend, .rf-connect-note, .react-flow__attribution, .react-flow__panel, [data-flow-handle]')) return;
     const host = hostRef.current;
     if (!host) return;
     // Capture phase: stop the event before React Flow's pan listener on the renderer sees it.
@@ -888,8 +989,48 @@ function FlowCanvas(props: Props) {
   };
 
   const pal = THEMES[paletteTheme(view.theme)].vars;
+  const openContext = (e: React.MouseEvent) => {
+    const cur = propsRef.current;
+    if (!cur.onContextMenu) return;
+    const t = e.target as HTMLElement;
+    if (isTextField(t)) return;
+    e.preventDefault();
+    if (t.closest('.react-flow__controls, .react-flow__minimap, .rf-legend, .rf-minimap-toggle, .rf-run-fit, .react-flow__attribution, .react-flow__panel')) return;
+    const focus = document.activeElement instanceof HTMLElement ? document.activeElement : hostRef.current;
+    const surface = cur.frame === 'run' ? 'run' : 'diagram';
+    const at = { x: e.clientX, y: e.clientY, surface, focus } as const;
+    const handleId = t.closest('[data-flow-handle]')?.getAttribute('data-flow-handle') ?? '';
+    if (handleId) { cur.onContextMenu({ ...at, hit: { kind: 'unit', id: handleId } }); return; }
+    const node = t.closest('.react-flow__node');
+    const nodeId = node?.getAttribute('data-id') ?? '';
+    if (nodeId && cur.project.units.some((u) => u.id === nodeId)) { cur.onContextMenu({ ...at, hit: { kind: 'unit', id: nodeId } }); return; }
+    if (nodeId && cur.project.devices.some((d) => d.id === nodeId)) { cur.onContextMenu({ ...at, hit: { kind: 'device', id: nodeId } }); return; }
+    const edge = t.closest('.react-flow__edge');
+    const edgeId = edge?.getAttribute('data-id') ?? '';
+    if (edgeId) { cur.onContextMenu({ ...at, hit: { kind: 'edge', id: edgeId } }); return; }
+    cur.onContextMenu({ ...at, hit: { kind: 'empty' } });
+  };
+  const hostBox = hostRef.current?.getBoundingClientRect();
+  // The line starts at the handle (right-center of the source unit) and ends at the pointer.
+  const previewLine = (() => {
+    if (!flowDrag || !hostBox) return null;
+    const src = p.units.find((u) => u.id === flowDrag.fromId);
+    if (!src) return null;
+    const o = off(src.id);
+    const x = src.layout.x + o.dx;
+    const y = src.layout.y + o.dy;
+    const rz = resizePreview?.id === src.id ? resizePreview : null;
+    const w = rz?.w ?? src.layout.w;
+    const h = rz?.h ?? src.layout.h;
+    return {
+      x1: x * vpZoom + vpX + w * vpZoom,
+      y1: y * vpZoom + vpY + (h * vpZoom) / 2,
+      x2: flowDrag.x - hostBox.left,
+      y2: flowDrag.y - hostBox.top,
+    };
+  })();
   return (
-    <div ref={hostRef} className="rf-host" data-mode={mode} data-frame={frame} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} onPointerDownCapture={onBandDown} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div ref={hostRef} className="rf-host" tabIndex={-1} data-mode={mode} data-frame={frame} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} data-flow-drag={flowDrag ? '1' : '0'} onPointerDownCapture={onBandDown} onContextMenuCapture={openContext} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -978,6 +1119,38 @@ function FlowCanvas(props: Props) {
           <div><svg width="12" height="8" aria-hidden="true"><rect x="1" y="0" width="10" height="8" fill="var(--warning)" fillOpacity={0.2} stroke="var(--warning)" /></svg>자재(런타임 개체)</div>
         </Panel>
       </ReactFlow>
+      {L.units && (
+        <div className="rf-flow-handles">
+          {p.units.map((u) => {
+            const box = boxes.find((b) => b.id === u.id)!;
+            const left = box.x * vpZoom + vpX + box.w * vpZoom;
+            const top = box.y * vpZoom + vpY + (box.h * vpZoom) / 2;
+            return (
+              <div
+                key={u.id}
+                className={`rf-flow-handle${flowDrag?.fromId === u.id ? ' is-from' : ''}`}
+                data-flow-handle={u.id}
+                role="button"
+                tabIndex={-1}
+                aria-label={`${u.code} 물류 손잡이`}
+                title="다른 Unit으로 끌어 물류 연결"
+                style={{ left, top }}
+                onPointerDown={(e) => startFlow(e, u.id)}
+              />
+            );
+          })}
+        </div>
+      )}
+      {previewLine && (
+        <svg className="rf-flow-preview" data-testid="flow-preview" data-from={flowDrag?.fromId ?? ''}>
+          <defs>
+            <marker id="rf-flow-preview-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0 0 L10 5 L0 10 Z" fill="currentColor" />
+            </marker>
+          </defs>
+          <line data-testid="flow-preview-line" x1={previewLine.x1} y1={previewLine.y1} x2={previewLine.x2} y2={previewLine.y2} markerEnd="url(#rf-flow-preview-arrow)" />
+        </svg>
+      )}
       {band && <div className="rf-marquee" data-testid="marquee" style={{ left: band.left, top: band.top, width: band.width, height: band.height }} />}
     </div>
   );
