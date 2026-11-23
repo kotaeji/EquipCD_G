@@ -39,7 +39,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
   const ready = unit ? checkGroupReadiness(p, unitId) : null;
   if (!unit) return <div className="empty"><b>Substation이 없습니다</b><div className="muted">1 라이브러리에서 유닛 템플릿을 추가하거나 2 배치에서 빈 Unit(Substation)을 놓은 뒤 여기서 시퀀스를 만드세요.</div></div>;
   return <div className="subseq">
-    <div className="row wrap" style={{ gap: 8 }}>
+    <div className="row wrap" style={{ gap: 'var(--sp-2)' }}>
       <b>{SUBSTATION}</b><SubstationSelect p={p} value={unitId} onChange={setUnitId} />
       <button className="primary" disabled={locked} onClick={() => edit(C.addSubSequence(p, unitId), 'Substation 시퀀스 추가')}>+ 시퀀스 추가</button>
       <span className="muted small-text">이 Substation의 시퀀스는 Station 시퀀스에 Substation 단계를 넣으면 그 단계에서 함께 돕니다. 시퀀스 안은 순서대로입니다.</span>
@@ -54,11 +54,11 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
       {seqs.map((q) => {
         const lane = gs?.lanes.find((l) => l.seqId === q.id);
         return <section key={q.id} className="seqcard" aria-label={q.name}>
-          <header className="row" style={{ gap: 6 }}>
+          <header className="row" style={{ gap: 'var(--sp-1)' }}>
             <TextInput value={q.name} disabled={locked} width={220} onCommit={(v) => edit(C.renameSubSequence(p, q.id, v), '시퀀스 이름')} />
             {lane && <StatusMark status={laneShape(lane.status).status} word={laneShape(lane.status).word} />}
             <span className="grow" />
-            <span className="mono muted" style={{ fontSize: 10 }}>{q.id}</span>
+            <span className="mono muted" style={{ fontSize: 'var(--fs-xs)' }}>{q.id}</span>
             {subSequenceDeleteDetail(p, q.id) && <span className="danger-note" data-delete-impact>{subSequenceDeleteDetail(p, q.id)}</span>}
             <button type="button" className="small danger" disabled={locked} onClick={() => { const detail = subSequenceDeleteDetail(p, q.id); const run = () => edit(C.deleteSubSequence(p, q.id), '시퀀스 삭제'); if (detail && confirmDelete) confirmDelete(`${q.name} 삭제`, detail, run); else run(); }} aria-label={`${q.name} 삭제`}>삭제</button>
           </header>
@@ -66,7 +66,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
             {q.steps.map((s, i) => { const a = p.actions.find((x) => x.id === s.actionId); const rec = lane?.steps[i]; return (
               <tr key={s.id} className={rec?.status === 'active' ? 'active' : rec?.status === 'error' ? 'err' : ''}>
                 <td className="mono">{i + 1}</td><td>{s.name}</td><td>{a ? devName(p, a.deviceId) : <Badge kind="err">Action 없음</Badge>}</td>
-                <td style={{ fontSize: 11 }}>{a?.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
+                <td style={{ fontSize: 'var(--fs-xs)' }}>{a?.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
                 <td className="mono">{a?.duration.value ?? <StatusMark status="undetermined" />}s{a?.duration.assumption ? <> <StatusMark status="assumption" /></> : null}</td>
                 <td className="danger-row">
                   <button className="small" disabled={locked || i === 0} onClick={() => edit(C.moveSubStep(p, q.id, i, i - 1), '단계 위로')} aria-label="위로">↑</button>
@@ -76,7 +76,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
               </tr>); })}
             {q.steps.length === 0 && <tr><td colSpan={6} className="muted">단계 없음 — 아래에서 Action을 추가하세요 (단계 없는 시퀀스는 실행 차단)</td></tr>}
           </tbody></table>
-          <div className="row" style={{ gap: 6, marginTop: 6 }}>
+          <div className="row" style={{ gap: 'var(--sp-1)', marginTop: 'var(--sp-1)' }}>
             <select value={pick[q.id] ?? ''} disabled={locked} onChange={(e) => setPick({ ...pick, [q.id]: e.target.value })} aria-label="추가할 Action">
               <option value="">(이 Substation의 Action 선택)</option>
               {acts.map((a) => <option key={a.id} value={a.id}>{devName(p, a.deviceId)} · {a.name}</option>)}
@@ -94,7 +94,7 @@ export function GroupRunPanel({ p, gs, unitId, onGoBlocker }: { p: Project; gs: 
   const ready = unit ? checkGroupReadiness(p, unitId) : null;
   return <div>
     <div className="section"><h4>그룹 실행 — {unit ? unit.name : '(Substation 없음)'} ({SUBSTATION})</h4>
-      <div className="row wrap" style={{ gap: 8 }}>
+      <div className="row wrap" style={{ gap: 'var(--sp-2)' }}>
         <span>공통 가상 시계 <b className="mono">{fmtTime(gs?.timeMs ?? 0)}</b></span>
         <Badge kind={gs?.status === 'completed' ? 'ok' : gs?.status === 'error' ? 'err' : gs?.status === 'running' ? 'acc' : gs?.status === 'paused' ? 'warn' : undefined}>그룹 {gs?.status ?? 'idle'}</Badge>
         {gs && <span className="muted small-text">실행 묶음 {gs.runId} · 모델 rev {gs.modelRevision}</span>}
