@@ -132,7 +132,7 @@ export function evaluateSteps(p: Project, ctx: EvalContext): Record<StepId, Step
     const dev = k.relatedIds.find((id) => p.devices.some((d) => d.id === id));
     s3.push({ level: 'human', kind: 'interlock', text: `Interlock 후보 확인 필요: ${k.description}`, jump: { step: 'attributes', selectId: dev, rightTab: 'check', field: `interlock:${k.id}` } });
   }
-  mk('attributes', s3, { a: p.actions.map((a) => [a.id, a.commandSignalId, a.completeSignalId, a.timeout.value, a.duration.value, a.pre, a.post]), s: p.signals.map((s) => s.id), d: p.devices.map((d) => [d.id, d.properties]), k: p.constraints.map((k) => k.confirmation) });
+  mk('attributes', s3, { a: p.actions.map((a) => [a.id, a.commandSignalId, a.completeSignalId, a.timeout.value, a.duration.value, a.pre, a.post]), s: p.signals.map((s) => s.id), d: p.devices.map((d) => [d.id, d.properties]), k: p.constraints.map((k) => [k.confirmation, k.rule ?? null]) });
 
   // 4 material / sequence
   const s4: StepItem[] = [];

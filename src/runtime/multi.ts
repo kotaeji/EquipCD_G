@@ -12,6 +12,7 @@ import {
   applySensorSignals, evalCond, ms, signalLabel, unmetText,
   type PieceRun, type Runtime, type RuntimeState, type StepRecord,
 } from './engine';
+import { judgeInterlock, type InterlockHit } from './interlock';
 
 export function makePieces(p: Project): PieceRun[] | null {
   const m = p.materials[0];
@@ -100,7 +101,7 @@ function closeWait(s: RuntimeState, pc: PieceRun) {
   logAt(s, 'info', 'WAIT_END', `개체 ${pc.index} 대기 끝 — ${wait.note} ${(dt / 1000).toFixed(3)}s`, pc.instanceId);
 }
 
-function openWait(s: RuntimeState, pc: PieceRun, wait: { reason: 'device' | 'capacity'; unitId: string; note: string }) {
+function openWait(s: RuntimeState, pc: PieceRun, wait: { reason: 'device' | 'capacity' | 'interlock'; unitId: string; note: string }) {
   if (pc.wait && pc.wait.note === wait.note && pc.wait.unitId === wait.unitId) return;
   closeWait(s, pc);
   pc.wait = { ...wait, sinceMs: s.timeMs };
@@ -185,6 +186,23 @@ function readIsFailing(p: Project, s: RuntimeState, actionId: string): boolean {
   return n <= limit;
 }
 
+function pushBlock(s: RuntimeState, stepId: string, hit: InterlockHit) {
+  s.interlockBlocks.push({
+    t: s.timeMs, interlockId: hit.interlockId, description: hit.description,
+    stepId, stepName: hit.stepName, reason: hit.reason,
+  });
+}
+
+function activeActionIds(p: Project, s: RuntimeState, except?: string): string[] {
+  const ids: string[] = [];
+  for (const other of piecesOf(s)) {
+    if (!other.active || other.instanceId === except) continue;
+    const step = p.sequence.steps[other.active.stepIndex];
+    if (step) ids.push(step.actionId);
+  }
+  return ids;
+}
+
 function actionOf(p: Project, stepIndex: number): { step: Project['sequence']['steps'][number]; action: Action } | null {
   const step = p.sequence.steps[stepIndex];
   const action = step ? p.actions.find((a) => a.id === step.actionId) : undefined;
@@ -223,8 +241,23 @@ function tryStart(p: Project, s: RuntimeState, pc: PieceRun): boolean {
       return false;
     }
   }
-  closeWait(s, pc);
   const view = { signals: s.signals, material: pc.material };
+  const gate = judgeInterlock(
+    p, a.id, step.name, activeActionIds(p, s, pc.instanceId), true,
+    (c) => evalCond(c, view, p), unmetText,
+  );
+  if (gate.kind === 'wait') {
+    openWait(s, pc, { reason: 'interlock', unitId: gate.wait.unitId, note: gate.wait.note });
+    return false;
+  }
+  if (gate.kind === 'block') {
+    closeWait(s, pc);
+    pushBlock(s, step.id, gate.hit);
+    const message = gate.hit.message.replace(`[${step.name}]`, `[개체 ${pc.index} ${step.name}]`);
+    failRun(s, 'INTERLOCK_BLOCK', step.id, message);
+    return false;
+  }
+  closeWait(s, pc);
   for (const c of [...step.entry, ...a.pre]) {
     const r = evalCond(c, view, p);
     if (!r.ok) {

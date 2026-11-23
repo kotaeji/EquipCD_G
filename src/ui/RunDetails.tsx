@@ -1,5 +1,6 @@
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
+import type { InterlockBlockRecord } from '../runtime/interlock';
 import { formatMs } from '../scene/runInfo';
 import { fmtTime } from './Panels';
 import { RunSummary } from './RunSummary';
@@ -52,6 +53,26 @@ function PieceTable({ rt }: { rt: RuntimeState | null }) {
   );
 }
 
+function InterlockHistory({ rows, onJump }: { rows: InterlockBlockRecord[]; onJump?: (id: string) => void }) {
+  if (!rows.length) return null;
+  return (
+    <table className="grid" aria-label="Interlock 차단 이력">
+      <thead><tr><th>가상 시각</th><th>Interlock</th><th>단계</th><th>까닭</th><th></th></tr></thead>
+      <tbody>
+        {rows.map((row, i) => (
+          <tr key={`${row.interlockId}:${row.t}:${i}`} data-interlock-block={row.interlockId}>
+            <td className="mono">{fmtTime(row.t)}</td>
+            <td>{row.interlockId} {row.description}</td>
+            <td>{row.stepName}</td>
+            <td>{row.reason}</td>
+            <td>{onJump && <button type="button" className="small" onClick={() => onJump(row.interlockId)}>이동</button>}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function RunSignals({ p, rt }: { p: Project; rt: RuntimeState | null }) {
   return (
     <table className="grid" aria-label="신호 상태">
@@ -68,13 +89,14 @@ function RunSignals({ p, rt }: { p: Project; rt: RuntimeState | null }) {
 }
 
 /** Collapsed by default under the canvas. Summary, the full log, and signal state. */
-export function RunDetails({ p, rt, open, tab, onToggle, onTab }: {
+export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock }: {
   p: Project;
   rt: RuntimeState | null;
   open: boolean;
   tab: RunDetailsTab;
   onToggle: () => void;
   onTab: (id: RunDetailsTab) => void;
+  onJumpInterlock?: (id: string) => void;
 }) {
   const last = rt?.log?.length ? rt.log[rt.log.length - 1] : null;
   const lastLine = last ? `${fmtTime(last.t)} ${last.code} ${last.message}` : '로그 없음';
@@ -85,6 +107,7 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab }: {
         {!open && <span className="run-details-last" title={lastLine}>{lastLine}</span>}
       </div>
       {open && <div className="run-details-body">
+        <InterlockHistory rows={rt?.interlockBlocks ?? []} onJump={onJumpInterlock} />
         <PieceTable rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
           { id: 'summary', label: '실행 결과 요약', panel: <RunSummary p={p} rt={rt} embedded /> },
