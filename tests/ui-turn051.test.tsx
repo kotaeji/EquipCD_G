@@ -10,7 +10,7 @@ import { App } from '../src/ui/App';
 import { BootGate, LOADING_DELAY_MS } from '../src/ui/EmptyState';
 import { BlockerList, Problem } from '../src/ui/Problem';
 import { resolveBlocker } from '../src/ui/blockerTarget';
-import { FilesSheet, LabSheet, SearchSheet } from '../src/ui/SparseScreens';
+import { ExtractSheet, FilesSheet, SearchSheet } from '../src/ui/SparseScreens';
 import { LOADING_3D, runErrorProblem, saveProblem } from '../src/ui/problemCopy';
 import { checkRunReadiness } from '../src/model/validate';
 
@@ -239,24 +239,12 @@ describe('TURN-051 empty and not-ready screens', () => {
     expect(u.el.textContent).toContain('입력 후보가 없습니다');
   });
 
-  it('AC9 the unfinished screens keep 준비 중 and offer a place to work instead', async () => {
-    const jumped: string[] = [];
-    // 파일 묶음은 TURN-055, 자료 입력은 TURN-060에서 동작하므로 준비 중 표시가 없다.
-    const cases: [string, ReactNode][] = [
-      ['lab', <LabSheet revision={1} onInstead={() => jumped.push('lab')} />],
-    ];
-    for (const [name, node] of cases) {
-      const el = await mount(node);
-      expect(el.querySelector('.not-ready-lead')!.textContent, name).toContain('준비 중');
-      expect(el.querySelector('[data-screen-purpose]')!.textContent!.length, name).toBeGreaterThan(0);
-      expect(el.querySelector('[data-screen-instead]')!.textContent!.length, name).toBeGreaterThan(0);
-      const go = [...el.querySelectorAll('button')].find((b) => b.textContent === '이동')!;
-      await act(async () => { go.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-      expect(jumped, name).toContain(name);
-      await act(async () => { root!.unmount(); });
-      root = null;
-      document.body.innerHTML = '';
-    }
+  it('AC9 the guide screens that now work do not keep 준비 중', async () => {
+    // Evolution Lab은 TURN-058, 파일 묶음은 TURN-055, 자료 입력은 TURN-060에서 동작한다.
+    const el = await mount(<ExtractSheet />);
+    expect(el.querySelector('.not-ready')).toBeNull();
+    expect(el.textContent).not.toContain('준비 중');
+    expect(el.textContent).toContain('지원(IO 리스트 · 사양표)');
   });
 
   it('AC10 the loading hold waits, then leaves when the scene is ready', async () => {
