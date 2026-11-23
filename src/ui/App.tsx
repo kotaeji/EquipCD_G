@@ -36,6 +36,8 @@ import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, Exte
 import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
+import { TourBubble } from './TourBubble';
+import { isTourSample, TOUR_AGAIN, TOUR_BUTTON, TOUR_STEPS } from './tour';
 import { BrandMark } from './BrandMark';
 import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
@@ -136,6 +138,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [layerOpen, setLayerOpen] = useState(false);
   const [arrangeOpen, setArrangeOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [tourIndex, setTourIndex] = useState<number | null>(null);
+  const tourReturn = useRef<HTMLElement | null>(null);
+  const tourIndexRef = useRef<number | null>(null);
   const [speed, setSpeed] = useState(1);
   const [showNames, setShowNames] = useState(true);
   const [emphasizeMotion, setEmphasizeMotion] = useState(true);
@@ -525,6 +530,38 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const t = makeTab(proj); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
     setView((v) => ({ ...v, home: false }));
   };
+  const restoreTourFocus = () => {
+    const back = tourReturn.current;
+    if (back?.isConnected) { back.focus(); return; }
+    document.querySelector<HTMLElement>('.stepper .st.on .st-go')?.focus();
+  };
+  const endTour = () => {
+    tourIndexRef.current = null;
+    setTourIndex(null);
+    setView((v) => (v.tourSeen ? v : { ...v, tourSeen: true }));
+  };
+  const goTour = (index: number) => {
+    const spec = TOUR_STEPS[index];
+    if (!spec) { endTour(); return; }
+    tourIndexRef.current = index;
+    setTourIndex(index);
+    setLibDetail(false);
+    setItemsStep(null);
+    setGuide(null);
+    setView((v) => ({ ...v, home: false, step: spec.step, ...(spec.step === 'canvas' ? { layoutTab: 'board' as const } : {}) }));
+    if (spec.sub) setSubTab((t) => ({ ...t, [spec.step]: spec.sub! }));
+    if (spec.step === 'attributes') setRightTab('props');
+  };
+  const beginTour = (opener: HTMLElement | null) => {
+    tourReturn.current = opener;
+    setViewOpen(false);
+    const existing = tabs.find((t) => isTourSample(t.history.present));
+    if (!existing) newProject('sample');
+    else if (existing.key !== tab.key) { setActiveKey(existing.key); setSelection([]); }
+    goTour(0);
+  };
+  const nextTour = () => { const i = tourIndexRef.current; if (i === null) return; goTour(i + 1); };
+  const prevTour = () => { const i = tourIndexRef.current; if (i === null || i <= 0) return; goTour(i - 1); };
   const closeTab = (key: string) => {
     const t = tabs.find((x) => x.key === key)!;
     const doClose = () => setTabs((ts) => { const n = ts.filter((x) => x.key !== key); const list = n.length ? n : [makeTab(emptyProject('새 프로젝트'))]; if (key === activeKey) setActiveKey(list[0].key); return list; });
@@ -810,7 +847,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
     <button className={view.visualMode === 'photo' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'photo' })} title="AI 생성 실사풍 이미지 표시 — 실제 촬영 사진 아님 (모델·연결·상태 불변)">실사풍(AI)</button></>;
   const runControls = <>
-    <button className="primary" data-jump="run-start" onClick={doRun} disabled={running || rt?.status === 'paused'}>▶ 실행</button>
+    <button className="primary" data-jump="run-start" data-tour="run" onClick={doRun} disabled={running || rt?.status === 'paused'}>▶ 실행</button>
     <button onClick={doPause} disabled={!running}>❚❚ 일시정지</button>
     <button onClick={doResume} disabled={rt?.status !== 'paused'}>재개</button>
     <button onClick={doStep} disabled={rt?.status !== 'paused'} title="일시정지 중 가상 0.1초 진행">+0.1s</button>
@@ -884,7 +921,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className="work-rev">rev {p.revision}</span>
         <span className={dirty ? 'save-chip dirty' : 'save-chip saved'}>{dirty ? '● 저장 안 됨' : '저장됨'}</span>
       </div>
-      <div className="stepper" role="navigation" aria-label="단계">
+      <div className="stepper" role="navigation" aria-label="단계" data-tour="stepbar">
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
           <div key={s.id} className={`st ${on ? 'on' : ''}`} data-stepid={s.id} onClick={(e) => { if ((e.target as HTMLElement).closest('[data-step-badge]')) return; goStep(s.id); }}>
             <button type="button" className="st-go" aria-current={on ? 'step' : undefined}>{s.no} {s.label}</button>
@@ -927,6 +964,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {!guide && view.home && <div className="workspace home-main">
         <h1>어떤 장비를 설계할까요?</h1>
         <p className="muted">현재 Workspace 「{curWs.name}」에서 새로 시작하거나 저장된 설계를 이어갑니다.</p>
+        <div className={`home-tour${savedList.length === 0 && !view.tourSeen ? ' is-primary' : ''}`}>
+          {savedList.length === 0 && !view.tourSeen && <p>일곱 걸음 안에 1~6단계가 하는 일을 보고, 예제를 실행해 볼 수 있습니다.</p>}
+          <button type="button" className={`btn-main tour-cta ${savedList.length === 0 && !view.tourSeen ? 'primary' : 'secondary'}`}
+            data-tour-start data-tour-offer={savedList.length === 0 && !view.tourSeen ? 'primary' : view.tourSeen ? 'again' : 'quiet'}
+            onClick={(e) => beginTour(e.currentTarget)}>{view.tourSeen ? TOUR_AGAIN : TOUR_BUTTON}</button>
+        </div>
         <div className="home-cards">
           <section className="home-card">
             <h2>새 설계 시작</h2>
@@ -966,7 +1009,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
         <div className="stage layout-stage">
           <div className="stage-head">
-            <h1 className="stage-title">배치·연결</h1>
+            <h1 className="stage-title"><span data-tour="canvas">배치·연결</span></h1>
             <div className="tool-pills">
               <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}>선택/이동</button>
               <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결">물류 연결</button>
@@ -1046,7 +1089,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
       {!guide && !view.home && step === 'attributes' && <div className="workspace ws-full ws-noTabs">
         <div className="bbody sparse-page">
-          <h1 className="stage-title">{rightTab === 'signals' || rightTab === 'positions' ? '신호와 포지션' : rightTab === 'actions' || rightTab === 'check' ? 'Action 정의' : '장치 속성'}</h1>
+          <h1 className="stage-title"><span data-tour="attributes">{rightTab === 'signals' || rightTab === 'positions' ? '신호와 포지션' : rightTab === 'actions' || rightTab === 'check' ? 'Action 정의' : '장치 속성'}</span></h1>
           <p className="muted">기본 화면은 성긴 폼입니다. 신호·Action·정의 체크의 나머지 입력은 아래 접는 칸에 있습니다.</p>
           {(() => {
             const d = p.devices.find((x) => x.id === selectedId) ?? p.devices[0];
@@ -1140,7 +1183,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!guide && !view.home && step === 'sequence' && <div className="workspace ws-full">
-        <h1 className="stage-title">{sub === 'material' ? '자재와 흐름' : sub === 'subseq' ? 'Substation 시퀀스' : sub === 'sfc' ? 'SFC 미리보기' : sub === 'extend' ? '누락 편집 확장' : 'Station 시퀀스'}</h1>
+        <h1 className="stage-title"><span data-tour="sequence">{sub === 'material' ? '자재와 흐름' : sub === 'subseq' ? 'Substation 시퀀스' : sub === 'sfc' ? 'SFC 미리보기' : sub === 'extend' ? '누락 편집 확장' : 'Station 시퀀스'}</span></h1>
         <Sub items={[['sequence', 'Station 시퀀스 Draft (F5)'], ['subseq', `Substation 시퀀스 (${(p.substationSequences ?? []).length})`], ['material', '자재·Flow (F4)'], ['sfc', 'SFC 미리보기'], ['extend', '누락 편집 확장']]} />
         <div className="bbody sparse-page">
           {sub === 'sequence' && <section className="sheet wide">
@@ -1190,7 +1233,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {!guide && !view.home && step === 'check' && <div className="workspace ws-full">
-        <h1 className="stage-title">{sub === 'diag' ? '진단과 저장' : sub === 'export' ? 'Export 미리보기' : sub === 'lab' ? 'Evolution Lab' : 'Gap 점검'}</h1>
+        <h1 className="stage-title"><span data-tour="check">{sub === 'diag' ? '진단과 저장' : sub === 'export' ? 'Export 미리보기' : sub === 'lab' ? 'Evolution Lab' : 'Gap 점검'}</span></h1>
         <Sub items={[['gap', `Gap (F6) ${tab.gaps.length}`], ['diag', '진단·저장·AML'], ['export', 'Export 미리보기 (F8)'], ['lab', 'Evolution Lab (F7)']]} />
         <div className="bbody sparse-page">
           {sub === 'gap' && <section className="sheet wide">
@@ -1263,6 +1306,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {viewOpen && <StaticModalFrame title="보기 설정" style={style} onCancel={() => setViewOpen(false)}>
         <p className="muted">보기만 바꿉니다. 모델, rev, 실행, 선택, 입력은 그대로입니다. 보관된 이전 팔레트는 고를 수 없습니다.</p>
         <div className="row" style={{ gap: 8 }}>{visualToggle}</div>
+        <div className="row" style={{ gap: 8 }}>
+          <button type="button" className="btn-main secondary" onClick={() => {
+            const headerBtn = [...document.querySelectorAll<HTMLElement>('.header button')].find((b) => (b.textContent ?? '').trim() === '보기 설정') ?? null;
+            beginTour(headerBtn);
+          }}>{view.tourSeen ? TOUR_AGAIN : TOUR_BUTTON}</button>
+        </div>
         <p className="muted">화면 {screen} · 단계 {cur.no} {cur.label} · 확대 {Math.round(view.zoom * 100)}%</p>
         <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn-main secondary" onClick={() => setViewOpen(false)}>닫기</button></div>
       </StaticModalFrame>}
@@ -1271,6 +1320,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {modal.body}
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>{modal.actions.map((a) => <button key={a.label} autoFocus={a.focus} className={a.primary ? 'primary' : a.danger ? 'danger' : ''} onClick={() => { setModal(null); a.run(); }}>{a.label}</button>)}</div>
       </StaticModalFrame>}
+      {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
     </div>
   );
 }
