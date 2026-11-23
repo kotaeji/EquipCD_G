@@ -124,6 +124,32 @@ export function importRejectProblem(fileName: string): ProblemCopy {
   };
 }
 
+export function backgroundRejectProblem(reason: { code: 'too-big'; bytes: number } | { code: 'too-wide'; edge: number } | { code: 'not-image' }): ProblemCopy {
+  if (reason.code === 'too-big') {
+    const mb = (reason.bytes / (1024 * 1024)).toFixed(1);
+    return {
+      tone: 'error',
+      what: '배경 도면을 넣지 못했습니다',
+      why: `파일이 2MB를 넘습니다 (${mb}MB).`,
+      how: '2MB 이하의 PNG 또는 JPEG 한 장을 고르세요.',
+    };
+  }
+  if (reason.code === 'too-wide') {
+    return {
+      tone: 'error',
+      what: '배경 도면을 넣지 못했습니다',
+      why: `긴 변이 4096px을 넘습니다 (${reason.edge}px).`,
+      how: '긴 변을 4096px 이하로 줄인 뒤 다시 고르세요.',
+    };
+  }
+  return {
+    tone: 'error',
+    what: '배경 도면을 넣지 못했습니다',
+    why: 'PNG 또는 JPEG가 아닙니다.',
+    how: 'PNG 또는 JPEG 한 장을 고르세요.',
+  };
+}
+
 export function exportBlockedProblem(count: number): ProblemCopy {
   return {
     tone: 'error',

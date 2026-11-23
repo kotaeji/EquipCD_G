@@ -1,0 +1,35 @@
+.bg-tools { position: relative; }
+
+.bg-panel {
+  position: absolute;
+  top: 32px;
+  left: 0;
+  z-index: 40;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+}
+
+.bg-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+}
+
+.bg-panel .bg-check { flex-direction: row; align-items: center; }
+
+.bg-panel input[type="number"],
+.bg-panel input[type="range"] { width: 100%; }
+
+.bg-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text);
+}

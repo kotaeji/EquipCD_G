@@ -1,0 +1,21 @@
+.rf-unit-lock {
+  position: absolute;
+  top: var(--sp-1);
+  right: var(--sp-1);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  pointer-events: none;
+}
+
+.unit-lock-tools {
+  display: inline-flex;
+  gap: var(--sp-1);
+  align-items: center;
+}

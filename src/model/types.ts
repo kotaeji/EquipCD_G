@@ -108,6 +108,28 @@ export interface Unit {
   templateRef?: { assetId: Id; version: string };
   /** set when this Unit was pasted from another Unit */
   lineage?: { duplicatedFrom: Id };
+  /**
+   * Position lock. Absent on files saved before TURN-059, which means unlocked.
+   * A locked Unit does not move or resize; Devices inside it still edit.
+   */
+  positionLocked?: boolean;
+}
+
+/**
+ * One PNG or JPEG behind the stage-2 diagram. Absent on files saved before TURN-059.
+ * Stored in the project (data URL). The file format version stays 0.3.0.
+ * `scale` is millimetres per image pixel. `locked` defaults to on.
+ */
+export interface DiagramBackground {
+  dataUrl: string;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  scale: number;
+  /** 10–100 */
+  opacity: number;
+  locked: boolean;
 }
 
 export interface Device {
@@ -329,6 +351,8 @@ export interface Project {
   simSettings: SimSettings;
   gapReview: Record<Id, GapReviewEntry>;
   assumptionsNote: string[];
+  /** Optional stage-2 drawing behind the units. Missing on older files. */
+  diagramBackground?: DiagramBackground;
 }
 
 export interface ProjectFile {

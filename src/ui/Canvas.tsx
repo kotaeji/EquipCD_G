@@ -50,6 +50,9 @@ import {
 import { pointerSelection, SELECT_HINT } from './selectAll';
 import { EDIT_LOCKED as EDIT_LOCKED_MSG, FLOW_UNIT_ONLY, isTextField, type ContextRequest } from './contextMenuModel';
 import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
+import { readDiagramBackground } from '../model/background';
+import { DiagramBackground } from './DiagramBackground';
+import { UnitLockMark } from './UnitLock';
 import './canvas-select.css';
 
 export type Mode = 'select' | 'flow' | 'signal';
@@ -88,6 +91,10 @@ interface Props {
   onResizeCommit: (unitId: string, w: number, h: number) => void;
   /** Shown over the diagram. Null keeps the canvas from growing. */
   connectNote: string | null;
+  /** Two-point scale mode. Clicks on an unlocked background report image pixels. */
+  backgroundPicking?: boolean;
+  onBackgroundMove?: (x: number, y: number) => void;
+  onBackgroundPoint?: (px: number, py: number) => void;
   /** Viewport zoom → UserView.zoom. Pan is not stored. */
   onZoomChange?: (zoom: number) => void;
   /** Stage-2 and stage-6 remember the minimap apart. View only. */
@@ -222,6 +229,7 @@ type UnitData = {
   flowFrom: boolean; flowTarget: boolean;
   showResize: boolean; minW: number; minH: number; api: DragApi;
   paused?: boolean;
+  positionLocked?: boolean;
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
@@ -323,6 +331,7 @@ function UnitNode({ data }: NodeProps) {
         {d.paused && <span className="rf-paused-word" data-unit-paused={d.unitId}>일시정지</span>}
         <span className="rf-unit-meta">{d.meta}</span>
       </div>
+      {d.positionLocked && <UnitLockMark unitId={d.unitId} />}
       <Handle type="target" position={Position.Left} id="flow-in" isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
         className="rf-flow-anchor" style={{ top: '50%', left: 0, right: 'auto', transform: 'translate(-50%, -50%)' }} />
       <Handle type="source" position={Position.Right} id="flow-out" isConnectable={false} isConnectableStart={false} isConnectableEnd={false}
@@ -543,14 +552,19 @@ function FlowCanvas(props: Props) {
       }
       if (cur.mode !== 'select') return;
       e.stopPropagation();
+      hostRef.current?.focus({ preventScroll: true });
       const have = modelIds(cur.selection);
       const next = pointerSelection(have, id, e);
       cur.onSelect(next.ids, false);
       // Ctrl/Cmd click that removes the node must not drag whatever is still selected.
       if (!next.drag) { dragRef.current = null; return; }
       if (cur.locked) { cur.onBlocked(BLOCKED); return; }
+      const lockedUnit = (nodeId: string) => cur.project.units.some((u) => u.id === nodeId && u.positionLocked === true);
+      if (lockedUnit(id)) { dragRef.current = null; return; }
+      const dragIds = next.ids.filter((nodeId) => !lockedUnit(nodeId));
+      if (!dragIds.length) { dragRef.current = null; return; }
       const pt = flowRef.current({ x: e.clientX, y: e.clientY });
-      dragRef.current = { ids: next.ids, sx: pt.x, sy: pt.y, origin: id };
+      dragRef.current = { ids: dragIds, sx: pt.x, sy: pt.y, origin: id };
       try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* jsdom */ }
     },
     move: (e, id) => {
@@ -722,8 +736,8 @@ function FlowCanvas(props: Props) {
         off: !L.units, overlap: overlap.has(u.id), tone: toneOf(u.id),
         flowFrom: flowDrag?.fromId === u.id,
         flowTarget: !!flowDrag && flowDrag.fromId !== u.id && !p.connections.some((c) => c.kind === 'flow' && c.from.nodeId === flowDrag.fromId && c.to.nodeId === u.id),
-        showResize: selected && mode === 'select' && !props.locked && L.units,
-        minW: min.w, minH: min.h, api, paused: pausedUnits.has(u.id),
+        showResize: selected && mode === 'select' && !props.locked && L.units && u.positionLocked !== true,
+        minW: min.w, minH: min.h, api, paused: pausedUnits.has(u.id), positionLocked: u.positionLocked === true,
       } satisfies UnitData,
     });
   }
@@ -938,7 +952,7 @@ function FlowCanvas(props: Props) {
     const cur = propsRef.current;
     if (cur.mode !== 'select' || !e.shiftKey) return;
     const t = e.target as HTMLElement;
-    if (t.closest('.react-flow__node, .react-flow__edge, .react-flow__handle, .react-flow__controls, .react-flow__minimap, .rf-legend, .rf-connect-note, .react-flow__attribution, .react-flow__panel, [data-flow-handle]')) return;
+    if (t.closest('.react-flow__node, .react-flow__edge, .react-flow__handle, .react-flow__controls, .react-flow__minimap, .rf-legend, .rf-connect-note, .react-flow__attribution, .react-flow__panel, [data-flow-handle], [data-diagram-bg]')) return;
     const host = hostRef.current;
     if (!host) return;
     // Capture phase: stop the event before React Flow's pan listener on the renderer sees it.
@@ -1086,6 +1100,15 @@ function FlowCanvas(props: Props) {
         style={{ background: 'var(--canvas)' }}
       >
         {L.background && <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--grid)" />}
+        {frame === 'layout' && L.background && readDiagramBackground(p) && (
+          <DiagramBackground
+            bg={readDiagramBackground(p)!}
+            editLocked={props.locked}
+            picking={!!props.backgroundPicking}
+            onMove={(x, y) => propsRef.current.onBackgroundMove?.(x, y)}
+            onPoint={(px, py) => propsRef.current.onBackgroundPoint?.(px, py)}
+          />
+        )}
         <Controls showInteractive={false} showFitView={frame !== 'run'} position="bottom-left" className="nopan" aria-label="도면 확대 축소"
           fitViewOptions={{ padding: FIT_PADDING, duration: 0, minZoom: FIT_MIN_ZOOM, maxZoom: 2 }}
           onFitView={() => { requestAnimationFrame(() => requestAnimationFrame(() => alignLeftIfMin())); }} />
@@ -1118,7 +1141,7 @@ function FlowCanvas(props: Props) {
           >{minimapOpen ? '접기' : '미니맵'}</button>
         </Panel>
         {props.connectNote && <Panel position="top-left" className="notice rf-connect-note nopan" style={{ position: 'absolute', top: 48, pointerEvents: 'none' }}>{props.connectNote}</Panel>}
-        <Panel position="top-left" className="rf-legend nopan" title={`배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작) · Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>
+        <Panel position="top-left" className="rf-legend nopan" title={`배경: 격자 · 배경 도면은 있으면 레이어와 함께 · 배경 없이도 동작 · Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="var(--text)" strokeWidth="2" /><path d="M12 1 L20 4 L12 7 Z" fill="var(--text)" /></svg>자재 흐름(물류)</div>
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="5 4" /></svg>논리 신호 (out●→in○)</div>
           <div><svg width="12" height="8" aria-hidden="true"><path d="M6 0 L2 8 L10 8 Z" fill="none" stroke="var(--warning)" /></svg>Position</div>
