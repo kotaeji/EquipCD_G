@@ -1,3 +1,4 @@
+import { shownStepCondition } from '../model/conditionFormula';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { summarizeRun } from '../runtime/runSummary';
@@ -42,7 +43,8 @@ export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: Runtim
                 {summary.steps.map((step, i) => {
                   const longest = summary.longest?.stepId === step.stepId && summary.longest.elapsedMs === step.elapsedMs
                     && summary.steps.findIndex((s) => s.stepId === step.stepId && s.elapsedMs === step.elapsedMs) === i;
-                  const where = [step.lane, step.pass != null ? `${step.pass}회` : '', step.condText].filter(Boolean).join(' · ');
+                  const cond = shownStepCondition(p, step.stepId) ?? (step.wait ? step.condText : '');
+                  const where = [step.lane, step.pass != null ? `${step.pass}회` : '', cond].filter(Boolean).join(' · ');
                   const shape = step.wait && step.status === 'active' ? phaseShape('pending') : phaseShape(step.status);
                   const word = step.wait && step.status === 'active' ? '대기' : shape.word;
                   const tone = step.status === 'error' ? 'run-summary-error' : step.status === 'stopped' ? 'run-summary-stopped' : undefined;

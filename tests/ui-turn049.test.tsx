@@ -162,6 +162,6 @@ describe('TURN-049 flow editor and run controls', () => {
     });
     const log = host.querySelector('[aria-label="실행 로그"]')!.textContent ?? '';
     expect(log).toContain('WAIT_START');
-    expect(host.querySelector('[data-wait="true"]')!.textContent).toContain('==');
+    expect(host.querySelector('[data-wait="true"]')!.textContent).toContain('= ON');
   });
 });

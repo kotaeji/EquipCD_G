@@ -18,7 +18,9 @@ import { EmptyState } from './EmptyState';
 import { EMPTY, RUN_LOCK } from './problemCopy';
 import type { ConfirmDelete, EditFn } from './Inspector';
 import { stepDeleteDetail, stepUsage } from '../model/deleteImpact';
-import { condLabel, devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
+import { conditionsFormula } from '../model/conditionFormula';
+import { Terms } from './Term';
+import { devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
 import { RunSummary } from './RunSummary';
 import { SfcView } from './SfcView';
 import { StatusMark } from './StatusMark';
@@ -76,7 +78,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect, confirmDelete }: 
       </div>
       <div style={{ flex: 1, overflow: 'auto' }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => dropAt(e, p.sequence.steps.length)}>
         <table className="grid">
-          <thead><tr><th>#</th><th>단계</th><th>Unit / Device</th><th>완료 조건</th><th>타임아웃</th><th>자재 변화</th><th>출처</th><th>상태</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>단계</th><th><Terms text="Unit / Device" /></th><th><Terms text="완료 조건" /></th><th><Terms text="타임아웃" /></th><th>자재 변화</th><th>출처</th><th>상태</th><th></th></tr></thead>
           <tbody>
             {p.sequence.steps.map((s, i) => {
               const a = p.actions.find((x) => x.id === s.actionId);
@@ -88,7 +90,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect, confirmDelete }: 
                   <td className="mono">{String(i + 1).padStart(2, '0')}</td>
                   <td><span style={{ cursor: 'pointer' }} onClick={() => a && onSelect(a.deviceId)}>{s.name}</span><div className="muted mono" style={{ fontSize: 10 }}>{s.id}</div></td>
                   <td style={{ fontSize: 11 }}>{a ? `${unitName(p, a.unitId)} / ${devName(p, a.deviceId)}` : <Badge kind="err">Action 없음</Badge>}</td>
-                  <td style={{ fontSize: 11 }}>{a?.completeSignalId ? `${sigName(p, a.completeSignalId)} = true` : <StatusMark status="undetermined" />}{a && a.pre.length > 0 && <div className="muted">진입: {a.pre.map((c) => condLabel(p, c)).join('; ')}</div>}</td>
+                  <td style={{ fontSize: 11 }}>{a?.completeSignalId ? `${sigName(p, a.completeSignalId)} = true` : <StatusMark status="undetermined" />}{a && (a.pre.length > 0 || s.entry.length > 0) && <div className="muted" data-step-cond="">{conditionsFormula(p, [...a.pre, ...s.entry])}</div>}</td>
                   <td>{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as), '단계 타임아웃')} />}</td>
                   <td style={{ fontSize: 11 }}>{a ? effectLabel(p, a.effect) : ''}</td>
                   <td style={{ fontSize: 10 }} className="muted">{s.origin}{s.sourceText ? `: "${s.sourceText}"` : ''}</td>
@@ -339,10 +341,10 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
         <b style={{ fontSize: 12 }}>상태전이 ↔ Action/post 연결 (F4-03)</b>
-        <table className="grid"><thead><tr><th>Action</th><th>전제</th><th>자재 변화</th><th>post 검증</th></tr></thead>
-          <tbody>{p.actions.filter((a) => a.effect.moveTo || a.effect.setState || a.effect.holder !== undefined).map((a) => <tr key={a.id}><td style={{ fontSize: 12 }}>{a.name}</td><td style={{ fontSize: 11 }}>{a.pre.map((c) => condLabel(p, c)).join('; ') || '-'}</td><td style={{ fontSize: 11 }}>{effectLabel(p, a.effect)}</td><td style={{ fontSize: 11 }}>{a.post.map((c) => condLabel(p, c)).join('; ') || '-'}</td></tr>)}</tbody></table>
+        <table className="grid"><thead><tr><th><Terms text="Action" /></th><th>전제</th><th>자재 변화</th><th>post 검증</th></tr></thead>
+          <tbody>{p.actions.filter((a) => a.effect.moveTo || a.effect.setState || a.effect.holder !== undefined).map((a) => <tr key={a.id}><td style={{ fontSize: 12 }}>{a.name}</td><td style={{ fontSize: 11 }}>{conditionsFormula(p, a.pre) || '-'}</td><td style={{ fontSize: 11 }}>{effectLabel(p, a.effect)}</td><td style={{ fontSize: 11 }}>{conditionsFormula(p, a.post) || '-'}</td></tr>)}</tbody></table>
         <b style={{ fontSize: 12, display: 'block', marginTop: 8 }}>Unit 수용 능력</b>
-        <table className="grid"><thead><tr><th>Unit</th><th>수용 개수</th><th>허용 무게</th></tr></thead>
+        <table className="grid"><thead><tr><th><Terms text="Unit" /></th><th>수용 개수</th><th>허용 무게</th></tr></thead>
           <tbody>{p.units.map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.capacity.maxMaterials.value ?? <StatusMark status="undetermined" />}{u.capacity.maxMaterials.assumption ? <> <StatusMark status="assumption" /></> : null}</td><td>{u.capacity.maxWeight.value ?? <StatusMark status="undetermined" />} kg{u.capacity.maxWeight.assumption ? <> <StatusMark status="assumption" /></> : null}</td></tr>)}</tbody></table>
       </div>
     </div>
@@ -378,7 +380,7 @@ export function InputHubPanel({ p, locked, edit }: { p: Project; locked: boolean
         <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>후보는 사람이 확인하기 전 모델에 반영되지 않습니다.</div>
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <table className="grid"><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th>소속 Unit</th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
+        <table className="grid"><thead><tr><th>후보 ID</th><th>대상</th><th>이름</th><th>종류</th><th><Terms text="소속 Unit" /></th><th>출처</th><th>신뢰 근거</th><th>확인</th><th>반영 ID</th></tr></thead>
           <tbody>{p.candidates.map((c) => <tr key={c.id} data-jump={`candidate:${c.id}`} data-candidate-kind={c.targetKind} data-already={c.alreadyExists ? 'true' : 'false'}>
             <td className="mono" style={{ fontSize: 10 }}>{c.id}</td><td>{c.targetKind}</td>
             <td>{c.name}{c.alreadyExists ? <> <Badge kind="warn">이미 있음</Badge></> : null}</td>
@@ -424,7 +426,7 @@ export function ExportPanel({ p }: { p: Project }) {
     <div>
       <div className="notice err">F8 매핑 <b>미리보기</b>. 대상 칸은 초안 형식의 자리 이름입니다. Aurora Core 스키마·버전은 확인되지 않아 Core 전송, SignalMap 생성, 실측 역매핑은 구현하지 않았습니다. 검증된 실제 연동이 아닙니다.</div>
       <p><button type="button" disabled title="미구현: Core 주소·스키마·역매핑이 확정되지 않았습니다">Core로 보내기</button> <span className="muted">버튼은 눌리지 않습니다. 아래 표는 이 프로젝트의 미리보기이며 전송 결과가 아닙니다.</span></p>
-      <table className="grid"><thead><tr><th>분류</th><th>원본 ID</th><th>이름</th><th>목적지(후보)</th><th>상태</th><th>비고/가정</th></tr></thead>
+      <table className="grid"><thead><tr><th>분류</th><th>원본 ID</th><th>이름</th><th>목적지(후보)</th><th>상태</th><th><Terms text="비고/가정" /></th></tr></thead>
         <tbody>{rows.map((r, i) => <tr key={i}><td>{r.category}</td><td className="mono" style={{ fontSize: 10 }}>{r.sourceId}</td><td style={{ fontSize: 12 }}>{r.name}</td><td style={{ fontSize: 11 }}>{r.target}</td>
           <td><StatusMark status={exportStatusMark(r.status).status} word={exportStatusMark(r.status).word} /></td><td style={{ fontSize: 11 }}>{r.note}</td></tr>)}</tbody></table>
     </div>
