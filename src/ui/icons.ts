@@ -125,6 +125,8 @@ export const COMMAND_ICONS = {
   'filter-human': 'UserRound',
   'filter-hidden': 'EyeOff',
   'run-summary': 'ScrollText',
+  'run-timing': 'ChartGantt',
+  'run-piece': 'Users',
   'run-log': 'Scroll',
   'run-signals': 'Activity',
   'action-add': 'Plus',
@@ -235,6 +237,7 @@ export const TAB_ICON: Record<string, IconId> = {
   workspace: 'workspace',
   project: 'project',
   summary: 'run-summary',
+  timing: 'run-timing',
   log: 'run-log',
   signals: 'run-signals',
 };

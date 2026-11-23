@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { shownStepCondition } from '../model/conditionFormula';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
@@ -21,11 +22,25 @@ export function stepLiveClass(status: string): string {
 }
 
 /** Station run summary. Embedded under 「자세히」; the fold is the standalone form. */
-export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: RuntimeState | null; embedded?: boolean }) {
+export function RunSummary({ p, rt, embedded = false, chartPick = null }: {
+  p: Project;
+  rt: RuntimeState | null;
+  embedded?: boolean;
+  /** Row chosen from the timing chart. The index is `summarizeRun().steps`. */
+  chartPick?: number | null;
+}) {
   // Before a run: no runtime, or no step has started. A log line that is not a step
   // (for example a sensor turning on) does not count as a start.
   const summary = rt ? summarizeRun(p, rt) : null;
   const notStarted = !summary || summary.steps.every((step) => step.startMs === null);
+  const pickRef = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    const node = pickRef.current;
+    const scroller = node?.closest('.run-summary-scroll');
+    if (!node || !(scroller instanceof HTMLElement)) return;
+    const top = node.offsetTop - scroller.clientHeight / 2;
+    scroller.scrollTop = Math.max(0, top);
+  }, [chartPick]);
   const body = notStarted || !summary ? <p className="run-summary-empty">실행하면 단계별 시간이 여기에 나옵니다</p> : (
         <>
           <p className="run-summary-head">
@@ -49,8 +64,8 @@ export function RunSummary({ p, rt, embedded = false }: { p: Project; rt: Runtim
                   const word = step.wait && step.status === 'active' ? '대기' : shape.word;
                   const tone = step.status === 'error' ? 'run-summary-error' : step.status === 'stopped' ? 'run-summary-stopped' : undefined;
                   return (
-                    <tr key={`${step.stepId}:${i}`} className={`${stepLiveClass(step.status)}${longest ? ' is-longest' : ''}`} data-step-id={step.stepId}>
-                      <td>{step.name}{longest && <span className="run-summary-tag">가장 김</span>}</td>
+                    <tr key={`${step.stepId}:${i}`} ref={chartPick === i ? pickRef : undefined} className={`${stepLiveClass(step.status)}${longest ? ' is-longest' : ''}${chartPick === i ? ' is-chart-pick' : ''}`} data-step-id={step.stepId} data-chart-pick={chartPick === i ? '' : undefined}>
+                      <td>{step.name}{longest && <span className="run-summary-tag">가장 김</span>}{chartPick === i && <span className="run-summary-chart-tag">차트</span>}</td>
                       <td>{where || '—'}</td>
                       <td><StatusMark status={shape.status} word={word} wordAttrs={tone ? { className: tone } : undefined} /></td>
                       <td className="mono">{dash(step.startMs)}</td>

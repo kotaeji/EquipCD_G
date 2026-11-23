@@ -1,7 +1,7 @@
 // TURN-061. Named imports so the single-file build keeps only the icons we draw.
 import {
   Activity, AlignHorizontalSpaceBetween, AlignLeft, AlignStartVertical, AlignVerticalSpaceBetween,
-  ArrowRight, ArrowUpRight, BadgeCheck, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable,
+  ArrowRight, ArrowUpRight, BadgeCheck, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
   ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleHelp,
   CirclePlay, ClipboardCheck, ClipboardPaste, ClockPlus, Columns2, Compass, Copy, CopyPlus, Cpu, Download,
   DraftingCompass, Ellipsis, Expand, Eye, EyeOff, FileCode, FileCode2, FileInput, FileOutput, FilePlus,
@@ -13,7 +13,7 @@ import {
   Radio, RadioReceiver, Redo2, Repeat, RotateCcw, RotateCw, Rows3, Save, Scaling, ScanSearch, Scroll, ScrollText, Search,
   SearchX, Settings, Shapes, Shield, SkipForward, SlidersHorizontal, SlidersVertical, Split, Square, SquareStack, SquareX,
   Stethoscope, Sun, Table, Table2, Tag, TriangleAlert, Undo2, UnfoldHorizontal, UnfoldVertical, Ungroup, Upload,
-  UserRound, Workflow, X, Zap, ZoomIn, ZoomOut,
+  UserRound, Users, Workflow, X, Zap, ZoomIn, ZoomOut,
   type LucideIcon,
 } from 'lucide-react';
 import type { ReactNode, SVGProps } from 'react';
@@ -22,7 +22,7 @@ import './icons.css';
 
 export const ICONS = {
   Activity, AlignHorizontalSpaceBetween, AlignLeft, AlignStartVertical, AlignVerticalSpaceBetween,
-  ArrowRight, ArrowUpRight, BadgeCheck, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable,
+  ArrowRight, ArrowUpRight, BadgeCheck, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
   ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleHelp,
   CirclePlay, ClipboardCheck, ClipboardPaste, ClockPlus, Columns2, Compass, Copy, CopyPlus, Cpu, Download,
   DraftingCompass, Ellipsis, Expand, Eye, EyeOff, FileCode, FileCode2, FileInput, FileOutput, FilePlus,
@@ -34,7 +34,7 @@ export const ICONS = {
   Radio, RadioReceiver, Redo2, Repeat, RotateCcw, RotateCw, Rows3, Save, Scaling, ScanSearch, Scroll, ScrollText, Search,
   SearchX, Settings, Shapes, Shield, SkipForward, SlidersHorizontal, SlidersVertical, Split, Square, SquareStack, SquareX,
   Stethoscope, Sun, Table, Table2, Tag, TriangleAlert, Undo2, UnfoldHorizontal, UnfoldVertical, Ungroup, Upload,
-  UserRound, Workflow, X, Zap, ZoomIn, ZoomOut,
+  UserRound, Users, Workflow, X, Zap, ZoomIn, ZoomOut,
 } satisfies Record<string, LucideIcon>;
 
 type SvgExtra = Pick<SVGProps<SVGSVGElement>, 'width' | 'height' | 'strokeWidth'>;
