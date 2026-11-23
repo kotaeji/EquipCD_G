@@ -721,6 +721,7 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
   return (
     <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-selected-device={selectedId ?? ''}
       data-visual-style={visualMode} data-show-names={showNames ? 'on' : 'off'} data-floor-names={showNames ? scene.floorNames.length : 0}
+      data-scene-materials={scene.materials.map((m) => `${m.unitId}:${m.state}${m.exited ? ':exit' : ''}`).join(' ') || 'none'}
       data-equipment-motion={equipmentMotion ? 'on' : 'off'} data-redraw={shouldRedraw({ running, interacting: false }) ? 'live' : 'still'}
       data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}>
       <div className="scene3d-bar" title="끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기">

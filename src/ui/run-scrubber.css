@@ -1,0 +1,62 @@
+.run-scrub {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+.run-scrub-banner {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.run-scrub-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.run-scrub-scale {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+}
+.run-scrub-scale input[type="range"] {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--accent);
+  background: transparent;
+}
+.run-scrub-tick {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  background: var(--muted);
+  pointer-events: none;
+}
+.run-scrub-tick.is-end { height: 10px; background: var(--accent); }
+.run-scrub-tick.is-error { height: 12px; background: var(--danger); }
+.run-scrub-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.log-list tr.is-scrub-now td { font-weight: 700; }
+.log-list tr.is-scrub-later td { font-weight: 400; }
+@media (prefers-reduced-motion: reduce) {
+  .run-scrub,
+  .run-scrub * {
+    transition: none;
+    animation: none;
+  }
+}

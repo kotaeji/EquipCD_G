@@ -16,6 +16,7 @@ import type { AssetDefinition, AssetKind, ConfirmationEntry, Project, QuantityRe
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { applyLabVariant, type LabReport, type LabVariant } from '../model/lab';
 import { advance, createRuntime, pause, pauseSubstation, reset, resume, resumeSubstation, runToEnd, start, type Runtime } from '../runtime/engine';
+import { buildScrubIndex, seekScrub } from '../runtime/scrub';
 import { activeDeviceIds as sceneActiveIds, faultDeviceIds, interlockFaultDeviceIds } from '../scene/describe';
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
 import { diagramMotionOn } from './runDiagram';
@@ -73,6 +74,7 @@ import { PanelSplit } from './PanelSplit';
 import './focus-target.css';
 import { RUN_SPEEDS, RunConditions } from './RunConditions';
 import { RunDetails } from './RunDetails';
+import { RunScrubber } from './RunScrubber';
 import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
 import { EmptyState, LoadingPlaceholder } from './EmptyState';
 import { StarterHome } from './StarterHome';
@@ -272,6 +274,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [equipmentMotion, setEquipmentMotion] = useState(() => equipmentMotionDefault(prefersReducedMotion()));
   const [foldSteps, setFoldSteps] = useState(false);
   const [foldCond, setFoldCond] = useState(false);
+  const [scrub, setScrub] = useState<{ key: string; ms: number | null }>({ key: '', ms: null });
   const durationBaseline = useRef<{ sessionKey: string; depth: number; snap: DurationSnap[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -1363,6 +1366,26 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     window.addEventListener('pointerdown', onPtr);
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('pointerdown', onPtr); };
   }, [itemsStep]);
+  const endedLive = tab.runtime && (tab.runtime.state.status === 'completed' || tab.runtime.state.status === 'error') && tab.runtime.state.modelRevision === p.revision
+    ? tab.runtime : null;
+  const restoredRun = !tab.runtime && tab.runRecord && tab.runRecord.state.modelRevision === p.revision
+    && (tab.runRecord.state.status === 'completed' || tab.runRecord.state.status === 'error')
+    ? tab.runRecord : null;
+  const finishedRun = endedLive ?? restoredRun;
+  const scrubKey = finishedRun ? `${tab.key}:${finishedRun.state.runId}:${finishedRun.state.modelRevision}:${finishedRun.state.timeMs}:${finishedRun.state.status}` : `${tab.key}:none`;
+  const scrubMs = scrub.key === scrubKey ? scrub.ms : null;
+  const scrubIndex = useMemo(() => (finishedRun ? buildScrubIndex(finishedRun) : null), [finishedRun]);
+  const scrubbing = !!(scrubIndex && scrubMs != null && scrubMs < scrubIndex.totalMs);
+  const scrubRt = scrubbing && scrubIndex && scrubMs != null ? seekScrub(scrubIndex, scrubMs) : null;
+  const shown = scrubRt ? scrubRt.state : finishedRun ? finishedRun.state : rt;
+  const canContinue = scrubRt?.state.status === 'running';
+  const doContinue = () => {
+    if (!scrubIndex || scrubMs == null) return;
+    const live = seekScrub(scrubIndex, scrubMs);
+    if (live.state.status !== 'running') return;
+    updTab(tab.key, (t) => ({ ...t, runtime: live }));
+    setScrub({ key: '', ms: null });
+  };
   const onItemKey = (e: React.KeyboardEvent, run: () => void) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
@@ -1375,9 +1398,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const pick = (id: string) => { setSelection([id]); const u = p.units.find((x) => x.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; if (u) setSubUnitPref(u); };
   const collapsed = view.treeCollapsed[p.id] ?? [];
   const setCollapsed = (ids: string[]) => setView((v) => ({ ...v, treeCollapsed: { ...v.treeCollapsed, [p.id]: ids } }));
-  const faultIds = faultDeviceIds(p, rt);
-  const interlockIds = interlockFaultDeviceIds(p, rt);
-  const runningIds = sceneActiveIds(p, rt);
+  const faultIds = faultDeviceIds(p, shown);
+  const interlockIds = interlockFaultDeviceIds(p, shown);
+  const runningIds = sceneActiveIds(p, shown);
   const statusOf = Object.fromEntries(p.devices.flatMap((d) => {
     const key = deviceDisplayStatus({
       fault: faultIds.includes(d.id),
@@ -1534,7 +1557,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const visualToggle = <>
     <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}><IconLabel id="schematic">도식</IconLabel></button>
     <button className={view.visualMode === 'photo' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'photo' })} title="AI 생성 실사풍 이미지 표시 — 실제 촬영 사진 아님 (모델·연결·상태 불변)"><IconLabel id="photo">실사풍(AI)</IconLabel></button></>;
-  const runControls = <>
+  const runControls = scrubbing ? <>
+    <button type="button" onClick={() => setScrub({ key: scrubKey, ms: null })}><IconLabel id="to-end">되감기 끝</IconLabel></button>
+    {canContinue
+      ? <button type="button" onClick={doContinue}><IconLabel id="run">여기서부터 다시 실행</IconLabel></button>
+      : <button type="button" onClick={doRun}><IconLabel id="run">처음부터 실행</IconLabel></button>}
+    <span className="mono" style={{ minWidth: 80 }}>{fmtTime(shown?.timeMs ?? 0)}</span>
+  </> : <>
     <button className="primary" data-jump="run-start" data-tour="run" onClick={doRun} disabled={running || rt?.status === 'paused'}><IconLabel id="run" glyph="▶ ">실행</IconLabel></button>
     <button onClick={doPause} disabled={!running}><IconLabel id="pause" glyph="❚❚ ">일시정지</IconLabel></button>
     <button onClick={doResume} disabled={rt?.status !== 'paused'}><IconLabel id="resume">재개</IconLabel></button>
@@ -1568,13 +1597,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button type="button" role="radio" aria-checked={view.runView === 'diagram'} className={view.runView === 'diagram' ? 'on' : ''} onClick={() => setRunView('diagram')}>도면</button>
     <button type="button" role="radio" aria-checked={view.runView === '3d'} className={view.runView === '3d' ? 'on' : ''} onClick={() => setRunView('3d')}>3D</button>
   </div>;
-  const scene3d = view.runView === '3d' ? presentScene(p, rt, equipmentMotion) : null;
+  const scene3d = view.runView === '3d' ? presentScene(p, shown, equipmentMotion) : null;
   const runMotion = diagramMotionOn({ reduced: prefersReducedMotion(), emphasize: emphasizeMotion, equipment: equipmentMotion });
   const activeDeviceIds = runningIds;
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
   const onMinimapChange = (frame: 'layout' | 'run', open: boolean) => setView((v) => (v.minimap[frame] === open ? v : { ...v, minimap: { ...v.minimap, [frame]: open } }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
-  const runCanvasEl = <Canvas frame="run" runMotion={runMotion} project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
+  const runCanvasEl = <Canvas frame="run" runMotion={runMotion} project={p} rt={shown} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
@@ -2121,24 +2150,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
           <span className="badge">실행 전 검사 {checkRunReadiness(p).ok ? '통과' : '미통과'}</span></div>
-        <RunStepsPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} onPauseSubstation={doPauseSub} onResumeSubstation={doResumeSub} />
+        <RunStepsPanel p={p} rt={shown} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} onPauseSubstation={scrubbing ? undefined : doPauseSub} onResumeSubstation={scrubbing ? undefined : doResumeSub} />
         <div className="run-center">
-          <RunSummaryStrip p={p} rt={rt} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
-          {rt?.error && (() => {
-            const named = rt.error.message.match(/^\[([^\]]+)\]/)?.[1] ?? null;
-            const interlockId = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
+          <RunSummaryStrip p={p} rt={shown} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
+          {shown?.error && (() => {
+            const named = shown.error.message.match(/^\[([^\]]+)\]/)?.[1] ?? null;
+            const interlockId = shown.interlockBlocks.find((row) => row.stepId === shown.error?.stepId)?.interlockId ?? shown.interlockBlocks[0]?.interlockId;
             const rule = p.constraints.find((k) => k.id === interlockId)?.rule;
-            const phrase = runBlockFormula(p, rt.error.code, rt.error.stepId, rule?.form === 'allow' ? rule.conditions : undefined);
-            const base = runErrorProblem(rt.error.code, rt.error.message, named, phrase);
-            const copy = base && phrase && rt.error.code !== 'WAIT_TIMEOUT' ? { ...base, why: `${base.why} ${phrase}` } : base;
+            const phrase = runBlockFormula(p, shown.error.code, shown.error.stepId, rule?.form === 'allow' ? rule.conditions : undefined);
+            const base = runErrorProblem(shown.error.code, shown.error.message, named, phrase);
+            const copy = base && phrase && shown.error.code !== 'WAIT_TIMEOUT' ? { ...base, why: `${base.why} ${phrase}` } : base;
             if (!copy) return null;
-            const jump = rt.error.code === 'INTERLOCK_BLOCK'
+            const jump = shown.error.code === 'INTERLOCK_BLOCK'
               ? () => {
-                const id = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
+                const id = shown.interlockBlocks.find((row) => row.stepId === shown.error?.stepId)?.interlockId ?? shown.interlockBlocks[0]?.interlockId;
                 if (id) jumpInterlock(id);
               }
               : jumpRunError;
-            return <section aria-label="실행이 막힐 때" data-run-error={rt.error.code} data-interlock-guide={rt.error.code === 'INTERLOCK_BLOCK' ? '' : undefined}>
+            return <section aria-label="실행이 막힐 때" data-run-error={shown.error.code} data-interlock-guide={shown.error.code === 'INTERLOCK_BLOCK' ? '' : undefined}>
               <Problem copy={copy} onJump={jump} />
             </section>;
           })()}
@@ -2149,12 +2178,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           </section>}
           <div className="run-canvas">
             {view.runView === '3d' && scene3d
-              ? <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} equipmentMotion={equipmentMotion} running={rt?.status === 'running'} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
+              ? <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} equipmentMotion={equipmentMotion} running={!scrubbing && rt?.status === 'running'} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
                 onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
               : <div className="diagram-canvas">{runCanvasEl}</div>}
           </div>
-          <RunDetails p={p} rt={rt} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock}
-            onRun={doRun} runDisabled={running || rt?.status === 'paused'} runReason={running || rt?.status === 'paused' ? '실행 중이거나 일시정지 중입니다. 초기화한 뒤 다시 실행하세요.' : undefined} onJumpError={jumpRunError} />
+          {scrubIndex && <RunScrubber totalMs={scrubIndex.totalMs} timeMs={scrubbing && scrubMs != null ? scrubMs : scrubIndex.totalMs} markers={scrubIndex.markers} scrubbing={scrubbing} onScrub={(ms) => setScrub({ key: scrubKey, ms })} />}
+          <RunDetails p={p} rt={shown} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock}
+            onRun={doRun} runDisabled={running || rt?.status === 'paused'} runReason={running || rt?.status === 'paused' ? '실행 중이거나 일시정지 중입니다. 초기화한 뒤 다시 실행하세요.' : undefined} onJumpError={jumpRunError}
+            logRt={scrubbing ? finishedRun?.state : undefined} scrubMs={scrubbing ? scrubMs : null} chartRt={scrubbing ? finishedRun?.state : undefined} />
         </div>
         <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
