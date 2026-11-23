@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyProject, instantiateDevice, makeUnit } from '../src/model/factory';
-import { setFeedCount, setQuantity } from '../src/model/commands';
+import { linearFlow } from '../src/model/flow';
+import { setFeedCount, setQuantity, unwrapFlow, wrapFlow } from '../src/model/commands';
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
 import { feedCountOf, q, RUNTIME_RULES_VERSION, type Project } from '../src/model/types';
 import { checkRunReadiness } from '../src/model/validate';
@@ -177,6 +178,36 @@ describe('TURN-040 multi-piece feed', () => {
     const line = rt.state.log.find((l) => l.code === 'WAIT_END' && l.message.includes('Device 사용 중'));
     expect(line?.message).toContain('1.000s');
     expect(rt.state.steps.some((s) => (s.waitNote ?? '').includes('Device 사용 중'))).toBe(true);
+  });
+
+  it('a step-only flow runs in that order and matches the flat sequence', () => {
+    const flat = fed(buildSampleProject(), 3, 2);
+    const lined = structuredClone(flat);
+    lined.sequence.flow = linearFlow(lined.sequence.steps);
+    expect(checkRunReadiness(lined).blockers.some((b) => b.code === 'MULTI_FLOW')).toBe(false);
+    const plain = runToEnd(createRuntime(flat));
+    const withFlow = runToEnd(createRuntime(lined));
+    expect(withFlow.state.status).toBe('completed');
+    expect(withFlow.state.pieces?.map((pc) => pc.exitedAtMs)).toEqual(plain.state.pieces?.map((pc) => pc.exitedAtMs));
+
+    const wrapped = wrapFlow(flat, flat.sequence.steps.slice(0, 2).map((s) => s.id), 'loop');
+    expect(wrapped.ok).toBe(true);
+    if (!wrapped.ok) return;
+    expect(checkRunReadiness(wrapped.project).blockers.some((b) => b.code === 'MULTI_FLOW')).toBe(true);
+    const opened = unwrapFlow(wrapped.project, wrapped.note ?? '');
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    expect(opened.project.sequence.flow?.every((n) => n.kind === 'step')).toBe(true);
+    const unwrapped = runToEnd(createRuntime(opened.project));
+    expect(unwrapped.state.pieces?.map((pc) => pc.exitedAtMs)).toEqual(plain.state.pieces?.map((pc) => pc.exitedAtMs));
+  });
+
+  it('a step-only flow follows its own order, not the step-array order', () => {
+    const p = fed(buildSampleProject(), 2, 0);
+    const second = p.sequence.steps[1];
+    p.sequence.flow = [{ kind: 'step', stepId: second.id }, { kind: 'step', stepId: p.sequence.steps[0].id }];
+    const rt = runToEnd(createRuntime(p));
+    expect(rt.state.error?.stepId).toBe(second.id);
   });
 
   it('AC10 parallel and flow samples are blocked when two pieces are requested', () => {

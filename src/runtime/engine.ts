@@ -6,7 +6,7 @@
 // Tie rule (prototype assumption): completion at exactly the timeout instant counts as success.
 // This is NOT equipment control and NOT physics simulation.
 import type { Action, Condition, FlowNode, Project } from '../model/types';
-import { collectStepIds, flowUsesSignal, hasFlow, walk } from '../model/flow';
+import { collectStepIds, flowUsesSignal, hasFlow, stepOrder, walk } from '../model/flow';
 import { RUNTIME_RULES_VERSION } from '../model/types';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
 import { advancePieces, makePieces, seatPieces } from './multi';
@@ -75,6 +75,8 @@ export interface PieceRun {
   wait: PieceWait | null;
   pendingWaitMs: number;
   pendingWaitNote: string;
+  /** Index into the flat step plan (`stepOrder`). Equals `stepIndex` when the plan is the step array. */
+  planCursor: number;
 }
 
 export interface ActiveStep {
@@ -146,7 +148,8 @@ function initialState(p: Project, runId: string): RuntimeState {
   for (const u of p.units) occupancy[u.id] = null;
   const m = p.materials[0];
   const flow = hasFlow(p);
-  const pieces = flow ? null : makePieces(p);
+  // A flow of only step nodes is the same list, in that order. Blocks stay on the single-piece interpreter.
+  const pieces = stepOrder(p) ? makePieces(p) : null;
   let material: MaterialInstance | null = null;
   if (!pieces && m && m.initialLocation && m.initialState) {
     material = { instanceId: `${m.id}#1`, materialId: m.id, location: m.initialLocation, state: m.initialState, holder: null };
@@ -165,7 +168,7 @@ function initialState(p: Project, runId: string): RuntimeState {
     log: [], error: null, blockers: [],
     ...(pieces ? { pieces } : {}),
   };
-  if (flow) {
+  if (flow && !pieces) {
     state.flowRun = {
       nextId: 2,
       fibers: [{ id: 1, status: 'live', stack: [{ role: 'seq', nodes: p.sequence.flow ?? [], index: 0 }], active: null }],

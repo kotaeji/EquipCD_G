@@ -1,9 +1,11 @@
-// Several instances of one material definition on a linear station sequence (TURN-040).
-// Feed count 1 never comes here. A project with sequence.flow is refused before run.
+// Several instances of one material definition on a flat station sequence (TURN-040).
+// Feed count 1 never comes here. A flow that is only step nodes runs in that order.
+// A branch, parallel, loop, retry, or substation step is refused before run.
 // At one virtual instant, in piece-index order: seat whoever may enter, commit a move
 // that was waiting for room, then start the next step. Device exclusivity and unit
 // capacity wait instead of failing. A piece's own location, state, and holder are what
 // its conditions see. Sensor signals stay on while any piece is in the unit.
+import { stepOrder } from '../model/flow';
 import type { Action, Project } from '../model/types';
 import { feedCountOf } from '../model/types';
 import {
@@ -16,13 +18,15 @@ export function makePieces(p: Project): PieceRun[] | null {
   const n = feedCountOf(m);
   if (!m || n <= 1 || !m.initialLocation || !m.initialState) return null;
   const interval = ms(m.feedInterval.value);
+  const first = stepOrder(p)?.[0] ?? 0;
   const pieces: PieceRun[] = [];
   for (let i = 0; i < n; i++) {
     pieces.push({
       index: i + 1,
       instanceId: `${m.id}#${i + 1}`,
       material: { instanceId: `${m.id}#${i + 1}`, materialId: m.id, location: '', state: m.initialState, holder: null },
-      stepIndex: 0,
+      stepIndex: first,
+      planCursor: 0,
       phase: 'queued',
       active: null,
       readyAtMs: i * interval,
@@ -189,11 +193,13 @@ function actionOf(p: Project, stepIndex: number): { step: Project['sequence']['s
 
 function tryStart(p: Project, s: RuntimeState, pc: PieceRun): boolean {
   if (pc.fedAtMs == null || pc.phase === 'done' || pc.phase === 'queued' || pc.active) return false;
-  if (pc.stepIndex >= p.sequence.steps.length) {
+  const plan = stepOrder(p) ?? [];
+  if (pc.planCursor >= plan.length) {
     closeWait(s, pc);
     pc.phase = 'done';
     return true;
   }
+  pc.stepIndex = plan[pc.planCursor];
   const found = actionOf(p, pc.stepIndex);
   if (!found) {
     failRun(s, 'REF_MISSING_ACTION', p.sequence.steps[pc.stepIndex]?.id ?? null, `개체 ${pc.index}: 단계의 Action 을 찾을 수 없음`);
@@ -304,8 +310,10 @@ function commitStep(p: Project, s: RuntimeState, pc: PieceRun): boolean {
   if (rec) { rec.status = 'done'; rec.endMs = s.timeMs; }
   logAt(s, 'info', 'STEP_DONE', `[개체 ${pc.index} ${step.name}] 완료 — 자재 ${m.location}/${m.state}${m.holder ? `/잡음:${m.holder}` : ''}`, step.id);
   pc.active = null;
-  pc.stepIndex += 1;
-  pc.phase = pc.stepIndex >= p.sequence.steps.length ? 'done' : 'ready';
+  pc.planCursor += 1;
+  const plan = stepOrder(p) ?? [];
+  if (pc.planCursor >= plan.length) pc.phase = 'done';
+  else { pc.stepIndex = plan[pc.planCursor]; pc.phase = 'ready'; }
   applySensorSignals(p, s);
   return true;
 }
