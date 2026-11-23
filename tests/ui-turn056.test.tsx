@@ -166,3 +166,59 @@ describe('TURN-056 glossary on screen', () => {
     expect(stat(u.el)).toEqual(before);
   });
 });
+
+describe('TURN-056 glossary tip stays finite when a tab takes focus', () => {
+  it('focus then click moves Workspace, Project, the step bar, and a table header', async () => {
+    const u = await mount();
+    await u.click(u.btn('시작하기'));
+    const press = async (selector: string) => {
+      const button = u.el.querySelector(selector) as HTMLElement;
+      expect(button, selector).toBeTruthy();
+      const term = button.querySelector('[data-term]') as HTMLElement | null;
+      await act(async () => {
+        if (term) {
+          term.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+          term.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+          term.focus();
+        }
+        button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      expect(u.el.querySelector('.app')).not.toBeNull();
+      return button;
+    };
+
+    const workspace = await press('#explorer-tab-workspace');
+    expect(workspace.getAttribute('aria-selected')).toBe('true');
+    const project = await press('#explorer-tab-project');
+    expect(project.getAttribute('aria-selected')).toBe('true');
+    await press('#explorer-tab-workspace');
+    await press('.stepper [data-stepid="attributes"] .st-go');
+    expect(u.el.querySelector('.app')!.getAttribute('data-step')).toBe('attributes');
+    await press('.stepper [data-stepid="sequence"] .st-go');
+    expect(u.el.querySelector('.app')!.getAttribute('data-step')).toBe('sequence');
+
+    const head = [...u.el.querySelectorAll('th')].find((th) => (th.textContent ?? '').includes('타임아웃'))!;
+    const mark = head.querySelector('[data-term="timeout"]') as HTMLElement;
+    expect(mark).toBeTruthy();
+    await act(async () => {
+      mark.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      mark.focus();
+    });
+    expect(document.querySelector('[data-term-tip="timeout"]')).not.toBeNull();
+    await press('.stepper [data-stepid="check"] .st-go');
+    expect(u.el.querySelector('.app')!.getAttribute('data-step')).toBe('check');
+    await press('.stepper [data-stepid="library"] .st-go');
+    expect(u.el.querySelector('.app')!.getAttribute('data-step')).toBe('library');
+
+    await press('.stepper [data-stepid="sequence"] .st-go');
+    const sub = [...u.el.querySelectorAll('.subtabs button')].find((b) => (b.textContent ?? '').includes('Substation 시퀀스')) as HTMLElement;
+    const subTerm = sub.querySelector('[data-term]') as HTMLElement;
+    await act(async () => {
+      subTerm.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      subTerm.focus();
+      sub.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(u.el.querySelector('.stage-title')!.textContent).toContain('Substation');
+    expect(u.el.querySelector('.app')).not.toBeNull();
+  });
+});
