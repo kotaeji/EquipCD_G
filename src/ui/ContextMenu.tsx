@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { clampMenu, MENU_WIDTH, menuHeight, type MenuItem } from './contextMenuModel';
+import { clampMenu, MENU_WIDTH, menuHeight } from './contextMenuModel';
 import { IconLabel } from './Icon';
 import { menuIconId } from './icons';
 
-interface MenuRow<Id extends string> {
-  id: Id;
+interface MenuEntry<A extends string> {
+  id: A;
   label: string;
   shortcut?: string;
   danger?: boolean;
@@ -13,24 +13,24 @@ interface MenuRow<Id extends string> {
   separatorBefore?: boolean;
 }
 
-interface Props<Id extends string> {
+interface Props<A extends string> {
   x: number;
   y: number;
   kind: string;
-  items: readonly MenuRow<Id>[];
+  items: readonly MenuEntry<A>[];
   returnFocus: HTMLElement | null;
   /** A press on this element does not dismiss the menu, so its button can toggle. */
   anchor?: HTMLElement | null;
   menuLabel?: string;
-  onRun: (id: Id) => void;
+  onRun: (id: A) => void;
   onClose: () => void;
 }
 
 /** Command menu. Arrow keys move, Enter runs, Esc and an outside press close. Focus returns on dismiss. */
-export function ContextMenu<Id extends string>({ x, y, kind, items, returnFocus, anchor, menuLabel = '명령', onRun, onClose }: Props<Id>) {
+export function ContextMenu<A extends string>({ x, y, kind, items, returnFocus, anchor, menuLabel = '명령', onRun, onClose }: Props<A>) {
   const ref = useRef<HTMLDivElement>(null);
   const acted = useRef(false);
-  const estimated = menuHeight(items as unknown as MenuItem[]);
+  const estimated = menuHeight(items);
   const view = () => ({ w: window.innerWidth || 1280, h: window.innerHeight || 800 });
   const [box, setBox] = useState(() => clampMenu(x, y, MENU_WIDTH, estimated, view().w, view().h));
 

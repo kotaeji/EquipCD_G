@@ -88,7 +88,7 @@ export function clampMenu(x: number, y: number, menuW: number, menuH: number, vi
   };
 }
 
-export function menuHeight(items: MenuItem[]): number {
+export function menuHeight(items: readonly { id?: string; label?: string; separatorBefore?: boolean }[]): number {
   return PAD + items.reduce((n, it) => n + ROW + (it.separatorBefore ? SEP : 0), 0);
 }
 
