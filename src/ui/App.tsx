@@ -10,6 +10,7 @@ import { applyEdit, initHistory, redo, undo, type History } from '../model/histo
 import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject } from '../model/sample';
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, feedCountOf, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
+import { applyLabVariant, type LabReport, type LabVariant } from '../model/lab';
 import { advance, createRuntime, pause, pauseSubstation, reset, resume, resumeSubstation, runToEnd, start, type Runtime } from '../runtime/engine';
 import { activeDeviceIds as sceneActiveIds, faultDeviceIds, interlockFaultDeviceIds } from '../scene/describe';
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
@@ -30,7 +31,7 @@ import { deviceDisplayStatus, gapJudgementMark, ITEM_LEVEL_STATUS, statusCssVars
 import { BADGE_MARK, BADGE_WORD, evaluateSteps, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
 import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
-import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, RunGapSection, SequencePanel, SfcPanel } from './Panels';
+import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, MaterialPanel, RunGapSection, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { SubSequencePanel } from './SubstationPanels';
 import type { BlockerGuide } from './blockerTarget';
@@ -68,6 +69,9 @@ interface Tab {
   draftError: boolean;
   /** True only after this session's timer wrote a draft. Opening an existing draft does not set it. */
   sessionDraft: boolean;
+  /** Evolution Lab variants. Not written into the project file. */
+  labVariants: LabVariant[];
+  labResult: LabReport | null;
 }
 
 /** Keep a finished run for Gap after a later model edit. Reset clears it. A new finish replaces it. */
@@ -93,6 +97,7 @@ function makeTab(p: Project, saved: { rev: number; at: string } | null = null, d
   return {
     key: `tab-${++tabSeq}`, history: initHistory(proj), savedRevision: saved?.rev ?? null, savedAt: saved?.at ?? null, runtime: null, runRecord: null, gaps, analyzedRevision: p.revision,
     baselineRevision: saved?.rev ?? p.revision, draftAt: draft?.at ?? null, draftedRevision: draft?.revision ?? null, draftTriedRevision: draft?.revision ?? null, draftError: false, sessionDraft: false,
+    labVariants: [], labResult: null,
   };
 }
 const runBusy = (t: Tab) => t.runtime?.state.status === 'running' || t.runtime?.state.status === 'paused';
@@ -1716,7 +1721,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           </section>}
           {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
           {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
-          {sub === 'lab' && <><LabSheet revision={p.revision} onInstead={() => goStep('run')} /><Fold className="fold-panel" summary="미구현 안내"><LabPanel /></Fold></>}
+          {sub === 'lab' && <LabSheet project={p} locked={locked} variants={tab.labVariants} result={tab.labResult}
+            onChangeVariants={(variants) => updTab(tab.key, (t) => ({ ...t, labVariants: variants }))}
+            onResult={(result) => updTab(tab.key, (t) => ({ ...t, labResult: result }))}
+            onApply={(variant) => edit(applyLabVariant(p, variant), `Evolution Lab ${variant.name}`)} />}
         </div>
       </div>}
 

@@ -173,28 +173,7 @@ export function SearchSheet({ tabs, tree, onTab, onPick, onFold, onCanvas }: {
   </div>;
 }
 
-export function LabSheet({ revision, onInstead }: { revision: number; onInstead?: () => void }) {
-  return <div className="sparse-stack">
-    <NotReadyBanner hint="Gap 목록의 가정 시간 합계를 쓰세요" purpose={SCREEN.lab.purpose} instead={SCREEN.lab.instead} onInstead={onInstead} />
-    <div className="sparse-split">
-    <section className="sheet">
-      <h2>F7 변형 범위와 안전 한도</h2>
-      <label>원본 기준<input disabled value={`현재 모델 rev ${revision} · 변형하지 않음`} readOnly /></label>
-      <label>변형 허용 범위<input disabled value="미구현" readOnly /></label>
-      <label>평가 방식과 상한<input disabled value="미구현" readOnly /></label>
-      <p className="warn-note">외부 전송, 예산, 자동 결제는 없습니다. 실제 탐색을 실행하지 않습니다.</p>
-      <button type="button" disabled title="평가 방법과 예산이 정해지지 않았습니다">변형 차이 검토 예시</button>
-    </section>
-    <aside className="sheet">
-      <h2>세대와 후보</h2>
-      <table className="grid plain"><thead><tr><th>후보</th><th>평가</th><th>선택</th></tr></thead>
-        <tbody><tr><td colSpan={3}>후보 없음. 예시 점수를 만들지 않습니다.</td></tr></tbody></table>
-      <button type="button" disabled>선택 후보 명시 적용</button>
-      <button type="button" disabled>원본 유지 취소</button>
-    </aside>
-    </div>
-  </div>;
-}
+export { LabScreen as LabSheet } from './LabScreen';
 
 export function ExtendSheet() {
   return <div className="sparse-stack">
