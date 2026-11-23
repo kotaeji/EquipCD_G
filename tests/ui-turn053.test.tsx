@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DUPLICATE_NEED_DEVICE } from '../src/model/commands';
 import type { History } from '../src/model/history';
+import { PALETTE_LABEL } from '../src/ui/CommandPalette';
 import { NO_FLOW_ROW, shortcutText, usesMacShortcut, commandById } from '../src/ui/commandModel';
 import { EDIT_LOCKED } from '../src/ui/contextMenuModel';
 import { App } from '../src/ui/App';
@@ -40,7 +41,7 @@ async function mount() {
     return ev;
   };
   const btn = (label: string, scope: ParentNode = el) => [...scope.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === label || b.getAttribute('aria-label') === label) as HTMLButtonElement | undefined;
-  const palette = () => el.querySelector('[role="dialog"][aria-label="명령 찾기"]');
+  const palette = () => el.querySelector(`[role="dialog"][aria-label="${PALETTE_LABEL}"]`);
   const sheet = () => el.querySelector('[role="dialog"][aria-label="단축키 목록"]');
   const typeQuery = async (value: string) => {
     const input = palette()?.querySelector('input') as HTMLInputElement;
@@ -79,7 +80,7 @@ describe('TURN-053 command palette UI', () => {
       await u.key(window, { key: 'Escape' });
       expect(document.activeElement).toBe(anchor);
     }
-    const header = u.btn('명령 찾기')!;
+    const header = u.btn(PALETTE_LABEL)!;
     header.focus();
     await u.click(header);
     expect(u.palette()).toBeTruthy();

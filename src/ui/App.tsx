@@ -24,7 +24,8 @@ import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type
 import { Canvas, type Mode } from './Canvas';
 import { BackgroundTools } from './BackgroundTools';
 import { UnitLockTools } from './UnitLock';
-import { CommandPaletteDialog, ShortcutSheet } from './CommandPalette';
+import { CommandPaletteDialog, PALETTE_LABEL, ShortcutSheet } from './CommandPalette';
+import type { ObjectEntry } from './objectFind';
 import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
 import { ContextMenu } from './ContextMenu';
 import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
@@ -199,7 +200,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [helpScope, setHelpScope] = useState<'main' | 'explorer'>('main');
   const helpReturn = useRef<HTMLElement | null>(null);
   const helpWas = useRef(false);
-  const goStep = (s: StepId, sub?: string) => { setHelpScope('main'); setView((v) => ({ ...v, step: s, home: false })); if (sub) setSubTab((t) => ({ ...t, [s]: sub })); setItemsStep(null); };
+  const pendingBlockerReturn = useRef(false);
+  const [nextBlocker, setNextBlocker] = useState(false);
+  const goStep = (s: StepId, sub?: string) => {
+    setHelpScope('main');
+    setView((v) => ({ ...v, step: s, home: false }));
+    if (sub) setSubTab((t) => ({ ...t, [s]: sub }));
+    setItemsStep(null);
+    if (s === 'run' && pendingBlockerReturn.current) {
+      pendingBlockerReturn.current = false;
+      setNextBlocker(true);
+    } else if (s !== 'run') setNextBlocker(false);
+  };
   const pickRight = (k: string) => { setHelpScope('main'); setRightTab(k); };
   const toggleItems = (s: StepId) => setItemsStep((cur) => (cur === s ? null : s));
   const chooseTheme = (mode: 'light' | 'dark') => { const next = mode === 'dark' ? 'B' as const : 'A' as const; setView((v) => (v.theme === next ? v : { ...v, theme: next })); };
@@ -1166,6 +1178,24 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (j.save) setItemsStep(null);
     else goStep(j.step, j.sub);
   };
+  // TURN-066. Same flash as a wizard item. Shift+Enter only changes the selection.
+  const jumpToObject = (entry: ObjectEntry, stay: boolean) => {
+    const j = entry.jump;
+    if (j.selectId) {
+      setSelection([j.selectId]);
+      const unitId = p.units.find((u) => u.id === j.selectId)?.id ?? p.devices.find((d) => d.id === j.selectId)?.unitId;
+      if (unitId) setSubUnitPref(unitId);
+    }
+    if (entry.flowId) setFlowPicked([entry.flowId]);
+    if (stay) return;
+    if (j.rightTab) pickRight(j.rightTab);
+    if (j.actionId) setActionFocus(j.actionId);
+    if (j.gapFilter) setGapFilter(j.gapFilter);
+    if (j.step === 'canvas') setView((v) => (v.layoutTab === 'diagram' ? v : { ...v, layoutTab: 'diagram' }));
+    jumpRef.current = j;
+    setJumpTick((n) => n + 1);
+    goStep(j.step, j.sub);
+  };
   // TURN-001: 6단계 그룹 실행 차단 항목 → 원인 수정/확인 화면으로 이동 (보기 상태만 변경, 모델·Undo 불변).
   // 그룹 실행 대상(subUnitId)은 이동 전에 보기 선호값으로 고정해, 편집 대상 선택이 실행 Substation을 바꾸지 않게 한다.
   const jumpInterlock = (id: string) => {
@@ -1183,6 +1213,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const goBlocker = (_b: Diagnostic, g: BlockerGuide) => {
     if (!g.dest) return;
+    if (step === 'run') pendingBlockerReturn.current = true;
     if (subUnitId) setSubUnitPref(subUnitId);
     if (g.focus) { setSelection([g.focus.id]); pickRight(g.focus.kind === 'device' ? 'actions' : 'props'); }
     if (g.actionId) setActionFocus(g.actionId);
@@ -1558,7 +1589,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     },
     toggleExplorer,
     openViewSettings: () => setViewOpen(true),
-    startTour: () => beginTour(document.querySelector<HTMLElement>('[aria-label="명령 찾기"]')),
+    startTour: () => beginTour(document.querySelector<HTMLElement>(`[aria-label="${PALETTE_LABEL}"]`)),
     openShortcuts: () => setShortcutOpen(true),
     openPalette: () => setPaletteOpen(true),
   };
@@ -1582,8 +1613,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className="brand" aria-label={`${PRODUCT_NAME} ${APP_VERSION}`}><BrandMark /><span className="title">{PRODUCT_NAME}</span></span>
         <span className="subtitle">논리 시뮬레이션</span>
         <span className="grow" />
-        <button type="button" className="btn-main secondary cmd-open" aria-label="명령 찾기" onClick={() => setPaletteOpen(true)}>
-          <IconLabel id="palette">명령 찾기</IconLabel><span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
+        <button type="button" className="btn-main secondary cmd-open" aria-label={PALETTE_LABEL} onClick={() => setPaletteOpen(true)}>
+          <IconLabel id="palette">{PALETTE_LABEL}</IconLabel><span className="cmd-key">{shortcutText(commandById('palette')!, macShortcut)}</span>
         </button>
         <button className="btn-main primary" data-jump="save" onClick={doSave} aria-label={dirty ? '저장, 저장 안 됨' : '저장'}><IconLabel id="save">저장{dirty ? <span className="save-dot" aria-hidden="true" /> : null}</IconLabel></button>
         <button className="btn-main secondary" onClick={() => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p))}><IconLabel id="export-json">내보내기</IconLabel></button>
@@ -1826,14 +1857,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <section className="sheet">
                 <h2>개념 신호 역할</h2>
                 <table className="grid plain"><thead><tr><th>이름</th><th>방향</th><th>역할</th></tr></thead>
-                  <tbody>{sigs.map((s) => <tr key={s.id}><td>{s.name}</td><td>{s.direction === 'in' ? '입력' : '출력'}</td><td>{signalRole(s.role)}</td></tr>)}
+                  <tbody>{sigs.map((s) => <tr key={s.id} data-jump={`signal:${s.id}`}><td>{s.name}</td><td>{s.direction === 'in' ? '입력' : '출력'}</td><td>{signalRole(s.role)}</td></tr>)}
                     {sigs.length === 0 && <tr><td colSpan={3}>신호 없음</td></tr>}</tbody></table>
                 <p className="field-ro">{sigs.find((s) => s.address)?.address ?? <><StatusMark status="undetermined" /> 실제 장비 주소 아님</>}</p>
                 <button type="button" onClick={() => pickRight('actions')}>Action으로 복귀</button>
               </section>
               <aside className="sheet">
                 <h2>포지션 정의</h2>
-                {poss.map((x) => <label key={x.id}>{x.name}<span className="field-ro">{x.value.value === null ? <StatusMark status="undetermined" /> : x.value.value} {x.value.unit}{x.value.assumption ? <> <StatusMark status="assumption" /></> : null}</span></label>)}
+                {poss.map((x) => <label key={x.id} data-jump={`position:${x.id}`}>{x.name}<span className="field-ro">{x.value.value === null ? <StatusMark status="undetermined" /> : x.value.value} {x.value.unit}{x.value.assumption ? <> <StatusMark status="assumption" /></> : null}</span></label>)}
                 {poss.length === 0 && <p className="muted">포지션 없음</p>}
                 <p className="warn-note">단위·방향·신호 참조는 보존합니다. 실주소와 실측 역매핑은 하지 않습니다.</p>
               </aside>
@@ -1928,7 +1959,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <section className="sheet">
               <h2>{p.materials[0] ? `${p.materials[0].name} · 정의와 초기 조건` : '자재 없음'}</h2>
               {p.materials[0] ? <div className="form-grid">
-                <label>이름<TextInput value={p.materials[0].name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, p.materials[0].id, v), '자재 이름')} /></label>
+                <label data-jump={`material:${p.materials[0].id}`}>이름<TextInput value={p.materials[0].name} disabled={locked} onCommit={(v) => edit(C.renameObject(p, p.materials[0].id, v), '자재 이름')} /></label>
                 <label>투입 개수<input key={feedCountOf(p.materials[0])} type="number" aria-label="자재 화면 투입 개수" className="num" min={1} step={1} disabled={locked} defaultValue={feedCountOf(p.materials[0])} onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== feedCountOf(p.materials[0])) edit(C.setFeedCount(p, p.materials[0].id, n), '투입 개수'); else e.target.value = String(feedCountOf(p.materials[0])); }} /></label>
                 <label data-jump="feed-interval">투입 간격<QtyInput q={p.materials[0].feedInterval} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'material', id: p.materials[0].id, field: 'feedInterval' }, v, as), '투입 간격')} /></label>
                 <label>초기 위치<span className="field-ro">{p.materials[0].initialLocation ? unitName(p, p.materials[0].initialLocation) : '미정'}</span></label>
@@ -2008,8 +2039,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             const interlockId = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
             const rule = p.constraints.find((k) => k.id === interlockId)?.rule;
             const phrase = runBlockFormula(p, rt.error.code, rt.error.stepId, rule?.form === 'allow' ? rule.conditions : undefined);
-            const base = runErrorProblem(rt.error.code, rt.error.message, named);
-            const copy = base && phrase ? { ...base, why: `${base.why} ${phrase}` } : base;
+            const base = runErrorProblem(rt.error.code, rt.error.message, named, phrase);
+            const copy = base && phrase && rt.error.code !== 'WAIT_TIMEOUT' ? { ...base, why: `${base.why} ${phrase}` } : base;
             if (!copy) return null;
             const jump = rt.error.code === 'INTERLOCK_BLOCK'
               ? () => {
@@ -2021,7 +2052,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <Problem copy={copy} onJump={jump} />
             </section>;
           })()}
-          {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
+          {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} emphasizeFirst={nextBlocker} />}
           {propPeek && <section className="run-prop-peek" data-prop-peek aria-label="속성 보기">
             <div className="row"><b>속성 보기</b><button type="button" className="small" onClick={() => setPropPeek(false)}><IconLabel id="close">닫기</IconLabel></button></div>
             <Inspector project={p} selectedId={selection[0] ?? null} locked gaps={tab.gaps} edit={edit} onAddStep={() => {}} onDelete={() => {}} confirmDelete={() => {}} onReparent={() => {}} tab="props" setTab={() => {}} visualMode={view.visualMode} />
@@ -2037,7 +2068,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
         <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
-          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} />
+          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} emphasizeFirst={nextBlocker} />
       </div>}
 
       <div className="statusbar">
@@ -2085,7 +2116,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </StaticModalFrame>}
       {view.helpOpen && <HelpPanel topic={helpTopic(helpId)} onClose={closeHelp} onTour={(el) => beginTour(el)} onShortcuts={() => setShortcutOpen(true)} />}
       {tourIndex !== null && TOUR_STEPS[tourIndex] && <TourBubble step={TOUR_STEPS[tourIndex]} onPrev={prevTour} onNext={nextTour} onSkip={endTour} onRestore={restoreTourFocus} />}
-      {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onClose={() => setPaletteOpen(false)} />}
+      {paletteOpen && <CommandPaletteDialog state={commandState} mac={macShortcut} onRun={runCommand} onJump={(entry, stay) => { jumpToObject(entry, stay); setPaletteOpen(false); }} onClose={() => setPaletteOpen(false)} />}
       {shortcutOpen && <ShortcutSheet state={commandState} mac={macShortcut} onClose={() => setShortcutOpen(false)} />}
     </div>
     </TermHintsProvider>

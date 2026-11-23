@@ -445,7 +445,7 @@ export const COMMANDS: readonly CommandDef[] = [
     available: yes, run: (a) => a.openShortcuts(),
   },
   {
-    id: 'palette', name: '명령 찾기', group: '보기', where: '어느 단계에서나 · 입력 칸 포함',
+    id: 'palette', name: '명령 · 대상 찾기', group: '보기', where: '어느 단계에서나 · 입력 칸 포함',
     keys: [{ key: 'k', mod: true }],
     available: yes, run: (a) => a.openPalette(),
   },

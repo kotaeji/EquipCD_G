@@ -36,6 +36,20 @@ function toneOf(code: string, message: string, g: BlockerGuide): ProblemTone {
 /** Split a readiness blocker into three lines. The lead and the badge stay in the text. */
 export function blockerProblem(message: string, code: string, g: BlockerGuide): ProblemCopy {
   const copy = guideCopy(code, g);
+  if (code === 'WAIT_TIMEOUT_UNDEFINED') {
+    const parsed = message.match(/^신호 기다림 ([^:]+): (.+)$/);
+    const name = parsed?.[1] ?? '신호 기다림';
+    const where = g.kind === 'fix' && g.dest ? `${destLabel(g.dest)}에서 타임아웃을 확인하세요. ` : '';
+    return {
+      tone: toneOf(code, message, g),
+      what: name,
+      why: parsed?.[2] ?? '타임아웃 미정',
+      how: `${where}${copy.lead}`,
+      jump: copy.button,
+      jumpAria: copy.aria,
+      badge: copy.badge,
+    };
+  }
   const step = message.match(/^단계 ([^:]+): (.+)$/);
   const what = step ? `단계 ${step[1]}` : message;
   const why = step
@@ -87,8 +101,13 @@ const RUN_WHAT: Record<string, (step: string) => string> = {
   INTERLOCK_BLOCK: (step) => `${step} Interlock 차단`,
 };
 
-/** Five run failures share one shape. Unknown codes return null so the UI does not invent a fix. */
-export function runErrorProblem(code: string, message: string, stepName: string | null): ProblemCopy | null {
+/**
+ * Run-stop copy. The five step failures share one shape.
+ * A signal-wait timeout is the same three lines: block name, the waited formula and time, then where to look.
+ * Unknown codes return null so the UI does not invent a fix.
+ */
+export function runErrorProblem(code: string, message: string, stepName: string | null, formula = ''): ProblemCopy | null {
+  if (code === 'WAIT_TIMEOUT') return waitTimeoutProblem(message, formula);
   const whatOf = RUN_WHAT[code];
   if (!whatOf) return null;
   const step = stepName ?? '실행';
@@ -99,6 +118,25 @@ export function runErrorProblem(code: string, message: string, stepName: string 
     how: RUN_HOW[code],
     jump: '이동',
     jumpAria: `${whatOf(step)} 이동`,
+  };
+}
+
+/** Block name, the one-line condition, and how long it waited. `formula` is the screen line when the caller has the model. */
+function waitTimeoutProblem(message: string, formula: string): ProblemCopy {
+  const named = message.match(/\]\s*(.+?)\s*시간 초과/);
+  const fromMessage = message.match(/시간 초과\s*—\s*(.+?)\s*—\s*(.+)$/);
+  const name = named?.[1] ?? '신호 기다림';
+  const cond = formula.trim() || fromMessage?.[1] || '';
+  const waited = message.match(/기다린\s+[\d.]+s/)?.[0]
+    ?? (message.includes('타임아웃 미정') ? '타임아웃 미정' : '');
+  const why = [cond, waited].filter(Boolean).join(' · ') || message;
+  return {
+    tone: 'error',
+    what: `${name} 시간 초과`,
+    why,
+    how: '이 조건을 바꾸는 단계를 앞이나 다른 갈래에 두세요. 타임아웃도 확인하세요.',
+    jump: '이동',
+    jumpAria: `${name} 시간 초과 이동`,
   };
 }
 

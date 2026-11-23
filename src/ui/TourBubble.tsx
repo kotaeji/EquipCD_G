@@ -18,6 +18,7 @@ export function TourBubble({ step, onPrev, onNext, onSkip, onRestore }: {
   const index = TOUR_STEPS.indexOf(step);
   const total = TOUR_STEPS.length;
   const atStart = index <= 0;
+  const atEnd = index === total - 1;
 
   useLayoutEffect(() => {
     const node = box.current;
@@ -89,7 +90,7 @@ export function TourBubble({ step, onPrev, onNext, onSkip, onRestore }: {
       <p id="tour-body">{step.body}</p>
       <div className="tour-nav">
         <button type="button" onClick={onPrev} disabled={atStart}>이전</button>
-        <button type="button" className="primary" onClick={onNext}>다음</button>
+        <button type="button" className="primary" onClick={onNext}>{atEnd ? '끝내기' : '다음'}</button>
         <button type="button" onClick={onSkip}>건너뛰기</button>
         <span className="tour-count">{index + 1} / {total}</span>
       </div>

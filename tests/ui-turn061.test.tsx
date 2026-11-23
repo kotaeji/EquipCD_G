@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { App } from '../src/ui/App';
+import { PALETTE_LABEL } from '../src/ui/CommandPalette';
 import { ICONS } from '../src/ui/Icon';
 import { COMMANDS } from '../src/ui/commandModel';
 import { MENU_ICON, COMMAND_ICONS, ICON_PX, ICON_STROKE, commandIcon, iconCollisions, menuIconId } from '../src/ui/icons';
@@ -76,14 +77,14 @@ describe('TURN-061 icons on screen', () => {
     expect(btn('보기 설정').textContent?.trim()).toBe('보기 설정');
     expect(btn('도움말').getAttribute('aria-label')).toBe('도움말');
     expect(btn('도움말').textContent).toContain('도움말');
-    expect(btn('명령 찾기').getAttribute('aria-label')).toBe('명령 찾기');
+    expect(btn(PALETTE_LABEL).getAttribute('aria-label')).toBe(PALETTE_LABEL);
     expect(btn('실행 취소').getAttribute('aria-label')).toBe('실행 취소');
     expect(btn('다시 실행').getAttribute('aria-label')).toBe('다시 실행');
     expect(iconOf(btn('저장'))).toBe(commandIcon('save'));
     expect(iconOf(btn('내보내기'))).toBe(commandIcon('export-json'));
     expect(iconOf(btn('보기 설정'))).toBe(commandIcon('view-settings'));
     expect(iconOf(btn('도움말'))).toBe(commandIcon('help'));
-    expect(iconOf(btn('명령 찾기'))).toBe(commandIcon('palette'));
+    expect(iconOf(btn(PALETTE_LABEL))).toBe(commandIcon('palette'));
     expect(iconOf(btn('실행 취소'))).toBe(commandIcon('undo'));
     expect(iconOf(btn('다시 실행'))).toBe(commandIcon('redo'));
 
@@ -116,13 +117,13 @@ describe('TURN-061 icons on screen', () => {
       expect(name, icon.getAttribute('data-icon') ?? '').toBeTruthy();
     }
 
-    await act(async () => { btn('명령 찾기').click(); });
-    const palette = el.querySelector('[role="dialog"][aria-label="명령 찾기"]')!;
+    await act(async () => { btn(PALETTE_LABEL).click(); });
+    const palette = el.querySelector(`[role="dialog"][aria-label="${PALETTE_LABEL}"]`)!;
     const row = (id: string) => palette.querySelector(`[data-command="${id}"]`);
     expect(iconOf(row('save'))).toBe(iconOf(btn('저장')));
     expect(iconOf(row('undo'))).toBe(iconOf(btn('실행 취소')));
     expect(iconOf(row('run'))).toBe(iconOf(btn('▶ 실행')));
-    expect(iconOf(row('palette'))).toBe(iconOf(btn('명령 찾기')));
+    expect(iconOf(row('palette'))).toBe(iconOf(btn(PALETTE_LABEL)));
     expect(row('copy')!.textContent).toContain('복사');
     const dim = palette.querySelector('.cmd-row.is-dim')!;
     expect(dim.querySelector('.ecd-icon')).not.toBeNull();

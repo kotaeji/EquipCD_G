@@ -126,10 +126,47 @@ export const COMMAND_ICONS = {
   'run-log': 'Scroll',
   'run-signals': 'Activity',
   'action-add': 'Plus',
+  'object-unit': 'Boxes',
+  'object-device': 'Cpu',
+  'object-signal': 'RadioReceiver',
+  'object-position': 'MapPin',
+  'object-action': 'Zap',
+  'object-step': 'List',
+  'object-block': 'Square',
+  'object-interlock': 'Shield',
+  'object-material': 'Package2',
+  'object-gap': 'CircleAlert',
+  'object-more': 'Ellipsis',
+  'report-export': 'FileText',
+  'report-html': 'FileCode2',
+  'report-steps': 'Table',
+  'report-log': 'FileSpreadsheet',
 } as const;
 
 export type IconId = keyof typeof COMMAND_ICONS;
 export type IconName = (typeof COMMAND_ICONS)[IconId];
+
+/** One icon per named-object kind in the command finder. */
+export const OBJECT_ICON = {
+  unit: 'object-unit',
+  device: 'object-device',
+  signal: 'object-signal',
+  position: 'object-position',
+  action: 'object-action',
+  step: 'object-step',
+  block: 'object-block',
+  interlock: 'object-interlock',
+  material: 'object-material',
+  gap: 'object-gap',
+} as const satisfies Record<string, IconId>;
+
+/** Report export menu. The button and each file kind stay distinct. */
+export const REPORT_ICON = {
+  menu: 'report-export',
+  html: 'report-html',
+  steps: 'report-steps',
+  log: 'report-log',
+} as const satisfies Record<string, IconId>;
 
 export function commandIcon(id: string): IconName | undefined {
   return (COMMAND_ICONS as Record<string, IconName>)[id];

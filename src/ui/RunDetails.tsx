@@ -3,9 +3,11 @@ import type { RuntimeState } from '../runtime/engine';
 import type { InterlockBlockRecord } from '../runtime/interlock';
 import { formatMs } from '../scene/runInfo';
 import { fmtTime } from './Panels';
+import { RunReportMenu } from './RunReportMenu';
 import { RunSummary } from './RunSummary';
 import { EmptyState } from './EmptyState';
 import { Problem } from './Problem';
+import { runBlockFormula } from '../model/conditionFormula';
 import { EMPTY, runErrorProblem } from './problemCopy';
 import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
@@ -117,13 +119,14 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
       </div>
       {open && <div className="run-details-body">
         {rt?.error && (() => {
-          const copy = runErrorProblem(rt.error.code, rt.error.message, null);
+          const phrase = runBlockFormula(p, rt.error.code, rt.error.stepId);
+          const copy = runErrorProblem(rt.error.code, rt.error.message, null, phrase);
           return copy ? <Problem copy={{ ...copy, jump: onJumpError ? copy.jump : undefined }} onJump={onJumpError} /> : null;
         })()}
         <InterlockHistory rows={rt?.interlockBlocks ?? []} onJump={onJumpInterlock} />
         <PieceTable rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
-          { id: 'summary', label: '실행 결과 요약', icon: 'run-summary', panel: <RunSummary p={p} rt={rt} embedded /> },
+          { id: 'summary', label: '실행 결과 요약', icon: 'run-summary', panel: <><RunReportMenu p={p} rt={rt} /><RunSummary p={p} rt={rt} embedded /></> },
           { id: 'log', label: '실행 로그', icon: 'run-log', panel: <RunLog rt={rt} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
           { id: 'signals', label: '신호', icon: 'run-signals', panel: <RunSignals p={p} rt={rt} /> },
         ]} />
