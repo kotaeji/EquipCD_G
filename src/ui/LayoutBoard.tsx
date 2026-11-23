@@ -7,6 +7,7 @@ import type { Mode } from './Canvas';
 import { EmptyState } from './EmptyState';
 import { EMPTY, RUN_LOCK } from './problemCopy';
 import { cardSelection } from './selectAll';
+import { isTextField, type ContextRequest } from './contextMenuModel';
 
 interface Props {
   project: Project;
@@ -20,6 +21,7 @@ interface Props {
   onReparent: (deviceId: string, unitId: string) => void;
   /** Overlay. It does not take a row, so the cards stay put. */
   connectNote: string | null;
+  onContextMenu?: (req: ContextRequest) => void;
   onFocusUnit?: () => void;
   onFocusDevice?: () => void;
   onStartFlow?: () => void;
@@ -48,7 +50,14 @@ export function LayoutBoard(props: Props) {
     const deviceId = e.dataTransfer.getData('application/x-ecd-device');
     return { kind, deviceId };
   };
-  return <div className="board" data-board="live">
+  const ask = (e: React.MouseEvent<HTMLElement>, hit: ContextRequest['hit']) => {
+    if (!props.onContextMenu || isTextField(e.target as Element)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const focus = e.currentTarget;
+    props.onContextMenu({ x: e.clientX, y: e.clientY, hit, surface: 'board', focus });
+  };
+  return <div className="board" tabIndex={-1} data-board="live" onContextMenu={(e) => { if ((e.target as Element).closest('.station-card')) return; ask(e, { kind: 'empty' }); }}>
     {props.connectNote && <p className="notice board-connect-note" style={{ position: 'absolute' }}>{props.connectNote}</p>}
     {units.length > 0 && flows.length === 0 && <EmptyState symbol="→" line={EMPTY.flows} actions={[{ label: '물류 연결', disabled: props.locked, reason: props.locked ? RUN_LOCK : undefined, onClick: props.onStartFlow }]} />}
     <div className="board-row" onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
@@ -56,6 +65,7 @@ export function LayoutBoard(props: Props) {
       if (kind === 'unit' || (kind && findAsset(kind)?.template)) props.onDropAsset(kind, { x: 40 + units.length * 240, y: 90 });
     }}>
       {units.map((u) => <article key={u.id} data-jump={`unit:${u.id}`} className={`station-card ${selection.includes(u.id) ? 'on' : ''}`}
+        onContextMenu={(e) => ask(e, { kind: 'unit', id: u.id })}
         onClick={(e) => { if (mode === 'flow') props.onUnitConnectClick(u.id); else if (mode === 'signal') props.onSignalHint(); else props.onSelect(cardSelection(selection, u.id, e)); }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -70,6 +80,7 @@ export function LayoutBoard(props: Props) {
           if (!d) return null;
           const on = selection.includes(d.id);
           return <button key={id} type="button" className={`chip ${on ? 'on' : ''}`} draggable={!props.locked}
+            onContextMenu={(e) => ask(e, { kind: 'device', id: d.id })}
             onClick={(e) => { e.stopPropagation(); props.onSelect(cardSelection(selection, d.id, e)); }}
             onDragStart={(e) => { e.dataTransfer.setData('application/x-ecd-device', d.id); e.dataTransfer.effectAllowed = 'move'; }}>
             {d.name} · {kindLabel(d.kind)}
