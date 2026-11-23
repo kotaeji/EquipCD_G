@@ -63,10 +63,20 @@ function charges(message: string, unitName: string, deviceNames: readonly string
   };
 }
 
-function waitOn(pc: PieceRun, unitId: string, now: number): number {
+/** Closed waits plus the open wait. Flow fibers keep their own open waits. */
+export function pieceWaitMs(pc: PieceRun, unitId: string, now: number): number {
   let ms = pc.waitByUnit[unitId] ?? 0;
+  const opens = (pc.flow?.fibers ?? []).filter((fiber) => fiber.blocked?.unitId === unitId);
+  if (opens.length > 0) {
+    for (const fiber of opens) ms += Math.max(0, now - fiber.blocked!.sinceMs);
+    return ms;
+  }
   if (pc.wait?.unitId === unitId) ms += Math.max(0, now - pc.wait.sinceMs);
   return ms;
+}
+
+function waitOn(pc: PieceRun, unitId: string, now: number): number {
+  return pieceWaitMs(pc, unitId, now);
 }
 
 function bottleneckGap(p: Project, rt: RuntimeState): Gap | null {

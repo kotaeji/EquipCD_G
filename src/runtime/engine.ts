@@ -10,7 +10,7 @@ import { collectStepIds, conditionText, flowUsesSignal, hasFlow, stepOrder, walk
 import { RUNTIME_RULES_VERSION } from '../model/types';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
 import { judgeInterlock, type InterlockBlockRecord, type InterlockHit } from './interlock';
-import { advancePieces, makePieces, seatPieces } from './multi';
+import { admitPieces, advancePieces, makePieces, seatPieces } from './multi';
 
 export type RunStatus = 'idle' | 'running' | 'paused' | 'completed' | 'error';
 
@@ -71,7 +71,7 @@ export interface PieceActive {
   hold: boolean;
 }
 
-/** One fed instance. Present only when the feed count is 2 or more (linear runs). */
+/** One fed instance. Present only when the feed count is 2 or more. */
 export interface PieceRun {
   index: number;
   instanceId: string;
@@ -90,6 +90,13 @@ export interface PieceRun {
   pendingWaitNote: string;
   /** Index into the flat step plan (`stepOrder`). Equals `stepIndex` when the plan is the step array. */
   planCursor: number;
+  /**
+   * This piece's own flow. Set only when the station flow has blocks.
+   * Absent on a flat sequence — that path stays the TURN-040 interpreter.
+   */
+  flow?: FlowRunState;
+  /** Command, complete, and result signals this piece has written. Sensors stay shared. */
+  signals?: Record<string, boolean>;
 }
 
 export interface ActiveStep {
@@ -165,6 +172,10 @@ export interface FlowFiber {
   owner?: { kind: 'substation'; nodeId: string; unitId: string };
   /** This Substation is paused. Deadlines stay put until resume shifts them. */
   frozen?: boolean;
+  /** Action time has elapsed and the move is waiting for a free unit. Not a second timeout. */
+  pendingCommit?: boolean;
+  /** This fiber is waiting for a device, a unit, or an interlock. Charged when it ends. */
+  blocked?: { sinceMs: number; unitId: string; note: string; reason: 'device' | 'capacity' | 'interlock' };
 }
 
 export interface FlowRunState { fibers: FlowFiber[]; nextId: number }
@@ -180,8 +191,9 @@ function initialState(p: Project, runId: string): RuntimeState {
   for (const u of p.units) occupancy[u.id] = null;
   const m = p.materials[0];
   const flow = hasFlow(p);
-  // A flow of only step nodes is the same list, in that order. Blocks stay on the single-piece interpreter.
-  const pieces = stepOrder(p) ? makePieces(p) : null;
+  // A flow of only step nodes is the same list, in that order. Blocks get one flow per piece (TURN-071).
+  const linear = stepOrder(p);
+  const pieces = linear ? makePieces(p) : attachFlowPieces(makePieces(p), p);
   let material: MaterialInstance | null = null;
   if (!pieces && m && m.initialLocation && m.initialState) {
     material = { instanceId: `${m.id}#1`, materialId: m.id, location: m.initialLocation, state: m.initialState, holder: null };
@@ -324,10 +336,11 @@ function pushBlock(s: RuntimeState, stepId: string, hit: InterlockHit) {
   });
 }
 
-function flowActiveActionIds(p: Project, s: RuntimeState, exceptFiberId?: number): string[] {
+function flowActiveActionIds(p: Project, s: RuntimeState, exceptFiber?: FlowFiber): string[] {
   const ids: string[] = [];
-  for (const fiber of s.flowRun?.fibers ?? []) {
-    if (!fiber.active || fiber.id === exceptFiberId) continue;
+  const fibers = s.pieces?.some((pc) => pc.flow) ? everyFiber(s) : (s.flowRun?.fibers ?? []);
+  for (const fiber of fibers) {
+    if (!fiber.active || fiber === exceptFiber) continue;
     const found = locateStep(p, fiber.active.stepId);
     if (found) ids.push(found.action.id);
   }
@@ -417,7 +430,10 @@ function complete(p: Project, s: RuntimeState) {
 /** Advance virtual time by dtMs (>=0). Result is independent of how dt is chunked. */
 export function advance(rt: Runtime, dtMs: number): Runtime {
   if (rt.state.status !== 'running' || dtMs < 0) return rt;
-  if (rt.state.pieces && rt.state.pieces.length > 1) return advancePieces(rt, dtMs);
+  if (rt.state.pieces && rt.state.pieces.length > 1) {
+    if (rt.state.pieces.some((pc) => pc.flow)) return advanceFlowPieces(rt, dtMs);
+    return advancePieces(rt, dtMs);
+  }
   if (rt.state.flowRun) return advanceFlow(rt, dtMs);
   const p = rt.snapshot;
   const s = structuredClone(rt.state);
@@ -472,14 +488,20 @@ function substationName(p: Project, unitId: string): string {
   return p.units.find((u) => u.id === unitId)?.name ?? unitId;
 }
 
+function substationFibers(s: RuntimeState): FlowFiber[] {
+  if (s.pieces?.some((pc) => pc.flow)) return s.pieces.flatMap((pc) => pc.flow?.fibers ?? []);
+  return s.flowRun?.fibers ?? [];
+}
+
 /** Hold one in-progress Substation step. Other lanes and the virtual clock keep going. */
 export function pauseSubstation(rt: Runtime, nodeId: string): Runtime {
-  if (rt.state.status !== 'running' || !rt.state.flowRun) return rt;
+  if (rt.state.status !== 'running') return rt;
+  if (!rt.state.flowRun && !rt.state.pieces?.some((pc) => pc.flow)) return rt;
   if (rt.state.pausedSubstations?.some((row) => row.nodeId === nodeId)) return rt;
-  const live = rt.state.flowRun.fibers.filter((f) => f.owner?.nodeId === nodeId && f.status !== 'done');
+  const live = substationFibers(rt.state).filter((f) => f.owner?.nodeId === nodeId && f.status !== 'done');
   if (live.length === 0) return rt;
   const s = structuredClone(rt.state);
-  for (const fiber of s.flowRun!.fibers) if (fiber.owner?.nodeId === nodeId) fiber.frozen = true;
+  for (const fiber of substationFibers(s)) if (fiber.owner?.nodeId === nodeId) fiber.frozen = true;
   const unitId = live[0].owner!.unitId;
   s.pausedSubstations = [...(s.pausedSubstations ?? []), { nodeId, unitId, sinceMs: s.timeMs }];
   s.log.push({ t: s.timeMs, level: 'info', code: 'SUB_PAUSE', message: `Substation ${substationName(rt.snapshot, unitId)} 일시정지`, refId: nodeId });
@@ -488,12 +510,13 @@ export function pauseSubstation(rt: Runtime, nodeId: string): Runtime {
 
 /** Continue a paused Substation. Remaining Action time and its timeout are kept. */
 export function resumeSubstation(rt: Runtime, nodeId: string): Runtime {
-  if (rt.state.status !== 'running' || !rt.state.flowRun) return rt;
+  if (rt.state.status !== 'running') return rt;
+  if (!rt.state.flowRun && !rt.state.pieces?.some((pc) => pc.flow)) return rt;
   const row = rt.state.pausedSubstations?.find((item) => item.nodeId === nodeId);
   if (!row) return rt;
   const s = structuredClone(rt.state);
   const dt = s.timeMs - row.sinceMs;
-  for (const fiber of s.flowRun!.fibers) {
+  for (const fiber of substationFibers(s)) {
     if (fiber.owner?.nodeId !== nodeId) continue;
     fiber.frozen = false;
     if (fiber.active && dt !== 0) {
@@ -532,9 +555,11 @@ function failFlow(s: RuntimeState, code: string, stepId: string | null, message:
   for (const rec of s.steps) {
     if (rec.status === 'active') { rec.status = 'stopped'; rec.endMs = s.timeMs; }
   }
-  for (const fiber of s.flowRun?.fibers ?? []) {
+  for (const fiber of everyFiber(s)) {
     fiber.active = null;
     fiber.holding = undefined;
+    fiber.pendingCommit = false;
+    fiber.blocked = undefined;
     fiber.frozen = false;
   }
   s.active = null;
@@ -560,37 +585,48 @@ function ranRecord(rec: StepRecord): boolean {
 }
 
 function beginRecord(s: RuntimeState, stepId: string, lane?: string): number {
-  const started = s.steps.filter((r) => r.stepId === stepId && r.pass != null).length;
+  const pieceId = activePiece(s)?.instanceId;
+  const mine = (r: StepRecord) => pieceId == null || r.instanceId === pieceId;
+  const started = s.steps.filter((r) => r.stepId === stepId && r.pass != null && mine(r)).length;
   const pass = started + 1;
   // A later pass executes a step this loop skipped earlier. Replace that skip; do not keep both.
-  const skipped = s.steps.findIndex((r) => r.stepId === stepId && r.status === 'skipped');
+  const skipped = s.steps.findIndex((r) => r.stepId === stepId && r.status === 'skipped' && mine(r));
   if (skipped >= 0) {
     const rec = s.steps[skipped];
     rec.status = 'active'; rec.startMs = s.timeMs; rec.pass = pass; delete rec.endMs;
     if (lane) rec.lane = lane;
+    if (pieceId) rec.instanceId = pieceId;
     return skipped;
   }
-  const pending = s.steps.findIndex((r) => r.stepId === stepId && r.status === 'pending' && r.pass == null);
+  const pending = s.steps.findIndex((r) => r.stepId === stepId && r.status === 'pending' && r.pass == null && mine(r));
   if (pending >= 0 && pass === 1) {
     const rec = s.steps[pending];
     rec.pass = 1; rec.status = 'active'; rec.startMs = s.timeMs;
     if (lane) rec.lane = lane;
+    if (pieceId) rec.instanceId = pieceId;
     return pending;
   }
-  s.steps.push({ stepId, status: 'active', startMs: s.timeMs, pass, ...(lane ? { lane } : {}) });
+  s.steps.push({ stepId, status: 'active', startMs: s.timeMs, pass, ...(lane ? { lane } : {}), ...(pieceId ? { instanceId: pieceId } : {}) });
   return s.steps.length - 1;
 }
 
 function skipTree(s: RuntimeState, nodes: FlowNode[]) {
+  const piece = activePiece(s);
+  const pieceId = piece?.instanceId;
+  const lane = piece?.flow?.fibers[0]?.lane;
   walk(nodes, (n) => {
     if (n.kind !== 'step') return;
-    const rows = s.steps.filter((r) => r.stepId === n.stepId);
+    const rows = s.steps.filter((r) => r.stepId === n.stepId && (pieceId == null || r.instanceId === pieceId));
     // Once a step has run, a later iteration must not add a skip beside that record.
     if (rows.some(ranRecord)) return;
     if (rows.some((r) => r.status === 'skipped')) return;
-    const i = s.steps.findIndex((r) => r.stepId === n.stepId && r.status === 'pending');
-    if (i >= 0) s.steps[i].status = 'skipped';
-    else s.steps.push({ stepId: n.stepId, status: 'skipped' });
+    if (pieceId == null) {
+      const i = s.steps.findIndex((r) => r.stepId === n.stepId && r.status === 'pending');
+      if (i >= 0) s.steps[i].status = 'skipped';
+      else s.steps.push({ stepId: n.stepId, status: 'skipped' });
+      return;
+    }
+    s.steps.push({ stepId: n.stepId, status: 'skipped', instanceId: pieceId, ...(lane ? { lane } : {}) });
   });
 }
 
@@ -633,7 +669,7 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
     if (iter < count) {
       frame.iter = iter + 1;
       frame.index = 0;
-      logAt(s, 'info', 'LOOP_ITER', `${frame.name ?? '반복'} ${frame.iter}/${count}`, frame.blockId);
+      logAt(s, 'info', 'LOOP_ITER', `${pieceTag(s)}${frame.name ?? '반복'} ${frame.iter}/${count}`, frame.blockId);
       return;
     }
     fiber.stack.pop();
@@ -645,14 +681,15 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
     const verdict = evalCond(until, s, p);
     const used = frame.attempt ?? 0;
     const max = frame.maxRetries ?? 0;
+    const tag = pieceTag(s);
     if (verdict.ok) { fiber.stack.pop(); if (!top(fiber)) finishFiber(s, fiber); return; }
     if (used < max) {
       frame.attempt = used + 1;
       frame.index = 0;
-      logAt(s, 'warn', 'RETRY', `${frame.name ?? '재시도'} ${frame.attempt}/${max} — ${verdict.why}`, frame.blockId);
+      logAt(s, 'warn', 'RETRY', `${tag}${frame.name ?? '재시도'} ${frame.attempt}/${max} — ${verdict.why}`, frame.blockId);
       return;
     }
-    logAt(s, 'warn', 'RETRY_EXHAUSTED', `${frame.name ?? '재시도'} ${used}/${max} — ${verdict.why}`, frame.blockId);
+    logAt(s, 'warn', 'RETRY_EXHAUSTED', `${tag}${frame.name ?? '재시도'} ${used}/${max} — ${verdict.why}`, frame.blockId);
     fiber.stack.pop();
     if (!top(fiber)) finishFiber(s, fiber);
     return;
@@ -668,17 +705,34 @@ function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: st
   const found = locateStep(p, stepId);
   if (!found) { failFlow(s, 'REF_MISSING_ACTION', stepId, `단계 ${stepId} 의 Action 을 찾을 수 없음`); return 'stop'; }
   const { step, action: a } = found;
-  const concurrent = (s.flowRun?.fibers.filter((f) => f.status !== 'done').length ?? 0) > 1;
+  const pc = activePiece(s);
+  if (pc && deviceHeld(p, s, a.deviceId, fiber)) {
+    const dev = p.devices.find((d) => d.id === a.deviceId);
+    blockFiber(s, pc, fiber, { reason: 'device', unitId: dev?.unitId ?? a.unitId, note: `Device 사용 중 (${dev?.name ?? a.deviceId})` }, step.id);
+    return 'wait';
+  }
+  const moveTo = a.effect.moveTo;
+  if (pc && moveTo && moveTo !== 'EXIT' && piecesAt(s, moveTo, pc.instanceId) >= unitCap(p, moveTo)) {
+    const unit = p.units.find((u) => u.id === moveTo);
+    blockFiber(s, pc, fiber, { reason: 'capacity', unitId: moveTo, note: `Unit 가득 (${unit?.name ?? moveTo})` }, step.id);
+    return 'wait';
+  }
+  const concurrent = pc ? true : (s.flowRun?.fibers.filter((f) => f.status !== 'done').length ?? 0) > 1;
   const gate = judgeInterlock(
-    p, a.id, step.name, flowActiveActionIds(p, s, fiber.id), concurrent,
+    p, a.id, step.name, flowActiveActionIds(p, s, fiber), concurrent,
     (c) => evalCond(c, s, p), unmetText,
   );
   if (gate.kind === 'block') {
     pushBlock(s, step.id, gate.hit);
-    failFlow(s, 'INTERLOCK_BLOCK', step.id, gate.hit.message);
+    const message = pc ? gate.hit.message.replace(`[${step.name}]`, `[개체 ${pc.index} ${step.name}]`) : gate.hit.message;
+    failFlow(s, 'INTERLOCK_BLOCK', step.id, message);
     return 'stop';
   }
   if (gate.kind === 'wait') {
+    if (pc) {
+      blockFiber(s, pc, fiber, { reason: 'interlock', unitId: gate.wait.unitId, note: gate.wait.note }, step.id);
+      return 'wait';
+    }
     if (!fiber.wait || fiber.wait.note !== gate.wait.note) {
       fiber.wait = { sinceMs: s.timeMs, note: gate.wait.note, interlockId: gate.wait.interlockId };
       logAt(s, 'info', 'WAIT', `[${fiber.lane ?? '갈래'}] ${step.name} 대기 — ${gate.wait.note}`, step.id);
@@ -693,11 +747,13 @@ function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: st
     if (dt > 0) waited = { waitMs: dt, waitNote: note };
     logAt(s, 'info', 'WAIT_END', `[${fiber.lane ?? '갈래'}] ${step.name} 대기 끝 — ${note} ${(dt / 1000).toFixed(3)}s`, step.id);
   }
+  if (pc) releaseFiberBlock(s, pc, fiber);
   const recordIndex = beginRecord(s, step.id, fiber.lane);
   if (waited) Object.assign(s.steps[recordIndex], waited);
+  if (pc) takePendingWait(pc, s.steps[recordIndex]);
   for (const c of [...step.entry, ...a.pre]) {
     const r = evalCond(c, s, p);
-    if (!r.ok) { failFlow(s, 'PRE_UNMET', step.id, `[${step.name}] 전제 조건 미충족: ${unmetText(r)} — 다른 진행 주체가 없어 대기하지 않고 오류 처리`); return 'stop'; }
+    if (!r.ok) { failFlow(s, 'PRE_UNMET', step.id, `[${pc ? `개체 ${pc.index} ` : ''}${step.name}] 전제 조건 미충족: ${unmetText(r)} — 다른 진행 주체가 없어 대기하지 않고 오류 처리`); return 'stop'; }
   }
   if (a.completeSignalId) s.signals[a.completeSignalId] = false;
   if (a.commandSignalId) s.signals[a.commandSignalId] = true;
@@ -715,13 +771,15 @@ function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: st
 
 function spawnLanes(s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], labels: string[], message: string, owner?: FlowFiber['owner']) {
   if (!s.flowRun) return;
+  const pc = activePiece(s);
   parent.status = 'joining';
   const childIds: number[] = [];
   lists.forEach((nodes, i) => {
     const id = s.flowRun!.nextId++;
     childIds.push(id);
+    const lane = pc ? `개체 ${pc.index} · ${labels[i]}` : labels[i];
     s.flowRun!.fibers.push({
-      id, status: 'live', parentId: parent.id, lane: labels[i], active: null,
+      id, status: 'live', parentId: parent.id, lane, active: null,
       stack: [{ role: 'seq', nodes, index: 0 }],
       ...(owner ? { owner } : {}),
     });
@@ -781,16 +839,17 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
   if (node.kind === 'step') return activateFiber(p, s, fiber, node.stepId);
   if (node.kind === 'wait') return beginWait(p, s, fiber, node);
   frame.index += 1;
+  const tag = pieceTag(s);
   if (node.kind === 'branch') {
     const verdict = evalCond(node.cond, s, p);
     const takeThen = verdict.ok;
-    logAt(s, 'info', 'BRANCH_TAKEN', `${node.name} ${takeThen ? '참' : '거짓'} — ${verdict.why}`, node.id);
+    logAt(s, 'info', 'BRANCH_TAKEN', `${tag}${node.name} ${takeThen ? '참' : '거짓'} — ${verdict.why}`, node.id);
     skipTree(s, takeThen ? node.else : node.then);
     fiber.stack.push({ role: 'seq', nodes: takeThen ? node.then : node.else, index: 0 });
     return 'go';
   }
   if (node.kind === 'loop') {
-    logAt(s, 'info', 'LOOP_ITER', `${node.name} 1/${node.count}`, node.id);
+    logAt(s, 'info', 'LOOP_ITER', `${tag}${node.name} 1/${node.count}`, node.id);
     fiber.stack.push({ role: 'loop', nodes: node.body, index: 0, count: node.count, iter: 1, blockId: node.id, name: node.name });
     return 'go';
   }
@@ -799,18 +858,18 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
     return 'go';
   }
   if (node.kind === 'parallel') {
-    if (node.lanes.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${node.name} 합류`); return 'go'; }
-    spawnLanes(s, fiber, node.lanes, node.lanes.map((_, i) => `갈래 ${i + 1}`), `${node.name} 합류`);
+    if (node.lanes.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${tag}${node.name} 합류`); return 'go'; }
+    spawnLanes(s, fiber, node.lanes, node.lanes.map((_, i) => `갈래 ${i + 1}`), `${tag}${node.name} 합류`);
     return 'go';
   }
   const unit = p.units.find((u) => u.id === node.unitId);
   const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === node.unitId);
-  if (seqs.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${unit?.name ?? node.unitId} Substation 합류`); return 'go'; }
+  if (seqs.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${tag}${unit?.name ?? node.unitId} Substation 합류`); return 'go'; }
   spawnLanes(
     s, fiber,
     seqs.map((q) => q.steps.map((step) => ({ kind: 'step' as const, stepId: step.id }))),
     seqs.map((q) => q.name),
-    `${unit?.name ?? node.unitId} Substation 합류`,
+    `${tag}${unit?.name ?? node.unitId} Substation 합류`,
     { kind: 'substation', nodeId: node.id, unitId: node.unitId },
   );
   return 'go';
@@ -829,6 +888,20 @@ function completeFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
   const found = locateStep(p, active.stepId);
   if (!found) { failFlow(s, 'REF_MISSING_ACTION', active.stepId, `단계 ${active.stepId} 의 Action 을 찾을 수 없음`); return; }
   const { step, action: a } = found;
+  const pc = activePiece(s);
+  if (pc) {
+    const to = a.effect.moveTo;
+    if (to && to !== 'EXIT' && piecesAt(s, to, pc.instanceId) >= unitCap(p, to)) {
+      const unit = p.units.find((u) => u.id === to);
+      fiber.pendingCommit = true;
+      blockFiber(s, pc, fiber, { reason: 'capacity', unitId: to, note: `Unit 가득 (${unit?.name ?? to})` }, step.id);
+      return;
+    }
+    if (fiber.pendingCommit || fiber.blocked) {
+      releaseFiberBlock(s, pc, fiber, s.steps[active.recordIndex]);
+      fiber.pendingCommit = false;
+    }
+  }
   if (a.completeSignalId) s.signals[a.completeSignalId] = true;
   const readFail = readIsFailing(p, s, a.id);
   const resultSig = a.kind === 'read' ? resultOf(p, a) : undefined;
@@ -836,7 +909,8 @@ function completeFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
   if (a.kind === 'read' && resultSig) s.signals[resultSig.id] = !readFail;
   if (readFail && !keepGoing) {
     if (s.material && p.materials[0]?.states.includes('식별실패')) s.material.state = '식별실패';
-    failFlow(s, 'READ_FAILED', step.id, `[${step.name}] 읽기 완료, 결과=실패 (식별 실패 상태 구별). 분기 미지원으로 이후 공정 진행 안 함`);
+    const who = pc ? `개체 ${pc.index} ` : '';
+    failFlow(s, 'READ_FAILED', step.id, `[${who}${step.name}] 읽기 완료, 결과=실패 (식별 실패 상태 구별). 분기 미지원으로 이후 공정 진행 안 함`);
     return;
   }
   const m = s.material ? { ...s.material } : null;
@@ -845,7 +919,7 @@ function completeFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
     if (a.effect.holder !== undefined) m.holder = a.effect.holder;
     if (a.effect.moveTo) {
       const to = a.effect.moveTo;
-      if (to !== 'EXIT') {
+      if (to !== 'EXIT' && !pc) {
         const unit = p.units.find((u) => u.id === to)!;
         const cap = unit.capacity.maxMaterials.value ?? 0;
         const used = Object.entries(occ).filter(([uid, inst]) => uid === to && inst && inst !== m.instanceId).length;
@@ -860,9 +934,13 @@ function completeFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
   const tentative: RuntimeState = { ...s, material: m, occupancy: occ };
   for (const c of a.post) {
     const r = evalCond(c, tentative, p);
-    if (!r.ok) { failFlow(s, 'POST_UNMET', step.id, `[${step.name}] 완료 후 조건 미충족: ${unmetText(r)} — 상태 변경 커밋 안 함`); return; }
+    if (!r.ok) { failFlow(s, 'POST_UNMET', step.id, `[${pc ? `개체 ${pc.index} ` : ''}${step.name}] 완료 후 조건 미충족: ${unmetText(r)} — 상태 변경 커밋 안 함`); return; }
   }
   s.material = m; s.occupancy = occ;
+  if (pc && m) {
+    pc.material = m;
+    if (m.location === 'EXIT' && pc.exitedAtMs == null) pc.exitedAtMs = s.timeMs;
+  }
   if (a.commandSignalId) s.signals[a.commandSignalId] = false;
   for (const sg of p.signals) if (sg.deviceId === a.deviceId && sg.role === 'complete' && sg.id !== a.completeSignalId) s.signals[sg.id] = false;
   if (a.targetPositionId) s.devicePositions[a.deviceId] = a.targetPositionId;
@@ -966,5 +1044,312 @@ function advanceFlow(rt: Runtime, dtMs: number): Runtime {
   }
   if (s.status === 'running' && !hold) s.timeMs = Math.max(s.timeMs, target);
   syncCursor(s);
+  return { ...rt, state: s };
+}
+
+// --- several pieces on one flow (TURN-071). The single-piece interpreter above is unchanged. ---
+
+function everyFiber(s: RuntimeState): FlowFiber[] {
+  if (s.pieces?.some((pc) => pc.flow)) return s.pieces.flatMap((pc) => pc.flow?.fibers ?? []);
+  return s.flowRun?.fibers ?? [];
+}
+
+function activePiece(s: RuntimeState): PieceRun | undefined {
+  if (!s.flowRun || !s.pieces) return undefined;
+  return s.pieces.find((pc) => pc.flow === s.flowRun);
+}
+
+function pieceTag(s: RuntimeState): string {
+  const pc = activePiece(s);
+  return pc ? `개체 ${pc.index} ` : '';
+}
+
+function attachFlowPieces(pieces: PieceRun[] | null, p: Project): PieceRun[] | null {
+  if (!pieces || !p.sequence.flow) return pieces;
+  for (const pc of pieces) {
+    pc.flow = {
+      nextId: 2,
+      fibers: [{
+        id: 1, status: 'live', active: null, lane: `개체 ${pc.index}`,
+        stack: [{ role: 'seq', nodes: p.sequence.flow, index: 0 }],
+      }],
+    };
+    pc.signals = {};
+  }
+  return pieces;
+}
+
+function unitCap(p: Project, unitId: string): number {
+  return p.units.find((u) => u.id === unitId)?.capacity.maxMaterials.value ?? 0;
+}
+
+function piecesAt(s: RuntimeState, unitId: string, exceptId?: string): number {
+  let n = 0;
+  for (const pc of s.pieces ?? []) {
+    if (pc.phase === 'queued' || pc.instanceId === exceptId) continue;
+    if (pc.material.location === unitId) n += 1;
+  }
+  return n;
+}
+
+function deviceHeld(p: Project, s: RuntimeState, deviceId: string, self: FlowFiber): boolean {
+  for (const fiber of everyFiber(s)) {
+    if (fiber === self || !fiber.active) continue;
+    const found = locateStep(p, fiber.active.stepId);
+    if (found?.action.deviceId === deviceId) return true;
+  }
+  return false;
+}
+
+function blockFiber(
+  s: RuntimeState, pc: PieceRun, fiber: FlowFiber,
+  block: { reason: 'device' | 'capacity' | 'interlock'; unitId: string; note: string },
+  refId?: string,
+) {
+  if (fiber.blocked && fiber.blocked.note === block.note && fiber.blocked.unitId === block.unitId) return;
+  releaseFiberBlock(s, pc, fiber);
+  fiber.blocked = { ...block, sinceMs: s.timeMs };
+  pc.wait = { reason: block.reason, sinceMs: s.timeMs, unitId: block.unitId, note: block.note };
+  pc.phase = 'waiting';
+  logAt(s, 'info', 'WAIT', `개체 ${pc.index} 대기 — ${block.note}`, refId ?? pc.instanceId);
+}
+
+function releaseFiberBlock(s: RuntimeState, pc: PieceRun, fiber: FlowFiber, rec?: StepRecord) {
+  const blocked = fiber.blocked;
+  if (!blocked) return;
+  fiber.blocked = undefined;
+  const dt = s.timeMs - blocked.sinceMs;
+  if (pc.wait?.note === blocked.note && pc.wait.sinceMs === blocked.sinceMs) pc.wait = null;
+  if (dt <= 0) return;
+  pc.waitMs += dt;
+  pc.waitByUnit[blocked.unitId] = (pc.waitByUnit[blocked.unitId] ?? 0) + dt;
+  if (rec) {
+    rec.waitMs = (rec.waitMs ?? 0) + dt;
+    rec.waitNote = blocked.note;
+  } else {
+    pc.pendingWaitMs += dt;
+    pc.pendingWaitNote = blocked.note;
+  }
+  logAt(s, 'info', 'WAIT_END', `개체 ${pc.index} 대기 끝 — ${blocked.note} ${(dt / 1000).toFixed(3)}s`, rec?.stepId ?? pc.instanceId);
+}
+
+function takePendingWait(pc: PieceRun, rec: StepRecord | undefined) {
+  if (!rec || pc.pendingWaitMs <= 0) return;
+  rec.waitMs = (rec.waitMs ?? 0) + pc.pendingWaitMs;
+  rec.waitNote = pc.pendingWaitNote;
+  pc.pendingWaitMs = 0;
+  pc.pendingWaitNote = '';
+}
+
+function bindPiece(p: Project, s: RuntimeState, pc: PieceRun) {
+  s.flowRun = pc.flow;
+  s.material = pc.material;
+  const owned = pc.signals ?? {};
+  for (const sig of p.signals) {
+    if (sig.role === 'sensor') continue;
+    s.signals[sig.id] = owned[sig.id] ?? false;
+  }
+}
+
+function unbindPiece(p: Project, s: RuntimeState, pc: PieceRun) {
+  const owned: Record<string, boolean> = {};
+  for (const sig of p.signals) {
+    if (sig.role === 'sensor') continue;
+    owned[sig.id] = s.signals[sig.id] ?? false;
+  }
+  pc.signals = owned;
+  if (s.material) pc.material = s.material;
+}
+
+function settlePiece(p: Project, s: RuntimeState, pc: PieceRun): boolean {
+  if (!pc.flow || pc.fedAtMs == null) return false;
+  bindPiece(p, s, pc);
+  let progressed = false;
+  try {
+    let guard = 0;
+    while (s.status === 'running' && guard++ < 2000) {
+      if (releaseWaits(p, s)) { progressed = true; continue; }
+      let committed = false;
+      for (const fiber of [...pc.flow.fibers].sort((a, b) => a.id - b.id)) {
+        if (!fiber.pendingCommit || !fiber.active || fiber.frozen) continue;
+        completeFiber(p, s, fiber);
+        if (s.status !== 'running') return progressed;
+        if (!fiber.pendingCommit) { committed = true; break; }
+      }
+      if (committed) { progressed = true; continue; }
+      const idle = pc.flow.fibers
+        .filter((f) => f.status === 'live' && !f.active && !f.holding && !f.frozen && !f.pendingCommit)
+        .sort((a, b) => a.id - b.id);
+      let moved = false;
+      for (const fiber of idle) {
+        const gate = progressFiber(p, s, fiber);
+        if (s.status !== 'running') return progressed;
+        if (gate === 'wait' || gate === 'park') continue;
+        if (gate === 'stop') return progressed;
+        moved = true;
+        break;
+      }
+      if (!moved) break;
+      progressed = true;
+    }
+  } finally {
+    unbindPiece(p, s, pc);
+  }
+  return progressed;
+}
+
+function pieceFlowDone(pc: PieceRun): boolean {
+  return pc.fedAtMs != null && !!pc.flow && pc.flow.fibers.every((f) => f.status === 'done');
+}
+
+interface FlowEvent {
+  t: number;
+  pieceIndex: number;
+  fiberId: number;
+  kind: 'done' | 'timeout' | 'wait' | 'feed';
+  pc: PieceRun;
+  fiber?: FlowFiber;
+}
+
+function flowEvents(s: RuntimeState): FlowEvent[] {
+  const out: FlowEvent[] = [];
+  for (const pc of s.pieces ?? []) {
+    if (pc.fedAtMs == null && pc.readyAtMs > s.timeMs) {
+      out.push({ t: pc.readyAtMs, pieceIndex: pc.index, fiberId: -1, kind: 'feed', pc });
+    }
+    for (const fiber of pc.flow?.fibers ?? []) {
+      if (fiber.frozen) continue;
+      if (fiber.active && !fiber.pendingCommit) {
+        const complete = fiber.active.completeAtMs !== null && fiber.active.completeAtMs <= fiber.active.timeoutAtMs;
+        const t = complete ? fiber.active.completeAtMs! : fiber.active.timeoutAtMs;
+        out.push({ t, pieceIndex: pc.index, fiberId: fiber.id, kind: complete ? 'done' : 'timeout', pc, fiber });
+      }
+      if (fiber.holding) {
+        out.push({ t: fiber.holding.timeoutAtMs, pieceIndex: pc.index, fiberId: fiber.id, kind: 'wait', pc, fiber });
+      }
+    }
+  }
+  const rank = (kind: FlowEvent['kind']) => kind === 'done' ? 0 : 1;
+  out.sort((a, b) => a.t - b.t || a.pieceIndex - b.pieceIndex || rank(a.kind) - rank(b.kind) || a.fiberId - b.fiberId);
+  return out;
+}
+
+function flowDeadlockText(pieces: PieceRun[]): string {
+  const parts = pieces.filter((pc) => !pieceFlowDone(pc)).map((pc) => {
+    const blocked = pc.flow?.fibers.find((f) => f.blocked)?.blocked;
+    const note = blocked?.note ?? pc.wait?.note ?? (pc.fedAtMs == null ? '투입 대기' : pc.phase);
+    return `개체 ${pc.index}: ${note}`;
+  });
+  return `서로 기다려 진행할 수 없음 — ${parts.join(', ')}`;
+}
+
+function fireFlowEvent(p: Project, s: RuntimeState, ev: FlowEvent) {
+  const fiber = ev.fiber;
+  if (!fiber) return;
+  bindPiece(p, s, ev.pc);
+  try {
+    if (ev.kind === 'wait') {
+      if (fiber.holding) failWaitTimeout(p, s, fiber);
+      return;
+    }
+    if (!fiber.active || fiber.pendingCommit) return;
+    if (ev.kind === 'done') completeFiber(p, s, fiber);
+    else {
+      const found = locateStep(p, fiber.active.stepId);
+      const lane = fiber.lane ? `${fiber.lane} ` : '';
+      failFlow(s, 'TIMEOUT', found?.step.id ?? fiber.active.stepId, `[${lane}${found?.step.name ?? fiber.active.stepId}] 타임아웃 — 완료 신호 ${signalLabel(p, found?.action.completeSignalId)} 미발생. 이후 공정 통과 안 함`);
+    }
+  } finally {
+    unbindPiece(p, s, ev.pc);
+  }
+}
+
+function syncFlowPieces(p: Project, s: RuntimeState) {
+  const pieces = s.pieces ?? [];
+  for (const pc of pieces) {
+    if (!pc.flow) continue;
+    const fibers = pc.flow.fibers;
+    const running = fibers.filter((f) => f.active && !f.pendingCommit && !f.frozen);
+    const holding = fibers.some((f) => f.holding && !f.frozen);
+    const blocked = fibers.find((f) => f.blocked);
+    const live = fibers.some((f) => f.status !== 'done');
+    if (pc.fedAtMs == null) continue;
+    if (!live) pc.phase = 'done';
+    else if (running.length > 0) pc.phase = 'active';
+    else if (blocked || holding || fibers.some((f) => f.pendingCommit)) pc.phase = 'waiting';
+    else pc.phase = 'ready';
+    const shown = running[0] ?? fibers.find((f) => f.active);
+    if (shown?.active) {
+      const idx = p.sequence.steps.findIndex((step) => step.id === shown.active!.stepId);
+      if (idx >= 0) pc.stepIndex = idx;
+    }
+    if (blocked?.blocked) {
+      pc.wait = { reason: blocked.blocked.reason, sinceMs: blocked.blocked.sinceMs, unitId: blocked.blocked.unitId, note: blocked.blocked.note };
+    } else pc.wait = null;
+  }
+  const focus = pieces.find((pc) => pc.phase !== 'done' && pc.phase !== 'queued')
+    ?? pieces.find((pc) => pc.phase !== 'queued')
+    ?? pieces[0];
+  s.material = focus ? { ...focus.material } : null;
+  for (const unit of p.units) {
+    const at = pieces.find((pc) => pc.phase !== 'queued' && pc.material.location === unit.id);
+    s.occupancy[unit.id] = at ? at.instanceId : null;
+  }
+  const act = pieces.flatMap((pc) => pc.flow?.fibers ?? []).filter((f) => f.active && !f.pendingCommit).sort((a, b) => a.id - b.id);
+  if (act[0]?.active) {
+    const a = act[0].active;
+    s.stepIndex = a.stepIndex;
+    s.active = { stepIndex: a.stepIndex, startMs: a.startMs, completeAtMs: a.completeAtMs, timeoutAtMs: a.timeoutAtMs, stepId: a.stepId };
+  } else s.active = null;
+  if (focus?.signals) {
+    for (const sig of p.signals) {
+      if (sig.role === 'sensor') continue;
+      s.signals[sig.id] = focus.signals[sig.id] ?? false;
+    }
+  }
+  s.flowRun = undefined;
+}
+
+function advanceFlowPieces(rt: Runtime, dtMs: number): Runtime {
+  const p = rt.snapshot;
+  const s = structuredClone(rt.state);
+  const target = s.timeMs + Math.round(dtMs);
+  let guard = 0;
+  let hold = false;
+  while (s.status === 'running' && guard++ < 100000) {
+    const pieces = s.pieces ?? [];
+    let moved = false;
+    if (admitPieces(p, s)) moved = true;
+    for (const pc of pieces) {
+      if (settlePiece(p, s, pc)) moved = true;
+      if (s.status !== 'running') break;
+    }
+    if (s.status !== 'running') break;
+    if (pieces.length > 0 && pieces.every(pieceFlowDone)) {
+      s.status = 'completed';
+      s.active = null;
+      logAt(s, 'info', 'RUN_COMPLETE', `시퀀스 완료 — 개체 ${pieces.length}개 배출`);
+      break;
+    }
+    if (moved) continue;
+    const events = flowEvents(s).filter((ev) => ev.kind !== 'feed' || ev.t > s.timeMs);
+    const due = events.filter((ev) => ev.kind !== 'feed' && ev.t <= s.timeMs);
+    if (due.length > 0) {
+      fireFlowEvent(p, s, due[0]);
+      continue;
+    }
+    const nxt = events[0];
+    if (!nxt) {
+      if ((s.pausedSubstations?.length ?? 0) > 0) { hold = true; break; }
+      failFlow(s, 'DEADLOCK', null, flowDeadlockText(pieces));
+      break;
+    }
+    if (nxt.t > target) break;
+    s.timeMs = nxt.t;
+    if (nxt.kind !== 'feed') fireFlowEvent(p, s, nxt);
+  }
+  if (s.status === 'running' && !hold) s.timeMs = Math.max(s.timeMs, target);
+  syncFlowPieces(p, s);
+  applySensorSignals(p, s);
   return { ...rt, state: s };
 }
