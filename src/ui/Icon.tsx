@@ -1,7 +1,7 @@
 // TURN-061. Named imports so the single-file build keeps only the icons we draw.
 import {
   Activity, AlignHorizontalSpaceBetween, AlignLeft, AlignStartVertical, AlignVerticalSpaceBetween,
-  ArrowRight, ArrowUpRight, BadgeCheck, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
+  ArrowRight, ArrowUpRight, BadgeCheck, BetweenHorizontalStart, Blocks, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
   ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleHelp,
   CirclePlay, ClipboardCheck, ClipboardPaste, ClockPlus, Columns2, Compass, Copy, CopyPlus, Cpu, Download,
   DraftingCompass, Ellipsis, Expand, Eye, EyeOff, FileCode, FileCode2, FileInput, FileOutput, FilePlus,
@@ -22,7 +22,7 @@ import './icons.css';
 
 export const ICONS = {
   Activity, AlignHorizontalSpaceBetween, AlignLeft, AlignStartVertical, AlignVerticalSpaceBetween,
-  ArrowRight, ArrowUpRight, BadgeCheck, BetweenHorizontalStart, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
+  ArrowRight, ArrowUpRight, BadgeCheck, BetweenHorizontalStart, Blocks, Bolt, BookOpen, BookmarkPlus, Box, BoxSelect, Boxes, Cable, ChartGantt,
   ChevronDown, ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleHelp,
   CirclePlay, ClipboardCheck, ClipboardPaste, ClockPlus, Columns2, Compass, Copy, CopyPlus, Cpu, Download,
   DraftingCompass, Ellipsis, Expand, Eye, EyeOff, FileCode, FileCode2, FileInput, FileOutput, FilePlus,

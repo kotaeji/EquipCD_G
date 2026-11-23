@@ -223,7 +223,7 @@ describe('TURN-045 danger buttons and quantities', () => {
 
   it('AC4 a step that sits in the flow shows the count and waits for confirm', async () => {
     const u = await mount();
-    await u.click(u.btn('흐름 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="flow"]')!);
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]')!);
     const seq = foldOf(u.el, '단계 편집');
     const note = seq.querySelector('[data-delete-impact]')!;

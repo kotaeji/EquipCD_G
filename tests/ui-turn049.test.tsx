@@ -50,7 +50,7 @@ async function mount() {
 describe('TURN-049 flow editor and run controls', () => {
   it('AC5 AC7 adds, edits, moves, and deletes a wait, and a missing timeout jumps to that row', async () => {
     const u = await mount();
-    await u.click(u.btn('흐름 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="flow"]')!);
     await u.click(u.el.querySelector('.stepper [data-stepid="sequence"]')!);
     const rev = u.history().present.revision;
     await u.click(u.btn('신호 기다림 추가'));

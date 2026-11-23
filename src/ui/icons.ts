@@ -147,6 +147,7 @@ export const COMMAND_ICONS = {
   'report-html': 'FileCode2',
   'report-steps': 'Table',
   'report-log': 'FileSpreadsheet',
+  starter: 'Blocks',
 } as const;
 
 export type IconId = keyof typeof COMMAND_ICONS;

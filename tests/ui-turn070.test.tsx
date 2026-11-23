@@ -33,7 +33,7 @@ async function mount() {
       input.dispatchEvent(new Event('change', { bubbles: true }));
     });
   };
-  await click(btn('예제 열기'));
+  await click(el.querySelector('[data-sample-open="sample"]'));
   return { el, click, btn, type, history: () => seen.h!, project: () => seen.h!.present };
 }
 
