@@ -13,6 +13,7 @@ import { conditionsFormula } from '../model/conditionFormula';
 import { StatusMark } from './StatusMark';
 import { actionDeleteDetail, actionUsage, positionDeleteDetail, positionUsage, signalDeleteDetail, signalUsage } from '../model/deleteImpact';
 import { Badge, QtyInput, TextInput } from './widgets';
+import { Terms } from './Term';
 
 export type ConfirmDelete = (title: string, detail: string | null, run: () => void) => void;
 
@@ -113,7 +114,7 @@ export function CapabilityTable({ p, unitId }: { p: Project; unitId: string }) {
   const interlocks = (a: Action) => p.constraints.filter((k) => k.relatedIds.includes(a.deviceId));
   return (
     <table className="grid">
-      <thead><tr><th>동작(Action)</th><th>I/O (명령→완료)</th><th>Position</th><th>자재 변화</th><th>전제/금지</th><th>근거</th></tr></thead>
+      <thead><tr><th><Terms text="동작(Action)" /></th><th>I/O (명령→완료)</th><th><Terms text="Position" /></th><th>자재 변화</th><th>전제/금지</th><th>근거</th></tr></thead>
       <tbody>{acts.map((a) => (
         <tr key={a.id}>
           <td>{a.name}<div className="muted mono" style={{ fontSize: 10 }}>{devName(p, a.deviceId)}</div></td>
@@ -186,7 +187,7 @@ export function Inspector(props: Props) {
       <div className="row"><label>시각</label>{props.visualMode === 'photo' ? (gen.status === 'available' ? <span title={GENERATED_META.label}><Badge kind="acc">{AI_BADGE} 실사풍 (실제 사진 아님) · 종류 대표</Badge></span> : <Badge kind="warn">AI 이미지 미준비 → 도식</Badge>) : <Badge>도식 사용 중</Badge>}</div>
       <div className="muted" style={{ fontSize: 11 }}>AML 원본: {def.amlSource.file} · {def.amlSource.sucPath}{d.templateChild ? ` · 템플릿 자식 ${d.templateChild}${unitT ? ` (${unitT.assetId}@${unitT.version})` : ''}` : ''}</div>
     </div>
-    <div className="tabs">{[['props', '속성'], ['signals', `신호 ${sigs.length}`], ['positions', `포지션 ${poss.length}`], ['actions', `Action ${acts.length}`], ['check', '정의 체크']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+    <div className="tabs">{[['props', '속성'], ['signals', `신호 ${sigs.length}`], ['positions', `포지션 ${poss.length}`], ['actions', `Action ${acts.length}`], ['check', '정의 체크']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><Terms text={l} /></button>)}</div>
     {tab === 'props' && <div className="section">
       {def.properties.map((pd) => { const qv = d.properties[pd.key]; return qv ? <div key={pd.key} className="row" data-jump={`prop:${d.id}:${pd.key}`}><label>{pd.label}{pd.requiredForRun ? ' *' : ''}</label><QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} /></div> : null; })}
       <div className="muted" style={{ fontSize: 11 }}>* 실행/수용 판정에 필요 (비우면 미정 축 사양 Gap). 빈 값 = 미정, 0과 다름.</div>

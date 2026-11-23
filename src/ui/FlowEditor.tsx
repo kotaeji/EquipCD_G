@@ -12,6 +12,7 @@ import { stepLiveClass } from './RunSummary';
 import { conditionFormula } from '../model/conditionFormula';
 import { ConditionMark } from './conditionMark';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
+import { Terms } from './Term';
 
 type Arm = 'then' | 'else' | 'body' | number;
 
@@ -163,7 +164,7 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked }: {
       <select aria-label="Substation" disabled={locked} value={unitId} onChange={(e) => setUnitId(e.target.value)}>
         {p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
       </select>
-      <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}>Substation 시퀀스 넣기</button>
+      <button type="button" disabled={locked || !unitId} onClick={() => edit(C.addSubstationNode(p, unitId), 'Substation 시퀀스 넣기')}><Terms text="Substation 시퀀스 넣기" /></button>
       <button type="button" disabled={locked} onClick={() => edit(C.addWaitNode(p), '신호 기다림 추가')}>신호 기다림 추가</button>
     </div>
     <p className="muted" style={{ fontSize: 11 }}>같은 갈래에서 연속된 단계·블록·Substation 단계를 고르고 묶습니다. 칸에서 Space로 선택하고, 흐름이 있으면 ↑↓ 키로 같은 갈래 안에서 옮깁니다. 재시도 기본값은 {DEFAULT_MAX_RETRIES}회입니다.</p>

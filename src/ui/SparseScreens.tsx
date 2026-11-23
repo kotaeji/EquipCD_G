@@ -11,6 +11,7 @@ import { checkRunReadiness, validateProject, type Diagnostic } from '../model/va
 import type { QuarantineEntry } from '../storage/localStore';
 import { xsdStatus, AmlLoadStatus } from './Library';
 import { Fold } from './Fold';
+import { Terms } from './Term';
 import { type BlockerGuide } from './blockerTarget';
 import { EmptyState } from './EmptyState';
 import { BlockerCards, BlockerList, Problem } from './Problem';
@@ -77,7 +78,7 @@ export function FilesSheet({ entries, onImport, onExport, onOpen, onNew, onSampl
     <p className="muted">JSON 가져오기는 원본을 덮어쓰지 않고 새 탭으로 엽니다. 거부된 원본은 격리합니다.</p>
     <section className="sheet wide">
       <h2>이 Workspace에 저장된 파일</h2>
-      <table className="grid plain"><thead><tr><th>이름</th><th>rev</th><th></th></tr></thead>
+      <table className="grid plain"><thead><tr><th>이름</th><th><Terms text="rev" /></th><th></th></tr></thead>
         <tbody>{entries.map((e) => <tr key={e.id}><td>{e.name}</td><td>{e.revision}</td><td><button type="button" onClick={() => onOpen(e.id)}>열기</button></td></tr>)}
           {entries.length === 0 && <tr><td colSpan={3}><EmptyState symbol="○" line={EMPTY.projects} actions={[
             { label: '새 프로젝트', onClick: onNew },
