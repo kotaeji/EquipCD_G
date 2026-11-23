@@ -4,7 +4,7 @@
 import { feedCountOf, type Project } from '../model/types';
 import { collectStepIds } from '../model/flow';
 import { analyzeGaps, GAP_KIND_LABEL, type GapKind } from '../model/gaps';
-import { analyzeRunGaps, steadyCycleMs } from '../model/runGaps';
+import { analyzeRunGaps, pieceWaitMs, steadyCycleMs } from '../model/runGaps';
 import type { PieceRun, RuntimeState } from '../runtime/engine';
 
 export { steadyCycleMs };
@@ -105,19 +105,27 @@ function onePassUnits(p: Project): { unitId: string; name: string; ms: number; t
 function waitUnits(p: Project, pieces: readonly PieceRun[], now: number): { unitId: string; name: string; ms: number; timeText: string }[] {
   return p.units.map((u) => {
     let ms = 0;
-    for (const pc of pieces) {
-      ms += pc.waitByUnit[u.id] ?? 0;
-      if (pc.wait?.unitId === u.id) ms += Math.max(0, now - pc.wait.sinceMs);
-    }
+    for (const pc of pieces) ms += pieceWaitMs(pc, u.id, now);
     return { unitId: u.id, name: u.name, ms, timeText: formatMs(ms) };
   });
+}
+
+function stepNameById(p: Project, stepId: string): string | undefined {
+  return p.sequence.steps.find((s) => s.id === stepId)?.name
+    ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === stepId)?.name;
 }
 
 function pieceRowsOf(p: Project, rt: RuntimeState | null): PieceRow[] | null {
   if (!rt?.pieces || rt.pieces.length < 2) return null;
   return rt.pieces.map((pc) => {
+    const fiber = pc.flow?.fibers.find((f) => f.holding)
+      ?? pc.flow?.fibers.find((f) => f.active && !f.pendingCommit)
+      ?? pc.flow?.fibers.find((f) => f.active);
+    const flowName = fiber?.holding
+      ? '신호 기다림'
+      : fiber?.active ? stepNameById(p, fiber.active.stepId) : undefined;
     const step = p.sequence.steps[Math.min(pc.stepIndex, Math.max(0, p.sequence.steps.length - 1))];
-    const stepName = pc.phase === 'queued' ? '투입 전' : pc.phase === 'done' ? '배출' : (step?.name ?? '단계');
+    const stepName = pc.phase === 'queued' ? '투입 전' : pc.phase === 'done' ? '배출' : (flowName ?? step?.name ?? '단계');
     const statusLabel = pc.phase === 'done' ? '완료' : pc.phase === 'active' ? '진행 중' : '대기';
     const note = pc.wait?.note ?? (pc.phase === 'queued' && pc.readyAtMs > rt.timeMs ? '투입 시각 전' : '');
     return { instanceId: pc.instanceId, index: pc.index, stepName, phase: pc.phase, statusLabel, note };
@@ -155,6 +163,14 @@ function whereText(p: Project, id: string | null | undefined): string {
 function runningNow(p: Project, rt: RuntimeState | null): { name: string; lane?: string }[] {
   if (!rt) return [];
   if (rt.pieces && rt.pieces.length > 1) {
+    if (rt.pieces.some((pc) => pc.flow)) {
+      return rt.pieces.flatMap((pc) => (pc.flow?.fibers ?? []).flatMap((fiber) => {
+        if (fiber.holding && !fiber.frozen) return [{ name: '신호 기다림', lane: fiber.lane ?? `개체 ${pc.index}` }];
+        if (!fiber.active || fiber.frozen || fiber.pendingCommit) return [];
+        const name = stepNameById(p, fiber.active.stepId) ?? fiber.active.stepId;
+        return [{ name, lane: fiber.lane ?? `개체 ${pc.index}` }];
+      }));
+    }
     return rt.pieces.flatMap((pc) => {
       if (pc.phase !== 'active' || !pc.active) return [];
       const step = p.sequence.steps[pc.active.stepIndex];
@@ -197,8 +213,11 @@ export function describeRunInfo(p: Project, rt: RuntimeState | null): RunInfo {
     const unitId = unitOfDevice(p, deviceOfStep(p, row.stepId));
     const widthMs = assumed ? assumedMs(p, row.stepId) : (row.elapsedMs ?? 0);
     const timeText = assumed ? formatMs(widthMs) : (row.elapsedMs === null ? '-' : formatMs(row.elapsedMs));
-    const owner = !assumed && rt?.flowRun
-      ? rt.flowRun.fibers.find((fiber) => fiber.owner && fiber.active?.stepId === row.stepId && (row.lane ? fiber.lane === row.lane : true))
+    const liveFibers = rt?.pieces?.some((pc) => pc.flow)
+      ? rt.pieces.flatMap((pc) => pc.flow?.fibers ?? [])
+      : (rt?.flowRun?.fibers ?? []);
+    const owner = !assumed
+      ? liveFibers.find((fiber) => fiber.owner && fiber.active?.stepId === row.stepId && (row.lane ? fiber.lane === row.lane : true))
       : undefined;
     const paused = !!owner?.owner && (rt?.pausedSubstations ?? []).some((item) => item.nodeId === owner.owner!.nodeId);
     return {

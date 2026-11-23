@@ -1,6 +1,6 @@
 // Several instances of one material definition on a flat station sequence (TURN-040).
 // Feed count 1 never comes here. A flow that is only step nodes runs in that order.
-// A branch, parallel, loop, retry, or substation step is refused before run.
+// A branch, parallel, loop, retry, wait, or substation step is a per-piece flow (TURN-071).
 // At one virtual instant, in piece-index order: seat whoever may enter, commit a move
 // that was waiting for room, then start the next step. Device exclusivity and unit
 // capacity wait instead of failing. A piece's own location, state, and holder are what
@@ -107,6 +107,10 @@ function openWait(s: RuntimeState, pc: PieceRun, wait: { reason: 'device' | 'cap
   pc.wait = { ...wait, sinceMs: s.timeMs };
   pc.phase = 'waiting';
   logAt(s, 'info', 'WAIT', `개체 ${pc.index} 대기 — ${wait.note}`, pc.instanceId);
+}
+
+export function admitPieces(p: Project, s: RuntimeState): boolean {
+  return tryAdmit(p, s);
 }
 
 function tryAdmit(p: Project, s: RuntimeState): boolean {
