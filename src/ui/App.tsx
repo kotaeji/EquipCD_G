@@ -1127,7 +1127,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </Fold>
           </section>}
           {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
-          {sub === 'export' && <><ExportSheet p={p} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
+          {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
           {sub === 'lab' && <><LabSheet revision={p.revision} /><Fold className="fold-panel" summary="미구현 안내"><LabPanel /></Fold></>}
         </div>
       </div>}

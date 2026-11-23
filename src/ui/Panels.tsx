@@ -382,7 +382,7 @@ export function ExportPanel({ p }: { p: Project }) {
   const rows = buildExportPreview(p);
   return (
     <div>
-      <div className="notice err">F8 매핑 <b>미리보기 전용</b>. 실제 Aurora Core 스키마·버전이 확인되지 않아 실제 Export, SignalMap 생성, 역매핑(실측 교체)은 구현하지 않았습니다. 검증된 실제 연동이 아닙니다.</div>
+      <div className="notice err">F8 매핑 <b>미리보기</b>. 대상 칸은 초안 형식의 자리 이름입니다. Aurora Core 스키마·버전은 확인되지 않아 Core 전송, SignalMap 생성, 실측 역매핑은 구현하지 않았습니다. 검증된 실제 연동이 아닙니다.</div>
       <p><button type="button" disabled title="미구현: Core 주소·스키마·역매핑이 확정되지 않았습니다">Core로 보내기</button> <span className="muted">버튼은 눌리지 않습니다. 아래 표는 이 프로젝트의 미리보기이며 전송 결과가 아닙니다.</span></p>
       <table className="grid"><thead><tr><th>분류</th><th>원본 ID</th><th>이름</th><th>목적지(후보)</th><th>상태</th><th>비고/가정</th></tr></thead>
         <tbody>{rows.map((r, i) => <tr key={i}><td>{r.category}</td><td className="mono" style={{ fontSize: 10 }}>{r.sourceId}</td><td style={{ fontSize: 12 }}>{r.name}</td><td style={{ fontSize: 11 }}>{r.target}</td>
