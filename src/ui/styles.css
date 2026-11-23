@@ -826,7 +826,7 @@ details[open] .fold-open { display: inline; }
 .layout-stage .palette-hint { line-height: 1.35; }
 .layout-stage .palette-fold { display: block; width: 100%; max-width: 100%; min-width: 0; flex-shrink: 0; }
 .layout-stage .palette-fold > summary { display: block; }
-.layout-stage .palette-fold .palette { display: flex; width: 100%; max-width: 100%; min-width: 0; flex-wrap: wrap; overflow-x: hidden; overflow-y: auto; max-height: 40px; padding: 4px 0 0; border-top: 0; }
+.layout-stage .palette-fold .palette { display: flex; width: 100%; max-width: 100%; min-width: 0; flex-wrap: wrap; overflow-x: hidden; overflow-y: auto; padding: 4px 0 0; border-top: 0; }
 .layout-stage .palette-fold .pi { flex: 0 0 auto; display: flex; flex-direction: row; align-items: center; gap: 4px; white-space: nowrap; padding: 4px 8px; }
 .layout-stage .palette-fold .pi svg { margin: 0; }
 .layout-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -839,6 +839,14 @@ details[open] .fold-open { display: inline; }
 .layout-tabs .diagram-tools { flex: 0 0 auto; margin: 0; }
 .diagram-hint { flex: 1 0 100%; margin: 0; font-size: 12px; line-height: 1.35; color: var(--text); }
 .layout-tabs .diagram-canvas { flex: 1 1 auto; height: auto; min-height: 0; }
+/* The palette yields only after the schematic would drop under 320px. Rows are not capped at one. */
+.layout-stage > .stage-head,
+.layout-stage > .palette-hint { flex-shrink: 0; }
+.layout-stage > .palette-fold { flex: 0 1 auto; min-height: 0; overflow: auto; }
+.layout-stage > .palette-fold > summary { position: sticky; top: 0; z-index: 1; background: var(--bg); }
+.layout-stage > .layout-tabs { flex: 1 0 auto; }
+.layout-stage .layout-tabs .diagram-canvas { min-height: 320px; }
+.palette-more { margin-left: 8px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--selected); color: var(--text); font-size: 12px; font-weight: 700; line-height: 18px; white-space: nowrap; }
 
 /* TURN-010: short project list above the equipment tree. Six rows fit; the seventh scrolls inside the list. */
 .proj-line { padding: 4px 8px 0; }

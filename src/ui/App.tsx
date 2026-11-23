@@ -174,6 +174,29 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const subUnitId = (p.units.some((u) => u.id === subUnitPref) ? subUnitPref : selUnit ?? p.units.find((u) => (p.substationSequences ?? []).some((q) => q.unitId === u.id))?.id ?? p.units[0]?.id ?? '');
 
   useEffect(() => { saveView(kv, view); }, [kv, view]);
+  const paletteRef = useRef<HTMLDivElement>(null);
+  const [paletteHidden, setPaletteHidden] = useState(0);
+  useEffect(() => {
+    const el = paletteRef.current;
+    const fold = el?.closest('.palette-fold') as HTMLElement | null;
+    if (!el || !fold) { setPaletteHidden(0); return; }
+    const count = () => {
+      const box = fold.getBoundingClientRect();
+      if (box.height < 1 || fold.scrollHeight <= fold.clientHeight + 1) { setPaletteHidden(0); return; }
+      let n = 0;
+      for (const item of el.querySelectorAll('.pi')) {
+        const r = item.getBoundingClientRect();
+        if (r.height < 1) continue;
+        if (r.top < box.top - 1 || r.bottom > box.bottom + 1) n += 1;
+      }
+      setPaletteHidden((v) => (v === n ? v : n));
+    };
+    count();
+    const ro = new ResizeObserver(count);
+    ro.observe(fold);
+    fold.addEventListener('scroll', count);
+    return () => { ro.disconnect(); fold.removeEventListener('scroll', count); };
+  }, [step, view.paletteOpen, view.layoutTab]);
   useEffect(() => { if (wsInit?.warnings.length) say(wsInit.warnings.join(' / '), true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onHistory?.(tab.history); }, [onHistory, tab.history]);
   // N03: a project that is not active never keeps running in the background → pause (state kept, no auto resume)
@@ -1095,8 +1118,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
-          <Fold className="palette-fold" open={view.paletteOpen} onToggle={(open) => setView((v) => (v.paletteOpen === open ? v : { ...v, paletteOpen: open }))} summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span></>}>
-            <div className="palette">
+          <Fold className="palette-fold" open={view.paletteOpen} onToggle={(open) => setView((v) => (v.paletteOpen === open ? v : { ...v, paletteOpen: open }))} summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span>{paletteHidden > 0 && <span className="palette-more" data-palette-more={paletteHidden}>+{paletteHidden}개 더</span>}</>}>
+            <div className="palette" ref={paletteRef}>
               <div className="pi" data-jump="palette-unit" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
               {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
             </div>

@@ -18,7 +18,7 @@ import {
   RUN_FIT_PAD,
 } from '../src/ui/Canvas';
 import { DIM_EDGE_OPACITY, edgeWidth, flowCaption, graphFocus, portWord, signalCaption } from '../src/ui/edgeFocus';
-import { DIAGRAM_MIN, PALETTE_OPEN_MAX, stage2DiagramHeight, stage2OverlayClears } from '../src/ui/screenRoom';
+import { DIAGRAM_MIN, PALETTE_NATURAL, fitPalette, roomForPaletteAndDiagram, stage2DiagramHeight, stage2OverlayClears } from '../src/ui/screenRoom';
 import { loadView } from '../src/ui/viewSettings';
 import { VIEW_KEY } from '../src/storage/localStore';
 import { holdRuntimeClock } from './holdRuntimeClock';
@@ -26,6 +26,7 @@ import { holdRuntimeClock } from './holdRuntimeClock';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const css = readFileSync('src/ui/styles.css', 'utf8');
+const appSrc = readFileSync('src/ui/App.tsx', 'utf8');
 let root: Root | null = null;
 let restoreObserver: (() => void) | null = null;
 
@@ -263,16 +264,26 @@ describe('TURN-048 edge emphasis', () => {
 });
 
 describe('TURN-048 screen room', () => {
-  it('AC7 at 1280×800 the open palette leaves the diagram at least 320px and keeps every kind', async () => {
-    const height = stage2DiagramHeight();
-    expect(height).toBeGreaterThanOrEqual(DIAGRAM_MIN);
-    expect(stage2OverlayClears(height)).toBe(true);
+  it('AC7 the palette keeps every row while the diagram stays at least 320px, and marks hidden rows', async () => {
+    const wide = fitPalette(roomForPaletteAndDiagram(1000), PALETTE_NATURAL.w1600);
+    expect(wide.clipped).toBe(false);
+    expect(wide.palette).toBe(PALETTE_NATURAL.w1600);
+    expect(wide.diagram).toBeGreaterThanOrEqual(DIAGRAM_MIN);
+    const narrow = fitPalette(roomForPaletteAndDiagram(800), PALETTE_NATURAL.w1280);
+    expect(narrow.diagram).toBeGreaterThanOrEqual(DIAGRAM_MIN);
+    expect(narrow.diagram).toBe(stage2DiagramHeight());
+    expect(narrow.clipped).toBe(true);
+    expect(narrow.palette).toBeLessThan(PALETTE_NATURAL.w1280);
+    expect(stage2OverlayClears(narrow.diagram)).toBe(true);
     expect(css).toMatch(/\.app \.ws-canvas > \.stage\.layout-stage \{[^}]*padding:\s*2px 16px/);
     expect(css).toMatch(/\.app \.ws-canvas > \.stage\.layout-stage \{[^}]*gap:\s*4px/);
-    expect(css).toContain(`max-height: ${PALETTE_OPEN_MAX}px`);
+    expect(css).toMatch(/\.layout-stage \.layout-tabs \.diagram-canvas \{[^}]*min-height:\s*320px/);
+    expect(css).not.toMatch(/\.layout-stage \.palette-fold \.palette \{[^}]*max-height:\s*40px/);
     expect(css).toMatch(/\.layout-stage \.palette-fold \.palette \{[^}]*overflow-y:\s*auto/);
     expect(css).toMatch(/\.layout-stage \.palette-fold \.palette \{[^}]*overflow-x:\s*hidden/);
-    expect(css).toMatch(/\.layout-stage \.stage-head \{[^}]*flex-wrap:\s*wrap/);
+    expect(css).toMatch(/\.palette-more \{/);
+    expect(appSrc).toContain('data-palette-more');
+    expect(appSrc).toContain('개 더');
     const u = await mount();
     await openDiagram(u);
     const items = [...u.el.querySelectorAll('.layout-stage .palette .pi')];
