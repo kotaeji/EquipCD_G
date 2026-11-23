@@ -141,7 +141,7 @@ export function LibraryWorkspace(props: Props) {
   return <div className="libws">
     <div className="libmain">
       {props.detail && def ? <AssetDetailSheet def={def} onBack={() => props.setDetail(false)} onAdd={() => props.onAdd(def, def.template ? null : target)} locked={props.locked} unitOk={!!def.template || p.units.some((u) => u.id === target)} /> : <>
-      <h1 className="stage-title">에셋 라이브러리</h1>
+      <h1 className="stage-title"><span data-tour="library">에셋 라이브러리</span></h1>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <input placeholder="검색 (이름/키/ID)" value={filter.q} onChange={(e) => props.setFilter({ ...filter, q: e.target.value })} style={{ width: 200 }} />
         <select value={filter.category} onChange={(e) => props.setFilter({ ...filter, category: e.target.value })}><option value="">모든 분류</option>{Object.entries(CAT_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>

@@ -50,6 +50,8 @@ export interface UserView {
   /** TURN-035: the run 「자세히」 panel. This browser only. */
   runDetailsOpen: boolean;
   runDetailsTab: RunDetailsTab;
+  /** TURN-042: this browser finished or skipped the first-run tour. View only — never in a project file. */
+  tourSeen: boolean;
 }
 
 /** TURN-007 resize targets. The main column stays at least PANEL_MAIN_MIN px while a panel is dragged. */
@@ -103,7 +105,7 @@ function cleanPanels(v: unknown): PanelWidths {
 
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
   step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
-  explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary' };
+  explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false };
 
 function cleanCollapsed(v: unknown): Record<string, string[]> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -136,7 +138,9 @@ export function loadView(kv: KV | null): UserView {
       runDetailsOpen: o.runDetailsOpen === true,
       runDetailsTab: o.runDetailsTab === 'log' || o.runDetailsTab === 'signals' ? o.runDetailsTab : 'summary',
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
-      home: o.home === false ? false : true };
+      home: o.home === false ? false : true,
+      // missing tourSeen (views saved before TURN-042) means this browser has not finished the tour.
+      tourSeen: o.tourSeen === true };
   } catch { return DEFAULT_VIEW; }
 }
 export function saveView(kv: KV | null, v: UserView) { if (!kv) return; try { kv.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* ignore */ } }
