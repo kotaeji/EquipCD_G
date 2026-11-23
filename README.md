@@ -78,6 +78,16 @@ TURN-036 자동 정렬 뒤 겹침 풀기는 검토 후보입니다. 사람 검�
 
 TURN-037 6단계 도면 맞춤은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-037.md`](docs/turns/TURN-037.md). 6단계 「도면」이 가운데 칸에 맞게 크게 보이고 칸 크기가 바뀌면 다시 맞춰집니다. 「자세히」 단추 글자는 한 줄입니다.
 
+TURN-038 단계 바 배지는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-038.md`](docs/turns/TURN-038.md). 단계 바 여섯 단추에 판정과 남은 항목 수가 보이고, 배지를 누르면 그 단계의 남은 항목 목록이 열립니다. 항목을 누르면 고칠 화면 · 칸으로 가서 그 칸이 잠깐 강조됩니다.
+
+TURN-039 상태 표시 체계는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-039.md`](docs/turns/TURN-039.md). 진행 중 · 완료 · 오류 · 대기 · 미정 · 가정 여섯 상태를 색 + 기호 + 글자 한 체계(`src/ui/status.ts`)로 보여 줍니다. 도면 · 3D 표식은 「▶ 진행 중」입니다.
+
+TURN-040 자재 여러 개 투입은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-040.md`](docs/turns/TURN-040.md). 같은 자재를 「투입 개수」만큼 「투입 간격」을 두고 이어서 실행합니다. Device 가 쓰이는 중이거나 Unit 이 차 있으면 오류가 아니라 대기합니다. 사이클 시간 · 시간당 생산량 · 병목은 개체가 3개 이상이면 「정상 상태(가정)」 값입니다. 분기 · 병렬 · 반복 · 재시도 · Substation 단계가 있는 흐름은 투입 개수 1 만 실행합니다. 실행 규칙 `seq-runtime/0.4.0`.
+
+TURN-041 Export 초안 파일은 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-041.md`](docs/turns/TURN-041.md). 5단계 › Export 미리보기에서 장비 구조 · 신호 · 포지션 · 시퀀스를 `*.aurora-export.json` 으로 내려받고, 역매핑 검사로 모델과 맞대 봅니다. **초안 형식이며 Aurora Core 가 바로 읽는 형식이 아닙니다.** Core 전송은 없습니다.
+
+TURN-042 첫 실행 둘러보기는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-042.md`](docs/turns/TURN-042.md). 처음 여는 브라우저의 시작 화면에 「5공정 예제로 둘러보기」가 있고, 일곱 걸음으로 1~6단계를 안내합니다. 「보기 설정」에서 다시 볼 수 있습니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -107,7 +117,7 @@ npm run typecheck && npm test && npm run build   # build → release/equipment-c
   - **도식/실사진 토글**: 14종 모두 Wikimedia Commons 실제 촬영 참고 사진(12장, 출처·저자·라이선스·대표 범위 표시, 정확 모델 일치 아님). 토글은 모델 불변.
   - **단계별 중앙 작업영역(C10 위저드 제안안)**: 1 입력·에셋 선택(라이브러리 카드) → 2 배치·연결(Canvas) → 3 속성·Action → 4 자재·시퀀스 → 5 점검 → 6 실행·저장. 현재 단계·목표·남은 항목·이전/다음, 데이터 기반 준비 판정, 확인 후 데이터가 바뀌면 ‘재확인 필요’.
 - **v0.1부터 있던 것**: Unit/Device 배치·이동·연결·속성 → 수동 순차 시퀀스 → 5공정·자재 1개 논리 시뮬레이션 → localStorage 저장·재열기, JSON 내보내기/가져오기, A/B/C 테마, F1 직접 입력 후보표, F6 기본 Gap.
-- **안 된 것(미구현)**: F7 Evolution Lab 전체, F8 실제 Core Export·역매핑(읽기 전용 미리보기만), F1 문서/USD 추출, 다중 자재, 갈래 사이 동기점, 조건 무한 반복, 세 갈래 이상 분기, AI, WPF, 일반 AutomationML 파일(InstanceHierarchy·외부 참조·상속 등) 해석, 브라우저 내 XSD 검사, 가져온 AML의 사진 파일 동봉, C11(노트 갱신 — 앱 기능 아님, 부모 담당), 물류 연결을 끌어서 잇기, Unit 안에 Device를 서브플로로 두기, 흐름 블록을 끌어서 옮기기. Station 시퀀스의 분기 · 병렬 · 고정 반복 · 재시도(최대 2회) · Substation 단계는 TURN-022에서 넣었다. 블록 이름 · 블록과 Substation 단계 옮기기 · 묶기 · 흐름 표 한 번은 TURN-023에서 다듬었다. 3D 보기의 CAD · 외부 형상 · 배치 편집은 하지 않는다. TURN-029는 지금 열린 프로젝트의 논리 실행을 기본 도형으로 보여 준다.
+- **안 된 것(미구현)**: F7 Evolution Lab 전체, F8 Aurora Core 실제 형식 Export·전송(초안 형식 파일과 역매핑 검사만 — TURN-041), F1 문서/USD 추출, 자재 정의 여러 종류 · 흐름 블록 위의 여러 개체 실행(순차 시퀀스의 여러 개체는 TURN-040), 갈래 사이 동기점, 조건 무한 반복, 세 갈래 이상 분기, AI, WPF, 일반 AutomationML 파일(InstanceHierarchy·외부 참조·상속 등) 해석, 브라우저 내 XSD 검사, 가져온 AML의 사진 파일 동봉, C11(노트 갱신 — 앱 기능 아님, 부모 담당), 물류 연결을 끌어서 잇기, Unit 안에 Device를 서브플로로 두기, 흐름 블록을 끌어서 옮기기. Station 시퀀스의 분기 · 병렬 · 고정 반복 · 재시도(최대 2회) · Substation 단계는 TURN-022에서 넣었다. 블록 이름 · 블록과 Substation 단계 옮기기 · 묶기 · 흐름 표 한 번은 TURN-023에서 다듬었다. 3D 보기의 CAD · 외부 형상 · 배치 편집은 하지 않는다. TURN-029는 지금 열린 프로젝트의 논리 실행을 기본 도형으로 보여 준다.
 - **요구 상태와 구현 상태는 다릅니다**: v0.2 요구문서의 [확정]/[설계 제안]/[미정]은 요구 승인 상태이고, 이 폴더의 구현·검증 결과는 `REQUIREMENTS-VERIFICATION.md`에 따로 적습니다. 6단계 구성·gate 규칙·14종 구성·카드 배치는 요구문서상 **[설계 제안]**이며 이번 구현은 그 제안을 시제품으로 만든 것일 뿐 확정이 아닙니다.
 - **검증 상태 (v0.3)**: 자동 테스트 **7개 파일 72개 통과** = 기존 57개(ui-smoke 1개는 v0.3 화면에 맞게 수정) + 신규 15개(group 12, visuals 3). **v0.3 실제 브라우저 GUI 검수**(부모 에이전트, 사람 검수 아님, `http://127.0.0.1:8767/…`, 스크린샷 1920×1200): AI 카드 14·배지·상세 메타데이터·토글 rev 불변, A/B/C·1~6 상시 탐색기, 병렬 예제 1.200/1.600 s, DEVICE_CONFLICT 차단·Undo, 그룹 실행/일시정지/재개/끝까지·GROUP_COMPLETE, 프로젝트 전환 자동 일시정지·복귀 재개, 기본 Station 11.100 s, JSON 0.2 내보내기/가져오기 통과 — `BROWSER-VERIFICATION.md` 7절. 현재 페이지 콘솔 오류 0건(세션 전체의 외부 collector.github.com 503 6건은 이전 열람 기원·원인 불명으로 앱 오류로 단정 안 함). 미검증: 1280×800(창 크기 변경 불가), body 전체 overflow 측정, v0.1 파일 가져오기 GUI. 1920에서 6단계 Canvas는 내부 가로 스크롤. 아래는 v0.2 기록 — 자동 테스트 **5개 파일 57개 통과**. 에이전트가 headless Chrome 156으로 release HTML(file://)을 자동 조작해 v0.2 핵심 경로 확인(`BROWSER-VERIFICATION.md` 「v0.2」 절, 스크린샷 `docs/screenshots/v0.2/`). **v0.2 실제 브라우저 GUI 검수**(부모 에이전트, Linux Chrome 1920×1072, `http://127.0.0.1:8766/equipment-concept-designer.html`): 라이브러리 카드·AML 상세·사진 토글, 1~6 중앙 화면, 식별 유닛 템플릿·Undo, NOT_READY 차단, 기본 실행 RUN_COMPLETE(11.100 s, 오류 0), AML 가져오기 2건 관찰 통과 — 자동 결과와 분리해 `BROWSER-VERIFICATION.md` 6절에 기록. 미검증: 1280×800·작은 화면, V01~V16 전체, Mac/Windows, file:// GUI 검수, 유닛 템플릿 포함 실행.
 
@@ -126,7 +136,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 53파일 595개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내) + TURN-025 화면 실행 테스트의 시계 고정 + TURN-029 3D 시뮬레이션 화면(장면 설명 · 가동 조건 · WebGL 없음 안내)
+npm test              # vitest 62파일 666개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내) + TURN-025 화면 실행 테스트의 시계 고정 + TURN-029 3D 시뮬레이션 화면(장면 설명 · 가동 조건 · WebGL 없음 안내)
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
@@ -198,7 +208,7 @@ docs/                  requirements-v0.1.md(원본 보존) requirements-v0.2.md 
 - 2단계 Canvas: 가로 스크롤 전에는 오른쪽 끝 유닛이 오른쪽 속성 패널 뒤에 가려짐(스크롤하면 보임, GUI 검수 관찰, 미수정).
 - **14종 에셋 모두가 실행 시나리오에서 동작한다는 보장은 없습니다.** 실행으로 확인된 것은 기본 5공정 모델뿐입니다. 자동 테스트는 순수 로직 + AML/XSD + jsdom 렌더 스모크 + 테마 대비 계산.
 - 대형 캔버스 성능, 모바일은 검토하지 않았습니다. 키보드: 탐색기 트리·프로젝트 목록·카드는 Tab/Enter로 선택 가능(v0.3), Canvas의 키보드 배치·이동은 미지원. 접근성 인증 아님.
-- 다중 자재, 캐리어 적재 관계 편집, 배경 이미지, F1 문서/USD 추출, F7, F8 실제 Export/역매핑은 미구현입니다. F8 미리보기와 AML 내보내기는 흐름 트리를 그리지 않습니다. 한 시퀀스 안의 분기 · 병렬 · 고정 반복 · 재시도는 TURN-022입니다.
+- 자재 정의 여러 종류, 캐리어 적재 관계 편집, 배경 이미지, F1 문서/USD 추출, F7, F8 Aurora Core 실제 형식 Export · 전송은 미구현입니다(같은 자재의 여러 개체 투입은 TURN-040, 초안 형식 Export 파일은 TURN-041). F8 미리보기와 AML 내보내기는 흐름 트리를 그리지 않습니다. 한 시퀀스 안의 분기 · 병렬 · 고정 반복 · 재시도는 TURN-022입니다.
 - AML은 이 앱의 subset만 해석합니다(`AML-SUPPORT.md`). 일반 AutomationML 도구와의 상호 운용(AutomationML Editor 열기 등)은 검증하지 않았습니다.
 - 센서 신호는 자재가 그 Unit에 있을 때 켜집니다. 자재가 다른 Unit·배출·없음이면 꺼지고, 그때 템플릿 Action의 사전조건은 `PRE_UNMET`입니다. 문구에는 신호 이름과 「센서는 자재가 이 Unit 에 있을 때 켜집니다」가 나옵니다. 센서마다 감지 대상을 고르거나, 리밋 스위치를 축 위치로 켜지는 않습니다(`AMBIGUITIES.md` A33).
 - 새로 놓은 Device의 기본 이름이 에셋 이름(예: “실린더”)이라 여러 개일 때 구별이 어려움(유닛 템플릿 자식은 `PSH-S6-PSH1`처럼 접두어 이름, ID는 항상 고유).
