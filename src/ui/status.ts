@@ -84,13 +84,24 @@ export function stationShape(status: string | null | undefined): { status: Statu
   return { status: key, word };
 }
 
-/** TURN-038 step-bar words stay. The ink comes from the nearest status. */
+/**
+ * Step-bar badge shape. The words stay in `BADGE_WORD`.
+ * 필수 충족 · 확인됨 use 완료, 필수 누락 uses 오류, 재확인 필요 uses 미정.
+ * The mark is `STATUS[this].mark`, so the symbol and the color are the same status.
+ */
 export const WIZARD_BADGE_STATUS = {
   ready: 'done',
   confirmed: 'done',
   blocked: 'error',
   recheck: 'undetermined',
 } as const satisfies Record<string, StatusKey>;
+
+export type WizardBadge = keyof typeof WIZARD_BADGE_STATUS;
+
+/** Mark for a step-bar badge. Same glyph as the status its color comes from. */
+export function wizardBadgeMark(badge: WizardBadge): string {
+  return STATUS[WIZARD_BADGE_STATUS[badge]].mark;
+}
 
 /** Remaining-item chip. 가정값 존재 is shown as 가정 so it matches the other screens. */
 export const ITEM_LEVEL_STATUS: Record<'missing' | 'assumption' | 'undetermined' | 'optional' | 'human', { status: StatusKey; word: string }> = {

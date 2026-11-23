@@ -10,7 +10,7 @@ import { App } from '../src/ui/App';
 import { StatusMark } from '../src/ui/StatusMark';
 import {
   ITEM_LEVEL_STATUS, STATUS, STATUS_COLOR, STATUS_KEYS, STATUS_SURFACES,
-  exportStatusMark, gapJudgementMark, phaseShape, stationShape, statusCssVars,
+  WIZARD_BADGE_STATUS, exportStatusMark, gapJudgementMark, phaseShape, stationShape, statusCssVars,
 } from '../src/ui/status';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -126,10 +126,29 @@ describe('TURN-039 status tokens', () => {
 
     const u = await mount();
     await u.click(u.btn('시작하기'));
+    const badges = [...u.el.querySelectorAll<HTMLElement>('.stepper [data-step-badge]')];
+    expect(badges.length).toBe(6);
+    for (const badge of badges) {
+      const key = badge.getAttribute('data-status') as keyof typeof STATUS;
+      expect(STATUS_KEYS).toContain(key);
+      expect(badge.querySelector('[aria-hidden="true"]')!.textContent).toBe(STATUS[key].mark);
+      expect(badge.className).toContain(`status-${key}`);
+    }
+    expect(WIZARD_BADGE_STATUS.ready).toBe('done');
+    expect(WIZARD_BADGE_STATUS.confirmed).toBe('done');
+    expect(WIZARD_BADGE_STATUS.blocked).toBe('error');
+    expect(WIZARD_BADGE_STATUS.recheck).toBe('undetermined');
+
     const treeAssumed = marks(u.el.querySelector('.tree')!, 'assumption');
     expect(treeAssumed.length).toBeGreaterThan(0);
+    expect(treeAssumed[0].className).toContain('is-compact');
     expect(treeAssumed[0].querySelector('.status-sym')!.textContent).toBe(STATUS.assumption.mark);
-    expect(treeAssumed[0].querySelector('.status-word')!.textContent).toBe('가정');
+    expect(treeAssumed[0].getAttribute('aria-label')).toBe('가정');
+    expect(treeAssumed[0].getAttribute('title')).toBe('가정');
+    const bcr = u.el.querySelector('[data-tree-id="BCR-02"]')!;
+    expect(bcr.textContent).toContain('바코드리더');
+    const css = readFileSync('src/ui/styles.css', 'utf8');
+    expect(css).toMatch(/\.tree \.status-mark\.is-compact \{[^}]*max-width:\s*22px/);
 
     await u.click(u.el.querySelector('[data-step-badge="attributes"]')!);
     const list = u.el.querySelector('.itemspop')!;

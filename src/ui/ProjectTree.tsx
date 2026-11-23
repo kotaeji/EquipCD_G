@@ -84,7 +84,7 @@ export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick
                 return <div key={d} role="treeitem" tabIndex={0} data-tree-id={d} aria-level={3} aria-selected={dsel} className={`tnode ${dsel ? 'sel' : ''}`}
                   style={{ paddingLeft: 44, fontSize: 12 }} onClick={(e) => own(e, () => onPick(d))}
                   onKeyDown={(e) => onKey(e, d, { expandable: false, open: false, parent: u.id, select: () => onPick(d) })}>
-                  {devName(p, d)} {statusOf?.[d] && <StatusMark status={statusOf[d]} />} <span className="muted">{findAsset(p.devices.find((x) => x.id === d)?.kind ?? '')?.name ?? '정의 없음'}</span></div>;
+                  {devName(p, d)} {statusOf?.[d] && <StatusMark status={statusOf[d]} compact />} <span className="muted">{findAsset(p.devices.find((x) => x.id === d)?.kind ?? '')?.name ?? '정의 없음'}</span></div>;
               })}
             </div>}
           </div>;

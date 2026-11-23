@@ -58,6 +58,7 @@ input.num { width: 76px; font-family: var(--mono); text-align: right; }
 .status-undetermined { color: var(--status-undetermined); }
 .status-assumption { color: var(--status-assumption); }
 .status-mark.is-compact .status-word { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.tree .status-mark.is-compact { max-width: 22px; padding: 0 3px; overflow: hidden; }
 button.st-badge.status-done { color: var(--status-done); border-color: var(--status-done); }
 button.st-badge.status-error { color: var(--status-error); border-color: var(--status-error); }
 button.st-badge.status-undetermined { color: var(--status-undetermined); border-color: var(--status-undetermined); }
