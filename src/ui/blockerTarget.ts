@@ -17,8 +17,9 @@ export interface BlockerGuide {
   focus?: { id: string; kind: 'device' | 'unit' };
   /** user-facing note: why it is inspect-only / not editable */
   note?: string;
-  /** data-jump value to flash after the screen opens */
+  /** View-only highlight. The gate does not read this. */
   field?: string;
+  actionId?: string;
 }
 
 const SUBSEQ: Dest = { step: 'sequence', sub: 'subseq', place: 'Substation 시퀀스' };
@@ -92,7 +93,9 @@ function resolveStepValue(p: Project, b: { code: string; objectId: string; messa
     case 'NO_COMPLETE_SIGNAL': case 'DURATION_UNDEFINED': return actionFix;
     case 'TIMEOUT_UNDEFINED':
       // gate uses (step.timeoutOverride ?? action.timeout): a present override wins even when the Action timeout is set
-      if (step.timeoutOverride == null) return actionFix;
+      if (step.timeoutOverride == null) {
+        return device ? { kind: 'fix', dest: ACTION, focus: device, field: `timeout:${a.id}`, actionId: a.id } : actionFix;
+      }
       if (!hit) return { kind: 'fix', dest: STATION_SEQ };
       return { ...unsupportedStep, note: `단계 타임아웃(덮어쓰기)이 미정입니다. ${UNSUPPORTED_STEP_NOTE}` };
     case 'CONDITION_UNDEFINED': {

@@ -48,6 +48,9 @@ import { PanelSplit } from './PanelSplit';
 import { RunConditions } from './RunConditions';
 import { RunDetails } from './RunDetails';
 import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
+import { EmptyState, LoadingPlaceholder } from './EmptyState';
+import { Problem } from './Problem';
+import { EMPTY, LARGE_IMPORT_BYTES, LOADING_FILE, RUN_LOCK, draftProblem, importRejectProblem, refusal, runErrorProblem, saveProblem, type ProblemCopy } from './problemCopy';
 import { Scene3D } from './Scene3D';
 import { Tabs } from './Tabs';
 
@@ -139,7 +142,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [draftBoot] = useState(() => bootDrafts(kv));
   const [qlist, setQlist] = useState<QuarantineEntry[]>(() => draftBoot.quarantine);
   const [drafts, setDrafts] = useState<DraftMeta[]>(() => draftBoot.drafts);
-  const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
+  const [toast, setToast] = useState<{ msg?: string; err?: boolean; problem?: ProblemCopy } | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
   const [modal, setModal] = useState<Modal | null>(null);
   // TURN-002: workspaces (browser-local management unit). Non-destructive migration on start; memory-only without storage.
   const [wsInit] = useState(() => (kv ? W.ensureWorkspaces(kv) : null));
@@ -248,6 +252,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     return () => window.removeEventListener('pointerdown', close);
   }, [arrangeOpen]);
   const say = (msg: string, err = false) => setToast({ msg, err });
+  const sayProblem = (problem: ProblemCopy) => setToast({ problem, err: true });
 
   const updTab = useCallback((key: string, f: (t: Tab) => Tab) => setTabs((ts) => ts.map((t) => (t.key === key ? f(t) : t))), []);
   const tabsRef = useRef(tabs); tabsRef.current = tabs;
@@ -294,7 +299,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   /** Apply one model edit as one undo unit. Returns false if blocked/rejected. */
   const edit = (r: C.CmdResult, label: string): boolean => {
     const o = applyEdit(tab.history, r, label, locked);
-    if (o.error) { say(o.error, true); return false; }
+    if (o.error) {
+      if (label === '붙여넣기') sayProblem(refusal('paste', o.error));
+      else if (label === '물류 연결' || label === '신호 연결') sayProblem(refusal('connect', o.error));
+      else if (label.includes('삭제')) sayProblem(refusal('delete', o.error));
+      else say(o.error, true);
+      return false;
+    }
     updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null }));
     return true;
   };
@@ -513,7 +524,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const onConnectCancel = () => setConnectFrom(null);
   const requestDelete = (id: string) => {
-    if (locked) { say('실행 중에는 삭제가 차단됩니다', true); return; }
+    if (locked) { sayProblem(refusal('delete', '실행 중에는 삭제가 차단됩니다')); return; }
     if (p.connections.some((c) => c.id === id)) { edit(C.deleteConnection(p, id), '연결 삭제'); setSelection([]); return; }
     const imp = C.impactOf(p, id);
     const name = p.units.find((u) => u.id === id)?.name ?? devName(p, id);
@@ -528,7 +539,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     });
   };
   const requestDeleteMany = (ids: string[]) => {
-    if (locked) { say('실행 중에는 삭제가 차단됩니다', true); return; }
+    if (locked) { sayProblem(refusal('delete', '실행 중에는 삭제가 차단됩니다')); return; }
     const targets = ids.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
     if (targets.length < 2) return;
     const imp = C.impactOfNodes(p, targets);
@@ -543,7 +554,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     });
   };
   const confirmDelete: ConfirmDelete = (title, detail, run) => {
-    if (locked) { say('실행 중에는 삭제가 차단됩니다', true); return; }
+    if (locked) { sayProblem(refusal('delete', '실행 중에는 삭제가 차단됩니다')); return; }
     if (!detail) { run(); return; }
     setModal({
       title,
@@ -565,8 +576,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     say(`${noun} ${n}개를 복사했습니다`);
   };
   const requestPaste = () => {
-    if (locked) { say(PASTE_LOCKED, true); return; }
-    if (!clip) { say(PASTE_EMPTY, true); return; }
+    if (locked) { sayProblem(refusal('paste', PASTE_LOCKED)); return; }
+    if (!clip) { sayProblem(refusal('paste', PASTE_EMPTY)); return; }
     const r = pasteClipboard(p, clip, selection);
     if (edit(r, '붙여넣기') && r.ok) {
       const { ids, message } = splitPasteNote(r.note);
@@ -630,19 +641,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
   // ---------- file / workspace ----------
   const persistTab = (target: Tab): boolean => {
-    if (!kv) { say(`${storage.reason} — JSON 내보내기를 사용하세요. 메모리 변경은 유지됩니다.`, true); return false; }
+    if (!kv) { sayProblem(saveProblem(`${storage.reason} — JSON 내보내기를 사용하세요. 메모리 변경은 유지됩니다.`)); return false; }
     const proj = target.history.present;
     const owner = W.ownerOf(reg, proj.id);
     if (owner && owner.id !== reg.activeId) {
       if (target.key === tab.key) {
         setModal({ title: '다른 Workspace에 같은 ID가 저장되어 있음', body: <p>{proj.name} ({proj.id})와 같은 ID의 프로젝트가 Workspace 「{owner.name}」에 저장되어 있습니다. 덮어쓰지 않았습니다. 새 ID 사본으로 현재 Workspace 「{curWs.name}」에 저장할 수 있습니다.</p>,
           actions: [{ label: '취소', focus: true, run: () => {} }, { label: '새 ID 사본으로 저장', primary: true, run: () => saveAsCopy() }] });
-      } else say('다른 Workspace에 같은 ID가 있어 저장하지 못했습니다. 탭은 그대로 두었습니다.', true);
+      } else sayProblem(saveProblem('다른 Workspace에 같은 ID가 있어 저장하지 못했습니다. 탭은 그대로 두었습니다.'));
       return false;
     }
     // TURN-002 rev 2: body + index + membership in one transaction — either all saved or nothing changed
     const r = W.saveProjectInWorkspace(kv, reg, reg.activeId, proj);
-    if (!r.ok) { say(r.reason, true); return false; }
+    if (!r.ok) { sayProblem(saveProblem(r.reason)); return false; }
     setReg(r.reg);
     clearDraftTimers();
     const cleared = discardDraft(kv, proj.id);
@@ -658,7 +669,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const oldId = p.id;
     const copy = { ...p, id: `${p.id}-copy-${Date.now().toString(36)}` };
     const r = W.saveProjectInWorkspace(kv, reg, reg.activeId, copy);
-    if (!r.ok) { say(`${r.reason} — 사본을 만들지 않았고 현재 탭은 그대로입니다`, true); return; }
+    if (!r.ok) { sayProblem(saveProblem(`${r.reason} — 사본을 만들지 않았고 현재 탭은 그대로입니다`)); return; }
     setReg(r.reg);
     discardDraft(kv, oldId);
     setDrafts(readDraftList(kv));
@@ -692,7 +703,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       discardDraft(kv, id);
       releaseDraft(id);
       setDrafts(readDraftList(kv));
-      say(saved ? '임시 저장을 열지 못했습니다. 저장본을 유지합니다.' : '임시 저장을 열지 못했습니다.', true);
+      sayProblem(draftProblem(saved ? '임시 저장을 열지 못했습니다. 저장본을 유지합니다.' : '임시 저장을 열지 못했습니다.'));
       return;
     }
     const meta = readDraftList(kv).find((d) => d.id === id);
@@ -713,7 +724,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     clearDraftTimers();
     if (!kv) return;
     const r = discardDraft(kv, id);
-    if (!r.ok) { say(r.reason, true); return; }
+    if (!r.ok) { sayProblem(draftProblem(r.reason)); return; }
     releaseDraft(id);
     setDrafts(readDraftList(kv));
     const key = tabKey ?? tabsRef.current.find((t) => t.history.present.id === id)?.key;
@@ -727,7 +738,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       discardDraft(kv, id);
       releaseDraft(id);
       setDrafts(readDraftList(kv));
-      say('임시 저장을 열지 못했습니다.', true);
+      sayProblem(draftProblem('임시 저장을 열지 못했습니다.'));
       return;
     }
     const meta = drafts.find((d) => d.id === id) ?? readDraftList(kv).find((d) => d.id === id);
@@ -859,21 +870,25 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     else doClose();
   };
   const onImportFile = async (f: File) => {
+    const large = f.size >= LARGE_IMPORT_BYTES;
+    if (large) setImportBusy(true);
+    try {
     const text = await f.text();
     const r = parseProjectFile(text);
     if (!r.ok) {
       setQlist((l) => quarantine(kv, { at: new Date().toLocaleString(), label: f.name, raw: text, errors: r.errors.map((e) => `[${e.code}] ${e.objectId}: ${e.message}`) }, l));
-      setModal({ title: '가져오기 거부 — 현재 모델 불변', body: <div><p>파일 <b>{f.name}</b> 을(를) 열지 않았습니다. 원본은 격리 보관함(진단 탭)에 그대로 보존했습니다.</p>{r.errors.slice(0, 12).map((e) => <div key={e.id} style={{ fontSize: 12, color: 'var(--danger)' }}>[{e.code}] {e.objectId}: {e.message}</div>)}</div>, actions: [{ label: '확인', run: () => setBottomTab('diag') }] });
+      setModal({ title: '가져오기 거부 — 현재 모델 불변', body: <div data-import-reject=""><Problem copy={importRejectProblem(f.name)} />{r.errors.slice(0, 12).map((e) => <div key={e.id} style={{ fontSize: 12 }}>[{e.code}] {e.objectId}: {e.message}</div>)}</div>, actions: [{ label: '확인', run: () => setBottomTab('diag') }] });
       return;
     }
     const existing = tabs.find((t) => t.history.present.id === r.project.id);
     if (existing) {
-      setModal({ title: '같은 ID의 프로젝트가 이미 열려 있음', body: <p>{r.project.name} ({r.project.id}). 기존 탭을 덮어쓰지 않습니다. 새 ID로 사본을 열 수 있습니다.</p>,
+      setModal({ title: '같은 ID의 프로젝트가 이미 열려 있음', body: <Problem copy={{ tone: 'error', what: '같은 ID가 이미 열려 있습니다', why: `${r.project.name} (${r.project.id}). 기존 탭을 덮어쓰지 않습니다.`, how: '새 ID로 사본을 열 수 있습니다.' }} />,
         actions: [{ label: '새 ID 사본으로 열기', primary: true, run: () => { const t = makeTab({ ...r.project, id: `${r.project.id}-copy-${Date.now().toString(36)}`, name: `${r.project.name} (가져온 사본)` }); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setView((v) => ({ ...v, home: false })); } }, { label: '기존 탭으로 이동', run: () => { setActiveKey(existing.key); setView((v) => ({ ...v, home: false })); } }] });
       return;
     }
     const t = makeTab(r.project); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]); setView((v) => ({ ...v, home: false }));
     say(`가져오기 완료${r.warnings.length ? ` (경고 ${r.warnings.length}: ${r.warnings[0].message})` : ''} — 아직 브라우저 저장소에는 저장되지 않음`);
+    } finally { if (large) setImportBusy(false); }
   };
 
   const appearance = appearanceOf(view.theme);
@@ -939,11 +954,29 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!g.dest) return;
     if (subUnitId) setSubUnitPref(subUnitId);
     if (g.focus) { setSelection([g.focus.id]); setRightTab(g.focus.kind === 'device' ? 'actions' : 'props'); }
+    if (g.actionId) setActionFocus(g.actionId);
     if (g.field) {
-      jumpRef.current = { step: g.dest.step, sub: g.dest.sub, field: g.field };
+      jumpRef.current = {
+        step: g.dest.step,
+        sub: g.dest.sub,
+        selectId: g.focus?.id,
+        rightTab: g.focus?.kind === 'device' ? 'actions' : g.focus ? 'props' : undefined,
+        actionId: g.actionId,
+        field: g.field,
+      };
       setJumpTick((n) => n + 1);
     }
     goStep(g.dest.step, g.dest.sub);
+  };
+  const showPalette = (field: string) => {
+    setView((v) => ({ ...v, paletteOpen: true, home: false, step: 'canvas' }));
+    jumpRef.current = { step: 'canvas', field };
+    setJumpTick((n) => n + 1);
+  };
+  const jumpRunError = () => {
+    if (!rt?.error) return;
+    const hit = analyzeRunGaps(p, rt).find((g) => g.id.startsWith('run:error:') && g.fix);
+    if (hit) goGap(hit);
   };
   const listEval = itemsStep ? evals[itemsStep] : null;
   const listMeta = itemsStep ? STEPS.find((s) => s.id === itemsStep)! : null;
@@ -1267,8 +1300,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {itemsStep && confirmed[itemsStep] && confirmed[itemsStep] !== listEval.fingerprint && <div className="notice warn">이 단계는 이전에 확인되었지만 관련 데이터가 바뀌었습니다 — 재확인 필요</div>}
       </div>}
 
-      {guide === 'files' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><FilesSheet entries={savedList.map((e) => ({ id: e.id, name: e.name, revision: e.revision }))} onImport={() => fileRef.current?.click()} onExport={() => download(`${p.name}.json`, serializeProject(p))} onOpen={(id) => { setGuide(null); openSaved(id); }} /></div></div>}
-      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><BundleSheet wsName={curWs.name} projectCount={savedCount(reg.activeId)} assetCount={ASSET_LIBRARY.length} assumptionCount={p.assumptionsNote.length} /></div></div>}
+      {guide === 'files' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><FilesSheet entries={savedList.map((e) => ({ id: e.id, name: e.name, revision: e.revision }))} onImport={() => fileRef.current?.click()} onExport={() => download(`${p.name}.json`, serializeProject(p))} onOpen={(id) => { setGuide(null); openSaved(id); }} onNew={() => { setGuide(null); newProject('blank'); }} onSample={() => { setGuide(null); newProject('sample'); }} /></div></div>}
+      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><BundleSheet wsName={curWs.name} projectCount={savedCount(reg.activeId)} assetCount={ASSET_LIBRARY.length} assumptionCount={p.assumptionsNote.length} onInstead={() => setGuide('files')} /></div></div>}
       {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button>
         <SearchSheet tabs={tabs.map((t) => ({ key: t.key, name: t.history.present.name, active: t.key === tab.key }))}
           tree={p.units.flatMap((u) => [{ id: u.id, label: u.name, depth: 0 }, ...u.deviceIds.map((id) => ({ id, label: devName(p, id), depth: 1 }))])}
@@ -1305,7 +1338,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <button type="button" className="btn-main primary" aria-label={`${d.name} 임시 저장 열기`} onClick={() => openDraft(d.id)}>열기</button>
         </div>)}
         <h2>최근 프로젝트</h2>
-        {savedList.length === 0 && <p className="muted">이 Workspace에 저장된 프로젝트가 없습니다. 예시는 저장 목록이 아닙니다.</p>}
+        {savedList.length === 0 && <EmptyState symbol="○" line={EMPTY.projects} actions={[{ label: '새 프로젝트', onClick: () => newProject('blank') }, { label: '예제', onClick: () => newProject('sample') }]} />}
         {savedList.slice(0, 6).map((e) => <div key={e.id} className="home-recent">
           <div><b>{e.name}</b><div className="muted">rev {e.revision} · {e.savedAt ? new Date(e.savedAt).toLocaleString() : '저장 시각 없음'}</div></div>
           <button className="btn-main secondary" onClick={showOpen}>프로젝트 관리</button>
@@ -1318,7 +1351,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <Sub items={[['cards', '에셋 라이브러리'], ['input', '입력 후보표 (F1)'], ['aml', 'AML 입출력'], ['extract', '자료 입력']]} />
         {sub === 'input' ? <div className="bbody sparse-page"><h1 className="stage-title">입력 후보표</h1><p className="muted">후보는 확인 전에 모델에 들어가지 않습니다.</p><section className="sheet wide"><InputHubPanel p={p} locked={locked} edit={edit} /></section></div>
           : sub === 'aml' ? <div className="bbody sparse-page"><h1 className="stage-title">AML 입출력 결과</h1><AmlResultSheet onCandidates={() => setSubTab((t) => ({ ...t, library: 'input' }))} /></div>
-          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title">자료 입력</h1><ExtractSheet /><Fold className="fold-panel" summary="기존 안내"><ExtractPanel /></Fold></div>
+          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title">자료 입력</h1><ExtractSheet onInstead={() => setSubTab((t) => ({ ...t, library: 'input' }))} /><Fold className="fold-panel" summary="기존 안내"><ExtractPanel /></Fold></div>
           : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion} detail={libDetail} setDetail={setLibDetail}
             detailWidth={view.panels.library} onDetailWidth={(n) => setPanel('library', n)}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}
@@ -1345,7 +1378,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <Fold className="palette-fold" open={view.paletteOpen} onToggle={(open) => setView((v) => (v.paletteOpen === open ? v : { ...v, paletteOpen: open }))} summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span>{paletteHidden > 0 && <span className="palette-more" data-palette-more={paletteHidden}>+{paletteHidden}개 더</span>}</>}>
             <div className="palette" ref={paletteRef}>
               <div className="pi" data-jump="palette-unit" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
-              {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
+              {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" data-jump={!a.template && a.kind === ASSET_LIBRARY.find((x) => !x.template)?.kind ? 'palette-device' : undefined} draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}
             </div>
           </Fold>
           <div className="layout-tabs">
@@ -1355,8 +1388,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <LayoutBoard project={p} selection={selection} mode={mode} locked={locked}
                   onSelect={(ids) => setSelection(ids)} onDropAsset={onDropAsset} onUnitConnectClick={onUnitConnectClick}
                   onSignalHint={() => say('신호 연결은 도면 도식 탭의 포트에서 합니다')} onReparent={requestReparent}
-                  connectNote={connectNote} />
-                <p className="path-note">{flowSummary(p)}<br />카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 도면 도식 탭에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
+                  connectNote={connectNote} onFocusUnit={() => showPalette('palette-unit')} onFocusDevice={() => showPalette('palette-device')}
+                  onStartFlow={() => { setMode('flow'); setConnectFrom(null); }} />
+                <p className="path-note">{p.connections.some((c) => c.kind === 'flow') ? <>{flowSummary(p)}<br /></> : null}카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 도면 도식 탭에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
               </> },
               { id: 'diagram', label: '도면 도식', panel: <>
                 <div className="diagram-tools">
@@ -1419,7 +1453,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             const d = p.devices.find((x) => x.id === selectedId) ?? p.devices[0];
             const host = d ? p.units.find((u) => u.id === d.unitId) : undefined;
             const def = d ? findAsset(d.kind) : undefined;
-            if (!d || !def) return <div className="sheet">선택된 Device가 없습니다. 왼쪽 트리에서 고르세요.</div>;
+            if (!d || !def) return <EmptyState symbol="○" line={EMPTY.devices} actions={[{ label: '팔레트에서 고르기', onClick: () => showPalette('palette-device') }]} />;
             const fields = def.properties.slice(0, 4);
             const sigs = p.signals.filter((s) => s.deviceId === d.id);
             const poss = p.positions.filter((x) => x.deviceId === d.id);
@@ -1518,6 +1552,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <button type="button" onClick={() => setSubTab((t) => ({ ...t, sequence: 'subseq' }))}>Substation 시퀀스</button>
             </div>
             <h2 data-jump="sequence-steps">Station 시퀀스 Draft</h2>
+            {p.sequence.steps.length === 0 && <EmptyState symbol="○" line={EMPTY.steps} actions={[{ label: '단계 추가', disabled: locked || !p.actions[0], reason: locked ? RUN_LOCK : !p.actions[0] ? 'Action이 없습니다. 3단계 Action을 먼저 만드세요.' : undefined, onClick: () => { const a = p.actions[0]; if (a) edit(C.addStep(p, a.id), '단계 추가'); } }]} />}
             {p.sequence.unresolved.length > 0 && <p className="warn-note" data-jump="sequence-unresolved">미해결: {p.sequence.unresolved.join(' · ')}</p>}
             <FlowEditor p={p} rt={rt} locked={locked} edit={edit} />
             <Fold className="fold-panel" summary="단계 편집, 구조화 문장, 순서 변경">
@@ -1536,7 +1571,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <label>크기<span className="field-ro">{materialSize(p)}</span></label>
                 <label>무게<span className="field-ro">{p.materials[0].weight.value ?? '미정'} {p.materials[0].weight.unit}{p.materials[0].weight.assumption ? ' · 가정' : ''}</span></label>
                 <label>Unit 경로<span className="field-ro">{routeText(p)}</span></label>
-              </div> : <button type="button" data-jump="material-add" disabled={locked} onClick={() => edit(C.addMaterial(p), '자재 추가')}>자재 추가</button>}
+              </div> : <EmptyState symbol="○" line={EMPTY.materials} actions={[{ label: '자재 추가', disabled: locked, reason: locked ? RUN_LOCK : undefined, onClick: () => edit(C.addMaterial(p), '자재 추가'), attrs: { 'data-jump': 'material-add' } }]} />}
               <button type="button" className="btn-main primary" onClick={() => setSubTab((t) => ({ ...t, sequence: 'sequence' }))}>Station 시퀀스 작성</button>
             </section>
             <aside className="sheet">
@@ -1573,7 +1608,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <table className="grid plain">
               <thead><tr><th>종류와 판정</th><th>근거</th><th>관련 대상</th><th>다음 행동</th></tr></thead>
               <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id} data-jump={`gap:${g.id}`}><td>{g.title} <StatusMark status={gapJudgementMark(g.judgement).status} word={gapJudgementMark(g.judgement).word} /></td><td>{g.evidence}</td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}
-                {tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).length === 0 && <tr><td colSpan={4}>이 보기에 해당하는 항목이 없습니다.</td></tr>}</tbody>
+                {tab.gaps.length === 0 && <tr><td colSpan={4}><EmptyState symbol="✓" line={EMPTY.gaps} actions={[{ label: '재분석', onClick: reanalyze }]} /></td></tr>}
+                {tab.gaps.length > 0 && tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).length === 0 && <tr><td colSpan={4}>이 보기에 해당하는 항목이 없습니다.</td></tr>}</tbody>
             </table>
             <p className="warn-note">간섭 후보는 정밀 물리·안전 검증 결과가 아닙니다. 근거가 부족하면 문제 없음 대신 비교 불가로 둡니다.</p>
             <Fold className="fold-panel" summary="숨김, 사람 확인, 근거 자세히">
@@ -1582,7 +1618,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           </section>}
           {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
           {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
-          {sub === 'lab' && <><LabSheet revision={p.revision} /><Fold className="fold-panel" summary="미구현 안내"><LabPanel /></Fold></>}
+          {sub === 'lab' && <><LabSheet revision={p.revision} onInstead={() => goStep('run')} /><Fold className="fold-panel" summary="미구현 안내"><LabPanel /></Fold></>}
         </div>
       </div>}
 
@@ -1596,13 +1632,20 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <RunStepsPanel p={p} rt={rt} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} onPauseSubstation={doPauseSub} onResumeSubstation={doResumeSub} />
         <div className="run-center">
           <RunSummaryStrip p={p} rt={rt} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
-          {rt?.error?.code === 'INTERLOCK_BLOCK' && <section className="notice err" aria-label="실행이 막힐 때" data-interlock-guide="">
-            <p>{rt.error.message}</p>
-            <button type="button" onClick={() => {
-              const id = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
-              if (id) jumpInterlock(id);
-            }}>이동</button>
-          </section>}
+          {rt?.error && (() => {
+            const named = rt.error.message.match(/^\[([^\]]+)\]/)?.[1] ?? null;
+            const copy = runErrorProblem(rt.error.code, rt.error.message, named);
+            if (!copy) return null;
+            const jump = rt.error.code === 'INTERLOCK_BLOCK'
+              ? () => {
+                const id = rt.interlockBlocks.find((row) => row.stepId === rt.error?.stepId)?.interlockId ?? rt.interlockBlocks[0]?.interlockId;
+                if (id) jumpInterlock(id);
+              }
+              : jumpRunError;
+            return <section aria-label="실행이 막힐 때" data-run-error={rt.error.code} data-interlock-guide={rt.error.code === 'INTERLOCK_BLOCK' ? '' : undefined}>
+              <Problem copy={copy} onJump={jump} />
+            </section>;
+          })()}
           {screen === 'S62' && <BlockerSheet p={p} title="Station 실행 차단" timeLabel={fmtTime(rt?.timeMs ?? 0)} blockers={rt?.blockers ?? []} onGuide={goBlocker} onRecheck={doReset} />}
           <div className="run-canvas">
             {view.runView === '3d' && scene3d
@@ -1610,7 +1653,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
               : <div className="diagram-canvas">{runCanvasEl}</div>}
           </div>
-          <RunDetails p={p} rt={rt} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock} />
+          <RunDetails p={p} rt={rt} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock}
+            onRun={doRun} runDisabled={running || rt?.status === 'paused'} runReason={running || rt?.status === 'paused' ? '실행 중이거나 일시정지 중입니다. 초기화한 뒤 다시 실행하세요.' : undefined} onJumpError={jumpRunError} />
         </div>
         <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
@@ -1635,7 +1679,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span className="muted">형식 {FILE_FORMAT_VERSION} · 규칙 {RUNTIME_RULES_VERSION}</span>
       </div>
 
-      {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.msg}</div>}
+      {importBusy && <div className="import-hold"><LoadingPlaceholder label={LOADING_FILE} /></div>}
+      {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.problem ? <Problem copy={toast.problem} compact /> : toast.msg}</div>}
       {viewOpen && <StaticModalFrame title="보기 설정" style={style} onCancel={() => setViewOpen(false)}>
         <p className="muted">보기만 바꿉니다. 모델, rev, 실행, 선택, 입력은 그대로입니다. 보관된 이전 팔레트는 고를 수 없습니다.</p>
         <label className="draft-toggle"><input type="checkbox" checked={view.autoDraft} onChange={(e) => setView((v) => ({ ...v, autoDraft: e.target.checked }))} />자동 임시 저장</label>
