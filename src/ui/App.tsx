@@ -1505,7 +1505,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>}
 
       {guide === 'files' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><FilesSheet entries={savedList.map((e) => ({ id: e.id, name: e.name, revision: e.revision }))} onImport={() => fileRef.current?.click()} onExport={() => download(`${p.name}.json`, serializeProject(p))} onOpen={(id) => { setGuide(null); openSaved(id); }} onNew={() => { setGuide(null); newProject('blank'); }} onSample={() => { setGuide(null); newProject('sample'); }} /></div></div>}
-      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><BundleSheet wsName={curWs.name} projectCount={savedCount(reg.activeId)} assetCount={ASSET_LIBRARY.length} assumptionCount={p.assumptionsNote.length} onInstead={() => setGuide('files')} /></div></div>}
+      {guide === 'bundle' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button><BundleSheet kv={kv} reg={reg} dirtyNames={tabs.filter((t) => t.savedRevision !== t.history.present.revision).map((t) => t.history.present.name)} openIds={[...openIds]} storageReason={kv ? null : storage.reason ?? '저장소 없음'} onDownload={(name, text) => download(name, text)} onCommitted={(r) => { setReg(r.reg); if (r.quarantine.length) setQlist((list) => r.quarantine.reduce((acc, entry) => quarantine(kv, entry, acc), list)); }} onSwitch={requestSwitch} /></div></div>}
       {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}>닫기</button>
         <SearchSheet tabs={tabs.map((t) => ({ key: t.key, name: t.history.present.name, active: t.key === tab.key }))}
           tree={p.units.flatMap((u) => [{ id: u.id, label: u.name, depth: 0 }, ...u.deviceIds.map((id) => ({ id, label: devName(p, id), depth: 1 }))])}
@@ -1548,7 +1548,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <button className="btn-main secondary" onClick={showOpen}>프로젝트 관리</button>
           <button className="btn-main primary" onClick={() => openSaved(e.id)}>계속하기</button>
         </div>)}
-        <p className="muted">JSON 가져오기: 원본은 덮어쓰지 않고 새 탭으로 엽니다. Workspace 묶음 파일은 미구현입니다.</p>
+        <p className="muted">JSON 가져오기: 원본은 덮어쓰지 않고 새 탭으로 엽니다. Workspace 묶음은 「파일 묶음」에서 가져옵니다.</p>
       </div>}
 
       {!guide && !view.home && step === 'library' && <div className="workspace ws-full">
