@@ -47,7 +47,7 @@ async function setNumber(input: HTMLInputElement, value: string) {
 describe('TURN-071 run screen', () => {
   it('AC5 shows piece numbers, cycle, throughput, bottleneck, and run gaps', async () => {
     const u = await mount();
-    await u.click(u.btn('흐름 예제'));
+    await u.click(u.el.querySelector('[data-sample-open="flow"]'));
     await u.click(u.el.querySelector('.stepper [data-stepid="run"]'));
     await setNumber(u.el.querySelector('[aria-label="투입 개수"]') as HTMLInputElement, '3');
     await setNumber(u.el.querySelector('[aria-label="투입 간격"]') as HTMLInputElement, '0');
