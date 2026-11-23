@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { findAsset } from '../assets/library';
+import { shownStepCondition } from '../model/conditionFormula';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { faultDeviceIds, activeDeviceIds } from '../scene/describe';
@@ -114,8 +115,9 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
   );
 }
 
-function whereText(bar: RunInfoBar): string {
-  return [bar.lane, bar.pass != null ? `${bar.pass}회` : '', bar.condText].filter(Boolean).join(' · ');
+function whereText(p: Project, bar: RunInfoBar): string {
+  const cond = shownStepCondition(p, bar.stepId) ?? (bar.wait ? bar.condText : '');
+  return [bar.lane, bar.pass != null ? `${bar.pass}회` : '', cond].filter(Boolean).join(' · ');
 }
 
 /** Left column: step times, unit totals, and the selected device. */
@@ -164,7 +166,7 @@ export function RunStepsPanel({ p, rt, selectedId, folded, onToggleFold, onPause
               return (
               <li key={bar.key} className={`${stepLiveClass(bar.substationPaused ? 'stopped' : bar.status)}${bar.longest ? ' is-longest' : ''}${bar.wait ? ' is-wait' : ''}`} data-step-id={bar.stepId} data-step-key={bar.key} data-elapsed={bar.timeText} data-wait={bar.wait ? 'true' : undefined} data-substation={bar.substationNodeId}>
                 <span className="run3d-bar-name" title={bar.name}>{bar.name}</span>
-                <span className="run3d-bar-where" data-lane={bar.lane ?? ''} data-pass={bar.pass != null ? String(bar.pass) : ''}>{whereText(bar) || '—'}</span>
+                <span className="run3d-bar-where" data-lane={bar.lane ?? ''} data-pass={bar.pass != null ? String(bar.pass) : ''} data-step-cond="">{whereText(p, bar) || '—'}</span>
                 <span className="run3d-bar-status"><StatusMark status={mark.status} word={mark.word} /></span>
                 {canToggle && (bar.substationPaused
                   ? <button type="button" className="small" data-sub-resume={bar.substationNodeId} onClick={() => onResumeSubstation?.(bar.substationNodeId!)}>재개</button>

@@ -8,10 +8,13 @@ import type { Action, Condition, InterlockRule, Project } from '../model/types';
 import { EmptyState } from './EmptyState';
 import { EMPTY, RUN_LOCK } from './problemCopy';
 import { templateOriginText } from '../model/userTemplates';
+import { ConditionMark } from './conditionMark';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
+import { conditionsFormula } from '../model/conditionFormula';
 import { StatusMark } from './StatusMark';
 import { actionDeleteDetail, actionUsage, positionDeleteDetail, positionUsage, signalDeleteDetail, signalUsage } from '../model/deleteImpact';
 import { Badge, QtyInput, TextInput } from './widgets';
+import { Terms } from './Term';
 
 export type ConfirmDelete = (title: string, detail: string | null, run: () => void) => void;
 
@@ -87,11 +90,13 @@ function ActionEditor({ p, a, locked, edit, onAddStep, confirmDelete }: { p: Pro
       {!a.completeSignalId && <div className="notice warn">완료 조건 미정 — 실행 준비 검사에서 차단, Gap(부족 I/O) 표시</div>}
       <div className="row"><label>목표 Position</label><select disabled={locked} value={a.targetPositionId ?? ''} onChange={(e) => upd({ targetPositionId: e.target.value || null }, '목표 Position')} style={{ width: 170 }}><option value="">(없음)</option>{p.positions.filter((x) => x.deviceId === a.deviceId).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
       <div data-jump={`pre:${a.id}`}>
-        <h4 style={{ marginTop: 8 }}>전제(pre) 조건</h4>
+        <h4 style={{ marginTop: 8 }} className="cond-head">전제(pre) 조건 <ConditionMark p={p} site={`action:${a.id}:pre`} /></h4>
         <ConditionEditor p={p} list={a.pre} disabled={locked} onChange={(l) => upd({ pre: l }, 'pre 조건')} />
       </div>
-      <h4 style={{ marginTop: 8 }}>완료 후(post) 검증 조건</h4>
-      <ConditionEditor p={p} list={a.post} disabled={locked} onChange={(l) => upd({ post: l }, 'post 조건')} />
+      <div data-jump={`post:${a.id}`}>
+        <h4 style={{ marginTop: 8 }} className="cond-head">완료 후(post) 검증 조건 <ConditionMark p={p} site={`action:${a.id}:post`} /></h4>
+        <ConditionEditor p={p} list={a.post} disabled={locked} onChange={(l) => upd({ post: l }, 'post 조건')} />
+      </div>
       <h4 style={{ marginTop: 8 }}>자재 변화 (완료 시)</h4>
       <div className="row"><label>위치 이동</label><select disabled={locked} value={a.effect.moveTo ?? ''} onChange={(e) => { const eff = { ...a.effect }; if (e.target.value) eff.moveTo = e.target.value; else delete eff.moveTo; upd({ effect: eff }, '자재 이동'); }}><option value="">(변화 없음)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}<option value="EXIT">배출(장비 밖)</option></select></div>
       <div className="row"><label>상태 변경</label><select disabled={locked} value={a.effect.setState ?? ''} onChange={(e) => { const eff = { ...a.effect }; if (e.target.value) eff.setState = e.target.value; else delete eff.setState; upd({ effect: eff }, '자재 상태'); }}><option value="">(변화 없음)</option>{states.map((s) => <option key={s}>{s}</option>)}</select></div>
@@ -110,14 +115,14 @@ export function CapabilityTable({ p, unitId }: { p: Project; unitId: string }) {
   const interlocks = (a: Action) => p.constraints.filter((k) => k.relatedIds.includes(a.deviceId));
   return (
     <table className="grid">
-      <thead><tr><th>동작(Action)</th><th>I/O (명령→완료)</th><th>Position</th><th>자재 변화</th><th>전제/금지</th><th>근거</th></tr></thead>
+      <thead><tr><th><Terms text="동작(Action)" /></th><th>I/O (명령→완료)</th><th><Terms text="Position" /></th><th>자재 변화</th><th>전제/금지</th><th>근거</th></tr></thead>
       <tbody>{acts.map((a) => (
         <tr key={a.id}>
           <td>{a.name}<div className="muted mono" style={{ fontSize: 10 }}>{devName(p, a.deviceId)}</div></td>
           <td style={{ fontSize: 11 }}>{sigName(p, a.commandSignalId)} → {a.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
           <td style={{ fontSize: 11 }}>{a.targetPositionId ? p.positions.find((x) => x.id === a.targetPositionId)?.name : '-'}</td>
           <td style={{ fontSize: 11 }}>{effectLabel(p, a.effect)}</td>
-          <td style={{ fontSize: 11 }}>{a.pre.map((c) => condLabel(p, c)).join('; ') || '-'}{interlocks(a).map((k) => <div key={k.id}><Badge kind={k.confirmation === 'confirmed' ? 'ok' : 'warn'}>IL {k.confirmation === 'confirmed' ? '확인됨' : '후보'}</Badge> {k.description}</div>)}</td>
+          <td style={{ fontSize: 11 }}>{conditionsFormula(p, a.pre) || '-'}{interlocks(a).map((k) => <div key={k.id}><Badge kind={k.confirmation === 'confirmed' ? 'ok' : 'warn'}>IL {k.confirmation === 'confirmed' ? '확인됨' : '후보'}</Badge> {k.description}</div>)}</td>
           <td style={{ fontSize: 10 }} className="muted">시간 {a.duration.value ?? <StatusMark status="undetermined" />}s{a.duration.assumption ? <> <StatusMark status="assumption" /></> : null} · {a.duration.source?.method ?? '-'}</td>
         </tr>))}
         {acts.length === 0 && <tr><td colSpan={6} className="muted">Action 없음</td></tr>}
@@ -184,7 +189,7 @@ export function Inspector(props: Props) {
       <div className="row"><label>시각</label>{props.visualMode === 'photo' ? (gen.status === 'available' ? <span title={GENERATED_META.label}><Badge kind="acc">{AI_BADGE} 실사풍 (실제 사진 아님) · 종류 대표</Badge></span> : <Badge kind="warn">AI 이미지 미준비 → 도식</Badge>) : <Badge>도식 사용 중</Badge>}</div>
       <div className="muted" style={{ fontSize: 11 }}>AML 원본: {def.amlSource.file} · {def.amlSource.sucPath}{d.templateChild ? ` · 템플릿 자식 ${d.templateChild}${unitT ? ` (${unitT.assetId}@${unitT.version})` : ''}` : ''}</div>
     </div>
-    <div className="tabs">{[['props', '속성'], ['signals', `신호 ${sigs.length}`], ['positions', `포지션 ${poss.length}`], ['actions', `Action ${acts.length}`], ['check', '정의 체크']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+    <div className="tabs">{[['props', '속성'], ['signals', `신호 ${sigs.length}`], ['positions', `포지션 ${poss.length}`], ['actions', `Action ${acts.length}`], ['check', '정의 체크']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><Terms text={l} /></button>)}</div>
     {tab === 'props' && <div className="section">
       {def.properties.map((pd) => { const qv = d.properties[pd.key]; return qv ? <div key={pd.key} className="row" data-jump={`prop:${d.id}:${pd.key}`}><label>{pd.label}{pd.requiredForRun ? ' *' : ''}</label><QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} /></div> : null; })}
       <div className="muted" style={{ fontSize: 11 }}>* 실행/수용 판정에 필요 (비우면 미정 축 사양 Gap). 빈 값 = 미정, 0과 다름.</div>
@@ -268,7 +273,7 @@ function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked:
       <TextInput value={k.description} width={280} disabled={locked} onCommit={(v) => edit(C.setConstraintDescription(p, k.id, v), 'Interlock 설명')} />
       <button type="button" className="small danger" disabled={locked} onClick={() => edit(C.deleteConstraint(p, k.id), 'Interlock 삭제')}>삭제</button>
     </div>
-    <div data-interlock-summary="">{interlockSummary(p, k)}</div>
+    <div data-interlock-summary="" className="cond-head"><span>{interlockSummary(p, k)}</span>{k.rule?.form === 'allow' && <ConditionMark p={p} site={`interlock:${k.id}`} />}</div>
     <div className="row"><Badge kind={k.confirmation === 'confirmed' ? 'ok' : k.confirmation === 'rejected' ? 'err' : 'warn'}>{{ unconfirmed: '미확인 후보', confirmed: '사람 확인됨', rejected: '거절됨', needsRecheck: '재확인 필요' }[k.confirmation]}</Badge>
       <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'confirmed'), 'Interlock 확인')}>확인</button>
       <button className="small" disabled={locked} onClick={() => edit(C.setConstraintConfirmation(p, k.id, 'rejected'), 'Interlock 거절')}>거절</button>

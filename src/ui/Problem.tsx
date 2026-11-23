@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes } from 'react';
 
 type ButtonExtra = ButtonHTMLAttributes<HTMLButtonElement> & Record<`data-${string}`, string | undefined>;
+import { undefinedFormula } from '../model/conditionFormula';
 import type { Project } from '../model/types';
 import type { Diagnostic } from '../model/validate';
 import { resolveBlocker, type BlockerGuide } from './blockerTarget';
@@ -47,7 +48,9 @@ export function BlockerList({ p, blockers, onGuide }: {
     <ul className="diaglist blockers">
       {blockers.map((b) => {
         const g = resolveBlocker(p, b, blockers);
-        const copy = blockerProblem(b.message, b.code, g);
+        const copy0 = blockerProblem(b.message, b.code, g);
+        const phrase = b.code === 'CONDITION_UNDEFINED' ? undefinedFormula(p, b.objectId) : '';
+        const copy = phrase ? { ...copy0, why: `${copy0.why} ${phrase}` } : copy0;
         return (
           <li key={b.id} className="blocker-item" data-guide-kind={g.kind}>
             <span className="mono">[{b.code}]</span>
@@ -68,7 +71,9 @@ export function BlockerCards({ p, blockers, onGuide }: {
 }) {
   return <>{blockers.map((b) => {
     const g = resolveBlocker(p, b, blockers);
-    const copy = blockerProblem(b.message, b.code, g);
+    const copy0 = blockerProblem(b.message, b.code, g);
+    const phrase = b.code === 'CONDITION_UNDEFINED' ? undefinedFormula(p, b.objectId) : '';
+    const copy = phrase ? { ...copy0, why: `${copy0.why} ${phrase}` } : copy0;
     return (
       <div key={b.id} className="blocker-card" data-export-blocker={b.code} data-guide-kind={g.kind}>
         <span className="mono">[{b.code}]</span>
