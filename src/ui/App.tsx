@@ -955,15 +955,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const scene3d = view.runView === '3d' ? presentScene(p, rt, equipmentMotion) : null;
   const activeDeviceIds = runningIds;
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
+  const onMinimapChange = (frame: 'layout' | 'run', open: boolean) => setView((v) => (v.minimap[frame] === open ? v : { ...v, minimap: { ...v.minimap, [frame]: open } }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
   const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
   const canvasEl = <Canvas project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
     onDelete={requestDelete} confirmDelete={confirmDelete} onReparent={requestReparent} tab={rightTab} setTab={setRightTab} visualMode={view.visualMode} />;
 
@@ -1094,7 +1095,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
-          <Fold className="palette-fold" summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span></>}>
+          <Fold className="palette-fold" open={view.paletteOpen} onToggle={(open) => setView((v) => (v.paletteOpen === open ? v : { ...v, paletteOpen: open }))} summary={<><span className="fold-closed">팔레트 펼치기 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span><span className="fold-open">팔레트 ({ASSET_LIBRARY.length}종 + 빈 유닛)</span></>}>
             <div className="palette">
               <div className="pi" data-jump="palette-unit" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', 'unit')}><PaletteIcon kind="unit" />빈 유닛</div>
               {ASSET_LIBRARY.map((a) => <div key={a.kind} className="pi" draggable onDragStart={(e) => e.dataTransfer.setData('application/x-ecd-asset', a.kind)} title={`${a.id}@${a.version}`}><PaletteIcon kind={a.kind} />{a.name}</div>)}

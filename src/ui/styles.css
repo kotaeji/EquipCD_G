@@ -696,6 +696,34 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
   border-radius: 8px;
   overflow: hidden;
 }
+.rf-edge-label {
+  position: absolute;
+  z-index: 8;
+  pointer-events: none;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 16%, transparent);
+}
+.rf-host[data-focus="1"] .rf-unit.is-quiet,
+.rf-host[data-focus="1"] .rf-device.is-quiet { opacity: 0.45; }
+.rf-host[data-focus="1"] .rf-unit.is-focus,
+.rf-host[data-focus="1"] .rf-device.is-focus { opacity: 1; }
+.rf-host .rf-minimap-toggle.react-flow__panel {
+  margin: 0;
+  right: 15px;
+  bottom: 15px;
+  z-index: 6;
+}
+.rf-host[data-minimap="open"] .rf-minimap-toggle.react-flow__panel {
+  bottom: calc(15px + 110px + 4px);
+}
+.rf-minimap-toggle button { white-space: nowrap; }
 .rf-legend {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -791,14 +819,14 @@ details[open] .fold-open { display: inline; }
 .palette-fold[open] > summary::before { content: '▼ '; }
 
 /* TURN-009: one place under the palette for the card board and the diagram. The stage fills the workspace. */
-.app .ws-canvas > .stage.layout-stage { overflow: hidden; gap: 8px; padding: 8px 16px; }
-.layout-stage .stage-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.app .ws-canvas > .stage.layout-stage { overflow: hidden; gap: 4px; padding: 2px 16px; }
+.layout-stage .stage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
 .layout-stage .stage-head .stage-title { flex: 0 0 auto; font-size: 20px; line-height: 1.2; }
 .layout-stage .stage-head .tool-pills { flex: 1 1 auto; min-width: 0; }
 .layout-stage .palette-hint { line-height: 1.35; }
 .layout-stage .palette-fold { display: block; width: 100%; max-width: 100%; min-width: 0; flex-shrink: 0; }
 .layout-stage .palette-fold > summary { display: block; }
-.layout-stage .palette-fold .palette { display: flex; width: 100%; max-width: 100%; min-width: 0; flex-wrap: wrap; overflow-x: hidden; padding: 4px 0 0; border-top: 0; }
+.layout-stage .palette-fold .palette { display: flex; width: 100%; max-width: 100%; min-width: 0; flex-wrap: wrap; overflow-x: hidden; overflow-y: auto; max-height: 40px; padding: 4px 0 0; border-top: 0; }
 .layout-stage .palette-fold .pi { flex: 0 0 auto; display: flex; flex-direction: row; align-items: center; gap: 4px; white-space: nowrap; padding: 4px 8px; }
 .layout-stage .palette-fold .pi svg { margin: 0; }
 .layout-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }

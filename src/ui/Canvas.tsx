@@ -5,6 +5,7 @@ import {
   BaseEdge,
   Controls,
   Handle,
+  EdgeLabelRenderer,
   MiniMap,
   NodeResizeControl,
   Panel,
@@ -34,6 +35,16 @@ import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { Symbol } from './Symbols';
 import { overlappingUnitIds, rectsOverlap, unitMinSize, type Box } from '../model/unitLayout';
+import {
+  DIM_EDGE_OPACITY,
+  edgeTone,
+  edgeWidth,
+  flowCaption,
+  graphFocus,
+  portWord,
+  signalCaption,
+  type EdgeTone,
+} from './edgeFocus';
 import { pointerSelection, SELECT_HINT } from './selectAll';
 import { appearanceOf, paletteTheme, THEMES, type UserView } from './viewSettings';
 import './canvas-select.css';
@@ -68,6 +79,8 @@ interface Props {
   connectNote: string | null;
   /** Viewport zoom → UserView.zoom. Pan is not stored. */
   onZoomChange?: (zoom: number) => void;
+  /** Stage-2 and stage-6 remember the minimap apart. View only. */
+  onMinimapChange?: (frame: 'layout' | 'run', open: boolean) => void;
   /**
    * `layout` keeps the stage-2 fit (once, large insets, left pin at min zoom).
    * `run` fits the station into the stage-6 pane and refits when that pane changes.
@@ -91,6 +104,44 @@ export function leftAlignedViewport(vp: { x: number; y: number; zoom: number }, 
 
 /** Stage-6 insets. Top clears the 28px legend; the other sides stay small so the station can fill the pane. */
 export const RUN_FIT_PAD = { top: 44, right: 12, bottom: 16, left: 12 } as const;
+/** Minimap box. The panel margin matches React Flow's 15px corner inset. */
+export const MINIMAP_W = 160;
+export const MINIMAP_H = 110;
+export const MINIMAP_MARGIN = 15;
+/** Collapse button (22px) and the gap above the map, used when the map is open. */
+export const MINIMAP_BTN = 22;
+export const MINIMAP_GAP = 4;
+
+/** Stage-6 fit. An open minimap keeps its 160×110 box, plus the button above it, clear of every unit. */
+export function runFitPad(minimapOpen: boolean) {
+  if (!minimapOpen) return RUN_FIT_PAD;
+  return {
+    top: RUN_FIT_PAD.top,
+    left: RUN_FIT_PAD.left,
+    right: MINIMAP_MARGIN + MINIMAP_W + 8,
+    bottom: MINIMAP_MARGIN + MINIMAP_H + MINIMAP_GAP + MINIMAP_BTN + 8,
+  };
+}
+
+/** Screen rectangle of the open minimap inside a pane of `width` × `height`. */
+export function minimapScreenRect(width: number, height: number): PlanBox {
+  return {
+    x: width - MINIMAP_MARGIN - MINIMAP_W,
+    y: height - MINIMAP_MARGIN - MINIMAP_H,
+    w: MINIMAP_W,
+    h: MINIMAP_H,
+  };
+}
+
+export function screenBox(box: PlanBox, vp: { x: number; y: number; zoom: number }): PlanBox {
+  return { x: box.x * vp.zoom + vp.x, y: box.y * vp.zoom + vp.y, w: box.w * vp.zoom, h: box.h * vp.zoom };
+}
+
+/** True when no unit rectangle meets the open minimap. */
+export function unitsClearMinimap(units: PlanBox[], width: number, height: number, vp: { x: number; y: number; zoom: number }) {
+  const map = minimapScreenRect(width, height);
+  return units.every((u) => !rectsOverlap(screenBox(u, vp), map));
+}
 export const RUN_FIT_MIN_ZOOM = 0.05;
 export const RUN_FIT_MAX_ZOOM = 2;
 
@@ -156,18 +207,34 @@ type DragApi = {
 
 type UnitData = {
   unitId: string; code: string; name: string; meta: string; w: number; h: number;
-  selected: boolean; from: boolean; off: boolean; overlap: boolean;
+  selected: boolean; from: boolean; off: boolean; overlap: boolean; tone: string;
   showResize: boolean; minW: number; minH: number; api: DragApi;
 };
 type SignalLink = { fromId: string; fromDevice: string; taken: string[] };
 type DeviceData = {
-  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean; fault: boolean;
+  device: Device; selected: boolean; off: boolean; portsOff: boolean; locked: boolean; active: boolean; fault: boolean; tone: string;
   extended: boolean; raised: boolean; holding: boolean; photo: boolean;
   signals: Signal[]; onIds: string[]; positions: { id: string; name: string; assumption: boolean; current: boolean }[];
   showPositions: boolean; mode: Mode; link: SignalLink | null; api: DragApi;
 };
 type MatData = { label: string; waiting?: boolean; pieceId?: string };
-type SigEdgeData = { on: boolean };
+type EdgeView = { on?: boolean; tone: EdgeTone; caption: string; hover: boolean };
+
+function edgePaint(kind: 'flow' | 'signal', tone: EdgeTone, selected: boolean, liveColor: string) {
+  return {
+    stroke: selected ? 'var(--accent)' : liveColor,
+    strokeWidth: edgeWidth(kind, tone, selected),
+    opacity: tone === 'dim' ? DIM_EDGE_OPACITY : 1,
+  };
+}
+
+function EdgeCaption({ x, y, text }: { x: number; y: number; text: string }) {
+  return (
+    <EdgeLabelRenderer>
+      <div className="rf-edge-label nopan" style={{ transform: `translate(-50%, -130%) translate(${x}px,${y}px)` }}>{text}</div>
+    </EdgeLabelRenderer>
+  );
+}
 
 const nodeTypes = { unit: UnitNode, device: DeviceNode, material: MaterialNode };
 const edgeTypes = { flow: FlowEdge, signal: SignalEdge };
@@ -202,7 +269,7 @@ function UnitNode({ data }: NodeProps) {
   }, []);
   return (
     <div
-      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}`}
+      className={`rf-unit nopan${d.selected || d.from ? ' is-sel' : ''}${d.off ? ' is-off' : ''}${d.overlap ? ' is-overlap' : ''}${d.tone}`}
       style={{ width: d.w, height: d.h }}
       onPointerDown={(e) => {
         if ((e.target as HTMLElement).closest('.react-flow__resize-control')) { e.stopPropagation(); return; }
@@ -242,7 +309,7 @@ function DeviceNode({ data }: NodeProps) {
   const photo = d.photo ? resolveGenerated(dev.kind) : null;
   return (
     <div
-      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}`}
+      className={`rf-device nopan${d.selected ? ' is-sel' : ''}${d.fault ? ' is-fault' : d.active ? ' is-active' : ''}${d.off ? ' is-off' : ''}${d.portsOff ? ' ports-off' : ''}${d.tone}`}
       style={{ width: dev.layout.w, height: dev.layout.h }}
       onPointerDown={(e) => d.api.down(e, nodeIdOf(e.currentTarget))}
       onPointerMove={(e) => d.api.move(e, nodeIdOf(e.currentTarget))}
@@ -299,28 +366,39 @@ function MaterialNode({ data }: NodeProps) {
   );
 }
 
-function FlowEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }: EdgeProps) {
-  const [path] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
-  const color = selected ? 'var(--accent)' : 'var(--text)';
+function FlowEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, data }: EdgeProps) {
+  const d = data as EdgeView | undefined;
+  const tone = d?.tone ?? 'plain';
+  const [path, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
+  const paint = edgePaint('flow', tone, !!selected, 'var(--text)');
   const markerId = `flow-arrow-${id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const show = !!selected || !!d?.hover;
   return (
     <>
       <defs>
         <marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-          <path d="M0 0 L10 5 L0 10 Z" fill={color} />
+          <path d="M0 0 L10 5 L0 10 Z" fill={paint.stroke} opacity={paint.opacity} />
         </marker>
       </defs>
-      <BaseEdge id={id} path={path} markerEnd={`url(#${markerId})`} style={{ stroke: color, strokeWidth: selected ? 3 : 2 }} />
+      <BaseEdge id={id} path={path} markerEnd={`url(#${markerId})`} style={paint} />
+      {show && d?.caption ? <EdgeCaption x={labelX} y={labelY} text={d.caption} /> : null}
     </>
   );
 }
 
 function SignalEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, data }: EdgeProps) {
-  const d = data as SigEdgeData | undefined;
-  const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
-  const on = !!d?.on && !selected;
-  const color = selected ? 'var(--accent)' : on ? 'var(--success)' : 'var(--muted)';
-  return <BaseEdge id={id} path={path} className={on ? 'rf-sig-on' : undefined} style={{ stroke: color, strokeWidth: selected ? 2.5 : 1.5, strokeDasharray: '5 4' }} />;
+  const d = data as EdgeView | undefined;
+  const tone = d?.tone ?? 'plain';
+  const [path, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+  const on = !!d?.on && !selected && tone !== 'dim';
+  const paint = edgePaint('signal', tone, !!selected, on ? 'var(--success)' : 'var(--muted)');
+  const show = !!selected || !!d?.hover;
+  return (
+    <>
+      <BaseEdge id={id} path={path} className={on ? 'rf-sig-on' : undefined} style={{ ...paint, strokeDasharray: '5 4' }} />
+      {show && d?.caption ? <EdgeCaption x={labelX} y={labelY} text={d.caption} /> : null}
+    </>
+  );
 }
 
 function FlowCanvas(props: Props) {
@@ -338,6 +416,7 @@ function FlowCanvas(props: Props) {
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const [shiftHeld, setShiftHeld] = useState(false);
   const [band, setBand] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [hoverEdge, setHoverEdge] = useState<string | null>(null);
   const bandListeners = useRef<(() => void) | null>(null);
   const bandLive = useRef(false);
   const skipPaneClear = useRef(false);
@@ -513,6 +592,27 @@ function FlowCanvas(props: Props) {
     return { id: u.id, x: u.layout.x + o.dx, y: u.layout.y + o.dy, w: rz?.w ?? u.layout.w, h: rz?.h ?? u.layout.h };
   });
   const overlap = new Set(overlappingUnitIds(boxes));
+  const focus = graphFocus({
+    selection,
+    units: p.units.map((u) => ({ id: u.id })),
+    devices: p.devices.map((d) => ({ id: d.id, unitId: d.unitId })),
+    connections: p.connections.map((c) => ({ id: c.id, kind: c.kind, from: c.from.nodeId, to: c.to.nodeId })),
+  });
+  const toneOf = (id: string) => (focus.active ? (focus.hotNodes.has(id) ? ' is-focus' : ' is-quiet') : '');
+  const captionOf = (c: (typeof p.connections)[number]) => {
+    if (c.kind === 'flow') {
+      const a = p.units.find((u) => u.id === c.from.nodeId);
+      const b = p.units.find((u) => u.id === c.to.nodeId);
+      return flowCaption(a?.name ?? c.from.nodeId, b?.name ?? c.to.nodeId);
+    }
+    const fromDev = p.devices.find((d) => d.id === c.from.nodeId);
+    const toDev = p.devices.find((d) => d.id === c.to.nodeId);
+    const fromSig = p.signals.find((s) => s.id === c.from.signalId);
+    const toSig = p.signals.find((s) => s.id === c.to.signalId);
+    const fromName = fromDev?.name ?? c.from.nodeId;
+    const toName = toDev?.name ?? c.to.nodeId;
+    return signalCaption(fromName, portWord(fromName, fromSig?.name, fromSig?.portKey), toName, portWord(toName, toSig?.name, toSig?.portKey));
+  };
   const nodes: Node[] = [];
   for (const u of p.units) {
     const box = boxes.find((b) => b.id === u.id)!;
@@ -528,7 +628,7 @@ function FlowCanvas(props: Props) {
       data: {
         unitId: u.id, code: u.code, name: short, meta: `${u.deviceIds.length} dev · cap ${u.capacity.maxMaterials.value ?? '?'}`,
         w: box.w, h: box.h, selected, from: connectFrom === u.id,
-        off: !L.units, overlap: overlap.has(u.id),
+        off: !L.units, overlap: overlap.has(u.id), tone: toneOf(u.id),
         showResize: selected && mode === 'select' && !props.locked && L.units,
         minW: min.w, minH: min.h, api,
       } satisfies UnitData,
@@ -549,7 +649,7 @@ function FlowCanvas(props: Props) {
       draggable: false, selectable: false, connectable: !props.locked, deletable: false,
       className: 'nopan',
       data: {
-        device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked,
+        device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked, tone: toneOf(d.id),
         active: activeDevice === d.id || pieceDevices.has(d.id) || !!props.activeDeviceIds?.includes(d.id),
         fault: !!props.faultDeviceIds?.includes(d.id),
         extended: d.kind === 'cylinder' ? sigOn(d.id, 'cmdFwd') || sigOn(d.id, 'fwdDone')
@@ -579,12 +679,18 @@ function FlowCanvas(props: Props) {
     });
   }
 
+  const edgeClass = (kind: 'flow' | 'signal', id: string) => {
+    const tone = edgeTone(focus, id);
+    return `nopan ${kind === 'flow' ? 'rf-edge-flow' : 'rf-edge-sig'}${tone === 'hot' ? ' is-hot' : tone === 'dim' ? ' is-dim' : ''}`;
+  };
   const edges: Edge[] = [];
   if (L.flow) {
     for (const c of p.connections) if (c.kind === 'flow') {
       edges.push({
         id: c.id, type: 'flow', source: c.from.nodeId, target: c.to.nodeId, sourceHandle: 'flow-out', targetHandle: 'flow-in',
-        selected: selection.includes(c.id), selectable: true, deletable: false, zIndex: 3, className: 'nopan rf-edge-flow',
+        selected: selection.includes(c.id), selectable: true, deletable: false, zIndex: edgeTone(focus, c.id) === 'hot' ? 4 : 3,
+        className: edgeClass('flow', c.id),
+        data: { tone: edgeTone(focus, c.id), caption: captionOf(c), hover: hoverEdge === c.id } satisfies EdgeView,
       });
     }
   }
@@ -592,8 +698,9 @@ function FlowCanvas(props: Props) {
     for (const c of p.connections) if (c.kind === 'signal' && c.from.signalId && c.to.signalId) {
       edges.push({
         id: c.id, type: 'signal', source: c.from.nodeId, target: c.to.nodeId, sourceHandle: c.from.signalId, targetHandle: c.to.signalId,
-        selected: selection.includes(c.id), selectable: true, deletable: false, zIndex: 3, className: 'nopan rf-edge-sig',
-        data: { on: !!rt?.signals?.[c.from.signalId] } satisfies SigEdgeData,
+        selected: selection.includes(c.id), selectable: true, deletable: false, zIndex: edgeTone(focus, c.id) === 'hot' ? 4 : 3,
+        className: edgeClass('signal', c.id),
+        data: { on: !!rt?.signals?.[c.from.signalId], tone: edgeTone(focus, c.id), caption: captionOf(c), hover: hoverEdge === c.id } satisfies EdgeView,
       });
     }
   }
@@ -623,11 +730,15 @@ function FlowCanvas(props: Props) {
   const getViewportRef = useRef(getViewport);
   getViewportRef.current = getViewport;
 
+  const minimapOpen = frame === 'run' ? view.minimap.run : view.minimap.layout;
+  const minimapRef = useRef(minimapOpen);
+  minimapRef.current = minimapOpen;
+
   const fitRunTo = useCallback((width: number, height: number) => {
     if (width <= 40 || height <= 40) return;
     const bounds = unionBounds(runEquipmentBoxes(propsRef.current.project, propsRef.current.rt));
     if (!bounds) return;
-    const vp = runPlanViewport(bounds, width, height);
+    const vp = runPlanViewport(bounds, width, height, runFitPad(minimapRef.current));
     fitting.current = true;
     userAdjusted.current = false;
     void setViewportRef.current(vp, { duration: 0 }).then(() => {
@@ -775,7 +886,7 @@ function FlowCanvas(props: Props) {
 
   const pal = THEMES[paletteTheme(view.theme)].vars;
   return (
-    <div ref={hostRef} className="rf-host" data-mode={mode} data-frame={frame} data-linking={link ? '1' : '0'} onPointerDownCapture={onBandDown} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div ref={hostRef} className="rf-host" data-mode={mode} data-frame={frame} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} onPointerDownCapture={onBandDown} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -785,6 +896,8 @@ function FlowCanvas(props: Props) {
         onMoveStart={onMoveStart}
         onNodeClick={() => undefined /* NodeWrapper turns pointer events on only when a click handler exists. Selection stays on pointerdown. */}
         onEdgeClick={(_, edge) => propsRef.current.onSelect([edge.id], false)}
+        onEdgeMouseEnter={(_, edge) => setHoverEdge(edge.id)}
+        onEdgeMouseLeave={() => setHoverEdge(null)}
         onPaneClick={(e) => {
           if (skipPaneClear.current) { skipPaneClear.current = false; return; }
           const t = e.target as HTMLElement;
@@ -831,18 +944,29 @@ function FlowCanvas(props: Props) {
             <button type="button" className="small" onClick={onRunFitClick}>화면 맞춤</button>
           </Panel>
         )}
-        <MiniMap
-          className="nopan"
-          position="bottom-right"
-          pannable
-          zoomable
-          style={{ width: 160, height: 110 }}
-          bgColor={pal.panel}
-          maskColor={hexAlpha(pal.canvas, 0.7)}
-          nodeStrokeWidth={0}
-          nodeColor={(n) => n.type === 'unit' ? pal.selected : n.type === 'device' ? pal.muted : pal.warning}
-          ariaLabel="도면 미니맵"
-        />
+        {minimapOpen && (
+          <MiniMap
+            className="nopan"
+            position="bottom-right"
+            pannable
+            zoomable
+            style={{ width: MINIMAP_W, height: MINIMAP_H }}
+            bgColor={pal.panel}
+            maskColor={hexAlpha(pal.canvas, 0.7)}
+            nodeStrokeWidth={0}
+            nodeColor={(n) => n.type === 'unit' ? pal.selected : n.type === 'device' ? pal.muted : pal.warning}
+            ariaLabel="도면 미니맵"
+          />
+        )}
+        <Panel position="bottom-right" className="rf-minimap-toggle nopan">
+          <button
+            type="button"
+            className="small"
+            aria-pressed={minimapOpen}
+            aria-label={minimapOpen ? '미니맵 접기' : '미니맵 펼치기'}
+            onClick={() => propsRef.current.onMinimapChange?.(frame, !minimapOpen)}
+          >{minimapOpen ? '접기' : '미니맵'}</button>
+        </Panel>
         {props.connectNote && <Panel position="top-left" className="notice rf-connect-note nopan" style={{ position: 'absolute', top: 48, pointerEvents: 'none' }}>{props.connectNote}</Panel>}
         <Panel position="top-left" className="rf-legend nopan" title={`배경: 도면/VC 탑뷰 없음 (선택 사항 — 배경 없이 동작) · Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="var(--text)" strokeWidth="2" /><path d="M12 1 L20 4 L12 7 Z" fill="var(--text)" /></svg>자재 흐름(물류)</div>
