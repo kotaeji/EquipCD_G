@@ -31,7 +31,7 @@ async function mount() {
     if (!node) throw new Error('missing button');
     await act(async () => { (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true })); });
   };
-  const btn = (label: string) => [...el.querySelectorAll('button')].find((b) => (b.textContent ?? '').includes(label));
+  const btn = (label: string) => [...el.querySelectorAll('button')].find((b) => (b.textContent ?? '').includes(label) || (b.getAttribute('aria-label') ?? '').includes(label));
   return { el, click, btn };
 }
 
