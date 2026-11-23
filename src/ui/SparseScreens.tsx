@@ -19,6 +19,8 @@ import { XlsxIntake, type XlsxIntakeProps } from './XlsxIntake';
 import { IoListExportButton } from './IoListExportButton';
 import { EMPTY, exportBlockedProblem } from './problemCopy';
 import { checkConditions, type ConditionFinding } from '../model/conditionCheck';
+import type { ConfirmationEntry } from '../model/types';
+import { ConfirmationLog } from './ConfirmationLog';
 import { devName, sigName, unitName } from './labels';
 import { StatusMark } from './StatusMark';
 
@@ -280,13 +282,15 @@ export function ExportSheet({ p, onDownload, onGuide }: {
 
 const COND_WORD = { error: '오류', undetermined: '미정', info: '안내' } as const;
 
-export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml, onJumpCondition }: {
+export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml, onJumpCondition, onJumpConfirmation }: {
   p: Project; storageReason: string | null; quarantineList: QuarantineEntry[]; onDownload: (name: string, text: string) => void; onAml: () => void;
   onJumpCondition: (f: ConditionFinding) => void;
+  onJumpConfirmation: (entry: ConfirmationEntry) => void;
 }) {
   const diags = validateProject(p);
   const conditions = checkConditions(p);
-  return <div className="sparse-split">
+  return <div>
+    <div className="sparse-split">
     <section className="sheet">
       <h2>조건</h2>
       <table className="grid plain cond-table" aria-label="조건">
@@ -315,6 +319,8 @@ export function DiagSheet({ p, storageReason, quarantineList, onDownload, onAml,
       {quarantineList.length === 0 && <p>격리 보관함 비어 있음</p>}
       {quarantineList.map((q, i) => <button key={i} type="button" onClick={() => onDownload(`quarantine-${i}-${q.label}`, q.raw)}>거부 원본 보관 {q.label}</button>)}
     </aside>
+    </div>
+    <ConfirmationLog p={p} onJump={onJumpConfirmation} />
   </div>;
 }
 

@@ -59,11 +59,17 @@ export function signalUsage(p: Project, id: string): string | null {
   for (const s of p.sequence.steps) conditions += countConds(s.entry, hit);
   for (const q of p.substationSequences ?? []) for (const s of q.steps) conditions += countConds(s.entry, hit);
   if (p.sequence.flow) walk(p.sequence.flow, (n) => {
-    if (n.kind === 'branch' && hit(n.cond)) conditions += 1;
+    if (n.kind === 'branch') {
+      if (hit(n.cond)) conditions += 1;
+      for (const arm of n.cases ?? []) if (hit(arm.cond)) conditions += 1;
+    }
     if (n.kind === 'retry' && hit(n.until)) conditions += 1;
   });
   for (const q of p.substationSequences ?? []) if (q.flow) walk(q.flow, (n) => {
-    if (n.kind === 'branch' && hit(n.cond)) conditions += 1;
+    if (n.kind === 'branch') {
+      if (hit(n.cond)) conditions += 1;
+      for (const arm of n.cases ?? []) if (hit(arm.cond)) conditions += 1;
+    }
     if (n.kind === 'retry' && hit(n.until)) conditions += 1;
   });
   const connections = p.connections.filter((c) => c.from.signalId === id || c.to.signalId === id).length;

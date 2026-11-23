@@ -1,0 +1,80 @@
+/* TURN-064 timing chart. Type and space tokens only. */
+.timing-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  min-height: 0;
+  color: var(--text);
+}
+.timing-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.timing-zoom { font-size: var(--fs-xs); color: var(--muted); }
+.timing-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  font-size: var(--fs-xs);
+}
+.timing-legend-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+}
+.timing-swatch { display: block; flex: 0 0 auto; }
+.timing-scroll { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; }
+.timing-sheet { display: flex; align-items: flex-start; width: max-content; min-width: 100%; }
+.timing-labels { position: sticky; left: 0; z-index: 1; background: var(--panel); flex: 0 0 auto; }
+.timing-chart text { font-size: var(--fs-xs); fill: var(--text); }
+.timing-hit { cursor: pointer; }
+.timing-hit:focus { outline: none; }
+.timing-hit:focus .timing-bar { stroke: var(--accent); stroke-width: 2; }
+.timing-bar.is-done { fill: var(--status-done); stroke: var(--status-done); }
+.timing-bar.is-active { fill: var(--status-active); stroke: var(--status-active); }
+.timing-bar.is-error { fill: var(--status-error); stroke: var(--status-error); }
+.timing-bar.is-stopped { fill: var(--status-assumption); stroke: var(--status-assumption); stroke-dasharray: 3 2; }
+.timing-bar.is-hatch { fill: url(#timing-hatch); stroke: var(--status-pending); stroke-dasharray: none; }
+.timing-chip { fill: var(--panel); stroke: var(--text); }
+.timing-sym { fill: var(--text); }
+.timing-axis { stroke: var(--border); }
+.timing-now { stroke: var(--status-active); stroke-width: 1.5; }
+.timing-tip {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--text);
+}
+.timing-tip span { margin-right: var(--sp-2); }
+.run-summary-table tr.is-chart-pick td { background: var(--selected); }
+.run-summary-table tr.is-chart-pick td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.run-summary-chart-tag {
+  margin-left: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--accent);
+}
+.run-details.is-open.is-timing {
+  flex: 1 1 240px;
+  max-height: 280px;
+}
+.run-center:has(.run-details.is-timing) > .run-canvas { min-height: 140px; }
+.run-details.is-timing .run-details-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.run-details.is-timing .ui-tabs-root,
+.run-details.is-timing .ui-tabs-panel:not([hidden]) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}

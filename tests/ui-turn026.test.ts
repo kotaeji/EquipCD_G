@@ -106,8 +106,11 @@ describe('TURN-026 light gray theme and adaptive layout', () => {
   it('AC7: undo and redo keep their names and shortcuts, and the box and glyph grow', () => {
     expect(app).toContain('aria-label="실행 취소"');
     expect(app).toContain('aria-label="다시 실행"');
-    expect(app).toContain('title="실행 취소 (Ctrl/Cmd+Z)"');
-    expect(app).toContain('title="다시 실행 (Ctrl/Cmd+Shift+Z)"');
+    expect(app).toContain('title={undoTooltip(tab.history)}');
+    expect(app).toContain('title={redoTooltip(tab.history)}');
+    const history = readFileSync('src/model/history.ts', 'utf8');
+    expect(history).toContain('실행 취소: ${name} (Ctrl/Cmd+Z)');
+    expect(history).toContain('다시 실행: ${name} (Ctrl/Cmd+Shift+Z)');
     expect(app).toContain('disabled={!tab.history.past.length || locked}');
     expect(app).toContain('disabled={!tab.history.future.length || locked}');
     expect(app).toContain('<HistoryIcon dir="undo" />');
