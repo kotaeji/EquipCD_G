@@ -43,7 +43,9 @@ export function anchorLabels(scene: SceneDescription, showNames: boolean, emphas
         id: `m:${solid.id}`, kind: 'marker', px: 13,
         text: solid.highlight === 'fault'
           ? `${markerText('fault')}${solid.interlock ? ' · Interlock' : ''}`
-          : markerText('active'),
+          : solid.highlight === 'paused'
+            ? markerText('paused')
+            : markerText('active'),
         x: solid.draw.x + solid.draw.w / 2, y: top + 18, z: solid.draw.z + solid.draw.d / 2,
       });
     }

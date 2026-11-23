@@ -17,6 +17,9 @@ export interface BlockerGuide {
   focus?: { id: string; kind: 'device' | 'unit' };
   /** user-facing note: why it is inspect-only / not editable */
   note?: string;
+  /** View-only highlight. The gate does not read this. */
+  field?: string;
+  actionId?: string;
 }
 
 const SUBSEQ: Dest = { step: 'sequence', sub: 'subseq', place: 'Substation 시퀀스' };
@@ -66,7 +69,9 @@ export function resolveBlocker(p: Project, b: { code: string; objectId: string; 
     case 'MAT_NO_LOCATION': case 'MAT_NO_STATE': case 'FEED_INTERVAL': case 'FEED_COUNT': case 'MULTI_FEED':
       return { kind: 'fix', dest: MATERIAL };
     case 'MULTI_FLOW':
-      return { kind: 'inspect', dest: STATION_SEQ, note: '투입 개수 2 이상은 흐름(분기·병렬·반복·재시도·Substation) 없이 순차 시퀀스만 실행합니다.' };
+      return { kind: 'inspect', dest: STATION_SEQ, note: '투입 개수 2 이상은 흐름(분기·병렬·반복·재시도·신호 기다림·Substation) 없이 순차 시퀀스만 실행합니다.' };
+    case 'WAIT_TIMEOUT_UNDEFINED':
+      return { kind: 'fix', dest: STATION_SEQ, field: `flow:${b.objectId}` };
     case 'NO_SUBSTATION':
       return { kind: 'inspect', dest: CHECK, note: '선택된 Substation을 찾을 수 없습니다 — 6단계 Substation 목록에서 다시 선택하세요' };
     default:
@@ -88,7 +93,9 @@ function resolveStepValue(p: Project, b: { code: string; objectId: string; messa
     case 'NO_COMPLETE_SIGNAL': case 'DURATION_UNDEFINED': return actionFix;
     case 'TIMEOUT_UNDEFINED':
       // gate uses (step.timeoutOverride ?? action.timeout): a present override wins even when the Action timeout is set
-      if (step.timeoutOverride == null) return actionFix;
+      if (step.timeoutOverride == null) {
+        return device ? { kind: 'fix', dest: ACTION, focus: device, field: `timeout:${a.id}`, actionId: a.id } : actionFix;
+      }
       if (!hit) return { kind: 'fix', dest: STATION_SEQ };
       return { ...unsupportedStep, note: `단계 타임아웃(덮어쓰기)이 미정입니다. ${UNSUPPORTED_STEP_NOTE}` };
     case 'CONDITION_UNDEFINED': {

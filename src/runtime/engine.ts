@@ -6,7 +6,7 @@
 // Tie rule (prototype assumption): completion at exactly the timeout instant counts as success.
 // This is NOT equipment control and NOT physics simulation.
 import type { Action, Condition, FlowNode, Project } from '../model/types';
-import { collectStepIds, flowUsesSignal, hasFlow, stepOrder, walk } from '../model/flow';
+import { collectStepIds, conditionText, flowUsesSignal, hasFlow, stepOrder, walk } from '../model/flow';
 import { RUNTIME_RULES_VERSION } from '../model/types';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
 import { judgeInterlock, type InterlockBlockRecord, type InterlockHit } from './interlock';
@@ -37,8 +37,20 @@ export interface StepRecord {
   instanceId?: string;
   /** Time this piece waited before or during the row. */
   waitMs?: number;
-  /** Why it waited (Device 사용 중 / Unit 가득). */
+  /** Why it waited (Device 사용 중 / Unit 가득 / 신호 기다림). */
   waitNote?: string;
+  /** Set when this row is a signal-wait block, not an Action step. `stepId` is the block id. */
+  waitBlockId?: string;
+  /** Condition text kept on a signal-wait row. */
+  condText?: string;
+}
+
+/** One Substation flow node held still while the rest of the run continues. */
+export interface PausedSubstation {
+  nodeId: string;
+  unitId: string;
+  /** Virtual time when this pause began. Action deadlines shift by the pause length on resume. */
+  sinceMs: number;
 }
 
 /** Why a piece is standing still. Charged to `unitId` for the bottleneck. */
@@ -113,6 +125,8 @@ export interface RuntimeState {
   readFailSeen?: Record<string, number>;
   /** Control-flow cursor. Present only when `sequence.flow` is an array. */
   flowRun?: FlowRunState;
+  /** Substation nodes held still. Absent when none are paused. */
+  pausedSubstations?: PausedSubstation[];
 }
 
 export interface FlowFrame {
@@ -138,6 +152,19 @@ export interface FlowFiber {
   join?: { childIds: number[]; message: string };
   /** Mutex hold. The step has not started. */
   wait?: { sinceMs: number; note: string; interlockId: string };
+  /** Signal-wait block in progress. The fiber is not running an Action. */
+  holding?: {
+    blockId: string;
+    name: string;
+    cond: Condition;
+    sinceMs: number;
+    timeoutAtMs: number;
+    recordIndex: number;
+  };
+  /** Set on fibers spawned for one Substation step. */
+  owner?: { kind: 'substation'; nodeId: string; unitId: string };
+  /** This Substation is paused. Deadlines stay put until resume shifts them. */
+  frozen?: boolean;
 }
 
 export interface FlowRunState { fibers: FlowFiber[]; nextId: number }
@@ -422,11 +449,63 @@ export function advance(rt: Runtime, dtMs: number): Runtime {
   return { ...rt, state: s };
 }
 
-/** Run to the end (or error) — convenience for tests and "끝까지 실행". */
+/** Run to the end (or error) — convenience for tests and "끝까지 실행". A paused Substation stops the scan and says so. */
 export function runToEnd(rt: Runtime, maxMs = 3_600_000): Runtime {
   let r = rt.state.status === 'idle' ? start(rt) : rt;
-  while (r.state.status === 'running' && r.state.timeMs < maxMs) r = advance(r, 60_000);
+  while (r.state.status === 'running' && r.state.timeMs < maxMs) {
+    const before = r.state.timeMs;
+    r = advance(r, 60_000);
+    if (r.state.status === 'running' && r.state.timeMs === before) {
+      const n = r.state.pausedSubstations?.length ?? 0;
+      if (n > 0) {
+        const s = structuredClone(r.state);
+        s.log.push({ t: s.timeMs, level: 'info', code: 'SUB_PAUSE_HOLD', message: `Substation ${n}개 일시정지 중 — 멈춘 곳까지만 실행했습니다` });
+        return { ...r, state: s };
+      }
+      break;
+    }
+  }
   return r;
+}
+
+function substationName(p: Project, unitId: string): string {
+  return p.units.find((u) => u.id === unitId)?.name ?? unitId;
+}
+
+/** Hold one in-progress Substation step. Other lanes and the virtual clock keep going. */
+export function pauseSubstation(rt: Runtime, nodeId: string): Runtime {
+  if (rt.state.status !== 'running' || !rt.state.flowRun) return rt;
+  if (rt.state.pausedSubstations?.some((row) => row.nodeId === nodeId)) return rt;
+  const live = rt.state.flowRun.fibers.filter((f) => f.owner?.nodeId === nodeId && f.status !== 'done');
+  if (live.length === 0) return rt;
+  const s = structuredClone(rt.state);
+  for (const fiber of s.flowRun!.fibers) if (fiber.owner?.nodeId === nodeId) fiber.frozen = true;
+  const unitId = live[0].owner!.unitId;
+  s.pausedSubstations = [...(s.pausedSubstations ?? []), { nodeId, unitId, sinceMs: s.timeMs }];
+  s.log.push({ t: s.timeMs, level: 'info', code: 'SUB_PAUSE', message: `Substation ${substationName(rt.snapshot, unitId)} 일시정지`, refId: nodeId });
+  return { ...rt, state: s };
+}
+
+/** Continue a paused Substation. Remaining Action time and its timeout are kept. */
+export function resumeSubstation(rt: Runtime, nodeId: string): Runtime {
+  if (rt.state.status !== 'running' || !rt.state.flowRun) return rt;
+  const row = rt.state.pausedSubstations?.find((item) => item.nodeId === nodeId);
+  if (!row) return rt;
+  const s = structuredClone(rt.state);
+  const dt = s.timeMs - row.sinceMs;
+  for (const fiber of s.flowRun!.fibers) {
+    if (fiber.owner?.nodeId !== nodeId) continue;
+    fiber.frozen = false;
+    if (fiber.active && dt !== 0) {
+      if (fiber.active.completeAtMs !== null) fiber.active.completeAtMs += dt;
+      fiber.active.timeoutAtMs += dt;
+    }
+  }
+  const rest = (s.pausedSubstations ?? []).filter((item) => item.nodeId !== nodeId);
+  if (rest.length) s.pausedSubstations = rest;
+  else delete s.pausedSubstations;
+  s.log.push({ t: s.timeMs, level: 'info', code: 'SUB_RESUME', message: `Substation ${substationName(rt.snapshot, row.unitId)} 재개`, refId: nodeId });
+  return { ...rt, state: s };
 }
 
 // --- flow interpreter (sequence.flow). The linear path above is unchanged. ---
@@ -453,7 +532,11 @@ function failFlow(s: RuntimeState, code: string, stepId: string | null, message:
   for (const rec of s.steps) {
     if (rec.status === 'active') { rec.status = 'stopped'; rec.endMs = s.timeMs; }
   }
-  for (const fiber of s.flowRun?.fibers ?? []) fiber.active = null;
+  for (const fiber of s.flowRun?.fibers ?? []) {
+    fiber.active = null;
+    fiber.holding = undefined;
+    fiber.frozen = false;
+  }
   s.active = null;
   logAt(s, 'error', code, message, stepId ?? undefined);
 }
@@ -578,7 +661,7 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
   if (!top(fiber)) finishFiber(s, fiber);
 }
 
-type FiberGate = 'go' | 'wait' | 'stop';
+type FiberGate = 'go' | 'wait' | 'park' | 'stop';
 
 function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: string): FiberGate {
   applySensorSignals(p, s);
@@ -630,7 +713,7 @@ function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: st
   return 'go';
 }
 
-function spawnLanes(s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], labels: string[], message: string) {
+function spawnLanes(s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], labels: string[], message: string, owner?: FlowFiber['owner']) {
   if (!s.flowRun) return;
   parent.status = 'joining';
   const childIds: number[] = [];
@@ -640,14 +723,63 @@ function spawnLanes(s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], lab
     s.flowRun!.fibers.push({
       id, status: 'live', parentId: parent.id, lane: labels[i], active: null,
       stack: [{ role: 'seq', nodes, index: 0 }],
+      ...(owner ? { owner } : {}),
     });
   });
   parent.join = { childIds, message };
 }
 
+function laneWord(fiber: FlowFiber): string {
+  return fiber.lane ?? '순차';
+}
+
+function secondsText(msValue: number): string {
+  return (msValue / 1000).toFixed(3);
+}
+
+function finishWait(p: Project, s: RuntimeState, fiber: FlowFiber) {
+  const held = fiber.holding;
+  if (!held) return;
+  const rec = s.steps[held.recordIndex];
+  const waited = s.timeMs - held.sinceMs;
+  const phrase = conditionText(p, held.cond);
+  if (rec) { rec.status = 'done'; rec.endMs = s.timeMs; rec.waitMs = waited; rec.condText = phrase; }
+  logAt(s, 'info', 'WAIT_END', `[${laneWord(fiber)}] ${held.name} 끝 — ${phrase} — ${secondsText(waited)}s`, held.blockId);
+  fiber.holding = undefined;
+  const frame = top(fiber);
+  if (frame) frame.index += 1;
+}
+
+function beginWait(p: Project, s: RuntimeState, fiber: FlowFiber, node: Extract<FlowNode, { kind: 'wait' }>): FiberGate {
+  const phrase = conditionText(p, node.cond);
+  const recordIndex = beginRecord(s, node.id, fiber.lane);
+  const rec = s.steps[recordIndex];
+  if (rec) { rec.waitBlockId = node.id; rec.condText = phrase; rec.waitNote = phrase; }
+  logAt(s, 'info', 'WAIT_START', `[${laneWord(fiber)}] ${node.name} 시작 — ${phrase}`, node.id);
+  const verdict = evalCond(node.cond, s, p);
+  if (verdict.ok) {
+    if (rec) { rec.status = 'done'; rec.endMs = s.timeMs; rec.waitMs = 0; }
+    logAt(s, 'info', 'WAIT_END', `[${laneWord(fiber)}] ${node.name} 끝 — ${phrase} — ${secondsText(0)}s`, node.id);
+    const frame = top(fiber);
+    if (frame) frame.index += 1;
+    return 'go';
+  }
+  const timeout = node.timeout.value;
+  if (timeout === null || Number.isNaN(timeout)) {
+    failFlow(s, 'WAIT_TIMEOUT', node.id, `[${laneWord(fiber)}] ${node.name} 시간 초과 — ${phrase} — 타임아웃 미정`);
+    return 'stop';
+  }
+  fiber.holding = {
+    blockId: node.id, name: node.name, cond: node.cond,
+    sinceMs: s.timeMs, timeoutAtMs: s.timeMs + ms(timeout), recordIndex,
+  };
+  return 'park';
+}
+
 function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode): FiberGate {
   const frame = top(fiber)!;
   if (node.kind === 'step') return activateFiber(p, s, fiber, node.stepId);
+  if (node.kind === 'wait') return beginWait(p, s, fiber, node);
   frame.index += 1;
   if (node.kind === 'branch') {
     const verdict = evalCond(node.cond, s, p);
@@ -679,6 +811,7 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
     seqs.map((q) => q.steps.map((step) => ({ kind: 'step' as const, stepId: step.id }))),
     seqs.map((q) => q.name),
     `${unit?.name ?? node.unitId} Substation 합류`,
+    { kind: 'substation', nodeId: node.id, unitId: node.unitId },
   );
   return 'go';
 }
@@ -743,57 +876,95 @@ function completeFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
   if (frame) frame.index += 1;
 }
 
+function releaseWaits(p: Project, s: RuntimeState): boolean {
+  let moved = false;
+  const run = s.flowRun;
+  if (!run) return false;
+  for (const fiber of [...run.fibers].sort((a, b) => a.id - b.id)) {
+    if (s.status !== 'running') return moved;
+    if (!fiber.holding || fiber.frozen) continue;
+    if (!evalCond(fiber.holding.cond, s, p).ok) continue;
+    finishWait(p, s, fiber);
+    moved = true;
+  }
+  return moved;
+}
+
+function failWaitTimeout(p: Project, s: RuntimeState, fiber: FlowFiber) {
+  const held = fiber.holding;
+  if (!held) return;
+  const waited = s.timeMs - held.sinceMs;
+  const phrase = conditionText(p, held.cond);
+  failFlow(s, 'WAIT_TIMEOUT', held.blockId, `[${laneWord(fiber)}] ${held.name} 시간 초과 — ${phrase} — 기다린 ${secondsText(waited)}s`);
+}
+
 function advanceFlow(rt: Runtime, dtMs: number): Runtime {
   const p = rt.snapshot;
   const s = structuredClone(rt.state);
   const target = s.timeMs + Math.round(dtMs);
   let guard = 0;
+  let hold = false;
   while (s.status === 'running' && guard++ < 100000) {
     const run = s.flowRun;
     if (!run) break;
-    const idle = run.fibers.filter((f) => f.status === 'live' && !f.active).sort((a, b) => a.id - b.id);
+    if (releaseWaits(p, s)) continue;
+    if (s.status !== 'running') break;
+    const idle = run.fibers.filter((f) => f.status === 'live' && !f.active && !f.holding && !f.frozen).sort((a, b) => a.id - b.id);
     let moved = false;
     let waiting = false;
     for (const fiber of idle) {
       const gate = progressFiber(p, s, fiber);
       if (s.status !== 'running') break;
       if (gate === 'wait') { waiting = true; continue; }
+      if (gate === 'park') continue;
       moved = true;
       break;
     }
     if (s.status !== 'running') break;
     if (moved) continue;
-    if (s.status !== 'running') break;
-    const pending = run.fibers.some((f) => f.status === 'live' || f.active);
+    const pending = run.fibers.some((f) => (f.status === 'live' || f.status === 'joining' || !!f.active) && f.status !== 'done');
     if (!pending) {
       s.status = 'completed';
       logAt(s, 'info', 'RUN_COMPLETE', `시퀀스 완료 — 최종 자재 ${s.material?.location}/${s.material?.state}`);
       break;
     }
-    let next = Infinity;
+    let actionNext = Infinity;
     let who: FlowFiber | null = null;
     let isComplete = false;
     for (const f of [...run.fibers].sort((a, b) => a.id - b.id)) {
-      if (!f.active) continue;
+      if (!f.active || f.frozen) continue;
       const c = f.active.completeAtMs !== null && f.active.completeAtMs <= f.active.timeoutAtMs;
       const t = c ? f.active.completeAtMs! : f.active.timeoutAtMs;
-      if (t < next) { next = t; who = f; isComplete = c; }
+      if (t < actionNext) { actionNext = t; who = f; isComplete = c; }
     }
-    if (!who) {
+    let waitNext = Infinity;
+    let waitFiber: FlowFiber | null = null;
+    for (const f of [...run.fibers].sort((a, b) => a.id - b.id)) {
+      if (!f.holding || f.frozen) continue;
+      if (f.holding.timeoutAtMs < waitNext) { waitNext = f.holding.timeoutAtMs; waitFiber = f; }
+    }
+    if (!who && !waitFiber) {
+      if ((s.pausedSubstations?.length ?? 0) > 0) { hold = true; break; }
       if (waiting) failFlow(s, 'DEADLOCK', null, 'Interlock 동시 금지로 진행할 수 없음 — 기다리는 상대 Action이 진행 중이 아닙니다');
       break;
     }
+    const next = Math.min(actionNext, waitNext);
     if (next > target) break;
-    s.timeMs = next;
-    if (isComplete) completeFiber(p, s, who);
-    else {
-      const found = locateStep(p, who.active!.stepId);
-      const step = found?.step;
-      const a = found?.action;
-      failFlow(s, 'TIMEOUT', step?.id ?? who.active!.stepId, `[${step?.name ?? who.active!.stepId}] 타임아웃 — 완료 신호 ${signalLabel(p, a?.completeSignalId)} 미발생. 이후 공정 통과 안 함`);
+    if (who && actionNext === next) {
+      s.timeMs = next;
+      if (isComplete) completeFiber(p, s, who);
+      else {
+        const found = locateStep(p, who.active!.stepId);
+        const step = found?.step;
+        const a = found?.action;
+        failFlow(s, 'TIMEOUT', step?.id ?? who.active!.stepId, `[${step?.name ?? who.active!.stepId}] 타임아웃 — 완료 신호 ${signalLabel(p, a?.completeSignalId)} 미발생. 이후 공정 통과 안 함`);
+      }
+      continue;
     }
+    s.timeMs = waitNext;
+    if (waitFiber) failWaitTimeout(p, s, waitFiber);
   }
-  if (s.status === 'running') s.timeMs = Math.max(s.timeMs, target);
+  if (s.status === 'running' && !hold) s.timeMs = Math.max(s.timeMs, target);
   syncCursor(s);
   return { ...rt, state: s };
 }

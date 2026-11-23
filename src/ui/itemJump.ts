@@ -15,6 +15,8 @@ export function runGapJump(fix: RunGapFix): ItemJump {
       return { step: 'sequence', sub: 'material', selectId: fix.materialId, field: 'feed-interval' };
     case 'step':
       return { step: 'sequence', sub: 'sequence', field: `step:${fix.stepId}` };
+    case 'flow':
+      return { step: 'sequence', sub: 'sequence', field: `flow:${fix.blockId}` };
     case 'interlock':
       return { step: 'attributes', rightTab: 'check', field: `interlock:${fix.interlockId}` };
   }

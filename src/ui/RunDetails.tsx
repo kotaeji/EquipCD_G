@@ -4,12 +4,15 @@ import type { InterlockBlockRecord } from '../runtime/interlock';
 import { formatMs } from '../scene/runInfo';
 import { fmtTime } from './Panels';
 import { RunSummary } from './RunSummary';
+import { EmptyState } from './EmptyState';
+import { Problem } from './Problem';
+import { EMPTY, runErrorProblem } from './problemCopy';
 import { StatusMark } from './StatusMark';
 import { piecePhaseStatus } from './status';
 import { Tabs } from './Tabs';
 import type { RunDetailsTab } from './viewSettings';
 
-function RunLog({ rt }: { rt: RuntimeState | null }) {
+function RunLog({ rt, onRun, runDisabled, runReason }: { rt: RuntimeState | null; onRun?: () => void; runDisabled?: boolean; runReason?: string }) {
   const rows = [...(rt?.log ?? [])].reverse();
   return (
     <div className="log-list" aria-label="실행 로그">
@@ -21,7 +24,7 @@ function RunLog({ rt }: { rt: RuntimeState | null }) {
             <td className="mono">{line.code}</td>
             <td>{line.message}</td>
           </tr>)}
-          {rows.length === 0 && <tr><td colSpan={3} className="muted">로그 없음. 실행을 누르면 이 세션의 기록이 쌓입니다.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={3}><EmptyState symbol="○" line={EMPTY.log} actions={[{ label: '실행', onClick: onRun, disabled: runDisabled, reason: runReason }]} /></td></tr>}
         </tbody>
       </table>
     </div>
@@ -89,7 +92,7 @@ function RunSignals({ p, rt }: { p: Project; rt: RuntimeState | null }) {
 }
 
 /** Collapsed by default under the canvas. Summary, the full log, and signal state. */
-export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock }: {
+export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock, onRun, runDisabled, runReason, onJumpError }: {
   p: Project;
   rt: RuntimeState | null;
   open: boolean;
@@ -97,6 +100,10 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock 
   onToggle: () => void;
   onTab: (id: RunDetailsTab) => void;
   onJumpInterlock?: (id: string) => void;
+  onRun?: () => void;
+  runDisabled?: boolean;
+  runReason?: string;
+  onJumpError?: () => void;
 }) {
   const last = rt?.log?.length ? rt.log[rt.log.length - 1] : null;
   const lastLine = last ? `${fmtTime(last.t)} ${last.code} ${last.message}` : '로그 없음';
@@ -107,11 +114,15 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock 
         {!open && <span className="run-details-last" title={lastLine}>{lastLine}</span>}
       </div>
       {open && <div className="run-details-body">
+        {rt?.error && (() => {
+          const copy = runErrorProblem(rt.error.code, rt.error.message, null);
+          return copy ? <Problem copy={{ ...copy, jump: onJumpError ? copy.jump : undefined }} onJump={onJumpError} /> : null;
+        })()}
         <InterlockHistory rows={rt?.interlockBlocks ?? []} onJump={onJumpInterlock} />
         <PieceTable rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
           { id: 'summary', label: '실행 결과 요약', panel: <RunSummary p={p} rt={rt} embedded /> },
-          { id: 'log', label: '실행 로그', panel: <RunLog rt={rt} /> },
+          { id: 'log', label: '실행 로그', panel: <RunLog rt={rt} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },
           { id: 'signals', label: '신호', panel: <RunSignals p={p} rt={rt} /> },
         ]} />
       </div>}

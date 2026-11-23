@@ -101,6 +101,6 @@ export function ProjectTree({ p, selection, collapsed, onCollapsedChange, onPick
         })}
       </div>}
     </div>
-    {p.units.length === 0 && <div className="tempty">Substation이 없습니다. 1 라이브러리에서 유닛 템플릿을 추가하거나 2 배치에서 “빈 유닛”을 캔버스로 드래그하세요.</div>}
+    {p.units.length === 0 && <div className="tempty">Unit이 없습니다. 팔레트의 빈 유닛을 캔버스에 놓으세요.</div>}
   </div>;
 }

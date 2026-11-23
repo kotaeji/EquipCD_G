@@ -144,7 +144,8 @@ export function piecePhaseStatus(phase: string): StatusKey {
 }
 
 /** Diagram and 3D marker text. Same words and marks as the status chip. */
-export function markerText(highlight: 'active' | 'fault'): string {
+export function markerText(highlight: 'active' | 'fault' | 'paused'): string {
+  if (highlight === 'paused') return `${STATUS.pending.mark} 일시정지`;
   const key: StatusKey = highlight === 'fault' ? 'error' : 'active';
   return `${STATUS[key].mark} ${STATUS[key].word}`;
 }

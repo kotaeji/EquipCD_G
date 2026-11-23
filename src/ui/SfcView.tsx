@@ -125,6 +125,22 @@ function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey): B
       },
     };
   }
+  if (n.kind === 'wait') {
+    const title = flowBlockTitle('wait', n.name);
+    const cond = condLabel(p, n.cond);
+    const w = Math.max(BOX_W, 24 + Math.max(title.length, cond.length) * 8);
+    const h = BOX_H + 18;
+    return {
+      w,
+      h,
+      body: (x, y) => <g data-sfc-kind="wait" data-sfc-wait={n.id}>
+        <rect x={x} y={y} width={w} height={h} rx={10} fill="var(--panel)" stroke="var(--status-pending)" strokeDasharray="4 2" />
+        <text x={x + 8} y={y + 16} fontSize={FONT} fill="var(--status-pending)">○</text>
+        <text x={x + 22} y={y + 16} fontSize={FONT} fill="var(--text)">{title}</text>
+        <text x={x + 8} y={y + 34} fontSize={FONT} fill="var(--text)">{cond}</text>
+      </g>,
+    };
+  }
   const inner = layoutSeq(p, n.body, tone);
   const tag = n.kind === 'loop' ? `×${n.count}` : `최대 ${n.maxRetries}회`;
   const caption = n.kind === 'loop' ? flowBlockTitle('loop', n.name) : flowBlockTitle('retry', n.name);
