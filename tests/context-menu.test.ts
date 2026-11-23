@@ -55,7 +55,7 @@ describe('TURN-050 menu contents', () => {
   it('lists the commands for each target, with shortcuts and the danger item last', () => {
     const labels = (kind: 'device' | 'unit' | 'edge' | 'empty') => buildContextMenu({ ...base, surface: 'diagram', kind, pasteReason: PASTE_EMPTY }).map((item) => item.label);
     expect(labels('device')).toEqual(['속성 열기', '복사', '복제', '삭제']);
-    expect(labels('unit')).toEqual(['속성 열기', '이름 변경', '복사', '붙여넣기(이 Unit 에)', '자동 정렬', '크기 맞춤', '삭제']);
+    expect(labels('unit')).toEqual(['속성 열기', '이름 변경', '복사', '붙여넣기(이 Unit 에)', '내 템플릿으로 저장', '자동 정렬', '크기 맞춤', '삭제']);
     expect(labels('edge')).toEqual(['속성 열기', '삭제']);
     expect(labels('empty')).toEqual(['붙여넣기', '모두 선택', '화면 맞춤']);
     const device = buildContextMenu({ ...base, surface: 'diagram', kind: 'device' });

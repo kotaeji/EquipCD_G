@@ -106,8 +106,11 @@ export interface Unit {
   capacity: { maxMaterials: Quantity; maxWeight: Quantity };
   /** set when the unit was created from a unit template (definition pinned) */
   templateRef?: { assetId: Id; version: string };
-  /** set when this Unit was pasted from another Unit */
-  lineage?: { duplicatedFrom: Id };
+  /**
+   * Paste records `duplicatedFrom`. A placed 「내 템플릿」 records `fromTemplate`
+   * with the name at that moment. Neither field is a live link, and older files omit both.
+   */
+  lineage?: { duplicatedFrom?: Id; fromTemplate?: { id: Id; name: string } };
 }
 
 export interface Device {
