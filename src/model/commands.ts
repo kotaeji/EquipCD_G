@@ -80,43 +80,94 @@ export function addDevice(p0: Project, kind: AssetKind, at: { x: number; y: numb
   return ok(p, b.device.id);
 }
 
-/** Move canvas nodes by delta (one undo unit). Moving a Unit moves its Devices along (coordinate move only, no hierarchy change). */
+/** Shown when an arrange command skips locked Units and moves the rest. */
+export function lockedExcludedNote(count: number): string {
+  return `잠긴 Unit ${count}개는 제외`;
+}
+
+export function isPositionLocked(u: { positionLocked?: boolean } | undefined): boolean {
+  return u?.positionLocked === true;
+}
+
+const LOCKED_RESIZE = '위치 잠금된 Unit은 크기를 바꾸지 않습니다';
+
+function lockedUnitIds(p: Project): Set<string> {
+  return new Set(p.units.filter((u) => u.positionLocked === true).map((u) => u.id));
+}
+
+function joinNote(a?: string, b?: string): string | undefined {
+  if (a && b) return `${a}. ${b}`;
+  return a || b || undefined;
+}
+
+/** Move canvas nodes by delta (one undo unit). Moving a Unit moves its Devices along (coordinate move only, no hierarchy change). A locked Unit stays put. */
 export function moveNodes(p0: Project, ids: string[], dx: number, dy: number): CmdResult {
   if (!ids.length || (dx === 0 && dy === 0)) return no('이동 없음');
   const p = clone(p0);
   const moved = new Set<string>();
+  const locked = lockedUnitIds(p);
+  let sawMovable = false;
+  let sawLocked = false;
   const mv = (l: { x: number; y: number }) => { l.x = Math.round(l.x + dx); l.y = Math.round(l.y + dy); };
   for (const id of ids) {
     const u = p.units.find((x) => x.id === id);
-    if (u) { mv(u.layout); moved.add(u.id); for (const d of p.devices) if (d.unitId === u.id && !moved.has(d.id)) { mv(d.layout); moved.add(d.id); } }
+    if (!u) continue;
+    if (locked.has(u.id)) { sawLocked = true; continue; }
+    sawMovable = true;
+    mv(u.layout); moved.add(u.id);
+    for (const d of p.devices) if (d.unitId === u.id && !moved.has(d.id)) { mv(d.layout); moved.add(d.id); }
   }
   for (const id of ids) {
     const d = p.devices.find((x) => x.id === id);
-    if (d && !moved.has(d.id)) { mv(d.layout); moved.add(d.id); }
+    if (d && !moved.has(d.id)) { sawMovable = true; mv(d.layout); moved.add(d.id); }
   }
+  if (!sawMovable) return sawLocked ? no('이동 없음') : ok(p);
   const grow = new Set<string>();
   for (const d of p.devices) if (moved.has(d.id) && !moved.has(d.unitId)) grow.add(d.unitId);
-  for (const id of grow) fitUnit(p, id);
+  for (const id of grow) if (!locked.has(id)) fitUnit(p, id);
   return ok(p);
 }
 
+/** Lock or unlock the named Units. One undo. Units that are already in that state are skipped. */
+export function setUnitPositionLock(p0: Project, ids: string[], locked: boolean): CmdResult {
+  const want = new Set(ids);
+  const targets = p0.units.filter((u) => want.has(u.id) && (u.positionLocked === true) !== locked);
+  if (!targets.length) return no(locked ? '이미 잠겨 있습니다' : '잠긴 Unit이 없습니다');
+  const p = clone(p0);
+  for (const u of p.units) {
+    if (!want.has(u.id)) continue;
+    if (locked) u.positionLocked = true;
+    else delete u.positionLocked;
+  }
+  return ok(p);
+}
+
+/** Lock or unlock every Unit. One undo. */
+export function setAllUnitPositionLock(p0: Project, locked: boolean): CmdResult {
+  return setUnitPositionLock(p0, p0.units.map((u) => u.id), locked);
+}
+
 export function alignNodes(p0: Project, ids: string[], mode: 'left' | 'top'): CmdResult {
-  const devs = p0.devices.filter((d) => ids.includes(d.id));
-  const units = p0.units.filter((u) => ids.includes(u.id));
+  const locked = lockedUnitIds(p0);
+  const skipped = ids.filter((id) => locked.has(id)).length;
+  const live = ids.filter((id) => !locked.has(id));
+  const note = skipped ? lockedExcludedNote(skipped) : undefined;
+  const devs = p0.devices.filter((d) => live.includes(d.id));
+  const units = p0.units.filter((u) => live.includes(u.id));
   const items = [...devs.map((d) => d.layout), ...units.map((u) => u.layout)];
-  if (items.length < 2) return no('정렬하려면 두 개 이상 선택하세요');
+  if (items.length < 2) return no(note ? `${note} — 정렬하려면 두 개 이상 선택하세요` : '정렬하려면 두 개 이상 선택하세요');
   const p = clone(p0);
   const v = Math.min(...items.map((l) => (mode === 'left' ? l.x : l.y)));
-  for (const d of p.devices) if (ids.includes(d.id)) { if (mode === 'left') d.layout.x = v; else d.layout.y = v; }
-  for (const u of p.units) if (ids.includes(u.id)) {
+  for (const d of p.devices) if (live.includes(d.id)) { if (mode === 'left') d.layout.x = v; else d.layout.y = v; }
+  for (const u of p.units) if (live.includes(u.id)) {
     const delta = mode === 'left' ? v - u.layout.x : v - u.layout.y;
     if (mode === 'left') u.layout.x = v; else u.layout.y = v;
-    for (const d of p.devices) if (d.unitId === u.id && !ids.includes(d.id)) { if (mode === 'left') d.layout.x += delta; else d.layout.y += delta; }
+    for (const d of p.devices) if (d.unitId === u.id && !live.includes(d.id)) { if (mode === 'left') d.layout.x += delta; else d.layout.y += delta; }
   }
   const grow = new Set<string>();
-  for (const d of p.devices) if (ids.includes(d.id)) grow.add(d.unitId);
-  for (const id of grow) fitUnit(p, id);
-  return ok(p);
+  for (const d of p.devices) if (live.includes(d.id)) grow.add(d.unitId);
+  for (const id of grow) if (!locked.has(id)) fitUnit(p, id);
+  return ok(p, note);
 }
 
 /** Shown on the duplicate button when the selection has no Device. */
@@ -154,15 +205,26 @@ function shiftUnit(unit: Unit, devices: Device[], dx: number, dy: number): boole
   return true;
 }
 
+function withoutLocked(p: Project, ids: string[], min: number, need: string): { ids: string[]; note?: string } | { reason: string } {
+  const picked = pickedUnits(p, ids);
+  const skipped = picked.filter((u) => u.positionLocked === true).length;
+  const free = picked.filter((u) => u.positionLocked !== true).map((u) => u.id);
+  const note = skipped ? lockedExcludedNote(skipped) : undefined;
+  if (free.length < min) return { reason: note ? `${note} — ${need}` : need };
+  return { ids: free, note };
+}
+
 /**
  * PowerPoint-style distribute. The first and last Unit on `axis` stay put.
  * Middles move so the empty gap between neighbors (previous far edge → next near edge) is equal.
  * The other axis is unchanged. Fewer than 3 Units is refused. Devices in `ids` are ignored.
+ * Locked Units are left out and named in the note.
  */
 export function distributeUnits(p0: Project, ids: string[], axis: ArrangeAxis): CmdResult {
-  if (pickedUnits(p0, ids).length < 3) return no(ARRANGE_NEED_3);
+  const free = withoutLocked(p0, ids, 3, ARRANGE_NEED_3);
+  if ('reason' in free) return no(free.reason);
   const p = clone(p0);
-  const sorted = sortUnits(pickedUnits(p, ids), axis);
+  const sorted = sortUnits(pickedUnits(p, free.ids), axis);
   const size = axis === 'x' ? 'w' : 'h';
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
@@ -180,9 +242,9 @@ export function distributeUnits(p0: Project, ids: string[], axis: ArrangeAxis): 
     changed = moved || changed;
     placed += sorted[i].layout[size];
   }
-  if (!changed) return no(ARRANGE_UNCHANGED);
+  if (!changed) return no(joinNote(free.note, ARRANGE_UNCHANGED) ?? ARRANGE_UNCHANGED);
   const overlaps = sorted.some((u, i) => i > 0 && u.layout[axis] < sorted[i - 1].layout[axis] + sorted[i - 1].layout[size]);
-  return ok(p, overlaps ? ARRANGE_OVERLAP_HINT : undefined);
+  return ok(p, joinNote(free.note, overlaps ? ARRANGE_OVERLAP_HINT : undefined));
 }
 
 /**
@@ -190,18 +252,19 @@ export function distributeUnits(p0: Project, ids: string[], axis: ArrangeAxis): 
  * Never smaller than `unitMinSize`, so a Device is not cut. Devices in `ids` are ignored.
  */
 export function matchUnitSize(p0: Project, ids: string[], dim: 'w' | 'h'): CmdResult {
-  const picked = pickedUnits(p0, ids);
-  if (picked.length < 2) return no(ARRANGE_NEED_2);
+  const free = withoutLocked(p0, ids, 2, ARRANGE_NEED_2);
+  if ('reason' in free) return no(free.reason);
+  const picked = pickedUnits(p0, free.ids);
   const target = Math.max(...picked.map((u) => u.layout[dim]));
   const p = clone(p0);
   let changed = false;
-  for (const u of pickedUnits(p, ids)) {
+  for (const u of pickedUnits(p, free.ids)) {
     const min = unitMinSize(p, u.id);
     const next = Math.round(Math.max(target, dim === 'w' ? min.w : min.h));
     if (u.layout[dim] !== next) { u.layout[dim] = next; changed = true; }
   }
-  if (!changed) return no(ARRANGE_UNCHANGED);
-  return ok(p);
+  if (!changed) return no(joinNote(free.note, ARRANGE_UNCHANGED) ?? ARRANGE_UNCHANGED);
+  return ok(p, free.note);
 }
 
 /**
@@ -210,10 +273,11 @@ export function matchUnitSize(p0: Project, ids: string[], dim: 'w' | 'h'): CmdRe
  * Units that were not selected do not move. Devices in `ids` are ignored.
  */
 export function spreadUnits(p0: Project, ids: string[], gap: number): CmdResult {
-  if (pickedUnits(p0, ids).length < 2) return no(ARRANGE_NEED_2);
   if (!Number.isFinite(gap) || gap < 0) return no('간격이 올바르지 않습니다');
+  const free = withoutLocked(p0, ids, 2, ARRANGE_NEED_2);
+  if ('reason' in free) return no(free.reason);
   const p = clone(p0);
-  const sorted = sortUnits(pickedUnits(p, ids), 'x');
+  const sorted = sortUnits(pickedUnits(p, free.ids), 'x');
   let changed = false;
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];
@@ -221,8 +285,8 @@ export function spreadUnits(p0: Project, ids: string[], gap: number): CmdResult 
     const space = cur.layout.x - (prev.layout.x + prev.layout.w);
     if (space < gap) changed = shiftUnit(cur, p.devices, prev.layout.x + prev.layout.w + gap - cur.layout.x, 0) || changed;
   }
-  if (!changed) return no(ARRANGE_UNCHANGED);
-  return ok(p);
+  if (!changed) return no(joinNote(free.note, ARRANGE_UNCHANGED) ?? ARRANGE_UNCHANGED);
+  return ok(p, free.note);
 }
 
 export interface Impact { actions: Action[]; steps: SequenceStep[]; connections: Connection[]; materials: Material[]; constraints: string[]; subSteps: { seq: string; step: SequenceStep }[]; subSequences: SubstationSequence[] }
@@ -475,6 +539,7 @@ export function reparentDevice(p0: Project, deviceId: string, newUnitId: string,
 export function resizeUnit(p0: Project, unitId: string, w: number, h: number): CmdResult {
   const u0 = p0.units.find((u) => u.id === unitId);
   if (!u0) return no('Unit 없음');
+  if (u0.positionLocked === true) return no(LOCKED_RESIZE);
   if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return no('크기가 올바르지 않습니다');
   const min = unitMinSize(p0, unitId);
   const nw = Math.round(Math.max(w, min.w));
@@ -491,6 +556,7 @@ export function resizeUnit(p0: Project, unitId: string, w: number, h: number): C
 export function fitUnitToContent(p0: Project, unitId: string): CmdResult {
   const u0 = p0.units.find((u) => u.id === unitId);
   if (!u0) return no('Unit 없음');
+  if (u0.positionLocked === true) return no(LOCKED_RESIZE);
   const layout = tightUnitLayout(p0, unitId);
   if (!layout) return no('Unit 없음');
   if (layout.x === u0.layout.x && layout.y === u0.layout.y && layout.w === u0.layout.w && layout.h === u0.layout.h) return no('크기 변화 없음');
@@ -527,7 +593,7 @@ function clearArrangeOverlaps(p: Project, anchorId: string): void {
       const prev = sorted[i - 1];
       const cur = sorted[i];
       const space = cur.layout.x - (prev.layout.x + prev.layout.w);
-      if (space < UNIT_SPREAD_GAP) shiftUnit(cur, p.devices, prev.layout.x + prev.layout.w + UNIT_SPREAD_GAP - cur.layout.x, 0);
+      if (space < UNIT_SPREAD_GAP && cur.positionLocked !== true) shiftUnit(cur, p.devices, prev.layout.x + prev.layout.w + UNIT_SPREAD_GAP - cur.layout.x, 0);
     }
   }
   if (sorted.slice(0, ai).some(overlapsAnchor)) {
@@ -536,7 +602,7 @@ function clearArrangeOverlaps(p: Project, anchorId: string): void {
       const cur = sorted[i];
       if (!rectsOverlap(cur.layout, anchor.layout) && !rectsOverlap(cur.layout, next.layout)) continue;
       const space = next.layout.x - (cur.layout.x + cur.layout.w);
-      if (space < UNIT_SPREAD_GAP) shiftUnit(cur, p.devices, next.layout.x - UNIT_SPREAD_GAP - cur.layout.w - cur.layout.x, 0);
+      if (space < UNIT_SPREAD_GAP && cur.positionLocked !== true) shiftUnit(cur, p.devices, next.layout.x - UNIT_SPREAD_GAP - cur.layout.w - cur.layout.x, 0);
     }
   }
 }
@@ -552,6 +618,17 @@ export function arrangeDevices(p0: Project, unitId: string): CmdResult {
     const cur = p0.devices.find((x) => x.id === d.id)!;
     return cur.layout.x === d.x && cur.layout.y === d.y;
   });
+  // A locked Unit keeps its box. Devices inside may still be arranged.
+  if (u0.positionLocked === true) {
+    if (sameDevices) return no(ARRANGE_UNCHANGED);
+    const p = clone(p0);
+    for (const d of next.devices) {
+      const dev = p.devices.find((x) => x.id === d.id)!;
+      dev.layout.x = d.x;
+      dev.layout.y = d.y;
+    }
+    return ok(p);
+  }
   if (sameUnit && sameDevices) return no(ARRANGE_UNCHANGED);
   const p = clone(p0);
   p.units.find((u) => u.id === unitId)!.layout = next.unit;

@@ -55,7 +55,7 @@ describe('TURN-050 menu contents', () => {
   it('lists the commands for each target, with shortcuts and the danger item last', () => {
     const labels = (kind: 'device' | 'unit' | 'edge' | 'empty') => buildContextMenu({ ...base, surface: 'diagram', kind, pasteReason: PASTE_EMPTY }).map((item) => item.label);
     expect(labels('device')).toEqual(['속성 열기', '복사', '복제', '삭제']);
-    expect(labels('unit')).toEqual(['속성 열기', '이름 변경', '복사', '붙여넣기(이 Unit 에)', '내 템플릿으로 저장', '자동 정렬', '크기 맞춤', '삭제']);
+    expect(labels('unit')).toEqual(['속성 열기', '이름 변경', '복사', '붙여넣기(이 Unit 에)', '내 템플릿으로 저장', '자동 정렬', '크기 맞춤', '위치 잠금', '삭제']);
     expect(labels('edge')).toEqual(['속성 열기', '삭제']);
     expect(labels('empty')).toEqual(['붙여넣기', '모두 선택', '화면 맞춤']);
     const device = buildContextMenu({ ...base, surface: 'diagram', kind: 'device' });
@@ -72,7 +72,7 @@ describe('TURN-050 menu contents', () => {
     const unit = buildContextMenu({ ...base, surface: 'tree', kind: 'unit', locked: true, pasteReason: PASTE_LOCKED, canArrange: false });
     expect(unit.find((item) => item.id === 'props')?.disabled).toBeUndefined();
     expect(unit.find((item) => item.id === 'copy')?.disabled).toBeUndefined();
-    for (const id of ['rename', 'paste', 'arrange', 'fit', 'delete']) expect(unit.find((item) => item.id === id)?.disabled).toBe(true);
+    for (const id of ['rename', 'paste', 'arrange', 'fit', 'lockPosition', 'delete']) expect(unit.find((item) => item.id === id)?.disabled).toBe(true);
     expect(unit.find((item) => item.id === 'paste')?.reason).toBe(PASTE_LOCKED);
     const run = buildContextMenu({ ...base, surface: 'run', kind: 'device', locked: true });
     expect(run.map((item) => item.label)).toEqual(['화면 맞춤', '속성 보기']);
@@ -81,7 +81,7 @@ describe('TURN-050 menu contents', () => {
 
   it('shows align, gap, and size on a multi Unit selection and dims what needs more Units', () => {
     const items = buildContextMenu({ ...base, surface: 'diagram', kind: 'multi', allUnits: true, unitCount: 2 });
-    expect(items.map((item) => item.id)).toEqual(['copy', 'alignLeft', 'alignTop', 'gapX', 'gapY', 'matchW', 'matchH', 'delete']);
+    expect(items.map((item) => item.id)).toEqual(['copy', 'alignLeft', 'alignTop', 'gapX', 'gapY', 'matchW', 'matchH', 'lockPosition', 'unlockPosition', 'delete']);
     expect(items.find((item) => item.id === 'alignLeft')?.disabled).toBeUndefined();
     expect(items.find((item) => item.id === 'gapX')?.reason).toBe(ARRANGE_NEED_3);
     expect(items.find((item) => item.id === 'matchW')?.disabled).toBeUndefined();

@@ -125,7 +125,7 @@ describe('React Flow canvas (TURN-005)', () => {
     expect(z('runtime-material')).toBeGreaterThan(z('U-S2'));
     const edgeSvg = el.querySelector('.rf-edge-sig')?.closest('svg') as SVGElement;
     expect(Number(edgeSvg.style.zIndex)).toBeGreaterThan(z('U-S2'));
-    expect(el.querySelector('.rf-legend')?.getAttribute('title')).toContain('배경: 도면/VC 탑뷰 없음');
+    expect(el.querySelector('.rf-legend')?.getAttribute('title')).toContain('배경: 격자');
     expect(el.querySelector('.rf-bg-note')).toBeNull();
     await act(async () => { root.unmount(); });
   });

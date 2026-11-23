@@ -39,6 +39,8 @@ export type MenuAction =
   | 'gapY'
   | 'matchW'
   | 'matchH'
+  | 'lockPosition'
+  | 'unlockPosition'
   | 'saveTemplate';
 
 export interface MenuItem {
@@ -132,6 +134,8 @@ export interface MenuBuildInput {
   /** Every selected node is a Unit (edges ignored). */
   allUnits: boolean;
   canViewProps: boolean;
+  /** The one Unit under the pointer is position-locked. Multi menus ignore this. */
+  unitLocked?: boolean;
   /** Set when 「내 템플릿으로 저장」 cannot run. Omit when it can. Saving does not edit the project. */
   saveTemplateReason?: string;
 }
@@ -168,6 +172,8 @@ export function buildContextMenu(input: MenuBuildInput): MenuItem[] {
         { id: 'gapY', label: '세로 간격 같게', ...dim(gap) },
         { id: 'matchW', label: '너비 같게', ...dim(size) },
         { id: 'matchH', label: '높이 같게', ...dim(size) },
+        { id: 'lockPosition', label: '위치 잠금', ...dim(lock) },
+        { id: 'unlockPosition', label: '위치 잠금 해제', ...dim(lock) },
       );
     }
     items.push({
@@ -205,6 +211,7 @@ export function buildContextMenu(input: MenuBuildInput): MenuItem[] {
     { id: 'saveTemplate', label: '내 템플릿으로 저장', ...dim(input.saveTemplateReason) },
     { id: 'arrange', label: '자동 정렬', ...dim(arrange) },
     { id: 'fit', label: '크기 맞춤', ...dim(lock) },
+    { id: 'lockPosition', label: input.unitLocked ? '위치 잠금 해제' : '위치 잠금', ...dim(lock) },
     {
       id: 'delete', label: '삭제', shortcut: SHORTCUT.delete, danger: true, separatorBefore: true,
       ...dim(input.locked ? '실행 중에는 삭제가 차단됩니다' : undefined),

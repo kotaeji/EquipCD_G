@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ASSET_LIBRARY, exportLibraryAml, findAsset, LOADED_LIBRARIES, registerImported } from '../assets/library';
 import { resolveGenerated } from '../assets/visuals';
 import * as C from '../model/commands';
+import { calibrateScale, clearDiagramBackground, pixelDistance, placeDiagramBackground, readDiagramBackground, updateDiagramBackground, type AssessedImage } from '../model/background';
 import { captureCopy, COPY_NEED_NODE, PASTE_EMPTY, PASTE_LOCKED, pasteClipboard, splitPasteNote, type Clipboard } from '../model/copyPaste';
 import { captureUnitTemplate, PLACE_LOCKED, placeUserTemplate, STORAGE_UNAVAILABLE, suggestTemplateName, templateIdFromDrag, templateNameKey, templateOriginText, templateSaveGate } from '../model/userTemplates';
 import { readTemplates, saveTemplate } from '../storage/userTemplates';
@@ -21,6 +22,8 @@ import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDraft, readDraftList, saveDraft, sweepDrafts, workTimesLabel, type DraftMeta } from '../storage/drafts';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
+import { BackgroundTools } from './BackgroundTools';
+import { UnitLockTools } from './UnitLock';
 import { CommandPaletteDialog, ShortcutSheet } from './CommandPalette';
 import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
 import { ContextMenu } from './ContextMenu';
@@ -160,7 +163,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [draftBoot] = useState(() => bootDrafts(kv));
   const [qlist, setQlist] = useState<QuarantineEntry[]>(() => draftBoot.quarantine);
   const [drafts, setDrafts] = useState<DraftMeta[]>(() => draftBoot.drafts);
-  const [toast, setToast] = useState<{ msg?: string; err?: boolean; problem?: ProblemCopy } | null>(null);
+  const [toast, setToast] = useState<{ msg?: string; err?: boolean; problem?: ProblemCopy; full?: boolean } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [modal, setModal] = useState<Modal | null>(null);
   // TURN-002: workspaces (browser-local management unit). Non-destructive migration on start; memory-only without storage.
@@ -216,6 +219,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const [layerOpen, setLayerOpen] = useState(false);
   const [arrangeOpen, setArrangeOpen] = useState(false);
+  const [bgPoints, setBgPoints] = useState<{ x: number; y: number }[] | null>(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [tourIndex, setTourIndex] = useState<number | null>(null);
   const tourReturn = useRef<HTMLElement | null>(null);
@@ -294,7 +298,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     return () => window.removeEventListener('pointerdown', close);
   }, [arrangeOpen]);
   const say = (msg: string, err = false) => setToast({ msg, err });
-  const sayProblem = (problem: ProblemCopy) => setToast({ problem, err: true });
+  const sayProblem = (problem: ProblemCopy, full = false) => setToast({ problem, err: true, full });
 
   const updTab = useCallback((key: string, f: (t: Tab) => Tab) => setTabs((ts) => ts.map((t) => (t.key === key ? f(t) : t))), []);
   const tabsRef = useRef(tabs); tabsRef.current = tabs;
@@ -535,6 +539,25 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setArrangeOpen(false);
     if (edit(r, label) && r.ok && r.note) say(r.note);
   };
+  const placeBackground = (image: AssessedImage, replace: boolean) => {
+    if (edit(placeDiagramBackground(p, image), replace ? '배경 바꾸기' : '배경 도면')) setBgPoints(null);
+  };
+  const askClearBackground = () => {
+    setModal({
+      title: '배경 도면 지우기',
+      body: <p>깔린 그림을 지웁니다. 도면의 Unit은 그대로입니다. Undo로 되돌릴 수 있습니다.</p>,
+      actions: [
+        { label: '취소', focus: true, run: () => {} },
+        { label: '지우기', danger: true, run: () => { if (edit(clearDiagramBackground(p), '배경 지우기')) setBgPoints(null); } },
+      ],
+    });
+  };
+  const applyBackgroundDistance = (mm: number) => {
+    if (!bgPoints || bgPoints.length < 2) return;
+    const scale = calibrateScale(pixelDistance(bgPoints[0], bgPoints[1]), mm);
+    if (scale == null) { say('실제 거리가 올바르지 않습니다', true); return; }
+    if (edit(updateDiagramBackground(p, { scale }), '배경 배율')) setBgPoints(null);
+  };
   const arrangeItems: { label: string; min: number; undo: string; run: () => C.CmdResult }[] = [
     { label: '가로 간격 같게', min: 3, undo: '가로 간격 같게', run: () => C.distributeUnits(p, selection, 'x') },
     { label: '세로 간격 같게', min: 3, undo: '세로 간격 같게', run: () => C.distributeUnits(p, selection, 'y') },
@@ -738,8 +761,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       else if (selection.length >= 1) requestDelete(selection[0]);
       return;
     }
-    if (id === 'alignLeft') { edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬'); return; }
-    if (id === 'alignTop') { edit(C.alignNodes(p, selection, 'top'), '위 정렬'); return; }
+    if (id === 'alignLeft') { runArrange(C.alignNodes(p, selection, 'left'), '왼쪽 정렬'); return; }
+    if (id === 'alignTop') { runArrange(C.alignNodes(p, selection, 'top'), '위 정렬'); return; }
+    if (id === 'lockPosition' || id === 'unlockPosition') {
+      const ids = selection.filter((sid) => p.units.some((u) => u.id === sid));
+      const single = ids.length === 1 ? p.units.find((u) => u.id === ids[0]) : undefined;
+      const on = id === 'unlockPosition' ? false : single ? single.positionLocked !== true : true;
+      edit(C.setUnitPositionLock(p, ids, on), on ? '위치 잠금' : '위치 잠금 해제');
+      return;
+    }
     if (id === 'gapX') { const r = C.distributeUnits(p, selection, 'x'); runArrange(r, '가로 간격 같게'); return; }
     if (id === 'gapY') { runArrange(C.distributeUnits(p, selection, 'y'), '세로 간격 같게'); return; }
     if (id === 'matchW') { runArrange(C.matchUnitSize(p, selection, 'w'), '너비 같게'); return; }
@@ -781,6 +811,21 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
       if (blocked) return;
       if (typing) return;
+      if (!(e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        const el = e.target as HTMLElement | null;
+        if (el?.closest?.('.rf-host') && !el.closest('button, input, textarea, select, a') && !view.home && !guide && step === 'canvas') {
+          const stepPx = 10;
+          const dx = e.key === 'ArrowLeft' ? -stepPx : e.key === 'ArrowRight' ? stepPx : 0;
+          const dy = e.key === 'ArrowUp' ? -stepPx : e.key === 'ArrowDown' ? stepPx : 0;
+          const lockedIds = new Set(p.units.filter((u) => u.positionLocked === true).map((u) => u.id));
+          const movable = selection.filter((id) => !lockedIds.has(id) && (p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id)));
+          if (movable.length) {
+            e.preventDefault();
+            edit(C.moveNodes(p, movable, dx, dy), '방향키 이동');
+          }
+          return;
+        }
+      }
       if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
         const el = e.target as HTMLElement | null;
         if (!el || isTextField(el) || el.closest('.ctx-menu')) return;
@@ -1433,7 +1478,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const canvasEl = <Canvas project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
-    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
+    onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote}
+    backgroundPicking={bgPoints !== null}
+    onBackgroundMove={(x, y) => edit(updateDiagramBackground(p, { x, y }), '배경 위치')}
+    onBackgroundPoint={(px, py) => setBgPoints((pts) => (pts ? (pts.length >= 2 ? [{ x: px, y: py }] : [...pts, { x: px, y: py }]) : pts))} />;
   const menuNodes = selection.filter((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id));
   const menuItems = ctx ? buildContextMenu({
     surface: ctx.surface,
@@ -1445,6 +1493,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     unitCount: menuNodes.filter((id) => p.units.some((u) => u.id === id)).length,
     allUnits: menuNodes.length >= 2 && menuNodes.every((id) => p.units.some((u) => u.id === id)),
     canViewProps: selection.some((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id) || p.connections.some((c) => c.id === id)),
+    unitLocked: p.units.find((u) => u.id === selection[0])?.positionLocked === true,
     saveTemplateReason: kv ? undefined : STORAGE_UNAVAILABLE,
   }) : [];
   const inspectorEl = <Inspector project={p} selectedId={selectedId} locked={locked} gaps={tab.gaps} edit={edit} onAddStep={(id) => edit(C.addStep(p, id), '단계 추가')}
@@ -1697,8 +1746,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <div className="diagram-tools">
                   <p className="diagram-hint" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>물류: Unit 오른쪽 손잡이를 다른 Unit으로 끌기 · 신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
                   {visualToggle}
-                  <button onClick={() => edit(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
-                  <button onClick={() => edit(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
+                  <button onClick={() => runArrange(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}>좌 정렬</button>
+                  <button onClick={() => runArrange(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}>상 정렬</button>
                   <div className="layerbox arrange-menu">
                     <button type="button" className={arrangeOpen ? 'on' : ''} aria-expanded={arrangeOpen} aria-haspopup="menu" aria-controls="arrange-menu" title="고른 Unit의 간격·크기·겹침" onClick={() => setArrangeOpen((v) => !v)}>배치 ▾</button>
                     {arrangeOpen && <div className="layerpop arrange-pop" id="arrange-menu" role="menu">
@@ -1712,6 +1761,28 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <button type="button" onClick={arrangeSelectedDevices} disabled={locked || !('unitId' in arrangeTarget)} title={arrangeDevicesTitle}>자동 정렬</button>
                   {copyPasteButtons()}
                   <button type="button" onClick={requestDuplicate} disabled={selectedDeviceIds.length === 0 || locked} title={selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : '선택한 Device 복제 (Ctrl+D)'}>복제</button>
+                  <BackgroundTools
+                    bg={readDiagramBackground(p)}
+                    disabled={locked}
+                    picking={bgPoints !== null}
+                    points={bgPoints ?? []}
+                    onTogglePick={() => setBgPoints((pts) => (pts ? null : []))}
+                    onPlace={placeBackground}
+                    onReject={(problem) => sayProblem(problem, true)}
+                    onClear={askClearBackground}
+                    onOpacity={(opacity) => edit(updateDiagramBackground(p, { opacity }), '배경 불투명도')}
+                    onPosition={(x, y) => edit(updateDiagramBackground(p, { x, y }), '배경 위치')}
+                    onScale={(scale) => edit(updateDiagramBackground(p, { scale }), '배경 배율')}
+                    onLocked={(on) => edit(updateDiagramBackground(p, { locked: on }), on ? '배경 잠금' : '배경 잠금 해제')}
+                    onApplyDistance={applyBackgroundDistance}
+                  />
+                  <UnitLockTools
+                    project={p}
+                    selection={selection}
+                    disabled={locked}
+                    onLockSelected={(on) => edit(C.setUnitPositionLock(p, selection, on), on ? '위치 잠금' : '위치 잠금 해제')}
+                    onLockAll={(on) => edit(C.setAllUnitPositionLock(p, on), on ? '모두 잠금' : '모두 풀기')}
+                  />
                   <button type="button" className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}>삭제</button>
                 </div>
                 <div className="diagram-canvas">{canvasEl}</div>
@@ -1995,7 +2066,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       </div>
 
       {importBusy && <div className="import-hold"><LoadingPlaceholder label={LOADING_FILE} /></div>}
-      {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.problem ? <Problem copy={toast.problem} compact /> : toast.msg}</div>}
+      {toast && <div className={`toast ${toast.err ? 'err' : ''}`} style={style}>{toast.problem ? <Problem copy={toast.problem} compact={!toast.full} /> : toast.msg}</div>}
       {viewOpen && <StaticModalFrame title="보기 설정" style={style} onCancel={() => setViewOpen(false)}>
         <p className="muted">보기만 바꿉니다. 모델, rev, 실행, 선택, 입력은 그대로입니다. 보관된 이전 팔레트는 고를 수 없습니다.</p>
         <label className="draft-toggle"><input type="checkbox" checked={view.autoDraft} onChange={(e) => setView((v) => ({ ...v, autoDraft: e.target.checked }))} />자동 임시 저장</label>

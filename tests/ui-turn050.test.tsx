@@ -222,7 +222,7 @@ describe('TURN-050 context menu', () => {
     expect(sep?.nextElementSibling?.getAttribute('data-action')).toBe('delete');
 
     await u.right(u.el.querySelector('[data-id="U-S2"] .rf-unit')!);
-    expect(u.actions()).toEqual(['props', 'rename', 'copy', 'paste', 'saveTemplate', 'arrange', 'fit', 'delete']);
+    expect(u.actions()).toEqual(['props', 'rename', 'copy', 'paste', 'saveTemplate', 'arrange', 'fit', 'lockPosition', 'delete']);
     expect(u.action('paste')?.textContent).toContain('붙여넣기(이 Unit 에)');
     expect(u.action('paste')?.disabled).toBe(true);
     expect(u.action('paste')?.title).toBe(PASTE_EMPTY);

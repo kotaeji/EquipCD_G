@@ -166,6 +166,7 @@ export function Inspector(props: Props) {
         <div className="row"><label>수용 개수</label><QtyInput q={unit.capacity.maxMaterials} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxMaterials' }, v, as), '수용 개수')} /></div>
         <div className="row"><label>허용 무게</label><QtyInput q={unit.capacity.maxWeight} disabled={locked} onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'unitCap', id: unit.id, field: 'maxWeight' }, v, as), '허용 무게')} /></div>
         <div className="row"><label>Device</label><span>{unit.deviceIds.map((d) => devName(p, d)).join(', ') || '(없음)'}</span></div>
+        <div className="row"><label htmlFor={`lock-${unit.id}`}>위치 잠금</label><input id={`lock-${unit.id}`} type="checkbox" aria-label={`${unit.code} 위치 잠금`} checked={unit.positionLocked === true} disabled={locked} onChange={(e) => edit(C.setUnitPositionLock(p, [unit.id], e.target.checked), e.target.checked ? '위치 잠금' : '위치 잠금 해제')} /></div>
         <div className="danger-row"><button type="button" className="danger" disabled={locked} onClick={() => props.onDelete(unit.id)}>Unit 삭제(영향 확인)</button></div>
       </div>
       <div className="section"><h4>제공 능력표 (F3-03, 자동 생성)</h4><CapabilityTable p={p} unitId={unit.id} /></div>
