@@ -4,6 +4,7 @@ import { NeverTrueFaults, ReadFailFaults, RunReadiness } from './Panels';
 import type { Diagnostic } from '../model/validate';
 import type { BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
+import { StatusMark } from './StatusMark';
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
@@ -59,7 +60,7 @@ function QuantityRow({ action, field, label, disabled, onCommit }: {
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       <span className="muted">s</span>
-      {quantity.assumption && <span className="badge">가정</span>}
+      {quantity.assumption && <StatusMark status="assumption" />}
     </div>
   );
 }

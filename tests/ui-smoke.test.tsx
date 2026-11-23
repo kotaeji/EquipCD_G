@@ -51,7 +51,7 @@ describe('UI smoke (jsdom)', () => {
     expect(el.querySelectorAll('svg image').length).toBeGreaterThan(0); // photo mode on canvas
     await click([...el.querySelectorAll('.diagram-tools button')].find((b) => (b.textContent ?? '').trim() === '도식')!);
     expect(el.querySelectorAll('svg image').length).toBe(0);
-    const treeItem = [...el.querySelectorAll('.tree div')].find((d) => (d.textContent ?? '').startsWith('○ CYL-03'))! as HTMLElement;
+    const treeItem = el.querySelector('.tree [data-tree-id="CYL-03"]') as HTMLElement;
     await click(treeItem);
     for (const t of ['신호', '포지션', 'Action', '정의 체크', '속성']) await click([...el.querySelectorAll('.right .tabs button')].find((b) => (b.textContent ?? '').startsWith(t))!);
     expect(txt()).toContain('CYL-03');

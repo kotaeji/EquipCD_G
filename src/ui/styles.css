@@ -50,6 +50,20 @@ input.num { width: 76px; font-family: var(--mono); text-align: right; }
 .badge.warn { color: var(--warning); border-color: var(--warning); }
 .badge.err { color: var(--danger); border-color: var(--danger); }
 .badge.acc { color: var(--accent); border-color: var(--accent); }
+.status-mark { display: inline-flex; align-items: center; gap: 3px; border: 1px solid currentColor; border-radius: 8px; padding: 0 5px; font-size: 11px; font-weight: 700; line-height: 16px; white-space: nowrap; vertical-align: middle; }
+.status-active { color: var(--status-active); }
+.status-done { color: var(--status-done); }
+.status-error { color: var(--status-error); }
+.status-pending { color: var(--status-pending); }
+.status-undetermined { color: var(--status-undetermined); }
+.status-assumption { color: var(--status-assumption); }
+.status-mark.is-compact .status-word { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+button.st-badge.status-done { color: var(--status-done); border-color: var(--status-done); }
+button.st-badge.status-error { color: var(--status-error); border-color: var(--status-error); }
+button.st-badge.status-undetermined { color: var(--status-undetermined); border-color: var(--status-undetermined); }
+button.st-badge.status-active { color: var(--status-active); border-color: var(--status-active); }
+button.st-badge.status-pending { color: var(--status-pending); border-color: var(--status-pending); }
+button.st-badge.status-assumption { color: var(--status-assumption); border-color: var(--status-assumption); }
 .tree { overflow: auto; flex: 1; padding: 6px 0; }
 .tree div { color: var(--text); padding: 3px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tree div.sel { background: var(--selected); color: var(--accent); }
@@ -582,9 +596,11 @@ table.grid.plain td, table.grid.plain th { font-size: 14px; height: 46px; }
 }
 .rf-photo-note.miss { color: var(--warning); }
 .rf-device.is-active {
-  outline: 2px solid var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+  outline: 2px solid var(--status-active, var(--accent));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-active, var(--accent)) 25%, transparent);
 }
+.rf-device.is-fault { outline: 2px solid var(--status-error, var(--danger)); }
+.rf-run-mark { position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%); z-index: 3; pointer-events: none; }
 .rf-device.is-active.is-sel { outline-offset: 2px; }
 .rf-unit.is-off,
 .rf-device.is-off { visibility: hidden; }

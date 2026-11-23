@@ -7,6 +7,7 @@ import { fitToPoints, type CameraState, type Viewport } from '../src/scene/camer
 import { framePoints, describeScene } from '../src/scene/describe';
 import { emWidth, floorNameAxes, floorNameForZone, floorNameReadable, floorNameYaw, projectedGlyphHeight } from '../src/scene/floorLabel';
 import { anchorLabels, visibleFloorNames } from '../src/scene/labels';
+import { markerText } from '../src/ui/status';
 import { partsFor, shapeForKind } from '../src/scene/shapes';
 import { materialFor, photoPartsFor, renderStyle, ROLE_MATERIAL } from '../src/scene/style';
 
@@ -92,7 +93,7 @@ describe('TURN-031 floor names', () => {
     const off = anchorLabels(scene, false, true);
     expect(on.some((label) => label.kind === 'device')).toBe(true);
     expect(off.some((label) => label.kind === 'device')).toBe(false);
-    expect(off.some((label) => label.kind === 'marker' && label.text === '▼ 동작 중')).toBe(true);
+    expect(off.some((label) => label.kind === 'marker' && label.text === markerText('active'))).toBe(true);
     expect(off.some((label) => label.kind === 'material')).toBe(true);
     expect(on.filter((label) => label.kind === 'marker').map((label) => label.text)).toEqual(off.filter((label) => label.kind === 'marker').map((label) => label.text));
   });
@@ -153,7 +154,7 @@ describe('TURN-031 photo style', () => {
     const rt = advance(start(createRuntime(project)), 1);
     const scene = describeScene(project, rt.state);
     const labels = anchorLabels(scene, true, true);
-    expect(labels.some((label) => label.kind === 'marker' && label.text === '▼ 동작 중')).toBe(true);
+    expect(labels.some((label) => label.kind === 'marker' && label.text === markerText('active'))).toBe(true);
     expect(labels.some((label) => label.kind === 'material')).toBe(true);
     expect(renderStyle('photo').shadows).toBe(true);
     expect(renderStyle('photo').key).toBeGreaterThan(0);
@@ -162,6 +163,6 @@ describe('TURN-031 photo style', () => {
     const read = faulted.actions.find((a) => a.deviceId === 'BCR-02')!;
     faulted.simSettings.faults.neverTrueSignalIds = [read.completeSignalId!];
     const done = advance(start(createRuntime(faulted)), 1);
-    expect(anchorLabels(describeScene(faulted, done.state), false, true).some((label) => label.text === '▼ 동작 중' || label.text === '오류' || label.kind === 'material')).toBe(true);
+    expect(anchorLabels(describeScene(faulted, done.state), false, true).some((label) => label.text === markerText('active') || label.text === markerText('fault') || label.kind === 'material')).toBe(true);
   });
 });

@@ -2,6 +2,7 @@
 // Unit names are floor strips, not screen tags. Overlap keeps markers, then the material, then device names.
 
 import type { SceneDescription } from './describe';
+import { markerText } from '../ui/status';
 
 export type LabelKind = 'unit' | 'device' | 'marker' | 'material';
 
@@ -40,7 +41,7 @@ export function anchorLabels(scene: SceneDescription, showNames: boolean, emphas
       const top = topOf(solid.parts);
       out.push({
         id: `m:${solid.id}`, kind: 'marker', px: 13,
-        text: solid.highlight === 'fault' ? '오류' : '▼ 동작 중',
+        text: markerText(solid.highlight === 'fault' ? 'fault' : 'active'),
         x: solid.draw.x + solid.draw.w / 2, y: top + 18, z: solid.draw.z + solid.draw.d / 2,
       });
     }

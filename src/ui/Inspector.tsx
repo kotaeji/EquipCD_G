@@ -5,6 +5,7 @@ import * as C from '../model/commands';
 import type { Gap } from '../model/gaps';
 import type { Action, Condition, Project } from '../model/types';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
+import { StatusMark } from './StatusMark';
 import { Badge, QtyInput, TextInput } from './widgets';
 
 export type EditFn = (r: C.CmdResult, label: string) => boolean;
@@ -105,11 +106,11 @@ export function CapabilityTable({ p, unitId }: { p: Project; unitId: string }) {
       <tbody>{acts.map((a) => (
         <tr key={a.id}>
           <td>{a.name}<div className="muted mono" style={{ fontSize: 10 }}>{devName(p, a.deviceId)}</div></td>
-          <td style={{ fontSize: 11 }}>{sigName(p, a.commandSignalId)} → {a.completeSignalId ? sigName(p, a.completeSignalId) : <Badge kind="warn">완료 미정</Badge>}</td>
+          <td style={{ fontSize: 11 }}>{sigName(p, a.commandSignalId)} → {a.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
           <td style={{ fontSize: 11 }}>{a.targetPositionId ? p.positions.find((x) => x.id === a.targetPositionId)?.name : '-'}</td>
           <td style={{ fontSize: 11 }}>{effectLabel(p, a.effect)}</td>
           <td style={{ fontSize: 11 }}>{a.pre.map((c) => condLabel(p, c)).join('; ') || '-'}{interlocks(a).map((k) => <div key={k.id}><Badge kind={k.confirmation === 'confirmed' ? 'ok' : 'warn'}>IL {k.confirmation === 'confirmed' ? '확인됨' : '후보'}</Badge> {k.description}</div>)}</td>
-          <td style={{ fontSize: 10 }} className="muted">시간 {a.duration.value ?? '미정'}s{a.duration.assumption ? '(가정)' : ''} · {a.duration.source?.method ?? '-'}</td>
+          <td style={{ fontSize: 10 }} className="muted">시간 {a.duration.value ?? <StatusMark status="undetermined" />}s{a.duration.assumption ? <> <StatusMark status="assumption" /></> : null} · {a.duration.source?.method ?? '-'}</td>
         </tr>))}
         {acts.length === 0 && <tr><td colSpan={6} className="muted">Action 없음</td></tr>}
       </tbody>
@@ -185,7 +186,10 @@ export function Inspector(props: Props) {
         <div className="row"><TextInput value={s.name} disabled={locked} width={160} onCommit={(v) => edit(C.renameObject(p, s.id, v), 'Signal 이름')} />
           <Badge kind={s.direction === 'in' ? 'acc' : undefined}>{s.direction === 'in' ? '입력 in' : '출력 out'}</Badge><Badge>{s.role}</Badge></div>
         <div className="row"><label>실제 주소</label><TextInput value={s.address ?? ''} width={90} disabled={locked} onCommit={(v) => edit(C.updateSignal(p, s.id, { address: v }), 'Signal 주소')} />
-          <Badge kind={s.address ? 'warn' : undefined}>{s.address ? s.addressStatus : '미정(개념 신호)'}</Badge>
+          {!s.address && <><StatusMark status="undetermined" /> <span className="muted">개념 신호</span></>}
+          {s.address && s.addressStatus === 'assumed' && <StatusMark status="assumption" />}
+          {s.address && s.addressStatus === 'confirmed' && <Badge kind="ok">{s.addressStatus}</Badge>}
+          {s.address && s.addressStatus === 'unassigned' && <StatusMark status="undetermined" />}
           <button className="small danger" disabled={locked} onClick={() => edit(C.deleteSignal(p, s.id), 'Signal 삭제')}>삭제</button></div>
       </div>)}
       <div className="row" style={{ marginTop: 6 }}>
@@ -228,17 +232,17 @@ function InterlockRow({ p, id, locked, edit }: { p: Project; id: string; locked:
 
 function DefinitionCheck({ p, deviceId }: { p: Project; deviceId: string }) {
   const acts = p.actions.filter((a) => a.deviceId === deviceId);
-  const items: { ok: boolean; text: string }[] = [];
+  const items: { ok: boolean; assumption?: boolean; text: string }[] = [];
   for (const a of acts) {
     items.push({ ok: !!a.completeSignalId && p.signals.some((s) => s.id === a.completeSignalId), text: `${a.name}: 완료 조건 Signal` });
     items.push({ ok: !!a.commandSignalId, text: `${a.name}: 명령 Signal` });
-    items.push({ ok: a.duration.value !== null, text: `${a.name}: 동작 시간${a.duration.assumption ? ' (가정)' : ''}` });
+    items.push({ ok: a.duration.value !== null, assumption: a.duration.assumption, text: `${a.name}: 동작 시간` });
     items.push({ ok: a.timeout.value !== null, text: `${a.name}: 타임아웃` });
     items.push({ ok: !a.pre.concat(a.post).some((c) => c.kind === 'undefined'), text: `${a.name}: 미정 조건 없음` });
   }
   const d = p.devices.find((x) => x.id === deviceId)!;
   for (const pd of (findAsset(d.kind)?.properties ?? []).filter((x) => x.requiredForRun)) items.push({ ok: d.properties[pd.key]?.value !== null, text: `사양 ${pd.label}` });
-  return <div>{items.map((it, i) => <div key={i} className="row" style={{ minHeight: 20, fontSize: 12 }}><Badge kind={it.ok ? 'ok' : 'warn'}>{it.ok ? 'OK' : '미정/누락'}</Badge>{it.text}</div>)}
+  return <div>{items.map((it, i) => <div key={i} className="row" style={{ minHeight: 20, fontSize: 12 }}>{it.ok ? <StatusMark status="done" word="OK" /> : <StatusMark status="undetermined" />}{it.assumption && <StatusMark status="assumption" />}{it.text}</div>)}
     {items.length === 0 && <div className="muted">Action 없음 (센서 등)</div>}</div>;
 }
 

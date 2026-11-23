@@ -9,6 +9,7 @@ import { buildFlowSampleProject, buildParallelSampleProject, buildSampleProject 
 import type { AssetDefinition, AssetKind, Project } from '../model/types';
 import { APP_VERSION, FILE_FORMAT_VERSION, PRODUCT_NAME, RUNTIME_RULES_VERSION } from '../model/types';
 import { advance, createRuntime, pause, reset, resume, runToEnd, start, type Runtime } from '../runtime/engine';
+import { activeDeviceIds as sceneActiveIds, faultDeviceIds } from '../scene/describe';
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
@@ -19,7 +20,9 @@ import { flowSummary, LayoutBoard } from './LayoutBoard';
 import { Inspector } from './Inspector';
 import { LibraryWorkspace } from './Library';
 import { focusJump, jumpCaption, jumpTarget } from './itemJump';
-import { BADGE_MARK, BADGE_TONE, BADGE_WORD, evaluateSteps, LEVEL_LABEL, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
+import { StatusMark } from './StatusMark';
+import { deviceDisplayStatus, gapJudgementMark, ITEM_LEVEL_STATUS, statusCssVars, WIZARD_BADGE_STATUS } from './status';
+import { BADGE_MARK, BADGE_WORD, evaluateSteps, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
 import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
 import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, LabPanel, MaterialPanel, SequencePanel, SfcPanel } from './Panels';
@@ -554,6 +557,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const themeVars = THEMES[paletteTheme(view.theme)].vars;
   const setPanel = (key: PanelKey, n: number) => setView((v) => (v.panels[key] === n ? v : { ...v, panels: { ...v.panels, [key]: n } }));
   const style = { ...Object.fromEntries(Object.entries(themeVars).map(([k, v]) => [`--${k}`, v])),
+    ...statusCssVars(appearance),
     '--exw': `${explorerOpen ? view.panels.explorer : 40}px`, '--libw': `${view.panels.library}px`, '--propw': `${view.panels.canvas}px`, '--runw': `${view.panels.run}px` } as React.CSSProperties;
   const selectedId = selection.length === 1 ? selection[0] : null;
   const dirty = tab.savedRevision !== p.revision;
@@ -652,7 +656,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const pick = (id: string) => { setSelection([id]); const u = p.units.find((x) => x.id === id)?.id ?? p.devices.find((d) => d.id === id)?.unitId; if (u) setSubUnitPref(u); };
   const collapsed = view.treeCollapsed[p.id] ?? [];
   const setCollapsed = (ids: string[]) => setView((v) => ({ ...v, treeCollapsed: { ...v.treeCollapsed, [p.id]: ids } }));
-  const tree = <ProjectTree p={p} selection={selection} collapsed={collapsed} onCollapsedChange={setCollapsed} onPick={pick} subCount={subCount} />;
+  const faultIds = faultDeviceIds(p, rt);
+  const runningIds = sceneActiveIds(p, rt);
+  const statusOf = Object.fromEntries(p.devices.flatMap((d) => {
+    const key = deviceDisplayStatus({
+      fault: faultIds.includes(d.id),
+      active: runningIds.includes(d.id),
+      undetermined: Object.values(d.properties).some((q) => q.value === null),
+      assumption: Object.values(d.properties).some((q) => q.value !== null && q.assumption),
+    });
+    return key ? [[d.id, key]] : [];
+  }));
+  const tree = <ProjectTree p={p} selection={selection} collapsed={collapsed} onCollapsedChange={setCollapsed} onPick={pick} subCount={subCount} statusOf={statusOf} />;
 
   // ---------- TURN-002: workspace / project management ----------
   const curWs = W.activeWs(reg);
@@ -829,15 +844,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button type="button" role="radio" aria-checked={view.runView === '3d'} className={view.runView === '3d' ? 'on' : ''} onClick={() => setRunView('3d')}>3D</button>
   </div>;
   const scene3d = view.runView === '3d' ? presentScene(p, rt, equipmentMotion) : null;
-  const activeDeviceIds = (rt?.flowRun?.fibers ?? []).flatMap((f) => {
-    if (!f.active) return [];
-    const step = p.sequence.steps.find((s) => s.id === f.active!.stepId) ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === f.active!.stepId);
-    const a = step && p.actions.find((x) => x.id === step.actionId);
-    return a ? [a.deviceId] : [];
-  });
+  const activeDeviceIds = runningIds;
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
-  const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
+  const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onConnectCancel={onConnectCancel}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} connectNote={connectNote} />;
@@ -878,7 +888,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
           <div key={s.id} className={`st ${on ? 'on' : ''}`} data-stepid={s.id} onClick={(e) => { if ((e.target as HTMLElement).closest('[data-step-badge]')) return; goStep(s.id); }}>
             <button type="button" className="st-go" aria-current={on ? 'step' : undefined}>{s.no} {s.label}</button>
-            <button type="button" className={`badge ${BADGE_TONE[b]} st-badge`} data-step-badge={s.id} aria-haspopup="dialog" aria-expanded={itemsStep === s.id}
+            <button type="button" className={`badge st-badge status-${WIZARD_BADGE_STATUS[b]}`} data-step-badge={s.id} data-status={WIZARD_BADGE_STATUS[b]} aria-haspopup="dialog" aria-expanded={itemsStep === s.id}
               aria-label={`${s.no} ${s.label} ${BADGE_WORD[b]}, 남은 항목 ${n}`}
               onClick={(e) => { e.stopPropagation(); toggleItems(s.id); }}
               onKeyDown={(e) => onItemKey(e, () => toggleItems(s.id))}>
@@ -897,7 +907,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <div className="row" style={{ justifyContent: 'space-between' }}><b>{listMeta.no} {listMeta.label} — 남은 항목 (실제 데이터 기준 재계산)</b><button className="small" onClick={() => setItemsStep(null)}>닫기</button></div>
         {listEval.items.length === 0 && <div className="muted">남은 항목 없음</div>}
         {listEval.items.map((it, i) => <div key={i} className="item-row" data-item-kind={it.kind}>
-          <span className={`badge ${it.level === 'missing' ? 'err' : it.level === 'human' ? 'acc' : 'warn'}`}>{LEVEL_LABEL[it.level]}</span>
+          <StatusMark status={ITEM_LEVEL_STATUS[it.level].status} word={ITEM_LEVEL_STATUS[it.level].word} />
           {it.jump
             ? <button type="button" className="item-jump" onClick={() => goItem(it)} onKeyDown={(e) => onItemKey(e, () => goItem(it))}>{it.text}</button>
             : <span className="item-jump-text">{it.text}</span>}
@@ -1023,11 +1033,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             {d && def && def.properties.slice(0, 3).map((pd) => {
               const qv = d.properties[pd.key];
               if (!qv) return null;
-              return <p key={pd.key}>{pd.label}<br />{qv.value ?? '미정'} {qv.unit}{qv.assumption ? ' · 가정값' : ''}</p>;
+              return <p key={pd.key}>{pd.label}<br />{qv.value === null ? <StatusMark status="undetermined" /> : qv.value} {qv.unit}{qv.assumption ? <> <StatusMark status="assumption" /></> : null}</p>;
             })}
             {!d && host && <button type="button" className="btn-main secondary" onClick={fitSelectedUnit}>크기 맞춤</button>}
             <button type="button" className="btn-main primary" disabled={!d} onClick={() => { if (!d) return; setSelection([d.id]); setRightTab('actions'); goStep('attributes'); }}>Action 편집</button>
-            {missingComplete && <p className="warn-note">완료 신호 미정 · 실행 차단<br />필수 값은 임의로 채우지 않습니다.</p>}
+            {missingComplete && <p className="warn-note"><StatusMark status="undetermined" /> 완료 신호 · 실행 차단<br />필수 값은 임의로 채우지 않습니다.</p>}
             <button type="button" className="btn-main secondary" disabled={!selectedId || locked} onClick={() => selectedId && requestDelete(selectedId)}>삭제 영향 확인</button>
             <Fold className="prop-more" summary="속성 자세히">{inspectorEl}</Fold>
           </div>;
@@ -1054,12 +1064,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <table className="grid plain"><thead><tr><th>이름</th><th>방향</th><th>역할</th></tr></thead>
                   <tbody>{sigs.map((s) => <tr key={s.id}><td>{s.name}</td><td>{s.direction === 'in' ? '입력' : '출력'}</td><td>{signalRole(s.role)}</td></tr>)}
                     {sigs.length === 0 && <tr><td colSpan={3}>신호 없음</td></tr>}</tbody></table>
-                <p className="field-ro">{sigs.find((s) => s.address)?.address ?? '미정 · 실제 장비 주소 아님'}</p>
+                <p className="field-ro">{sigs.find((s) => s.address)?.address ?? <><StatusMark status="undetermined" /> 실제 장비 주소 아님</>}</p>
                 <button type="button" onClick={() => setRightTab('actions')}>Action으로 복귀</button>
               </section>
               <aside className="sheet">
                 <h2>포지션 정의</h2>
-                {poss.map((x) => <label key={x.id}>{x.name}<span className="field-ro">{x.value.value ?? '미정'} {x.value.unit}{x.value.assumption ? ' · 가정' : ''}</span></label>)}
+                {poss.map((x) => <label key={x.id}>{x.name}<span className="field-ro">{x.value.value === null ? <StatusMark status="undetermined" /> : x.value.value} {x.value.unit}{x.value.assumption ? <> <StatusMark status="assumption" /></> : null}</span></label>)}
                 {poss.length === 0 && <p className="muted">포지션 없음</p>}
                 <p className="warn-note">단위·방향·신호 참조는 보존합니다. 실주소와 실측 역매핑은 하지 않습니다.</p>
               </aside>
@@ -1081,10 +1091,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <aside className="sheet">
                 <h2>정의 체크와 사람 확인</h2>
                 <ul className="check-list">
-                  <li>완료 신호 · {act?.completeSignalId ? '지정됨' : '미정'}</li>
-                  <li>동작 시간 · {act?.duration.value ?? '미정'}{act?.duration.assumption ? ' · 가정' : ''}</li>
-                  <li>타임아웃 · {act?.timeout.value ?? '미정'}{act?.timeout.assumption ? ' · 가정' : ''}</li>
-                  <li>실제 주소 · {sigs.some((s) => s.address) ? '있음' : '미정'}</li>
+                  <li>완료 신호 · {act?.completeSignalId ? '지정됨' : <StatusMark status="undetermined" />}</li>
+                  <li>동작 시간 · {act?.duration.value ?? <StatusMark status="undetermined" />}{act?.duration.assumption ? <> <StatusMark status="assumption" /></> : null}</li>
+                  <li>타임아웃 · {act?.timeout.value ?? <StatusMark status="undetermined" />}{act?.timeout.assumption ? <> <StatusMark status="assumption" /></> : null}</li>
+                  <li>실제 주소 · {sigs.some((s) => s.address) ? '있음' : <StatusMark status="undetermined" />}</li>
                 </ul>
                 <p className="warn-note">Interlock 후보는 사람이 확인합니다. 자동 안전 승인은 없습니다.</p>
                 <button type="button" onClick={() => goStep('sequence', 'sequence')}>시퀀스 보기</button>
@@ -1101,7 +1111,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   {fields.map((pd) => {
                     const qv = d.properties[pd.key];
                     if (!qv) return null;
-                    return <label key={pd.key} data-jump={`prop:${d.id}:${pd.key}`}>{pd.label}{qv.assumption ? ' · 가정값' : ''}
+                    return <label key={pd.key} data-jump={`prop:${d.id}:${pd.key}`}>{pd.label}
                       <QtyInput q={qv} disabled={locked} onCommit={(v, as) => edit(C.setDeviceProperty(p, d.id, pd.key, v, as), `${pd.label} 변경`)} />
                     </label>;
                   })}
@@ -1192,7 +1202,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <h2 data-jump="check-gaps">Gap 목록 · 기준 모델 rev {tab.analyzedRevision ?? p.revision}</h2>
             <table className="grid plain">
               <thead><tr><th>종류와 판정</th><th>근거</th><th>관련 대상</th><th>다음 행동</th></tr></thead>
-              <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id} data-jump={`gap:${g.id}`}><td>{g.title}</td><td>{g.evidence}</td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}
+              <tbody>{tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).slice(0, 12).map((g) => <tr key={g.id} data-jump={`gap:${g.id}`}><td>{g.title} <StatusMark status={gapJudgementMark(g.judgement).status} word={gapJudgementMark(g.judgement).word} /></td><td>{g.evidence}</td><td>{g.objectIds.slice(0, 2).join(' / ') || '-'}</td><td><button type="button" className="small" onClick={() => goGap(g)}>수정 이동</button></td></tr>)}
                 {tab.gaps.filter((g) => gapVisible(g, gapFilter, p.gapReview[g.id]?.status === 'hidden')).length === 0 && <tr><td colSpan={4}>이 보기에 해당하는 항목이 없습니다.</td></tr>}</tbody>
             </table>
             <p className="warn-note">간섭 후보는 정밀 물리·안전 검증 결과가 아닙니다. 근거가 부족하면 문제 없음 대신 비교 불가로 둡니다.</p>

@@ -12,6 +12,7 @@ import { anchorLabels, cullOverlappingLabels, visibleFloorNames, type ScreenLabe
 import type { LocalPart } from '../scene/shapes';
 import { floorNameColors, materialFor, photoPartsFor, photoZoneColors, renderStyle, type StyledPart, type VisualStyleId } from '../scene/style';
 import { canUseWebGL } from './webgl';
+import { markerText, STATUS_COLOR } from './status';
 import { THEMES } from './viewSettings';
 
 export const PHOTO_NOTE = '3D 실사풍은 재질 · 조명 표현입니다. 실제 설비 형상이 아닙니다.';
@@ -42,8 +43,8 @@ function readPalette(): ScenePalette {
     zone: pick('--selected', fallback.selected),
     zoneLine: pick('--border', fallback.border),
     solid: pick('--success', fallback.success),
-    active: pick('--warning', fallback.warning),
-    fault: pick('--danger', fallback.danger),
+    active: pick('--status-active', STATUS_COLOR.light.active),
+    fault: pick('--status-error', STATUS_COLOR.light.error),
     beacon: pick('--warning', fallback.warning),
     material: pick('--warning', fallback.warning),
     flow: pick('--accent', fallback.accent),
@@ -390,7 +391,7 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   const kept = cullOverlappingLabels(boxes).filter((label) => label.kind !== 'unit');
   layer.replaceChildren(...kept.map((label) => {
     const el = document.createElement('div');
-    const marker = label.kind === 'marker' ? (label.text === '오류' ? ' fault' : ' active') : '';
+    const marker = label.kind === 'marker' ? (label.text === markerText('fault') ? ' fault' : ' active') : '';
     el.className = `scene3d-label ${label.kind}${marker}`;
     el.textContent = label.text;
     el.style.left = `${label.x + label.w / 2}px`;

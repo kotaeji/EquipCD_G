@@ -17,6 +17,8 @@ import type { EditFn } from './Inspector';
 import { condLabel, devName, effectLabel, runStatusLabel, sigName, unitName } from './labels';
 import { RunSummary } from './RunSummary';
 import { SfcView } from './SfcView';
+import { StatusMark } from './StatusMark';
+import { exportStatusMark, gapJudgementMark, phaseShape } from './status';
 import { Badge, QtyInput, TextInput } from './widgets';
 
 const fmt = (msv: number) => `${String(Math.floor(msv / 60000)).padStart(2, '0')}:${(Math.floor(msv / 1000) % 60).toString().padStart(2, '0')}.${(msv % 1000).toString().padStart(3, '0')}`;
@@ -29,11 +31,8 @@ function readResultUsed(p: Project, deviceId: string): boolean {
 export { fmt as fmtTime };
 
 function sequenceStatus(view: AggregateStepStatus) {
-  if (view.phase === 'done') return <Badge kind="ok">{view.label}</Badge>;
-  if (view.phase === 'active') return <Badge kind="acc">{view.label}</Badge>;
-  if (view.phase === 'error') return <Badge kind="err">{view.label}</Badge>;
-  if (view.phase === 'stopped') return <Badge kind="warn">{view.label}</Badge>;
-  return <span className="muted">{view.label}</span>;
+  const shape = phaseShape(view.phase);
+  return <StatusMark status={shape.status} word={view.label} />;
 }
 
 // ---------------- F5 Sequence ----------------
@@ -85,7 +84,7 @@ export function SequencePanel({ p, rt, locked, edit, onSelect }: { p: Project; r
                   <td className="mono">{String(i + 1).padStart(2, '0')}</td>
                   <td><span style={{ cursor: 'pointer' }} onClick={() => a && onSelect(a.deviceId)}>{s.name}</span><div className="muted mono" style={{ fontSize: 10 }}>{s.id}</div></td>
                   <td style={{ fontSize: 11 }}>{a ? `${unitName(p, a.unitId)} / ${devName(p, a.deviceId)}` : <Badge kind="err">Action 없음</Badge>}</td>
-                  <td style={{ fontSize: 11 }}>{a?.completeSignalId ? `${sigName(p, a.completeSignalId)} = true` : <Badge kind="warn">미정</Badge>}{a && a.pre.length > 0 && <div className="muted">진입: {a.pre.map((c) => condLabel(p, c)).join('; ')}</div>}</td>
+                  <td style={{ fontSize: 11 }}>{a?.completeSignalId ? `${sigName(p, a.completeSignalId)} = true` : <StatusMark status="undetermined" />}{a && a.pre.length > 0 && <div className="muted">진입: {a.pre.map((c) => condLabel(p, c)).join('; ')}</div>}</td>
                   <td>{a && <QtyInput q={s.timeoutOverride ?? a.timeout} disabled={locked} title="이 단계의 타임아웃 (Action 기본값 덮어쓰기)" onCommit={(v, as) => edit(C.setQuantity(p, { kind: 'stepTimeout', id: s.id }, v, as), '단계 타임아웃')} />}</td>
                   <td style={{ fontSize: 11 }}>{a ? effectLabel(p, a.effect) : ''}</td>
                   <td style={{ fontSize: 10 }} className="muted">{s.origin}{s.sourceText ? `: "${s.sourceText}"` : ''}</td>
@@ -256,9 +255,9 @@ export function GapPanel({ p, gaps, analyzedRevision, onReanalyze, onGo, onRevie
           {gaps.map((g) => { const r = review[g.id]; if (r?.status === 'hidden') return null; return (
             <tr key={g.id} data-jump={`gap:${g.id}`}>
               <td><Badge kind={g.safety ? 'warn' : 'acc'}>{GAP_KIND_LABEL[g.kind]}</Badge></td>
-              <td>{g.judgement === 'shortfall' ? <Badge kind="err">부족</Badge> : g.judgement === 'undetermined' ? <Badge kind="warn">미정/비교 불가</Badge> : <Badge kind="warn">사람 확인 후보</Badge>}</td>
+              <td><StatusMark status={gapJudgementMark(g.judgement).status} word={gapJudgementMark(g.judgement).word} /></td>
               <td style={{ fontSize: 12 }}>{g.title}</td>
-              <td style={{ fontSize: 11 }}>{g.evidence}{g.assumptions.length > 0 && <div className="muted">가정: {g.assumptions.join(' · ')}</div>}</td>
+              <td style={{ fontSize: 11 }}>{g.evidence}{g.assumptions.length > 0 && <div className="muted"><StatusMark status="assumption" /> {g.assumptions.join(' · ')}</div>}</td>
               <td className="mono" style={{ fontSize: 10 }}>{g.stepIds.join(', ') || '-'}</td>
               <td style={{ fontSize: 11 }}>{g.suggestion}</td>
               <td style={{ fontSize: 11 }}>{r ? ({ open: '열림', needsHuman: '사람 확인 필요', humanConfirmed: '사람 확인됨', resolved: '해결', hidden: '숨김' } as const)[r.status] : '미분석'}</td>
@@ -312,7 +311,7 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
           <tbody>{p.actions.filter((a) => a.effect.moveTo || a.effect.setState || a.effect.holder !== undefined).map((a) => <tr key={a.id}><td style={{ fontSize: 12 }}>{a.name}</td><td style={{ fontSize: 11 }}>{a.pre.map((c) => condLabel(p, c)).join('; ') || '-'}</td><td style={{ fontSize: 11 }}>{effectLabel(p, a.effect)}</td><td style={{ fontSize: 11 }}>{a.post.map((c) => condLabel(p, c)).join('; ') || '-'}</td></tr>)}</tbody></table>
         <b style={{ fontSize: 12, display: 'block', marginTop: 8 }}>Unit 수용 능력</b>
         <table className="grid"><thead><tr><th>Unit</th><th>수용 개수</th><th>허용 무게</th></tr></thead>
-          <tbody>{p.units.map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.capacity.maxMaterials.value ?? <Badge kind="warn">미정</Badge>}{u.capacity.maxMaterials.assumption ? ' (가정)' : ''}</td><td>{u.capacity.maxWeight.value ?? <Badge kind="warn">미정</Badge>} kg{u.capacity.maxWeight.assumption ? ' (가정)' : ''}</td></tr>)}</tbody></table>
+          <tbody>{p.units.map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.capacity.maxMaterials.value ?? <StatusMark status="undetermined" />}{u.capacity.maxMaterials.assumption ? <> <StatusMark status="assumption" /></> : null}</td><td>{u.capacity.maxWeight.value ?? <StatusMark status="undetermined" />} kg{u.capacity.maxWeight.assumption ? <> <StatusMark status="assumption" /></> : null}</td></tr>)}</tbody></table>
       </div>
     </div>
   );
@@ -386,7 +385,7 @@ export function ExportPanel({ p }: { p: Project }) {
       <p><button type="button" disabled title="미구현: Core 주소·스키마·역매핑이 확정되지 않았습니다">Core로 보내기</button> <span className="muted">버튼은 눌리지 않습니다. 아래 표는 이 프로젝트의 미리보기이며 전송 결과가 아닙니다.</span></p>
       <table className="grid"><thead><tr><th>분류</th><th>원본 ID</th><th>이름</th><th>목적지(후보)</th><th>상태</th><th>비고/가정</th></tr></thead>
         <tbody>{rows.map((r, i) => <tr key={i}><td>{r.category}</td><td className="mono" style={{ fontSize: 10 }}>{r.sourceId}</td><td style={{ fontSize: 12 }}>{r.name}</td><td style={{ fontSize: 11 }}>{r.target}</td>
-          <td>{r.status === 'ready' ? <Badge kind="ok">준비</Badge> : r.status === 'assumption' ? <Badge kind="warn">가정 포함</Badge> : r.status === 'notInTarget' ? <Badge>대상 없음·보관</Badge> : <Badge kind="warn">미정</Badge>}</td><td style={{ fontSize: 11 }}>{r.note}</td></tr>)}</tbody></table>
+          <td><StatusMark status={exportStatusMark(r.status).status} word={exportStatusMark(r.status).word} /></td><td style={{ fontSize: 11 }}>{r.note}</td></tr>)}</tbody></table>
     </div>
   );
 }

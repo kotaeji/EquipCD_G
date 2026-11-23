@@ -9,6 +9,8 @@ import { guideCopy, resolveBlocker, type BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
 import { devName, sigName } from './labels';
 import { fmtTime } from './Panels';
+import { StatusMark } from './StatusMark';
+import { laneShape } from './status';
 import { Badge, TextInput } from './widgets';
 
 export const STATION = 'Station';
@@ -23,9 +25,6 @@ export function SubstationSelect({ p, value, onChange }: { p: Project; value: st
   </select>;
 }
 
-const LANE_BADGE: Record<string, ['ok' | 'warn' | 'err' | 'acc' | undefined, string]> = {
-  pending: [undefined, '대기'], active: ['acc', '진행 중'], done: ['ok', '완료'], error: ['err', '오류'], stopped: ['warn', '그룹 정지'],
-};
 
 export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs }: { p: Project; unitId: string; setUnitId: (id: string) => void; locked: boolean; edit: EditFn; gs: GroupState | null }) {
   const unit = p.units.find((u) => u.id === unitId);
@@ -52,7 +51,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs }: { p
         return <section key={q.id} className="seqcard" aria-label={q.name}>
           <header className="row" style={{ gap: 6 }}>
             <TextInput value={q.name} disabled={locked} width={220} onCommit={(v) => edit(C.renameSubSequence(p, q.id, v), '시퀀스 이름')} />
-            {lane && <Badge kind={LANE_BADGE[lane.status][0]}>{LANE_BADGE[lane.status][1]}</Badge>}
+            {lane && <StatusMark status={laneShape(lane.status).status} word={laneShape(lane.status).word} />}
             <span className="grow" />
             <span className="mono muted" style={{ fontSize: 10 }}>{q.id}</span>
             <button className="small danger" disabled={locked} onClick={() => edit(C.deleteSubSequence(p, q.id), '시퀀스 삭제')} aria-label={`${q.name} 삭제`}>삭제</button>
@@ -61,8 +60,8 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs }: { p
             {q.steps.map((s, i) => { const a = p.actions.find((x) => x.id === s.actionId); const rec = lane?.steps[i]; return (
               <tr key={s.id} className={rec?.status === 'active' ? 'active' : rec?.status === 'error' ? 'err' : ''}>
                 <td className="mono">{i + 1}</td><td>{s.name}</td><td>{a ? devName(p, a.deviceId) : <Badge kind="err">Action 없음</Badge>}</td>
-                <td style={{ fontSize: 11 }}>{a?.completeSignalId ? sigName(p, a.completeSignalId) : <Badge kind="warn">미정</Badge>}</td>
-                <td className="mono">{a?.duration.value ?? '미정'}s{a?.duration.assumption ? <span className="muted"> (가정)</span> : ''}</td>
+                <td style={{ fontSize: 11 }}>{a?.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
+                <td className="mono">{a?.duration.value ?? <StatusMark status="undetermined" />}s{a?.duration.assumption ? <> <StatusMark status="assumption" /></> : null}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   <button className="small" disabled={locked || i === 0} onClick={() => edit(C.moveSubStep(p, q.id, i, i - 1), '단계 위로')} aria-label="위로">↑</button>
                   <button className="small" disabled={locked || i === q.steps.length - 1} onClick={() => edit(C.moveSubStep(p, q.id, i, i + 1), '단계 아래로')} aria-label="아래로">↓</button>
@@ -111,7 +110,7 @@ export function GroupRunPanel({ p, gs, unitId, onGoBlocker }: { p: Project; gs: 
           const q = seqs.find((x) => x.id === l.seqId); const cur = q?.steps[Math.min(l.stepIndex, (q?.steps.length ?? 1) - 1)];
           const done = l.steps.filter((s) => s.status === 'done').length;
           return <tr key={l.seqId} className={l.status === 'error' ? 'err' : l.status === 'active' ? 'active' : ''}>
-            <td>{l.name}</td><td><Badge kind={LANE_BADGE[l.status][0]}>{LANE_BADGE[l.status][1]}</Badge></td>
+            <td>{l.name}</td><td><StatusMark status={laneShape(l.status).status} word={laneShape(l.status).word} /></td>
             <td>{l.status === 'done' ? '—' : cur?.name ?? '—'}</td><td className="mono">{done}/{l.steps.length}</td><td className="mono">{l.endMs !== undefined ? fmtTime(l.endMs) : '—'}</td></tr>; })}
         {seqs.length === 0 && <tr><td colSpan={5} className="muted">이 Substation에 시퀀스가 없습니다.</td></tr>}
       </tbody></table></div>

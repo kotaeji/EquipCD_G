@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Quantity } from '../model/types';
+import { StatusMark } from './StatusMark';
 
 /** Numeric quantity editor. Empty = 미정 (null). Commits on blur / Enter. */
 export function QtyInput({ q, onCommit, disabled, title }: { q: Quantity; onCommit: (v: string, assumption: boolean) => void; disabled?: boolean; title?: string }) {
@@ -11,9 +12,10 @@ export function QtyInput({ q, onCommit, disabled, title }: { q: Quantity; onComm
       <input className="num" value={v} placeholder="미정" disabled={disabled} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       <span className="muted mono" style={{ minWidth: 30 }}>{q.unit}</span>
       <label style={{ width: 'auto', display: 'inline-flex', gap: 2, alignItems: 'center', fontSize: 11 }} className="muted">
-        <input type="checkbox" checked={q.assumption} disabled={disabled} onChange={(e) => onCommit(v, e.target.checked)} />가정
+        <input type="checkbox" checked={q.assumption} disabled={disabled} onChange={(e) => onCommit(v, e.target.checked)} />
+        {q.assumption ? <StatusMark status="assumption" /> : '가정'}
       </label>
-      {q.value === null && <span className="badge warn">미정</span>}
+      {q.value === null && <StatusMark status="undetermined" />}
     </span>
   );
 }
