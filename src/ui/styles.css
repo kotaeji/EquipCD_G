@@ -1093,3 +1093,64 @@ button.danger::before { content: "✕ "; font-weight: 700; }
 .qty.is-error input.num { border-color: var(--danger); }
 .qty-error { flex: 1 0 100%; color: var(--danger); font-size: 12px; line-height: 1.3; }
 .qty-assume { width: auto; display: inline-flex; gap: 2px; align-items: center; font-size: 11px; }
+
+/* TURN-053: command palette and shortcut sheet. Tokens only; no earlier rule changes. */
+.cmd-bg { align-items: flex-start; padding-top: 12vh; }
+.cmd-panel,
+.cmd-sheet {
+  width: min(560px, calc(100vw - var(--sp-4) * 2));
+  max-height: min(640px, calc(100vh - 96px));
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 18%, transparent);
+}
+.cmd-panel input {
+  width: 100%;
+  height: 36px;
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-md);
+}
+.cmd-list { overflow: auto; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.cmd-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: center;
+  width: 100%;
+  min-height: 36px;
+  height: auto;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  text-align: left;
+  font-size: var(--fs-md);
+}
+.cmd-row.is-active { background: var(--selected); border-color: var(--accent); }
+.cmd-name { font-weight: 650; }
+.cmd-meta { display: flex; flex-direction: column; min-width: 0; }
+.cmd-group, .cmd-reason, .cmd-hint, .cmd-empty { color: var(--muted); font-size: var(--fs-xs); }
+.cmd-reason { line-height: 1.35; }
+.cmd-row.is-dim .cmd-name,
+.cmd-row.is-dim .cmd-group,
+.cmd-row.is-dim .cmd-kbd { opacity: .45; }
+.cmd-kbd {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.cmd-hint, .cmd-empty { margin: var(--sp-2) 0 0; }
+.cmd-sheet { overflow: auto; }
+.cmd-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.cmd-sheet-head h3 { margin: 0; font-size: var(--fs-lg); }
+.cmd-sheet h4 { margin: var(--sp-3) 0 var(--sp-1); font-size: var(--fs-md); }
+.cmd-sheet table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.cmd-sheet th, .cmd-sheet td { text-align: left; padding: var(--sp-1) var(--sp-2); border-bottom: 1px solid var(--border); vertical-align: top; }
+.app > .header button.cmd-open { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0 var(--sp-2); }
+.app > .header .cmd-key { color: var(--header-muted); font-family: var(--mono); font-size: var(--fs-xs); font-weight: 500; }
