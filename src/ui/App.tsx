@@ -17,6 +17,7 @@ import { applyLabVariant, type LabReport, type LabVariant } from '../model/lab';
 import { advance, createRuntime, pause, pauseSubstation, reset, resume, resumeSubstation, runToEnd, start, type Runtime } from '../runtime/engine';
 import { activeDeviceIds as sceneActiveIds, faultDeviceIds, interlockFaultDeviceIds } from '../scene/describe';
 import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../scene/motion';
+import { diagramMotionOn } from './runDiagram';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDraft, readDraftList, saveDraft, sweepDrafts, workTimesLabel, type DraftMeta } from '../storage/drafts';
@@ -69,7 +70,7 @@ import { TAB_ICON } from './icons';
 import { FlowEditor } from './FlowEditor';
 import { Fold } from './Fold';
 import { PanelSplit } from './PanelSplit';
-import { RunConditions } from './RunConditions';
+import { RUN_SPEEDS, RunConditions } from './RunConditions';
 import { RunDetails } from './RunDetails';
 import { RunStepsPanel, RunSummaryStrip } from './RunInfoPanel';
 import { EmptyState, LoadingPlaceholder } from './EmptyState';
@@ -380,6 +381,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (!running) return;
     let last = performance.now(); let raf = 0;
     const loop = (now: number) => {
+      // One sample per frame. The diagram reads this state, so 16x does not add another clock.
       const dt = Math.min(250, now - last) * speed; last = now;
       updTab(tab.key, (t) => (t.runtime && t.runtime.state.status === 'running' ? keepRun(t, advance(t.runtime, dt)) : t));
       raf = requestAnimationFrame(loop);
@@ -1504,7 +1506,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button onClick={doStep} disabled={rt?.status !== 'paused'} title="일시정지 중 가상 0.1초 진행"><IconLabel id="step-time">+0.1s</IconLabel></button>
     <button onClick={doReset} disabled={!tab.runtime || rt?.status === 'idle'}><IconLabel id="reset" glyph="⟲ ">초기화</IconLabel></button>
     <button onClick={doToEnd} disabled={!running} title="실행 중(▶ 실행 후)에만 활성 — 남은 단계를 즉시 계산"><IconLabel id="to-end">끝까지</IconLabel></button>
-    <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{[0.25, 0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}x</option>)}</select>
+    <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{RUN_SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}</select>
     <span className="mono" style={{ minWidth: 80 }}>{fmtTime(rt?.timeMs ?? 0)}</span></>;
   const setRunView = (runView: 'diagram' | '3d') => { setHelpScope('main'); setView((v) => (v.runView === runView ? v : { ...v, runView })); };
   const runSession = `${tab.key}:${step}`;
@@ -1532,15 +1534,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button type="button" role="radio" aria-checked={view.runView === '3d'} className={view.runView === '3d' ? 'on' : ''} onClick={() => setRunView('3d')}>3D</button>
   </div>;
   const scene3d = view.runView === '3d' ? presentScene(p, rt, equipmentMotion) : null;
+  const runMotion = diagramMotionOn({ reduced: prefersReducedMotion(), emphasize: emphasizeMotion, equipment: equipmentMotion });
   const activeDeviceIds = runningIds;
   const onZoomChange = (z: number) => setView((v) => (Math.abs(v.zoom - z) < 0.001 ? v : { ...v, zoom: z }));
   const onMinimapChange = (frame: 'layout' | 'run', open: boolean) => setView((v) => (v.minimap[frame] === open ? v : { ...v, minimap: { ...v.minimap, [frame]: open } }));
   const connectNote = connectFrom ? `연결 시작: ${connectStartLabel(p, connectFrom)}. Esc로 취소합니다.` : null;
-  const runCanvasEl = <Canvas frame="run" project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
+  const runCanvasEl = <Canvas frame="run" runMotion={runMotion} project={p} rt={rt} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
-  const canvasEl = <Canvas project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
+  const canvasEl = <Canvas runMotion={runMotion} project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote}
@@ -1656,7 +1659,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   return (
     <ConfirmationGate.Provider value={requestConfirmation}>
     <TermHintsProvider value={view.termHints}>
-    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen} data-help-layout={helpPlace}>
+    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen} data-help-layout={helpPlace} data-motion={runMotion ? 'on' : 'off'}>
       <HeaderBar
         viewportWidth={viewportWidth}
         dirty={dirty}
@@ -1763,9 +1766,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
       {!guide && !view.home && step === 'library' && <div className="workspace ws-full">
         <Sub items={[['cards', '에셋 라이브러리'], ['input', '입력 후보표 (F1)'], ['aml', 'AML 입출력'], ['extract', '자료 입력']]} />
-        {sub === 'input' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="입력 후보표" /></h1><p className="muted">후보는 확인 전에 모델에 들어가지 않습니다.</p><section className="sheet wide"><InputHubPanel p={p} locked={locked} edit={edit} /></section></div>
+        {sub === 'input' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="입력 후보표" /></h1><p className="muted">후보는 확인 전에 모델에 들어가지 않습니다.</p><section className="sheet wide"><InputHubPanel p={p} locked={locked} edit={edit} onDownload={download} /></section></div>
           : sub === 'aml' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="AML 입출력 결과" /></h1><AmlResultSheet onCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /></div>
-          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="자료 입력" /></h1><ExtractSheet p={p} locked={locked} onCandidates={(next) => edit({ ok: true, project: next }, 'XLSX 후보')} onOpenCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /><Fold className="fold-panel" summary="형식 안내"><ExtractPanel /></Fold></div>
+          : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="자료 입력" /></h1><ExtractSheet p={p} locked={locked} onCandidates={(next) => edit({ ok: true, project: next }, '자료 후보')} onOpenCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /><Fold className="fold-panel" summary="형식 안내"><ExtractPanel /></Fold></div>
           : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion} detail={libDetail} setDetail={setLibDetail}
             detailWidth={view.panels.library} onDetailWidth={(n) => setPanel('library', n)}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}

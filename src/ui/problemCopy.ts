@@ -207,6 +207,18 @@ export function xlsxReadProblem(code: 'not-xlsx' | 'corrupt' | 'too-big' | 'too-
   return { tone: 'error', what: 'XLSX를 읽지 못했습니다', why, how: `엑셀에서 .xlsx로 다시 저장해 고르세요. ${kept}` };
 }
 
+export type IntakeReadCode = 'not-xlsx' | 'corrupt' | 'too-big' | 'too-many-rows' | 'not-utf8';
+
+/** CSV and paste use the same three lines. A non-UTF-8 file is not decoded into stand-in characters. */
+export function sheetReadProblem(code: IntakeReadCode, why: string, source: 'xlsx' | 'csv' = 'xlsx'): ProblemCopy {
+  const kept = '모델과 후보표는 바꾸지 않았습니다.';
+  if (code === 'not-utf8') return { tone: 'error', what: '이 파일은 UTF-8이 아닙니다', why, how: `UTF-8 로 저장해 주세요. ${kept}` };
+  if (source === 'xlsx') return xlsxReadProblem(code, why);
+  if (code === 'too-big') return { tone: 'error', what: '파일이 너무 큽니다', why, how: `크기를 줄인 뒤 다시 고르세요. ${kept}` };
+  if (code === 'too-many-rows') return { tone: 'error', what: '표가 너무 깁니다', why, how: `한 표를 5,000줄 이하로 나누세요. ${kept}` };
+  return { tone: 'error', what: '표를 읽지 못했습니다', why, how: `UTF-8 로 저장해 주세요. ${kept}` };
+}
+
 export function exportBlockedProblem(count: number): ProblemCopy {
   return {
     tone: 'error',
@@ -243,7 +255,7 @@ export const SCREEN = {
   },
   extract: {
     purpose: '자료에서 장비와 신호를 후보로 올리는 화면입니다.',
-    instead: 'XLSX(IO 리스트 · 사양표)는 이 화면에서 읽습니다. PDF · DWG · USD는 추출하지 않습니다.',
+    instead: 'XLSX와 CSV(IO 리스트 · 사양표), 그리고 엑셀에서 복사한 표는 이 화면에서 읽습니다. PDF · DWG · USD는 추출하지 않습니다.',
   },
 } as const;
 

@@ -16,6 +16,7 @@ import { type BlockerGuide } from './blockerTarget';
 import { EmptyState } from './EmptyState';
 import { BlockerCards, BlockerList, Problem } from './Problem';
 import { XlsxIntake, type XlsxIntakeProps } from './XlsxIntake';
+import { IoListExportButton } from './IoListExportButton';
 import { EMPTY, exportBlockedProblem } from './problemCopy';
 import { checkConditions, type ConditionFinding } from '../model/conditionCheck';
 import type { ConfirmationEntry } from '../model/types';
@@ -248,6 +249,7 @@ export function ExportSheet({ p, onDownload, onGuide }: {
       {ready.ok && !needsAck && <p>미정 0 · 가정 0. 확인 없이 파일을 만들 수 있습니다.</p>}
       <div className="export-actions">
         <button type="button" className="btn-main primary" data-export-create disabled={createDisabled} onClick={createFile}>Export 파일 만들기</button>
+        <IoListExportButton p={p} onDownload={onDownload} />
         <button type="button" onClick={() => fileRef.current?.click()}>Export 파일 검사</button>
         <input ref={fileRef} type="file" accept=".json,application/json" data-export-inspect style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void inspectFile(f); e.target.value = ''; }} />
       </div>

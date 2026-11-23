@@ -1,0 +1,21 @@
+/* TURN-076. Loaded by XlsxIntake. Not styles.css. */
+
+.csv-paste {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.csv-paste textarea {
+  width: 100%;
+  min-height: 6em;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.csv-paste button {
+  align-self: flex-start;
+}
