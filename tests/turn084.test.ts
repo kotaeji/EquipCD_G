@@ -86,11 +86,12 @@ describe('TURN-084 keyboard plan', () => {
     const hopped = diagramEffect({ type: 'tab', dir: 1 }, { cursor: flow.cursor, link: flow.link }, p, [], false);
     expect(hopped).toMatchObject({ type: 'link', focusId: 'U-S3' });
     const signal = diagramEffect({ type: 'signal' }, { cursor: { level: 'device', unitId: 'U-S2', id: 'BCR-02' }, link: null }, p, [], false);
-    expect(signal.type).toBe('link');
-    if (signal.type !== 'link' || signal.link.kind !== 'signal') throw new Error('signal');
-    expect(signal.link.fromSignalId).not.toBe(signal.link.targetSignalId);
-    expect(p.signals.find((s) => s.id === signal.link.fromSignalId)?.direction).toBe('out');
-    expect(p.signals.find((s) => s.id === signal.link.targetSignalId)?.direction).toBe('in');
+    if (signal.type !== 'link') throw new Error('signal');
+    const signalLink = signal.link;
+    if (signalLink.kind !== 'signal') throw new Error('signal');
+    expect(signalLink.fromSignalId).not.toBe(signalLink.targetSignalId);
+    expect(p.signals.find((s) => s.id === signalLink.fromSignalId)?.direction).toBe('out');
+    expect(p.signals.find((s) => s.id === signalLink.targetSignalId)?.direction).toBe('in');
   });
 
   it('pans a node that sits outside the pane and leaves one that is already inside', () => {
