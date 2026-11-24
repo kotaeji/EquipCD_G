@@ -100,7 +100,7 @@ TURN-047 자동 임시 저장은 검토 후보입니다. 사람 검수 전이며
 
 TURN-048 선 강조 · 작업 화면 확보는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-048.md`](docs/turns/TURN-048.md). 도면에서 고른 것과 이어진 선만 진하고 굵게 보이고, 선에 마우스를 올리면 출발 → 도착 이름이 뜹니다. 미니맵을 접을 수 있고(6단계는 처음에 접힘), 팔레트는 도면 높이가 모자랄 때만 줄을 줄입니다.
 
-TURN-049 신호 기다림 블록 · Substation 하나만 일시정지는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-049.md`](docs/turns/TURN-049.md). 흐름에 「신호 기다림」 블록(조건 + 타임아웃)을 넣을 수 있고, 타임아웃이 지나면 `WAIT_TIMEOUT` 으로 멈춥니다. 실행 중에 진행 중인 Substation 단계 하나만 멈췄다가 재개할 수 있습니다. **병렬 갈래 안에 Substation 단계를 넣을 수 있게 됐습니다**(전에는 거부 — Matthew 결정 2026-11-23). 실행 규칙 `seq-runtime/0.8.0`.
+TURN-049 신호 기다림 블록 · Substation 하나만 일시정지는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-049.md`](docs/turns/TURN-049.md). 흐름에 「신호 기다림」 블록(조건 + 타임아웃)을 넣을 수 있고, 타임아웃이 지나면 `WAIT_TIMEOUT` 으로 멈춥니다. 실행 중에 진행 중인 Substation 단계 하나만 멈췄다가 재개할 수 있습니다. **병렬 갈래 안에 Substation 단계를 넣을 수 있게 됐습니다**(전에는 거부 — Matthew 결정 2026-11-23). 실행 규칙 `seq-runtime/0.6.0`.
 
 TURN-050 물류 끌어 잇기 · 우클릭 메뉴는 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-050.md`](docs/turns/TURN-050.md). Unit 오른쪽 가운데 손잡이를 다른 Unit 으로 끌면 물류 연결이 생깁니다. 도면 · 카드 보드 · 탐색기 트리에서 우클릭(Shift+F10)하면 그 대상의 메뉴가 뜹니다. 메뉴는 이미 있는 명령만 부릅니다.
 
@@ -158,6 +158,24 @@ TURN-079 인쇄용 보기은(는) 검토 후보입니다. 사람 검수 전이�
 
 TURN-082 실행 시나리오은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-082.md`](docs/turns/TURN-082.md). 가동 조건(투입 · 오류 주입 · 배속)을 이름 붙여 저장하고 불러오며, 「시나리오 모두 실행」으로 사본에서 차례로 돌립니다.
 
+TURN-068 표 가독성 · 알림은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-068.md`](docs/turns/TURN-068.md). 표가 한 가지 모양(`ecd-table` — 숫자 · 시간은 오른쪽 정렬, 붙는 머리 줄, 긴 글은 줄임과 툴팁)을 쓰고, 알림이 정보 · 성공 · 거절의 기호와 글자로 최대 3개까지 쌓입니다. 상태 줄 「알림」에서 이번 세션의 최근 20개를 봅니다.
+
+TURN-069 헤더 정리 · 도움말 칸 겹침은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-069.md`](docs/turns/TURN-069.md). 헤더 단추가 좁은 폭에서 「더 보기」로 모이고, 1440 폭 미만에서는 도움말 칸이 작업 칸을 좁히지 않고 위에 겹쳐 열립니다.
+
+TURN-072 Substation 시퀀스 안의 흐름 블록은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-072.md`](docs/turns/TURN-072.md). Substation 시퀀스에도 분기 · 반복 · 재시도 · 신호 기다림을 넣고, Station 실행의 Substation 단계가 그 흐름대로 돕니다. 병렬과 Substation 단계는 넣을 수 없습니다. 실행 규칙 `seq-runtime/0.9.0`.
+
+TURN-080 자재 여러 종류 · 혼류 투입은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-080.md`](docs/turns/TURN-080.md). 자재 정의를 4개까지 두고 「A, A, B」 같은 순서로 섞어 투입합니다. 조건에 「자재 종류 = B」를 쓸 수 있고, 실행 요약에 종류별 생산 개수와 평균 통과 시간이 나옵니다. 실행 규칙 `seq-runtime/0.10.0`.
+
+TURN-081 저장본과 지금의 차이 보기은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-081.md`](docs/turns/TURN-081.md). 5단계 「진단·저장·AML」의 「바뀐 것」에서 저장본과 지금 모델의 추가 · 삭제 · 바뀜을 종류별 목록으로 보고, 다른 저장 프로젝트나 JSON 파일과도 견줍니다. 합치기는 없습니다.
+
+TURN-083 끝난 실행 되감아 보기은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-083.md`](docs/turns/TURN-083.md). 실행이 끝나면 6단계 도면 아래의 시간 막대로 그 실행의 어느 시각이든 도면 · 3D · 단계 표 · 신호 · 자재 위치를 다시 봅니다. 모델은 바뀌지 않습니다.
+
+TURN-084 키보드로 도면 조작은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-084.md`](docs/turns/TURN-084.md). 2단계 도면에서 Tab · Enter · Esc 로 Unit 과 Device 를 고르고, 방향키로 옮기고, `L` · `S` 로 물류 · 신호를 잇고, `+` · `-` · `0` 으로 확대 · 축소 · 맞춤을 합니다.
+
+TURN-085 화면 배치 — 넓고 좁은 화면은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-085.md`](docs/turns/TURN-085.md). 1024 폭에서는 탐색기 · 속성 칸 · 가동 조건이 접혀 시작하고 1920 폭에서는 가운데가 넓어집니다. 패널 너비 · 접힘은 폭 단계마다 따로 기억하고, 「보기 설정」의 「화면 배치 처음으로」로 되돌립니다.
+
+TURN-086 3D 보기 품질은(는) 검토 후보입니다. 사람 검수 전이며 정식 릴리스가 아닙니다. 기록은 [`docs/turns/TURN-086.md`](docs/turns/TURN-086.md). 6단계 3D 에 등각 · 위 · 앞 · 옆 시점 단추(장면에 초점이 있을 때 1~4 키), 방향 표시, 바닥 격자, 접지 그림자, 고른 Device 윤곽과 이름표 강조가 있습니다.
+
 ## 빠른 시작
 **설치 없이 보기**: 저장소의 `release/equipment-concept-designer.html` 한 파일을 내려받아 Chrome으로 엽니다(GitHub 파일 화면 → Download raw file). 로컬 정적 서버로 여는 것을 권장합니다 — 예: `npx serve release` 또는(Python 있으면) `python3 -m http.server 8766 --directory release` 후 `http://localhost:8766/equipment-concept-designer.html`. file:// 직접 열기는 Mac/Windows에서 GUI 검수하지 않았습니다.
 
@@ -206,7 +224,7 @@ React 번들·CSS·AML 라이브러리·도식·사진이 모두 인라인된 �
 ```bash
 npm ci
 npm run dev           # http://localhost:5173 (host 0.0.0.0)
-npm test              # vitest 127파일 1037개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내) + TURN-025 화면 실행 테스트의 시계 고정 + TURN-029 3D 시뮬레이션 화면(장면 설명 · 가동 조건 · WebGL 없음 안내)
+npm test              # vitest 143파일 1134개: 모델/런타임/그룹 런타임/흐름(분기·병렬·반복·재시도)/저장/AML/템플릿/AI 이미지/위저드 + jsdom UI 스모크 + 테마 대비(헤더·캔버스·미저장 칩) + React Flow 캔버스 + 라이브러리 카드 도식 + TURN-007 아이콘·구분선·접는 칸 + TURN-008 탐색기 탭·작업 정보 줄 + TURN-009 배치·연결 탭 + TURN-010 Project 탭 목록·상세 팝업 + TURN-012 도면 포트 연결 + TURN-013 Unit 크기 + TURN-014 Unit 배치 + TURN-015 헤더 마크·탭 아이콘 + TURN-016 헤더 흰 타일 + TURN-017 센서 신호 + TURN-018 실행 결과 요약 + TURN-019 다크 카드 도식 + TURN-020 공통 탐색 검색 · 준비 중 표시 + TURN-021 끌어서 고르기 · 여러 개 삭제 · Device 복제 + TURN-022 Station 흐름 + TURN-023 블록 이름 · 블록 옮기기 · 흐름 표 한 번 + TURN-024 흐름 실행 기록(갈래 정지 · 반복 안 건너뜀 · 처음 N회 안내) + TURN-025 화면 실행 테스트의 시계 고정 + TURN-029 3D 시뮬레이션 화면(장면 설명 · 가동 조건 · WebGL 없음 안내)
 npm run typecheck     # tsc --noEmit
 npm run gen:aml       # assets/aml/ecd-sample-library.aml + assets/visuals/(도식 SVG·사진·manifest) 재생성 (media-sources/ 필요)
 npm run validate:aml  # 공식 CAEX 3.0 XSD 검사 (python3 + lxml). XSD는 배포에 미포함 → 직접 받아 standards/caex3.0/에 두기(AML-SUPPORT.md). 없으면 "NOT RUN" 안내 후 종료 코드 2 → 성공 실행 시 assets/aml/xsd-report.json 갱신
