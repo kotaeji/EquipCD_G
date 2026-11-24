@@ -473,7 +473,7 @@ export function ExtendPanel() {
   return <div className="notice" data-screen-note="S44">
     <b>누락 편집 확장 — 미구현</b>
     <p>분기 · 병렬 · 반복 · 재시도 · Substation 단계는 4단계 Station 시퀀스에서 묶습니다. 이 화면은 자재 여러 개, 캐리어, 갈래 사이 동기점, 조건으로 도는 무한 반복, 세 갈래 이상 분기를 만들지 않습니다.</p>
-    <p>Station 시퀀스 단계의 시간 제한은 4단계 Station 시퀀스에서 편집합니다. Substation 시퀀스 안은 순서대로만 돕니다.</p>
+    <p>Station 시퀀스 단계의 시간 제한은 4단계 Station 시퀀스에서 편집합니다. Substation 시퀀스의 분기 · 반복 · 재시도 · 신호 기다림은 4단계 Substation 시퀀스에서 묶습니다. 그 안에 병렬과 Substation 단계는 넣지 않습니다.</p>
     <button type="button" disabled title="이 화면에서는 만들지 않습니다. 4단계 Station 시퀀스에서 묶으세요">분기 단계 추가</button>
   </div>;
 }

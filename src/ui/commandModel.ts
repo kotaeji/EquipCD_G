@@ -138,12 +138,21 @@ export const EXTRA_SHORTCUTS: readonly ExtraShortcut[] = [
   { id: 'extra-shift-drag', keys: 'Shift+끌기', name: '여러 개 고르기', where: '2단계 도면' },
   { id: 'extra-wheel', keys: '휠', name: '확대·축소', where: '도면' },
   { id: 'extra-menu', keys: 'Shift+F10', name: '우클릭 메뉴', where: '2단계 도면 · 카드 보드 · 탐색기' },
-  { id: 'extra-esc', keys: 'Esc', name: '연결 취소', where: '연결 모드' },
+  { id: 'extra-esc', keys: 'Esc', name: '연결 취소 · 도면에서 한 겹 나오기', where: '연결 모드 · 2단계 도면' },
   { id: 'extra-tree', keys: '↑ ↓ ← →', name: '트리 이동·접기', where: '탐색기' },
   { id: 'extra-ctrl-click', keys: 'Ctrl+클릭', name: '선택과 해제', where: '2단계 도면' },
   { id: 'extra-cam', keys: '← → ↑ ↓', name: '3D 카메라 돌리기', where: '6단계 3D' },
   { id: 'extra-cam-zoom', keys: '+ −', name: '3D 확대·축소', where: '6단계 3D' },
   { id: 'extra-cam-home', keys: 'Home', name: '3D 화면 맞춤', where: '6단계 3D' },
+  { id: 'extra-diagram-tab', keys: 'Tab · Shift+Tab', name: '도면의 Unit · Device 순회', where: '2단계 · 6단계 도면' },
+  { id: 'extra-diagram-enter', keys: 'Enter', name: '도면에서 Unit 안으로 · 연결 확정', where: '2단계 · 6단계 도면' },
+  { id: 'extra-diagram-nudge', keys: '← → ↑ ↓', name: '도면 격자 한 칸(10) 이동', where: '2단계 · 6단계 도면' },
+  { id: 'extra-diagram-nudge-lg', keys: 'Shift+방향키', name: '도면 큰 걸음(50) 이동', where: '2단계 · 6단계 도면' },
+  { id: 'extra-diagram-nudge-px', keys: 'Alt+방향키', name: '도면 1 이동', where: '2단계 · 6단계 도면' },
+  { id: 'extra-diagram-flow', keys: 'L', name: '물류 잇기', where: '2단계 · 6단계 도면' },
+  { id: 'extra-diagram-signal', keys: 'S', name: '신호 잇기', where: '2단계 · 6단계 도면' },
+  { id: 'extra-diagram-zoom', keys: '+ −', name: '도면 확대·축소', where: '2단계 · 6단계 도면' },
+  { id: 'extra-diagram-fit', keys: '0', name: '도면 화면 맞춤', where: '2단계 · 6단계 도면' },
 ];
 
 function unitIds(s: CommandState) {

@@ -1,0 +1,16 @@
+/* TURN-084. The keyboard target uses the same 2px ring as TURN-077.
+   A link source keeps a ring while Tab walks the other end. */
+
+.app .react-flow__node.is-kbd-target,
+.app .react-flow__node.is-kbd-source {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.statusbar .kbd-place {
+  color: var(--text);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

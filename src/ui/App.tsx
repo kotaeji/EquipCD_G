@@ -31,6 +31,10 @@ import { CommandPaletteDialog, PALETTE_LABEL, ShortcutSheet } from './CommandPal
 import { HistoryMenu } from './HistoryList';
 import type { ObjectEntry } from './objectFind';
 import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
+import {
+  burstOpen, crossingUnit, cursorPlace, diagramEffect, diagramTarget, movedPlace, NUDGE_GAP_MS, NUDGE_LABEL, nextZoom, planCanvasKey,
+  type DiagramCursor, type DiagramLink, type NudgeBurst,
+} from './canvasKeyboard';
 import { ContextMenu } from './ContextMenu';
 import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
 import { selectAll, SELECT_HINT } from './selectAll';
@@ -56,11 +60,15 @@ import { conditionsFormula, runBlockFormula } from '../model/conditionFormula';
 import type { ConditionFinding } from '../model/conditionCheck';
 import { confirmedCaption, gapConfirmationChange, normalizeConfirmerName, quantityOf } from '../model/confirmationLog';
 import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type RunDetailsTab, type UserView } from './viewSettings';
+import { captureLayout, columnWidths, patchLayout, resetLayout, restoreLayout, useLayoutWidth, viewportTooNarrow, widthTier, workColumnWidth, type LayoutSnapshot } from './layoutTier';
+import { OverflowRow } from './OverflowRow';
+import './layout-tier.css';
 import { ConfirmationGate, type ConfirmationRunner } from './confirmationGate';
 import { ConfirmerDialog } from './ConfirmerDialog';
 import { confirmationJump } from './confirmationJump';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
+import { DraftDiffToggle, ProjectDiffPanel } from './ProjectDiffView';
 import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
@@ -174,6 +182,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   useState(() => { restoreImportedAml(kv); return 0; });
   const [libVersion, setLibVersion] = useState(0);
   const [view, setView] = useState<UserView>(() => loadView(kv));
+  const layoutWidth = useLayoutWidth();
+  const tier = widthTier(layoutWidth);
+  const tooNarrow = viewportTooNarrow(layoutWidth);
+  const slice = view.layoutByTier[tier];
+  const tierRef = useRef(tier);
+  tierRef.current = tier;
+  const layoutUndo = useRef<LayoutSnapshot | null>(null);
   const [draftBoot] = useState(() => bootDrafts(kv));
   const [qlist, setQlist] = useState<QuarantineEntry[]>(() => draftBoot.quarantine);
   const [drafts, setDrafts] = useState<DraftMeta[]>(() => draftBoot.drafts);
@@ -216,6 +231,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [propsFold, setPropsFold] = useState(true);
   const [propPeek, setPropPeek] = useState(false);
   const [fitToken, setFitToken] = useState(0);
+  const [kbd, setKbd] = useState<DiagramCursor | null>(null);
+  const [kbdLink, setKbdLink] = useState<DiagramLink | null>(null);
+  const [kbdPlace, setKbdPlace] = useState('');
+  const [reveal, setReveal] = useState<{ id: string; n: number } | null>(null);
+  const kbdRef = useRef<DiagramCursor | null>(null);
+  const linkRef = useRef<DiagramLink | null>(null);
+  /** Selection ids last written by the keyboard. A pointer selection that differs drops the cursor. */
+  const kbdSelection = useRef<string[] | null>(null);
+  const revealN = useRef(0);
+  const nudgeRef = useRef<(NudgeBurst & { timer: number; token: object }) | null>(null);
+  kbdRef.current = kbd;
+  linkRef.current = kbdLink;
   const [rightTab, setRightTab] = useState('props');
   const [subTab, setSubTab] = useState<Record<StepId, string>>({ library: 'cards', canvas: '', attributes: '', sequence: 'sequence', check: 'gap', run: '' });
   const [itemsStep, setItemsStep] = useState<StepId | null>(null);
@@ -277,8 +304,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [showNames, setShowNames] = useState(true);
   const [emphasizeMotion, setEmphasizeMotion] = useState(true);
   const [equipmentMotion, setEquipmentMotion] = useState(() => equipmentMotionDefault(prefersReducedMotion()));
-  const [foldSteps, setFoldSteps] = useState(false);
-  const [foldCond, setFoldCond] = useState(false);
   const [scrub, setScrub] = useState<{ key: string; ms: number | null }>({ key: '', ms: null });
   const durationBaseline = useRef<{ sessionKey: string; depth: number; snap: DurationSnap[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -289,7 +314,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const locked = rt?.status === 'running' || rt?.status === 'paused';
   const [subUnitPref, setSubUnitPref] = useState('');
   const runMode = 'station' as const;
-  const explorerOpen = view.explorerOpen;
+  const explorerOpen = slice.explorerOpen;
   const [libDetail, setLibDetail] = useState(false);
   const [guide, setGuide] = useState<'files' | 'bundle' | 'search' | null>(null);
   const [gapFilter, setGapFilter] = useState<'all' | 'shortfall' | 'human' | 'hidden'>('all');
@@ -458,8 +483,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (next === tab.history) return;
     updTab(tab.key, (t) => ({ ...t, history: next, runtime: null }));
   };
-  const doUndo = () => { const o = undo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
-  const doRedo = () => { const o = redo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
+  const clearNudge = () => {
+    const burst = nudgeRef.current;
+    if (burst?.timer) window.clearTimeout(burst.timer);
+    nudgeRef.current = null;
+  };
+  const doUndo = () => { clearNudge(); const o = undo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
+  const doRedo = () => { clearNudge(); const o = redo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
   const doJump = (index: number) => {
     const o = jumpHistory(tab.history, index, locked);
     if (o.error) { say(o.error, true); return; }
@@ -841,6 +871,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (id === 'matchH') { runArrange(C.matchUnitSize(p, selection, 'h'), '높이 같게'); return; }
   };
 
+  // A pointer selection leaves the keyboard cursor. The owned ids stay put, so a second effect run does not drop them.
+  useEffect(() => {
+    const owned = kbdSelection.current;
+    if (owned && owned.length === selection.length && owned.every((id, i) => id === selection[i])) return;
+    kbdSelection.current = null;
+    clearNudge();
+    kbdRef.current = null;
+    linkRef.current = null;
+    setKbd(null);
+    setKbdLink(null);
+    setKbdPlace('');
+  }, [selection]);
+
   // ---------- keyboard ----------
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -885,17 +928,172 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
       if (blocked) return;
       if (typing) return;
-      if (!(e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-        const el = e.target as HTMLElement | null;
-        if (el?.closest?.('.rf-host') && !el.closest('button, input, textarea, select, a') && !view.home && !guide && step === 'canvas') {
-          const stepPx = 10;
-          const dx = e.key === 'ArrowLeft' ? -stepPx : e.key === 'ArrowRight' ? stepPx : 0;
-          const dy = e.key === 'ArrowUp' ? -stepPx : e.key === 'ArrowDown' ? stepPx : 0;
-          const lockedIds = new Set(p.units.filter((u) => u.positionLocked === true).map((u) => u.id));
-          const movable = selection.filter((id) => !lockedIds.has(id) && (p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id)));
-          if (movable.length) {
-            e.preventDefault();
-            edit(C.moveNodes(p, movable, dx, dy), '방향키 이동');
+      const host = diagramTarget(e.target);
+      const diagramOn = !!host && !view.home && !guide && (
+        (step === 'canvas' && view.layoutTab === 'diagram') || (step === 'run' && view.runView === 'diagram')
+      );
+      if (diagramOn && host) {
+        const plan = planCanvasKey(e);
+        if (plan.type !== 'pass') {
+          e.preventDefault();
+          const nav = { cursor: kbdRef.current, link: linkRef.current };
+          const fx = diagramEffect(plan, nav, p, selection, locked);
+          const focusNode = (id: string) => {
+            const safe = id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            host.querySelector<HTMLElement>(`.react-flow__node[data-id="${safe}"]`)?.focus({ preventScroll: true });
+          };
+          const revealNode = (id: string) => {
+            revealN.current += 1;
+            setReveal({ id, n: revealN.current });
+          };
+          const publish = (cursor: DiagramCursor | null, link: DiagramLink | null, place: string, selectId: string | null) => {
+            kbdRef.current = cursor;
+            linkRef.current = link;
+            setKbd(cursor);
+            setKbdLink(link);
+            setKbdPlace(place);
+            if (selectId) {
+              kbdSelection.current = [selectId];
+              setSelection([selectId]);
+              focusNode(selectId);
+              revealNode(selectId);
+            }
+          };
+          const historyNow = () => tabsRef.current.find((t) => t.key === tab.key)?.history ?? tab.history;
+          const busyNow = () => {
+            const rtNow = tabsRef.current.find((t) => t.key === tab.key)?.runtime?.state.status;
+            return rtNow === 'running' || rtNow === 'paused';
+          };
+          if (fx.type === 'cursor') publish(fx.cursor, null, fx.place, fx.focusId);
+          else if (fx.type === 'link') {
+            publish(fx.cursor, fx.link, fx.place, fx.focusId);
+            setMode(fx.mode);
+            setConnectFrom(fx.connectFrom);
+            if (fx.toast) say(fx.toast);
+          } else if (fx.type === 'cancel-link') {
+            setConnectFrom(null);
+            setMode('select');
+            publish(fx.cursor, null, fx.place, fx.cursor?.id ?? null);
+          } else if (fx.type === 'esc-top') {
+            setConnectFrom(null);
+            setMode('select');
+            publish(null, null, '', null);
+          } else if (fx.type === 'refuse') {
+            setKbdPlace(fx.place);
+            say(fx.toast, true);
+          } else if (fx.type === 'zoom') {
+            if (fx.dir === 0) { setFitToken((n) => n + 1); setKbdPlace('화면 맞춤'); }
+            else {
+              const dir = fx.dir;
+              const zoom = nextZoom(view.zoom, dir);
+              setView((v) => ({ ...v, zoom: nextZoom(v.zoom, dir) }));
+              setKbdPlace(`${dir > 0 ? '확대' : '축소'} ${Math.round(zoom * 100)}%`);
+            }
+          } else if (fx.type === 'commit-link') {
+            clearNudge();
+            const kind = fx.link.kind === 'flow' ? 'flow' as const : 'signal' as const;
+            const from = fx.link.kind === 'flow' ? fx.link.fromId : fx.link.fromSignalId;
+            const to = fx.link.kind === 'flow' ? fx.link.targetId : fx.link.targetSignalId;
+            const label = kind === 'flow' ? '물류 연결' : '신호 연결';
+            const cur = historyNow();
+            const o = applyEdit(cur, C.addConnection(cur.present, kind, from, to), label, busyNow());
+            if (o.error) sayProblem(refusal('connect', o.error));
+            else { updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); say(label + ' 추가'); }
+            setConnectFrom(null);
+            setMode('select');
+            publish(fx.cursor, null, fx.place, fx.cursor.id);
+          } else if (fx.type === 'nudge') {
+            if (fx.note) say(fx.note, true);
+            const pending = nudgeRef.current && burstOpen(nudgeRef.current, fx.ids, Date.now()) ? nudgeRef.current : null;
+            const shifted = pending ? C.moveNodes(pending.base, pending.ids, pending.dx, pending.dy) : null;
+            const viewP = shifted && shifted.ok ? shifted.project : p;
+            const only = fx.ids.length === 1 ? viewP.devices.find((d) => d.id === fx.ids[0]) : undefined;
+            const hit = only ? crossingUnit(
+              viewP.units.map((u) => ({ id: u.id, x: u.layout.x, y: u.layout.y, w: u.layout.w, h: u.layout.h })),
+              only.unitId, only.layout.x, only.layout.y, only.layout.w, only.layout.h, fx.dx, fx.dy,
+            ) : null;
+            if (only && hit) {
+              clearNudge();
+              const target = viewP.units.find((u) => u.id === hit);
+              const fromUnit = viewP.units.find((u) => u.id === only.unitId);
+              const imp = C.impactOf(viewP, only.id);
+              const key = tab.key;
+              const deviceId = only.id;
+              const applyAt = (kind: 'move' | 'reparent') => {
+                const cur = tabsRef.current.find((t) => t.key === key)?.history;
+                if (!cur) return;
+                const dev = cur.present.devices.find((d) => d.id === deviceId);
+                if (!dev) return;
+                const r = kind === 'move'
+                  ? C.moveNodes(cur.present, [deviceId], fx.dx, fx.dy)
+                  : C.reparentDevice(cur.present, deviceId, hit, { x: dev.layout.x + fx.dx, y: dev.layout.y + fx.dy });
+                const done = applyEdit(cur, r, kind === 'move' ? '이동' : 'Device 소속 변경', busyNow());
+                if (done.error) say(done.error, true);
+                else updTab(key, (t) => ({ ...t, history: done.history, runtime: null }));
+              };
+              setModal({
+                title: `${only.name}의 소속 Unit 변경?`,
+                body: <div><p>{fromUnit?.name ?? only.unitId} → <b>{target?.name ?? hit}</b> (계층 이동). 좌표 이동과 별개입니다.</p>
+                  <p>영향 Action {imp.actions.length}개: {imp.actions.map((a) => a.name).join(', ') || '없음'}</p>
+                  <p>영향 시퀀스 단계 {imp.steps.length}개: {imp.steps.map((s) => s.name).join(', ') || '없음'}</p>
+                  <p className="muted">Action의 소속 Unit도 함께 바뀝니다. 자재 이동 조건은 바뀌지 않으니 Gap 재분석을 권장합니다.</p></div>,
+                actions: [
+                  { label: '소속 변경 + 이동', primary: true, run: () => applyAt('reparent') },
+                  { label: '좌표만 이동 (소속 유지)', run: () => applyAt('move') },
+                  { label: '취소', run: () => {} },
+                ],
+              });
+              return;
+            }
+            const now = Date.now();
+            const burst = nudgeRef.current;
+            const open = burstOpen(burst, fx.ids, now);
+            let movedProject: Project | null = null;
+            if (open && burst) {
+              window.clearTimeout(burst.timer);
+              const ndx = burst.dx + fx.dx;
+              const ndy = burst.dy + fx.dy;
+              if (ndx === 0 && ndy === 0) {
+                nudgeRef.current = null;
+                updTab(tab.key, (t) => {
+                  const h = t.history;
+                  if (h.labels[h.labels.length - 1] !== NUDGE_LABEL) return t;
+                  const prev = h.past[h.past.length - 1];
+                  if (!prev) return t;
+                  return { ...t, runtime: null, history: { ...h, past: h.past.slice(0, -1), present: prev, labels: h.labels.slice(0, -1), future: [], futureLabels: [] } };
+                });
+                movedProject = burst.base;
+              } else {
+                const moved = C.moveNodes(burst.base, fx.ids, ndx, ndy);
+                if (!moved.ok) say(moved.reason, true);
+                else {
+                  nudgeRef.current = { ids: [...fx.ids], base: burst.base, dx: ndx, dy: ndy, upAt: null, timer: 0, token: burst.token };
+                  updTab(tab.key, (t) => ({ ...t, runtime: null, history: { ...t.history, present: moved.project, future: [], futureLabels: [] } }));
+                  movedProject = moved.project;
+                }
+              }
+            } else {
+              if (burst?.timer) window.clearTimeout(burst.timer);
+              const base = historyNow().present;
+              const moved = C.moveNodes(base, fx.ids, fx.dx, fx.dy);
+              const o = applyEdit(historyNow(), moved, NUDGE_LABEL, busyNow());
+              if (o.error) say(o.error, true);
+              else {
+                nudgeRef.current = { ids: [...fx.ids], base, dx: fx.dx, dy: fx.dy, upAt: null, timer: 0, token: {} };
+                updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null }));
+                movedProject = moved.ok ? moved.project : null;
+              }
+            }
+            if (movedProject) {
+              const id = fx.ids[0];
+              const unit = movedProject.units.find((u) => u.id === id);
+              const dev = movedProject.devices.find((d) => d.id === id);
+              const parent = dev ? movedProject.units.find((u) => u.id === dev.unitId) : undefined;
+              const label = unit ? unit.name : dev ? cursorPlace(parent?.name ?? dev.unitId, dev.name) : id;
+              const box = unit?.layout ?? dev?.layout;
+              if (box) setKbdPlace(movedPlace(label, box.x, box.y));
+              if (id) revealNode(id);
+            }
           }
           return;
         }
@@ -945,10 +1143,45 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         if (selectedNodeIds.length >= 2) { e.preventDefault(); requestDeleteMany(selectedNodeIds); }
         else if (selection.length === 1) { e.preventDefault(); requestDelete(selection[0]); }
       }
-      else if (e.key === 'Escape') { setConnectFrom(null); setMode('select'); }
+      else if (e.key === 'Escape') {
+        setConnectFrom(null);
+        setMode('select');
+        // A link keeps its own state. Esc cancels it even when focus has left the diagram.
+        if (linkRef.current) {
+          const fx = diagramEffect({ type: 'esc' }, { cursor: kbdRef.current, link: linkRef.current }, p, selection, locked);
+          if (fx.type === 'cancel-link') {
+            kbdRef.current = fx.cursor;
+            linkRef.current = null;
+            setKbd(fx.cursor);
+            setKbdLink(null);
+            setKbdPlace(fx.place);
+            if (fx.cursor) {
+              kbdSelection.current = [fx.cursor.id];
+              setSelection([fx.cursor.id]);
+            }
+          }
+        }
+      }
     };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
+    const up = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      const burst = nudgeRef.current;
+      if (!burst) return;
+      window.clearTimeout(burst.timer);
+      const token = {};
+      burst.upAt = Date.now();
+      burst.token = token;
+      burst.timer = window.setTimeout(() => {
+        if (nudgeRef.current?.token === token) nudgeRef.current = null;
+      }, NUDGE_GAP_MS);
+    };
+    // Capture so a diagram node cannot swallow Tab, Esc, or the arrow keys first.
+    window.addEventListener('keydown', h, true);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', h, true);
+      window.removeEventListener('keyup', up);
+    };
   });
 
   // ---------- file / workspace ----------
@@ -998,9 +1231,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const askRecovery = (id: string, draft: DraftMeta, saved: SavedStamp | null) => {
     setModal({
       title: '저장 안 된 변경이 있습니다',
-      body: saved
-        ? <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>
-        : <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 없습니다.</p>,
+      body: <div>
+        {saved
+          ? <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>
+          : <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 없습니다.</p>}
+        <DraftDiffToggle kv={kv} draftId={id} hasSaved={!!saved} />
+      </div>,
       actions: [
         { label: '복구', primary: true, focus: true, run: () => recoverInto(id, saved) },
         { label: '버리기', danger: true, run: () => dropDraft(id) },
@@ -1079,6 +1315,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <div><b>{item.draft.name}</b><div className="muted">임시 저장 {formatClock(item.draft.savedAt)} · rev {item.draft.revision}{item.saved ? ` · 저장본 rev ${item.saved.revision}` : ' · 저장본 없음'}</div></div>
           <button type="button" className="btn-main danger" aria-label={`${item.draft.name} 임시 저장 버리기`} onClick={() => { dropDraft(item.draft.id); promptDrafts(items.filter((x) => x.draft.id !== item.draft.id)); }}>버리기</button>
           <button type="button" className="btn-main primary" aria-label={`${item.draft.name} 임시 저장 복구`} onClick={() => { recoverInto(item.draft.id, item.saved); promptDrafts(items.filter((x) => x.draft.id !== item.draft.id)); }}>복구</button>
+          <DraftDiffToggle kv={kv} draftId={item.draft.id} hasSaved={!!item.saved} />
         </div>)}
       </div>,
       actions: [{ label: '나중에', focus: true, run: () => {} }],
@@ -1118,12 +1355,50 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const openExplorerTab = (id: ExplorerTab) => {
     setHelpScope('explorer');
-    setView((v) => (v.explorerTab === id && v.explorerOpen ? v : { ...v, explorerTab: id, explorerOpen: true }));
+    setView((v) => {
+      const t = tierRef.current;
+      const next = v.explorerTab === id && v.layoutByTier[t].explorerOpen ? v : { ...v, explorerTab: id };
+      return next.layoutByTier[t].explorerOpen ? next : patchLayout(next, t, { explorerOpen: true });
+    });
   };
-  const toggleExplorer = () => setView((v) => ({ ...v, explorerOpen: !v.explorerOpen }));
-  const setRunDetailsOpen = (open: boolean) => setView((v) => (v.runDetailsOpen === open ? v : { ...v, runDetailsOpen: open }));
+  const toggleExplorer = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { explorerOpen: !v.layoutByTier[t].explorerOpen });
+  });
+  const setRunDetailsOpen = (open: boolean) => setView((v) => patchLayout(v, tierRef.current, { runDetailsOpen: open }));
   const setRunDetailsTab = (id: RunDetailsTab) => setView((v) => (v.runDetailsTab === id ? v : { ...v, runDetailsTab: id }));
-  const toggleRunStrip = () => setView((v) => ({ ...v, runStripFolded: !v.runStripFolded }));
+  const toggleRunStrip = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { runStripFolded: !v.layoutByTier[t].runStripFolded });
+  });
+  const togglePropsFold = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { propsFolded: !v.layoutByTier[t].propsFolded });
+  });
+  const toggleStepsFold = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { stepsFolded: !v.layoutByTier[t].stepsFolded });
+  });
+  const toggleCondFold = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { condFolded: !v.layoutByTier[t].condFolded });
+  });
+  const resetScreenLayout = () => {
+    layoutUndo.current = captureLayout(view);
+    setView((v) => resetLayout(v));
+    notices.push({
+      kind: 'info',
+      text: '화면 배치를 처음으로 되돌렸습니다.',
+      action: {
+        label: '되돌리기',
+        run: () => {
+          const snap = layoutUndo.current;
+          layoutUndo.current = null;
+          if (snap) setView((v) => restoreLayout(v, snap));
+        },
+      },
+    });
+  };
   const openLayoutTab = (id: LayoutTab) => {
     setHelpScope('main');
     setView((v) => (v.layoutTab === id ? v : { ...v, layoutTab: id }));
@@ -1219,10 +1494,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
   const appearance = appearanceOf(view.theme);
   const themeVars = THEMES[paletteTheme(view.theme)].vars;
-  const setPanel = (key: PanelKey, n: number) => setView((v) => (v.panels[key] === n ? v : { ...v, panels: { ...v.panels, [key]: n } }));
+  const setPanel = (key: PanelKey, n: number) => setView((v) => {
+    const t = tierRef.current;
+    if (v.layoutByTier[t].panels[key] === n) return v;
+    return patchLayout(v, t, { panels: { ...v.layoutByTier[t].panels, [key]: n } });
+  });
+  const cols = columnWidths(tier, slice);
   const style = { ...Object.fromEntries(Object.entries(themeVars).map(([k, v]) => [`--${k}`, v])),
     ...statusCssVars(appearance),
-    '--exw': `${explorerOpen ? view.panels.explorer : 40}px`, '--libw': `${view.panels.library}px`, '--propw': `${view.panels.canvas}px`, '--runw': `${view.panels.run}px` } as React.CSSProperties;
+    '--exw': `${cols.explorer}px`, '--ex-panel': `${slice.panels.explorer}px`, '--libw': `${slice.panels.library}px`, '--propw': `${cols.props}px`, '--runw': `${slice.panels.run}px`,
+    '--steps-col': `${cols.steps}px`, '--cond-col': `${cols.cond}px` } as React.CSSProperties;
   const selectedId = selection.length === 1 ? selection[0] : null;
   const dirty = tab.savedRevision !== p.revision;
   const L = view.layers;
@@ -1551,7 +1832,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     </div>
   </div>;
   const explorer = <aside className={`explorer ${explorerOpen ? '' : 'collapsed'}`} aria-label="Workspace / Project 탐색기">
-    {explorerOpen && <PanelSplit kind="explorer" value={view.panels.explorer} onChange={(n) => setPanel('explorer', n)} label="탐색기 너비" />}
+    {explorerOpen && <PanelSplit kind="explorer" tier={tier} value={slice.panels.explorer} onChange={(n) => setPanel('explorer', n)} label="탐색기 너비" />}
     <div className="exhead"><button className="small icon" onClick={toggleExplorer} aria-expanded={explorerOpen} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}><IconLabel id="explorer" glyph={explorerOpen ? '⟨' : '⟩'} /></button>{explorerOpen && <b>탐색기</b>}</div>
     {explorerOpen && <Tabs label="탐색기" idBase="explorer" value={view.explorerTab} onChange={openExplorerTab} tabs={[
       { id: 'workspace', label: 'Workspace', icon: 'workspace', panel: workspacePanel },
@@ -1610,10 +1891,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const runCanvasEl = <Canvas frame="run" runMotion={runMotion} project={p} rt={shown} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
+    kbdSource={kbdLink ? (kbdLink.kind === 'flow' ? kbdLink.fromId : kbdLink.deviceId) : null}
+    kbdTarget={kbdLink ? (kbdLink.kind === 'flow' ? kbdLink.targetId : p.signals.find((s) => s.id === kbdLink.targetSignalId)?.deviceId ?? null) : kbd?.id ?? null}
+    reveal={reveal}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
   const canvasEl = <Canvas runMotion={runMotion} project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
+    kbdSource={kbdLink ? (kbdLink.kind === 'flow' ? kbdLink.fromId : kbdLink.deviceId) : null}
+    kbdTarget={kbdLink ? (kbdLink.kind === 'flow' ? kbdLink.targetId : p.signals.find((s) => s.id === kbdLink.targetSignalId)?.deviceId ?? null) : kbd?.id ?? null}
+    reveal={reveal}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote}
     backgroundPicking={bgPoints !== null}
     onBackgroundMove={(x, y) => edit(updateDiagramBackground(p, { x, y }), '배경 위치')}
@@ -1728,7 +2015,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   return (
     <ConfirmationGate.Provider value={requestConfirmation}>
     <TermHintsProvider value={view.termHints}>
-    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen} data-help-layout={helpPlace} data-motion={runMotion ? 'on' : 'off'}>
+    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen} data-help-layout={helpPlace} data-motion={runMotion ? 'on' : 'off'} data-width-tier={tier} data-narrow-warn={tooNarrow ? '1' : '0'} data-work-width={workColumnWidth(layoutWidth, tier, slice, step === 'run' ? 'run' : 'canvas')}>
+      {tooNarrow && <div className="layout-narrow-banner" role="status" data-narrow-banner="">화면이 좁습니다 — 1024 이상에서 쓰세요</div>}
       <HeaderBar
         viewportWidth={viewportWidth}
         dirty={dirty}
@@ -1760,7 +2048,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       <div className="stepper" role="navigation" aria-label="단계" data-tour="stepbar">
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
           <div key={s.id} className={`st ${on ? 'on' : ''}`} data-stepid={s.id} onClick={(e) => { if ((e.target as HTMLElement).closest('[data-step-badge]')) return; goStep(s.id); }}>
-            <button type="button" className="st-go" aria-current={on ? 'step' : undefined}>{s.no} <Terms text={s.label} /></button>
+            <button type="button" className="st-go" title={`${s.no} ${s.label}`} aria-label={`${s.no} ${s.label}`} aria-current={on ? 'step' : undefined}>{s.no} <span className="st-full"><Terms text={s.label} /></span><span className="st-short">{s.short}</span></button>
             <button type="button" className={`badge st-badge status-${WIZARD_BADGE_STATUS[b]}`} data-step-badge={s.id} data-status={WIZARD_BADGE_STATUS[b]} aria-haspopup="dialog" aria-expanded={itemsStep === s.id}
               aria-label={`${s.no} ${s.label} ${BADGE_WORD[b]}, 남은 항목 ${n}`}
               onClick={(e) => { e.stopPropagation(); toggleItems(s.id); }}
@@ -1794,7 +2082,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}><IconLabel id="close">닫기</IconLabel></button>
         <SearchSheet tabs={tabs.map((t) => ({ key: t.key, name: t.history.present.name, active: t.key === tab.key }))}
           tree={p.units.flatMap((u) => [{ id: u.id, label: u.name, depth: 0 }, ...u.deviceIds.map((id) => ({ id, label: devName(p, id), depth: 1 }))])}
-          onTab={(key) => switchTab(key)} onPick={(id) => { setSelection([id]); setGuide(null); goStep('canvas'); }} onFold={() => setView((v) => ({ ...v, explorerOpen: false }))} onCanvas={() => { setGuide(null); goStep('canvas'); }} />
+          onTab={(key) => switchTab(key)} onPick={(id) => { setSelection([id]); setGuide(null); goStep('canvas'); }} onFold={() => setView((v) => patchLayout(v, tierRef.current, { explorerOpen: false }))} onCanvas={() => { setGuide(null); goStep('canvas'); }} />
       </div></div>}
 
       {!guide && view.home && <div className="workspace home-main">
@@ -1829,7 +2117,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           : sub === 'aml' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="AML 입출력 결과" /></h1><AmlResultSheet onCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /></div>
           : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="자료 입력" /></h1><ExtractSheet p={p} locked={locked} onCandidates={(next) => edit({ ok: true, project: next }, '자료 후보')} onOpenCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /><Fold className="fold-panel" summary="형식 안내"><ExtractPanel /></Fold></div>
           : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion} detail={libDetail} setDetail={setLibDetail}
-            detailWidth={view.panels.library} onDetailWidth={(n) => setPanel('library', n)}
+            detailWidth={slice.panels.library} onDetailWidth={(n) => setPanel('library', n)}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}
             onAdd={onAddFromLibrary} onImportAml={onImportAml} onExportAml={() => download('ecd-library-export.aml', exportLibraryAml(), 'application/xml')}
             templateKv={kv} onTemplatesChanged={() => setTplTick((n) => n + 1)} onTemplateMessage={(message, err) => say(message, !!err)}
@@ -1839,11 +2127,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             }} />}
       </div>}
 
-      {!guide && !view.home && step === 'canvas' && <div className="workspace ws-canvas">
+      {!guide && !view.home && step === 'canvas' && <div className={`workspace ws-canvas ${slice.propsFolded ? 'fold-props' : ''}`}>
         <div className="stage layout-stage">
           <div className="stage-head">
             <h1 className="stage-title"><span data-tour="canvas"><Terms text="배치·연결" /></span></h1>
-            <div className="tool-pills">
+            <OverflowRow className="tool-pills">
               <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}><IconLabel id="select">선택/이동</IconLabel></button>
               <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결"><IconLabel id="mode-flow"><Terms text="물류 연결" /></IconLabel></button>
               <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트를 입력 포트로 끌어 연결합니다. 이 모드에서는 두 번 눌러서도 됩니다. 포트는 도면 도식 탭에 있습니다"><IconLabel id="mode-signal"><Terms text="신호 연결" /></IconLabel></button>
@@ -1852,7 +2140,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <label key={k}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
                   <div className="muted">숨김은 삭제가 아니고 실행에서도 빼지 않습니다.</div></div>}</div>
               <span className="zoom-pill"><span>{Math.round(view.zoom * 100)}%</span><button type="button" aria-label="축소" onClick={() => setView({ ...view, zoom: Math.max(0.5, +(view.zoom - 0.1).toFixed(2)) })}><IconLabel id="zoom-out" glyph="−" /></button><button type="button" aria-label="확대" onClick={() => setView({ ...view, zoom: Math.min(2, +(view.zoom + 0.1).toFixed(2)) })}><IconLabel id="zoom-in" glyph="+" /></button></span>
-            </div>
+            </OverflowRow>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
           {starterHintId === p.id && <div className="starter-next"><EmptyState symbol="→" line={STARTER_NEXT} attrs={{ 'data-starter-next': 'canvas' }} /></div>}
@@ -1876,8 +2164,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <p className="path-note">{p.connections.some((c) => c.kind === 'flow') ? <>{flowSummary(p)}<br /></> : null}카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 도면 도식 탭에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
               </> },
               { id: 'diagram', label: '도면 도식', icon: 'tab-diagram', panel: <>
-                <div className="diagram-tools">
-                  <p className="diagram-hint" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>물류: Unit 오른쪽 손잡이를 다른 Unit으로 끌기 · 신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
+                <OverflowRow className="diagram-tools">
+                  <p className="diagram-hint" data-overflow-keep="" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>물류: Unit 오른쪽 손잡이를 다른 Unit으로 끌기 · 신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
                   {visualToggle}
                   <button onClick={() => runArrange(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}><IconLabel id="align-left">좌 정렬</IconLabel></button>
                   <button onClick={() => runArrange(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}><IconLabel id="align-top">상 정렬</IconLabel></button>
@@ -1917,15 +2205,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                     onLockAll={(on) => edit(C.setAllUnitPositionLock(p, on), on ? '모두 잠금' : '모두 풀기')}
                   />
                   <button type="button" className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}><IconLabel id="delete">삭제</IconLabel></button>
-                </div>
+                </OverflowRow>
                 <div className="diagram-canvas">{canvasEl}</div>
               </> },
             ]} />
           </div>
         </div>
-        <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
-        <div className="right prop-col">
-          <div className="prop-body">{(() => {
+        {!slice.propsFolded && <PanelSplit kind="canvas" tier={tier} value={slice.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />}
+        <div className={`right prop-col ${slice.propsFolded ? 'is-folded' : ''}`}>
+          <div className="prop-fold-head">
+            <button type="button" className="small" aria-label={slice.propsFolded ? '속성 칸 펼치기' : '속성 칸 접기'} onClick={togglePropsFold}><IconLabel id={slice.propsFolded ? 'unfold' : 'fold'}>{slice.propsFolded ? '펼치기' : '접기'}</IconLabel></button>
+          </div>
+          {!slice.propsFolded && <div className="prop-body">{(() => {
           const d = p.devices.find((x) => x.id === selection[0]);
           const host = d ? p.units.find((u) => u.id === d.unitId) : p.units.find((u) => u.id === selection[0]);
           const def = d ? findAsset(d.kind) : undefined;
@@ -1950,7 +2241,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
             <Fold className="prop-more" summary="속성 자세히" open={propsFold} onToggle={setPropsFold}>{inspectorEl}</Fold>
           </div>;
-        })()}</div></div>
+        })()}</div>}
+        </div>
       </div>}
 
       {!guide && !view.home && step === 'attributes' && <div className="workspace ws-full ws-noTabs">
@@ -2107,7 +2399,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <h2><Terms text="Substation 시퀀스" /></h2>
             <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} confirmDelete={confirmDelete} gs={null} />
           </section>}
-          {sub === 'sfc' && <section className="sheet wide"><h2><Terms text="SFC 미리보기" /></h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · 신호 기다림 · Substation 단계를 읽기 전용으로 그립니다.</p><SfcPanel p={p} rt={rt} /></section>}
+          {sub === 'sfc' && <section className="sheet wide"><h2><Terms text="SFC 미리보기" /></h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · 신호 기다림 · Substation 단계를 읽기 전용으로 그립니다. Substation 단계는 접혀 있고, 펼치면 그 시퀀스의 흐름이 보입니다.</p><SfcPanel p={p} rt={rt} /></section>}
           {sub === 'extend' && <><ExtendSheet /><Fold className="fold-panel" summary="미구현 안내"><ExtendPanel /></Fold></>}
         </div>
       </div>}
@@ -2136,7 +2428,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />
             </Fold>
           </section>}
-          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} onJumpConfirmation={goConfirmation} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
+          {sub === 'diag' && <><ProjectDiffPanel project={p} savedRevision={tab.savedRevision} kv={storage.kv} onJump={(jump) => goItem({ level: 'optional', kind: 'gap', text: jump.field ?? jump.step, jump })} /><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} onJumpConfirmation={goConfirmation} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
           {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
           {sub === 'lab' && <LabSheet project={p} locked={locked} variants={tab.labVariants} result={tab.labResult}
             onChangeVariants={(variants) => updTab(tab.key, (t) => ({ ...t, labVariants: variants }))}
@@ -2145,19 +2437,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
       </div>}
 
-      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${foldSteps ? 'fold-steps' : ''} ${foldCond ? 'fold-cond' : ''} ${view.runStripFolded ? 'fold-strip' : ''}`} data-run-view={view.runView}>
+      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${slice.stepsFolded ? 'fold-steps' : ''} ${slice.condFolded ? 'fold-cond' : ''} ${slice.runStripFolded ? 'fold-strip' : ''}`} data-run-view={view.runView}>
         <h1 className="stage-title run-title"><Terms text={screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'} /></h1>
-        <div className="toolbar tool-pills">
+        <OverflowRow className="toolbar tool-pills">
           {runControls}<div className="sep" />{runViewToggle}<div className="sep" />
           <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
           <button className={view.visualMode === 'photo' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'photo' })} title="AI 생성 실사풍 이미지 표시 — 실제 촬영 사진 아님 (모델·연결·상태 불변)">실사풍(AI)</button>
           <div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
-          <span className="badge">실행 전 검사 {checkRunReadiness(p).ok ? '통과' : '미통과'}</span></div>
-        <RunStepsPanel p={p} rt={shown} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} onPauseSubstation={scrubbing ? undefined : doPauseSub} onResumeSubstation={scrubbing ? undefined : doResumeSub} />
+          <span className="badge">실행 전 검사 {checkRunReadiness(p).ok ? '통과' : '미통과'}</span></OverflowRow>
+        <RunStepsPanel p={p} rt={shown} selectedId={selection[0] ?? null} folded={slice.stepsFolded} onToggleFold={toggleStepsFold} onPauseSubstation={scrubbing ? undefined : doPauseSub} onResumeSubstation={scrubbing ? undefined : doResumeSub} />
         <div className="run-center">
-          <RunSummaryStrip p={p} rt={shown} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
+          <RunSummaryStrip p={p} rt={shown} folded={slice.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
           {shown?.error && (() => {
             const named = shown.error.message.match(/^\[([^\]]+)\]/)?.[1] ?? null;
             const interlockId = shown.interlockBlocks.find((row) => row.stepId === shown.error?.stepId)?.interlockId ?? shown.interlockBlocks[0]?.interlockId;
@@ -2188,11 +2480,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               : <div className="diagram-canvas">{runCanvasEl}</div>}
           </div>
           {scrubIndex && <RunScrubber totalMs={scrubIndex.totalMs} timeMs={scrubbing && scrubMs != null ? scrubMs : scrubIndex.totalMs} markers={scrubIndex.markers} scrubbing={scrubbing} onScrub={(ms) => setScrub({ key: scrubKey, ms })} />}
-          <RunDetails p={p} rt={shown} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock}
+          <RunDetails p={p} rt={shown} open={slice.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!slice.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock}
             onRun={doRun} runDisabled={running || rt?.status === 'paused'} runReason={running || rt?.status === 'paused' ? '실행 중이거나 일시정지 중입니다. 초기화한 뒤 다시 실행하세요.' : undefined} onJumpError={jumpRunError}
             logRt={scrubbing ? finishedRun?.state : undefined} scrubMs={scrubbing ? scrubMs : null} chartRt={scrubbing ? finishedRun?.state : undefined} />
         </div>
-        <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
+        <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={slice.condFolded} onToggleFold={toggleCondFold}
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
           sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} emphasizeFirst={nextBlocker} />
       </div>}
@@ -2202,6 +2494,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span>rev {p.revision}</span><span>Undo {tab.history.past.length}</span>
         <span>{runStatusBar(rt?.status)}</span>
         {locked && <span>실행 중 편집 잠금</span>}
+        <span className="kbd-place" data-kbd-place="" role="status" aria-live="polite">{kbdPlace}</span>
         <button type="button" className="small" data-notice-button="" aria-expanded={notices.open} onClick={() => notices.setOpen((v) => !v)}>알림</button>
         <span className="grow" />
         {!view.home && <>
@@ -2245,6 +2538,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           }}>{view.tourSeen ? TOUR_AGAIN : TOUR_BUTTON}</button>
         </div>
         <p className="muted">화면 {screen} · 단계 {cur.no} {cur.label} · 확대 {Math.round(view.zoom * 100)}%</p>
+        <div className="row">
+          <button type="button" className="btn-main secondary" data-layout-reset="" onClick={resetScreenLayout}>화면 배치 처음으로</button>
+        </div>
+        <p className="muted">패널 너비, 접힘, 미니맵, 팔레트, 도움말 칸 위치만 처음으로 되돌립니다. 테마와 이름 표시 같은 다른 설정은 그대로입니다. 확인 없이 바로 적용되고, 알림의 「되돌리기」로 한 번 취소할 수 있습니다.</p>
         <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn-main secondary" onClick={() => setViewOpen(false)}><IconLabel id="close">닫기</IconLabel></button></div>
       </StaticModalFrame>}
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} kind={ctx.kind} items={menuItems} returnFocus={ctx.focus} onRun={runMenu} onClose={() => setCtx(null)} />}

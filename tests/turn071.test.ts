@@ -181,13 +181,13 @@ describe('TURN-071 multi-piece flow', () => {
   });
 
   it('AC7 the same model yields the same log and the rule version is 0.7.0', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.9.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.10.0');
     const p = fed(buildFlowSampleProject(), 3, 0);
     const once = runToEnd(createRuntime(p, 'same'));
     const twice = runToEnd(createRuntime(p, 'same'));
     expect(twice.state.log).toEqual(once.state.log);
-    expect(once.state.rulesVersion).toBe('seq-runtime/0.9.0');
-    expect(once.state.log.find((l) => l.code === 'RUN_START')?.message).toContain('seq-runtime/0.9.0');
+    expect(once.state.rulesVersion).toBe('seq-runtime/0.10.0');
+    expect(once.state.log.find((l) => l.code === 'RUN_START')?.message).toContain('seq-runtime/0.10.0');
     const strip = (log: typeof once.state.log) => log.filter((l) => l.code !== 'PAUSE' && l.code !== 'RESUME');
     let stepped = start(createRuntime(p, 'same'));
     while (stepped.state.status === 'running') stepped = advance(stepped, 100);

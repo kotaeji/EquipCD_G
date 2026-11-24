@@ -29,6 +29,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/base.css';
 import './canvas-focus.css';
+import './canvas-keyboard.css';
+import { panToReveal, REVEAL_MARGIN } from './canvasKeyboard';
 import { findAsset } from '../assets/library';
 import { AI_BADGE, resolveGenerated } from '../assets/visuals';
 import { IconLabel } from './Icon';
@@ -96,6 +98,11 @@ interface Props {
   onContextMenu?: (req: ContextRequest) => void;
   /** Increments when the user asks the diagram to fit. 0 does nothing. */
   fitToken?: number;
+  /** Keyboard link ends. Null leaves the rings off. */
+  kbdSource?: string | null;
+  kbdTarget?: string | null;
+  /** Bumps when a keyboard target should be panned into the pane. */
+  reveal?: { id: string; n: number } | null;
   onUnitConnectClick: (unitId: string) => void;
   onBlocked: (msg: string) => void;
   /** Bottom-right handle released. One resizeUnit command. */
@@ -873,6 +880,7 @@ function FlowCanvas(props: Props) {
   const shown = (id: string, fallback: string): PlacedLabel => placed.get(id) ?? {
     id, kind: 'device', x: 0, y: 0, w: 0, h: 0, text: fallback, fullText: fallback, hidden: false, title: fallback,
   };
+  const kbdClass = (id: string) => ['nopan', props.kbdSource === id ? 'is-kbd-source' : '', props.kbdTarget === id ? 'is-kbd-target' : ''].filter(Boolean).join(' ');
   const nodes: Node[] = [];
   for (const u of p.units) {
     const box = boxes.find((b) => b.id === u.id)!;
@@ -885,7 +893,7 @@ function FlowCanvas(props: Props) {
       position: { x: box.x, y: box.y },
       width: box.w, height: box.h, measured: { width: box.w, height: box.h },
       draggable: false, selectable: false, connectable: false, deletable: false, focusable: L.units,
-      className: 'nopan',
+      className: kbdClass(u.id),
       data: {
         unitId: u.id, code: u.code, name: short, meta: `${u.deviceIds.length} dev · cap ${u.capacity.maxMaterials.value ?? '?'}`,
         w: box.w, h: box.h, selected, from: connectFrom === u.id,
@@ -918,7 +926,7 @@ function FlowCanvas(props: Props) {
       position: { x: d.layout.x + o.dx, y: d.layout.y + o.dy },
       width: d.layout.w, height: d.layout.h, measured: { width: d.layout.w, height: d.layout.h },
       draggable: false, selectable: false, connectable: !props.locked, deletable: false, focusable: !axisOff,
-      className: 'nopan',
+      className: kbdClass(d.id),
       data: {
         device: d, selected: selection.includes(d.id), off: axisOff, portsOff: !L.io || axisOff, locked: props.locked, tone: toneOf(d.id),
         active: deviceLive(d.id),
@@ -1111,6 +1119,25 @@ function FlowCanvas(props: Props) {
     noteUserViewport(event, vp);
   }, [noteUserViewport]);
 
+  const revealed = useRef(0);
+  useEffect(() => {
+    const token = props.reveal?.n ?? 0;
+    if (!token || token === revealed.current) return;
+    revealed.current = token;
+    const id = props.reveal?.id;
+    if (!id) return;
+    const node = getNodes().find((n) => n.id === id);
+    const host = hostRef.current;
+    if (!node || !host) return;
+    const w = node.width ?? node.measured?.width ?? 0;
+    const h = node.height ?? node.measured?.height ?? 0;
+    const pane = host.getBoundingClientRect();
+    const vp = getViewport();
+    const next = panToReveal(vp, { x: node.position.x, y: node.position.y, w, h }, { w: pane.width, h: pane.height }, REVEAL_MARGIN);
+    if (!next) return;
+    void setViewport({ x: next.x, y: next.y, zoom: vp.zoom }, { duration: 0 });
+  }, [props.reveal, getNodes, getViewport, setViewport]);
+
   const fittedToken = useRef(0);
   useEffect(() => {
     const token = props.fitToken ?? 0;
@@ -1244,7 +1271,7 @@ function FlowCanvas(props: Props) {
     };
   })();
   return (
-    <div ref={hostRef} className="rf-host" tabIndex={-1} data-mode={mode} data-frame={frame} data-run-motion={runMotion ? 'on' : 'off'} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} data-flow-drag={flowDrag ? '1' : '0'} data-label-tier={zoomTier(vpZoom)} onPointerDownCapture={onBandDown} onContextMenuCapture={openContext} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div ref={hostRef} className="rf-host" tabIndex={-1} data-mode={mode} data-frame={frame} data-run-motion={runMotion ? 'on' : 'off'} data-focus={focus.active ? '1' : '0'} data-minimap={minimapOpen ? 'open' : 'closed'} data-linking={link ? '1' : '0'} data-flow-drag={flowDrag ? '1' : '0'} data-label-tier={zoomTier(vpZoom)} data-kbd-source={props.kbdSource ?? ''} data-kbd-target={props.kbdTarget ?? ''} onPointerDownCapture={onBandDown} onContextMenuCapture={openContext} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

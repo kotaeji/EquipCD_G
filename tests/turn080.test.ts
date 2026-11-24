@@ -93,6 +93,40 @@ describe('TURN-080 several material definitions', () => {
     expect(rt.state.steps.find((s) => s.stepId === 'STEP-NG' && s.instanceId === 'MAT-B#2')?.status).toBe('skipped');
   });
 
+  it('a Substation sequence flow branches on material kind', () => {
+    const base = fed(buildParallelSampleProject(), 2, 0);
+    const added = addMaterial(base, () => 'MAT-B');
+    if (!added.ok) throw new Error(added.reason);
+    const marked = setMaterialMark(added.project, 'MAT-B', 'B');
+    if (!marked.ok) throw new Error(marked.reason);
+    const ordered = setFeedPattern(marked.project, ['MAT-P1', 'MAT-B']);
+    if (!ordered.ok) throw new Error(ordered.reason);
+    const p = ordered.project;
+    const start = p.units.find((u) => u.id === 'U-PS1')!;
+    start.capacity.maxMaterials = { ...start.capacity.maxMaterials, value: 2 };
+    const seqA = p.substationSequences!.find((q) => q.id === 'SSEQ-S1-A')!;
+    seqA.flow = [{
+      kind: 'branch', id: 'SUB-KIND', name: '종류 분기',
+      cond: { kind: 'materialType', materialId: 'MAT-B' },
+      then: [{ kind: 'step', stepId: 'SSTEP-A1' }],
+      else: [{ kind: 'step', stepId: 'SSTEP-A2' }],
+    }];
+    expect(checkRunReadiness(p).ok).toBe(true);
+    const rt = runToEnd(createRuntime(p));
+    expect(rt.state.status, rt.state.error?.message).toBe('completed');
+    const taken = rt.state.log.filter((l) => l.code === 'BRANCH_TAKEN' && l.message.includes('종류 분기')).map((l) => l.message);
+    expect(taken).toHaveLength(2);
+    expect(taken[0]).toContain('개체 1 · A');
+    expect(taken[0]).toContain(seqA.name);
+    expect(taken[0]).toContain('거짓');
+    expect(taken[1]).toContain('개체 2 · B');
+    expect(taken[1]).toContain('참');
+    expect(rt.state.steps.find((s) => s.stepId === 'SSTEP-A2' && s.instanceId === 'MAT-P1#1')?.status).toBe('done');
+    expect(rt.state.steps.find((s) => s.stepId === 'SSTEP-A1' && s.instanceId === 'MAT-P1#1')?.status).toBe('skipped');
+    expect(rt.state.steps.find((s) => s.stepId === 'SSTEP-A1' && s.instanceId === 'MAT-B#2')?.status).toBe('done');
+    expect(rt.state.steps.find((s) => s.stepId === 'SSTEP-A2' && s.instanceId === 'MAT-B#2')?.status).toBe('skipped');
+  });
+
   it('AC5 the summary and the timing rows count production and mean pass time by kind', () => {
     const mixed = withKind(fed(buildSampleProject(), 6, 0));
     const ordered = setFeedPattern(mixed, ['MAT-001', 'MAT-001', 'MAT-B']);
@@ -127,7 +161,7 @@ describe('TURN-080 several material definitions', () => {
       expect(serializeProject(opened.project)).toBe(raw);
       const rt = runToEnd(createRuntime(opened.project));
       expect(rt.state.log.some((l) => l.message.includes('종류'))).toBe(false);
-      expect(rt.state.rulesVersion).toBe('seq-runtime/0.9.0');
+      expect(rt.state.rulesVersion).toBe('seq-runtime/0.10.0');
     }
     const sample = buildSampleProject();
     const opened = parseProjectFile(serializeProject(sample));
@@ -160,16 +194,16 @@ describe('TURN-080 several material definitions', () => {
     expect(plain.materials.every((m) => m.mark == null)).toBe(true);
   });
 
-  it('AC8 the same model yields the same log and the rule version moved to 0.9.0', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.9.0');
+  it('AC8 the same model yields the same log and the rule version moved to 0.10.0', () => {
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.10.0');
     const p = withKind(fed(buildSampleProject(), 4, 1));
     const ordered = setFeedPattern(p, ['MAT-001', 'MAT-B']);
     if (!ordered.ok) throw new Error(ordered.reason);
     const a = runToEnd(createRuntime(ordered.project, 'same'));
     const b = runToEnd(createRuntime(ordered.project, 'same'));
     expect(b.state.log).toEqual(a.state.log);
-    expect(a.state.rulesVersion).toBe('seq-runtime/0.9.0');
-    expect(a.state.log.find((l) => l.code === 'RUN_START')?.message).toContain('seq-runtime/0.9.0');
+    expect(a.state.rulesVersion).toBe('seq-runtime/0.10.0');
+    expect(a.state.log.find((l) => l.code === 'RUN_START')?.message).toContain('seq-runtime/0.10.0');
   });
 
   it('refuses a fifth definition and clears a used kind only through the command', () => {

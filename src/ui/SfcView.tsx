@@ -1,5 +1,5 @@
 // Read-only SFC. Drawn 1:1 (11px text). The page scrolls when the chart is taller than the screen.
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { armLabel, branchArms } from '../model/flow';
 import type { FlowNode, Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
@@ -13,6 +13,11 @@ const GAP = 18;
 const FONT = 11;
 
 interface Block { w: number; h: number; body: (x: number, y: number) => ReactNode }
+
+interface Draw {
+  open: ReadonlySet<string>;
+  toggle: (id: string) => void;
+}
 
 function stepName(p: Project, id: string): string {
   return p.sequence.steps.find((s) => s.id === id)?.name
@@ -35,8 +40,8 @@ function arrowHead(x: number, y: number, dir: 'left' | 'up'): ReactNode {
   return <polygon points={`${x},${y} ${x - 4},${y + 8} ${x + 4},${y + 8}`} fill="var(--text)" />;
 }
 
-function layoutSeq(p: Project, nodes: FlowNode[], tone: (id: string) => StatusKey): Block {
-  const parts = nodes.map((n) => layoutNode(p, n, tone));
+function layoutSeq(p: Project, nodes: FlowNode[], tone: (id: string) => StatusKey, draw: Draw): Block {
+  const parts = nodes.map((n) => layoutNode(p, n, tone, draw));
   const w = Math.max(BOX_W, ...parts.map((b) => b.w), 40);
   const h = parts.reduce((sum, b) => sum + b.h, 0) + Math.max(0, parts.length - 1) * GAP;
   return {
@@ -54,7 +59,7 @@ function layoutSeq(p: Project, nodes: FlowNode[], tone: (id: string) => StatusKe
   };
 }
 
-function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey): Block {
+function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey, draw: Draw): Block {
   if (n.kind === 'step') {
     return { w: BOX_W, h: BOX_H, body: (x, y) => box(n.stepId, stepName(p, n.stepId), x, y, tone(n.stepId)) };
   }
@@ -62,7 +67,7 @@ function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey): B
     const arms = branchArms(n);
     const gap = 36;
     const laid = arms.map((arm, i) => arm.body.length
-      ? layoutSeq(p, arm.body, tone)
+      ? layoutSeq(p, arm.body, tone, draw)
       : { w: BOX_W, h: BOX_H, body: (x: number, y: number) => box(`empty-${n.id}-${i}`, '(빈 갈래)', x, y, 'pending') });
     const w = Math.max(BOX_W, laid.reduce((sum, b) => sum + b.w, 0) + gap * Math.max(0, laid.length - 1));
     const h = 40 + Math.max(...laid.map((b) => b.h), BOX_H) + 20;
@@ -100,27 +105,16 @@ function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey): B
       },
     };
   }
-  if (n.kind === 'parallel' || n.kind === 'substation') {
-    const lanes: FlowNode[][] = n.kind === 'parallel'
-      ? n.lanes
-      : (p.substationSequences ?? []).filter((q) => q.unitId === n.unitId).map((q) => [{ kind: 'step', stepId: q.id }]);
-    const names = n.kind === 'substation'
-      ? (p.substationSequences ?? []).filter((q) => q.unitId === n.unitId).map((q) => q.name)
-      : n.lanes.map((_, idx) => `갈래 ${idx + 1}`);
+  if (n.kind === 'substation') return layoutSubstation(p, n, tone, draw);
+  if (n.kind === 'parallel') {
+    const lanes = n.lanes;
     const laid = lanes.map((lane) => lane.length
-      ? layoutSeq(p, lane, tone)
+      ? layoutSeq(p, lane, tone, draw)
       : { w: BOX_W, h: BOX_H, body: (x: number, y: number) => box(`empty-${n.id}`, '(빈 갈래)', x, y, 'pending') });
-    if (n.kind === 'substation') {
-      laid.forEach((b, idx) => {
-        b.body = (x, y) => box(names[idx] ?? String(idx), names[idx] ?? '시퀀스', x, y, 'pending');
-        b.w = BOX_W;
-        b.h = BOX_H;
-      });
-    }
     const gap = 24;
     const w = Math.max(BOX_W, laid.reduce((s, b) => s + b.w, 0) + gap * Math.max(0, laid.length - 1));
     const h = 36 + Math.max(...laid.map((b) => b.h), BOX_H) + 20;
-    const title = n.kind === 'parallel' ? flowBlockTitle('parallel', n.name) : `Substation ${p.units.find((u) => u.id === n.unitId)?.name ?? ''}`;
+    const title = flowBlockTitle('parallel', n.name);
     return {
       w, h, body: (x, y) => {
         let xx = x;
@@ -153,7 +147,7 @@ function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey): B
       </g>,
     };
   }
-  const inner = layoutSeq(p, n.body, tone);
+  const inner = layoutSeq(p, n.body, tone, draw);
   const tag = n.kind === 'loop' ? `×${n.count}` : `최대 ${n.maxRetries}회`;
   const caption = n.kind === 'loop' ? flowBlockTitle('loop', n.name) : flowBlockTitle('retry', n.name);
   const extra = n.kind === 'loop' ? 44 : 84;
@@ -177,10 +171,66 @@ function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey): B
   };
 }
 
+function layoutSubstation(p: Project, n: Extract<FlowNode, { kind: 'substation' }>, tone: (id: string) => StatusKey, draw: Draw): Block {
+  const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === n.unitId);
+  const open = draw.open.has(n.id);
+  const names = seqs.map((q) => q.name);
+  const laid = open
+    ? seqs.map((q) => {
+      const nodes = q.flow ?? q.steps.map((s) => ({ kind: 'step' as const, stepId: s.id }));
+      return nodes.length
+        ? layoutSeq(p, nodes, tone, draw)
+        : { w: BOX_W, h: BOX_H, body: (x: number, y: number) => box(`empty-${q.id}`, '(빈 시퀀스)', x, y, 'pending') };
+    })
+    : names.map((name, idx) => ({
+      w: BOX_W,
+      h: BOX_H,
+      body: (x: number, y: number) => box(name || String(idx), name || '시퀀스', x, y, 'pending'),
+    }));
+  const gap = 24;
+  const head = 36;
+  const w = Math.max(BOX_W, laid.reduce((s, b) => s + b.w, 0) + gap * Math.max(0, laid.length - 1), 220);
+  const h = head + Math.max(...laid.map((b) => b.h), BOX_H) + (open ? 28 : 20);
+  const title = `Substation ${p.units.find((u) => u.id === n.unitId)?.name ?? ''}`;
+  const verb = open ? '접기' : '펼치기';
+  return {
+    w, h, body: (x, y) => {
+      let xx = x;
+      const bars = (yy: number) => <>
+        <line x1={x} y1={yy} x2={x + w} y2={yy} stroke="var(--text)" strokeWidth={2} />
+        <line x1={x} y1={yy + 4} x2={x + w} y2={yy + 4} stroke="var(--text)" strokeWidth={2} />
+      </>;
+      return <g data-sfc-kind="substation" data-sfc-sub={n.id} data-sfc-open={open ? '1' : '0'}>
+        <text x={x} y={y + 14} fontSize={FONT} fill="var(--text)">{title}
+          <tspan dx={10} fill="var(--text)" data-sfc-expand={n.id} role="button" tabIndex={0} style={{ cursor: 'pointer' }}
+            onClick={() => draw.toggle(n.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); draw.toggle(n.id); } }}
+          >{verb}</tspan>
+        </text>
+        {bars(y + 20)}
+        {laid.map((b, idx) => {
+          const left = xx;
+          xx += b.w + gap;
+          return <g key={names[idx] ?? idx}>
+            {open && <text x={left} y={y + 38} fontSize={FONT} fill="var(--muted)">{names[idx]}</text>}
+            {b.body(left, y + (open ? 46 : 32))}
+          </g>;
+        })}
+        {bars(y + h - 10)}
+      </g>;
+    },
+  };
+}
+
 export function SfcView({ p, rt }: { p: Project; rt: RuntimeState | null }) {
+  const [openIds, setOpenIds] = useState<string[]>([]);
+  const draw: Draw = {
+    open: new Set(openIds),
+    toggle: (id) => setOpenIds((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]),
+  };
   const flow: FlowNode[] = p.sequence.flow ?? p.sequence.steps.map((s) => ({ kind: 'step', stepId: s.id }));
   const tone = (id: string) => phaseShape(aggregateStepStatus((rt?.steps ?? []).filter((s) => s.stepId === id)).phase).status;
-  const laid = layoutSeq(p, flow, tone);
+  const laid = layoutSeq(p, flow, tone, draw);
   const h = Math.max(80, laid.h + 40);
   const w = Math.max(BOX_W + 48, laid.w + 48);
   return <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label="SFC 미리보기">

@@ -1,5 +1,5 @@
 import { getAssetById } from '../assets/library';
-import { flowIntegrity, flowShapeBlockers, laneWorkSteps, waitAdvisories, walk } from './flow';
+import { flowIntegrity, flowShapeBlockers, laneWorkSteps, sequenceRunSteps, substationFlowShapeBlockers, waitAdvisories, walk } from './flow';
 import { interlockNotices } from './interlock';
 import { checkLanes } from './laneCheck';
 import { feedCountOf, type Condition, type FlowNode, type Project } from './types';
@@ -179,8 +179,9 @@ export function checkRunReadiness(p: Project): Readiness {
       const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === n.unitId);
       const unit = p.units.find((u) => u.id === n.unitId);
       if (seqs.length === 0) blockers.push({ id: `NO_SUB_SEQUENCES:${n.id}:${blockers.length}`, severity: 'error', code: 'NO_SUB_SEQUENCES', objectId: n.unitId, message: `${unit?.name ?? n.unitId}: Substation 시퀀스가 없음 — 4 자재·시퀀스 › Substation 시퀀스에서 추가하세요` });
-      for (const d of checkLanes(p, seqs.map((q) => ({ id: q.id, name: q.name, steps: q.steps })), n.unitId).blockers) blockers.push(d);
+      for (const d of checkLanes(p, seqs.map((q) => ({ id: q.id, name: q.name, steps: sequenceRunSteps(q) })), n.unitId).blockers) blockers.push(d);
     }
   }
+  for (const d of substationFlowShapeBlockers(p)) blockers.push(d);
   return { ok: blockers.length === 0, blockers, warnings };
 }

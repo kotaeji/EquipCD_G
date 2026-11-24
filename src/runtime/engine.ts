@@ -526,6 +526,7 @@ export function resumeSubstation(rt: Runtime, nodeId: string): Runtime {
       if (fiber.active.completeAtMs !== null) fiber.active.completeAtMs += dt;
       fiber.active.timeoutAtMs += dt;
     }
+    if (fiber.holding && dt !== 0) fiber.holding.timeoutAtMs += dt;
   }
   const rest = (s.pausedSubstations ?? []).filter((item) => item.nodeId !== nodeId);
   if (rest.length) s.pausedSubstations = rest;
@@ -613,10 +614,10 @@ function beginRecord(s: RuntimeState, stepId: string, lane?: string): number {
   return s.steps.length - 1;
 }
 
-function skipTree(s: RuntimeState, nodes: FlowNode[]) {
+function skipTree(s: RuntimeState, nodes: FlowNode[], lane?: string) {
   const piece = activePiece(s);
   const pieceId = piece?.instanceId;
-  const lane = piece?.flow?.fibers[0]?.lane;
+  const rowLane = lane ?? piece?.flow?.fibers[0]?.lane;
   walk(nodes, (n) => {
     if (n.kind !== 'step') return;
     const rows = s.steps.filter((r) => r.stepId === n.stepId && (pieceId == null || r.instanceId === pieceId));
@@ -625,11 +626,13 @@ function skipTree(s: RuntimeState, nodes: FlowNode[]) {
     if (rows.some((r) => r.status === 'skipped')) return;
     if (pieceId == null) {
       const i = s.steps.findIndex((r) => r.stepId === n.stepId && r.status === 'pending');
-      if (i >= 0) s.steps[i].status = 'skipped';
-      else s.steps.push({ stepId: n.stepId, status: 'skipped' });
+      if (i >= 0) {
+        s.steps[i].status = 'skipped';
+        if (lane && !s.steps[i].lane) s.steps[i].lane = lane;
+      } else s.steps.push({ stepId: n.stepId, status: 'skipped', ...(lane ? { lane } : {}) });
       return;
     }
-    s.steps.push({ stepId: n.stepId, status: 'skipped', instanceId: pieceId, ...(lane ? { lane } : {}) });
+    s.steps.push({ stepId: n.stepId, status: 'skipped', instanceId: pieceId, ...(rowLane ? { lane: rowLane } : {}) });
   });
 }
 
@@ -672,7 +675,7 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
     if (iter < count) {
       frame.iter = iter + 1;
       frame.index = 0;
-      logAt(s, 'info', 'LOOP_ITER', `${pieceTag(p, s)}${frame.name ?? '반복'} ${frame.iter}/${count}`, frame.blockId);
+      logAt(s, 'info', 'LOOP_ITER', `${controlTag(p, s, fiber)}${frame.name ?? '반복'} ${frame.iter}/${count}`, frame.blockId);
       return;
     }
     fiber.stack.pop();
@@ -684,7 +687,7 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
     const verdict = evalCond(until, s, p);
     const used = frame.attempt ?? 0;
     const max = frame.maxRetries ?? 0;
-    const tag = pieceTag(p, s);
+    const tag = controlTag(p, s, fiber);
     if (verdict.ok) { fiber.stack.pop(); if (!top(fiber)) finishFiber(s, fiber); return; }
     if (used < max) {
       frame.attempt = used + 1;
@@ -847,7 +850,7 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
   if (node.kind === 'step') return activateFiber(p, s, fiber, node.stepId);
   if (node.kind === 'wait') return beginWait(p, s, fiber, node);
   frame.index += 1;
-  const tag = pieceTag(p, s);
+  const tag = controlTag(p, s, fiber);
   if (node.kind === 'branch') {
     const arms = branchArms(node);
     let taken = arms.length - 1;
@@ -863,7 +866,7 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
     }
     const label = armLabel(arms.length, taken);
     logAt(s, 'info', 'BRANCH_TAKEN', `${tag}${node.name} 갈래 ${taken + 1} ${label} — ${why}`, node.id);
-    arms.forEach((arm, i) => { if (i !== taken) skipTree(s, arm.body); });
+    arms.forEach((arm, i) => { if (i !== taken) skipTree(s, arm.body, fiber.owner ? fiber.lane : undefined); });
     fiber.stack.push({ role: 'seq', nodes: arms[taken].body, index: 0 });
     return 'go';
   }
@@ -886,7 +889,7 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
   if (seqs.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${tag}${unit?.name ?? node.unitId} Substation 합류`); return 'go'; }
   spawnLanes(
     p, s, fiber,
-    seqs.map((q) => q.steps.map((step) => ({ kind: 'step' as const, stepId: step.id }))),
+    seqs.map((q) => q.flow ?? q.steps.map((step) => ({ kind: 'step' as const, stepId: step.id }))),
     seqs.map((q) => q.name),
     `${tag}${unit?.name ?? node.unitId} Substation 합류`,
     { kind: 'substation', nodeId: node.id, unitId: node.unitId },
@@ -924,7 +927,11 @@ function completeFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
   if (a.completeSignalId) s.signals[a.completeSignalId] = true;
   const readFail = readIsFailing(p, s, a.id);
   const resultSig = a.kind === 'read' ? resultOf(p, a) : undefined;
-  const keepGoing = readFail && !!resultSig && !!p.sequence.flow && flowUsesSignal(p.sequence.flow, resultSig.id);
+  const ownFlow = (p.substationSequences ?? []).find((q) => q.steps.some((row) => row.id === step.id))?.flow;
+  const keepGoing = readFail && !!resultSig && (
+    (!!p.sequence.flow && flowUsesSignal(p.sequence.flow, resultSig.id))
+    || (!!ownFlow && flowUsesSignal(ownFlow, resultSig.id))
+  );
   if (a.kind === 'read' && resultSig) s.signals[resultSig.id] = !readFail;
   if (readFail && !keepGoing) {
     if (s.material && knowsFailState(p, s.material.materialId)) s.material.state = '식별실패';
@@ -1081,6 +1088,12 @@ function activePiece(s: RuntimeState): PieceRun | undefined {
 function pieceTag(p: Project, s: RuntimeState): string {
   const pc = activePiece(s);
   return pc ? `${pieceHead(p, pc.index, pc.material.materialId)} ` : '';
+}
+
+/** Substation sequence fibers already carry the sequence name (and the piece, when there are several) on `lane`. */
+function controlTag(p: Project, s: RuntimeState, fiber: FlowFiber): string {
+  if (fiber.owner?.kind === 'substation') return fiber.lane ? `${fiber.lane} ` : '';
+  return pieceTag(p, s);
 }
 
 function attachFlowPieces(pieces: PieceRun[] | null, p: Project): PieceRun[] | null {

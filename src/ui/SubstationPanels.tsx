@@ -10,14 +10,13 @@ import { BlockerList, Problem } from './Problem';
 import { EmptyState } from './EmptyState';
 import { EMPTY, runErrorProblem } from './problemCopy';
 import type { ConfirmDelete, EditFn } from './Inspector';
-import { stepDeleteDetail, stepUsage, subSequenceDeleteDetail } from '../model/deleteImpact';
-import { devName, sigName } from './labels';
+import { subSequenceDeleteDetail } from '../model/deleteImpact';
+import { devName } from './labels';
 import { fmtTime } from './Panels';
-import { Terms } from './Term';
 import { StatusMark } from './StatusMark';
 import { laneShape } from './status';
 import { Badge, TextInput } from './widgets';
-import { Clip, ECD_TABLE } from './dataTable';
+import { FlowEditor } from './FlowEditor';
 
 export const STATION = 'Station';
 export const SUBSTATION = 'Substation';
@@ -43,7 +42,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
     <div className="row wrap" style={{ gap: 'var(--sp-2)' }}>
       <b>{SUBSTATION}</b><SubstationSelect p={p} value={unitId} onChange={setUnitId} />
       <button className="primary" disabled={locked} onClick={() => edit(C.addSubSequence(p, unitId), 'Substation 시퀀스 추가')}>+ 시퀀스 추가</button>
-      <span className="muted small-text">이 Substation의 시퀀스는 Station 시퀀스에 Substation 단계를 넣으면 그 단계에서 함께 돕니다. 시퀀스 안은 순서대로입니다.</span>
+      <span className="muted small-text">이 Substation의 시퀀스는 Station 시퀀스에 Substation 단계를 넣으면 그 단계에서 함께 돕니다. 시퀀스 안의 분기 · 반복 · 재시도 · 신호 기다림은 아래 흐름 표에서 묶습니다. 병렬과 Substation 단계는 넣지 않습니다.</span>
     </div>
     {locked && <div className="notice warn">실행 중 — 조회만 가능, 시퀀스 편집 차단</div>}
     {ready && <div className={`notice ${ready.ok ? '' : 'err'}`} role="status">
@@ -63,20 +62,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
             {subSequenceDeleteDetail(p, q.id) && <span className="danger-note" data-delete-impact>{subSequenceDeleteDetail(p, q.id)}</span>}
             <button type="button" className="small danger" disabled={locked} onClick={() => { const detail = subSequenceDeleteDetail(p, q.id); const run = () => edit(C.deleteSubSequence(p, q.id), '시퀀스 삭제'); if (detail && confirmDelete) confirmDelete(`${q.name} 삭제`, detail, run); else run(); }} aria-label={`${q.name} 삭제`}>삭제</button>
           </header>
-          <table className={`grid ${ECD_TABLE}`}><thead><tr><th className="ecd-num">#</th><th>단계</th><th><Terms text="Device" /></th><th><Terms text="완료 Signal" /></th><th className="ecd-num">시간</th><th></th></tr></thead><tbody>
-            {q.steps.map((s, i) => { const a = p.actions.find((x) => x.id === s.actionId); const rec = lane?.steps[i]; return (
-              <tr key={s.id} data-jump={`step:${s.id}`} className={rec?.status === 'active' ? 'active' : rec?.status === 'error' ? 'err' : ''}>
-                <td className="mono ecd-num">{i + 1}</td><td><Clip text={s.name} /></td><td>{a ? devName(p, a.deviceId) : <Badge kind="err">Action 없음</Badge>}</td>
-                <td style={{ fontSize: 'var(--fs-xs)' }}>{a?.completeSignalId ? sigName(p, a.completeSignalId) : <StatusMark status="undetermined" />}</td>
-                <td className="mono ecd-num">{a?.duration.value ?? <StatusMark status="undetermined" />}s{a?.duration.assumption ? <> <StatusMark status="assumption" /></> : null}</td>
-                <td className="danger-row">
-                  <button className="small" disabled={locked || i === 0} onClick={() => edit(C.moveSubStep(p, q.id, i, i - 1), '단계 위로')} aria-label="위로">↑</button>
-                  <button className="small" disabled={locked || i === q.steps.length - 1} onClick={() => edit(C.moveSubStep(p, q.id, i, i + 1), '단계 아래로')} aria-label="아래로">↓</button>
-                  {stepUsage(p, s.id) && <span className="danger-note" data-delete-impact>{stepUsage(p, s.id)}</span>}
-                  <button type="button" className="small danger" disabled={locked} onClick={() => { const detail = stepDeleteDetail(p, s.id); const run = () => edit(C.removeSubStep(p, q.id, s.id), '단계 삭제'); if (detail && confirmDelete) confirmDelete(`${s.name} 삭제`, detail, run); else run(); }} aria-label="단계 삭제">삭제</button></td>
-              </tr>); })}
-            {q.steps.length === 0 && <tr><td colSpan={6} className="muted">단계 없음 — 아래에서 Action을 추가하세요 (단계 없는 시퀀스는 실행 차단)</td></tr>}
-          </tbody></table>
+          <FlowEditor p={p} rt={null} locked={locked} edit={edit} confirmDelete={confirmDelete} seqId={q.id} />
           <div className="row" style={{ gap: 'var(--sp-1)', marginTop: 'var(--sp-1)' }}>
             <select value={pick[q.id] ?? ''} disabled={locked} onChange={(e) => setPick({ ...pick, [q.id]: e.target.value })} aria-label="추가할 Action">
               <option value="">(이 Substation의 Action 선택)</option>

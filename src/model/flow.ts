@@ -323,13 +323,8 @@ function pushDiag(out: Diagnostic[], code: string, objectId: string, message: st
   out.push({ id: `${code}:${objectId}:${out.length}`, severity: 'error', code, objectId, message });
 }
 
-/** Reference integrity of `flow`. These reject a file on open. Empty arms and run conflicts are not included. */
-export function flowIntegrity(p: Project): Diagnostic[] {
-  const flow = p.sequence.flow;
-  if (!flow) return [];
-  const out: Diagnostic[] = [];
+function integrityOf(p: Project, flow: FlowNode[], stepIds: Set<string>, out: Diagnostic[], where: string): void {
   const err = (code: string, objectId: string, message: string) => pushDiag(out, code, objectId, message);
-  const stepIds = new Set(p.sequence.steps.map((s) => s.id));
   const seenStep = new Set<string>();
   const seenBlock = new Set<string>();
   const cond = (c: Condition, owner: string, label: string) => {
@@ -338,10 +333,11 @@ export function flowIntegrity(p: Project): Diagnostic[] {
     if (c.kind === 'materialHeldBy' && c.deviceId && !p.devices.some((d) => d.id === c.deviceId)) err('REF_MISSING_DEVICE', owner, `${label}: 없는 Device ${c.deviceId}`);
     if (c.kind === 'materialType' && !p.materials.some((m) => m.id === c.materialId)) err('REF_MISSING', owner, `${label}: 없는 자재 ${c.materialId}`);
   };
+  const prefix = where ? `${where} ` : '';
   walk(flow, (n) => {
     if (n.kind === 'step') {
-      if (!stepIds.has(n.stepId)) err('REF_MISSING_STEP', n.stepId, `흐름이 없는 단계 ${n.stepId} 를 가리킴`);
-      if (seenStep.has(n.stepId)) err('DUP_STEP_IN_FLOW', n.stepId, `단계 ${n.stepId} 가 흐름에 두 번 있음`);
+      if (!stepIds.has(n.stepId)) err('REF_MISSING_STEP', n.stepId, `${prefix}흐름이 없는 단계 ${n.stepId} 를 가리킴`.trim());
+      if (seenStep.has(n.stepId)) err('DUP_STEP_IN_FLOW', n.stepId, `${prefix}단계 ${n.stepId} 가 흐름에 두 번 있음`.trim());
       seenStep.add(n.stepId);
       return;
     }
@@ -352,14 +348,24 @@ export function flowIntegrity(p: Project): Diagnostic[] {
       const arms = branchArms(n);
       arms.forEach((arm, i) => {
         if (!arm.cond) return;
-        const place = arms.length > 2 ? `분기 ${n.name} ${armLabel(arms.length, i)}` : `분기 ${n.name}`;
-        cond(arm.cond, n.id, place);
+        const place = arms.length > 2 ? `${prefix}분기 ${n.name} ${armLabel(arms.length, i)}` : `${prefix}분기 ${n.name}`;
+        cond(arm.cond, n.id, place.trim());
       });
     }
-    if (n.kind === 'retry') cond(n.until, n.id, `재시도 ${n.name}`);
-    if (n.kind === 'wait') cond(n.cond, n.id, `신호 기다림 ${n.name}`);
+    if (n.kind === 'retry') cond(n.until, n.id, `${prefix}재시도 ${n.name}`.trim());
+    if (n.kind === 'wait') cond(n.cond, n.id, `${prefix}신호 기다림 ${n.name}`.trim());
     if (n.kind === 'substation' && !p.units.some((u) => u.id === n.unitId)) err('REF_MISSING_UNIT', n.id, `Substation 단계 ${n.id}: Unit ${n.unitId} 없음`);
   });
+}
+
+/** Reference integrity of `flow`. These reject a file on open. Empty arms and run conflicts are not included. */
+export function flowIntegrity(p: Project): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  if (p.sequence.flow) integrityOf(p, p.sequence.flow, new Set(p.sequence.steps.map((s) => s.id)), out, '');
+  for (const q of p.substationSequences ?? []) {
+    if (!q.flow) continue;
+    integrityOf(p, q.flow, new Set(q.steps.map((s) => s.id)), out, q.name);
+  }
   return out;
 }
 
@@ -404,6 +410,52 @@ export function flowShapeBlockers(p: Project): Diagnostic[] {
     err('FLOW_NESTING', p.sequence.id, '병렬 갈래 안에 병렬은 두지 않습니다');
   }
   return out;
+}
+
+/** Run blockers for a Substation sequence flow. Absent flow is still the flat step list. */
+export function substationFlowShapeBlockers(p: Project): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const err = (code: string, objectId: string, message: string) => pushDiag(out, code, objectId, message);
+  const cond = (c: Condition, owner: string, label: string) => {
+    if (c.kind === 'undefined') err('CONDITION_UNDEFINED', owner, `${label}: 미정 조건 "${c.note}" — 임의 true 처리 안 함`);
+  };
+  for (const q of p.substationSequences ?? []) {
+    const flow = q.flow;
+    if (!flow) continue;
+    walk(flow, (n) => {
+      if (n.kind === 'parallel') err('SUB_FLOW_REJECTED', n.id, `${q.name}: 병렬은 넣을 수 없습니다. 한 Substation의 시퀀스들이 이미 함께 돕니다`);
+      if (n.kind === 'substation') err('SUB_FLOW_REJECTED', n.id, `${q.name}: Substation 단계는 넣을 수 없습니다. 한 Substation의 시퀀스들이 이미 함께 돕니다`);
+      if (n.kind === 'branch') {
+        const arms = branchArms(n);
+        if (arms.length < 2 || arms.length > MAX_BRANCH_ARMS) err('LANE_RANGE', n.id, `${q.name} 분기 ${n.name}: 갈래는 2~${MAX_BRANCH_ARMS}개 (현재 ${arms.length})`);
+        arms.forEach((arm, i) => {
+          const place = arms.length > 2 ? `${q.name} 분기 ${n.name} ${armLabel(arms.length, i)}` : `${q.name} 분기 ${n.name}`;
+          if (arm.cond) cond(arm.cond, n.id, place);
+        });
+      }
+      if (n.kind === 'wait') {
+        cond(n.cond, n.id, `${q.name} 신호 기다림 ${n.name}`);
+        if (n.timeout.value === null || Number.isNaN(n.timeout.value)) err('WAIT_TIMEOUT_UNDEFINED', n.id, `${q.name} 신호 기다림 ${n.name}: 타임아웃 미정`);
+        else if (n.timeout.value < 0) err('WAIT_TIMEOUT_UNDEFINED', n.id, `${q.name} 신호 기다림 ${n.name}: 타임아웃은 0 이상`);
+      }
+      if (n.kind === 'retry') {
+        cond(n.until, n.id, `${q.name} 재시도 ${n.name}`);
+        if (!Number.isInteger(n.maxRetries) || n.maxRetries < 0 || n.maxRetries > DEFAULT_MAX_RETRIES) err('RETRY_RANGE', n.id, `${q.name} 재시도 ${n.name}: 추가 횟수는 0~${DEFAULT_MAX_RETRIES}`);
+        if (n.body.length === 0) err('EMPTY_BLOCK', n.id, `${q.name} 재시도 ${n.name}: 본문이 비어 있음`);
+      }
+      if (n.kind === 'loop') {
+        if (!Number.isInteger(n.count) || n.count < 1 || n.count > 10) err('LOOP_RANGE', n.id, `${q.name} 반복 ${n.name}: 횟수는 1~10`);
+        if (n.body.length === 0) err('EMPTY_BLOCK', n.id, `${q.name} 반복 ${n.name}: 본문이 비어 있음`);
+      }
+    });
+  }
+  return out;
+}
+
+/** Steps a Substation sequence actually runs. No flow means the step array, in order. */
+export function sequenceRunSteps(q: { steps: SequenceStep[]; flow?: FlowNode[] }): SequenceStep[] {
+  if (!q.flow) return q.steps;
+  return collectStepIds(q.flow).map((id) => q.steps.find((s) => s.id === id)).filter((s): s is SequenceStep => !!s);
 }
 
 /** A branch or retry condition reads this signal. Used to keep a failed read going. */
@@ -454,15 +506,35 @@ export function assumedCycleSeconds(p: Project, nodes: FlowNode[]): number {
   return rec(nodes);
 }
 
-export function substationSeconds(p: Project, unitId: string): number {
+function anyStepSeconds(p: Project, id: string): number {
+  const s = p.sequence.steps.find((x) => x.id === id)
+    ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((x) => x.id === id);
+  const a = s && p.actions.find((x) => x.id === s.actionId);
+  return a?.duration.value ?? 0;
+}
+
+function nodesSeconds(p: Project, nodes: FlowNode[], seen: Set<string>): number {
+  let t = 0;
+  for (const n of nodes) {
+    if (n.kind === 'step') t += anyStepSeconds(p, n.stepId);
+    else if (n.kind === 'branch') t += Math.max(0, ...armLists(n).map((body) => nodesSeconds(p, body, seen)));
+    else if (n.kind === 'parallel') t += n.lanes.reduce((m, lane) => Math.max(m, nodesSeconds(p, lane, seen)), 0);
+    else if (n.kind === 'loop') t += n.count * nodesSeconds(p, n.body, seen);
+    else if (n.kind === 'retry') t += nodesSeconds(p, n.body, seen);
+    else if (n.kind === 'wait') t += n.timeout.value ?? 0;
+    else if (!seen.has(n.unitId)) t += substationSeconds(p, n.unitId, seen);
+  }
+  return t;
+}
+
+export function substationSeconds(p: Project, unitId: string, seen = new Set<string>()): number {
+  if (seen.has(unitId)) return 0;
+  const next = new Set(seen);
+  next.add(unitId);
   const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === unitId);
   let max = 0;
   for (const q of seqs) {
-    let t = 0;
-    for (const s of q.steps) {
-      const a = p.actions.find((x) => x.id === s.actionId);
-      t += a?.duration.value ?? 0;
-    }
+    const t = q.flow ? nodesSeconds(p, q.flow, next) : q.steps.reduce((sum, s) => sum + anyStepSeconds(p, s.id), 0);
     if (t > max) max = t;
   }
   return max;
@@ -511,7 +583,7 @@ export function laneWorkSteps(p: Project, nodes: FlowNode[]): SequenceStep[] {
   const extra: SequenceStep[] = [];
   walk(nodes, (n) => {
     if (n.kind !== 'substation') return;
-    for (const q of (p.substationSequences ?? []).filter((seq) => seq.unitId === n.unitId)) extra.push(...q.steps);
+    for (const q of (p.substationSequences ?? []).filter((seq) => seq.unitId === n.unitId)) extra.push(...sequenceRunSteps(q));
   });
   return [...laneSteps(p, nodes), ...extra];
 }
@@ -640,22 +712,24 @@ function classifyWait(p: Project, list: FlowNode[], waitId: string, cond: Condit
 
 /** Non-blocking notices for waits nothing before or beside them can satisfy. */
 export function waitAdvisories(p: Project): Diagnostic[] {
-  const flow = p.sequence.flow;
-  if (!flow) return [];
   const out: Diagnostic[] = [];
-  walk(flow, (n) => {
-    if (n.kind !== 'wait' || n.cond.kind === 'undefined') return;
-    const flags = { before: false, parallel: false, after: false };
-    classifyWait(p, flow, n.id, n.cond, flags);
-    if (flags.before || flags.parallel) return;
-    const where = flags.after ? '이 블록 뒤에만 있습니다' : '없습니다';
-    out.push({
-      id: `WAIT_UNREACHABLE:${n.id}`,
-      severity: 'warning',
-      code: 'WAIT_UNREACHABLE',
-      objectId: n.id,
-      message: `신호 기다림 ${n.name}: 이 조건을 바꾸는 단계가 ${where}`,
+  const scan = (flow: FlowNode[], title: (name: string) => string) => {
+    walk(flow, (n) => {
+      if (n.kind !== 'wait' || n.cond.kind === 'undefined') return;
+      const flags = { before: false, parallel: false, after: false };
+      classifyWait(p, flow, n.id, n.cond, flags);
+      if (flags.before || flags.parallel) return;
+      const where = flags.after ? '이 블록 뒤에만 있습니다' : '없습니다';
+      out.push({
+        id: `WAIT_UNREACHABLE:${n.id}`,
+        severity: 'warning',
+        code: 'WAIT_UNREACHABLE',
+        objectId: n.id,
+        message: `${title(n.name)}: 이 조건을 바꾸는 단계가 ${where}`,
+      });
     });
-  });
+  };
+  if (p.sequence.flow) scan(p.sequence.flow, (name) => `신호 기다림 ${name}`);
+  for (const q of p.substationSequences ?? []) if (q.flow) scan(q.flow, (name) => `${q.name} 신호 기다림 ${name}`);
   return out;
 }

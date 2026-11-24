@@ -54,15 +54,33 @@ export function isParallelLaneBlocker(b: { objectId: string; message?: string })
   return b.objectId === 'parallel' || (b.message ?? '').includes('갈래');
 }
 
+/** Station flow, or the Substation sequence whose flow holds this block. */
+export function flowBlockOwner(p: Project, blockId: string): 'station' | SubstationSequence | null {
+  if (p.sequence.flow && findById(p.sequence.flow, blockId)) return 'station';
+  return (p.substationSequences ?? []).find((q) => q.flow && findById(q.flow, blockId)) ?? null;
+}
+
+function flowsOf(p: Project) {
+  return [p.sequence.flow, ...(p.substationSequences ?? []).map((q) => q.flow)].filter((flow): flow is NonNullable<typeof flow> => !!flow);
+}
+
 /** Flow-table field for a branch arm named in the blocker, or the branch header when the arm is the two-way condition. */
 export function branchArmField(p: Project, b: { objectId: string; message?: string }): string | null {
-  const flow = p.sequence.flow;
-  if (!flow) return null;
-  const hit = findById(flow, b.objectId);
+  let hit: ReturnType<typeof findById> = null;
+  for (const flow of flowsOf(p)) {
+    hit = findById(flow, b.objectId);
+    if (hit) break;
+  }
   if (!hit || hit.node.kind !== 'branch') return null;
   const match = /갈래 (\d+)/.exec(b.message ?? '');
   if (!match) return `flow:${b.objectId}`;
   return `flow:${b.objectId}:arm:${Number(match[1]) - 1}`;
+}
+
+function subFlowGuide(p: Project, objectId: string, field: string): BlockerGuide | null {
+  const owner = flowBlockOwner(p, objectId);
+  if (!owner || owner === 'station') return null;
+  return { kind: 'fix', dest: SUBSEQ, field, focus: { id: owner.unitId, kind: 'unit' } };
 }
 
 export function resolveBlocker(p: Project, b: { code: string; objectId: string; message?: string }, all: readonly Pick<Diagnostic, 'code' | 'objectId'>[]): BlockerGuide {
@@ -76,14 +94,14 @@ export function resolveBlocker(p: Project, b: { code: string; objectId: string; 
       return { kind: 'fix', dest: laneDest };
     case 'EMPTY_LANE': case 'LANE_RANGE': {
       const field = branchArmField(p, b);
-      if (field) return { kind: 'fix', dest: STATION_SEQ, field };
+      if (field) return subFlowGuide(p, b.objectId, field) ?? { kind: 'fix', dest: STATION_SEQ, field };
       return { kind: 'fix', dest: laneDest };
     }
     case 'NO_COMPLETE_SIGNAL': case 'DURATION_UNDEFINED': case 'TIMEOUT_UNDEFINED': case 'CAPACITY_UNDEFINED':
       return resolveStepValue(p, b, all);
     case 'CONDITION_UNDEFINED': {
       const field = branchArmField(p, b);
-      if (field) return { kind: 'fix', dest: STATION_SEQ, field };
+      if (field) return subFlowGuide(p, b.objectId, field) ?? { kind: 'fix', dest: STATION_SEQ, field };
       return resolveStepValue(p, b, all);
     }
     case 'MATERIAL_COUNT':
@@ -94,7 +112,13 @@ export function resolveBlocker(p: Project, b: { code: string; objectId: string; 
     case 'MULTI_FLOW':
       return { kind: 'inspect', dest: STATION_SEQ, note: '투입 개수 2 이상은 흐름(분기·병렬·반복·재시도·신호 기다림·Substation) 없이 순차 시퀀스만 실행합니다.' };
     case 'WAIT_TIMEOUT_UNDEFINED':
-      return { kind: 'fix', dest: STATION_SEQ, field: `flow:${b.objectId}` };
+      return subFlowGuide(p, b.objectId, `flow:${b.objectId}`) ?? { kind: 'fix', dest: STATION_SEQ, field: `flow:${b.objectId}` };
+    case 'EMPTY_BLOCK': case 'LOOP_RANGE': case 'RETRY_RANGE': case 'SUB_FLOW_REJECTED': {
+      const guide = subFlowGuide(p, b.objectId, `flow:${b.objectId}`);
+      if (guide) return guide;
+      if (code === 'SUB_FLOW_REJECTED') return { kind: 'fix', dest: SUBSEQ, field: `flow:${b.objectId}` };
+      return { kind: 'inspect', dest: CHECK, note: '정해진 수정 위치가 없는 차단입니다' };
+    }
     case 'NO_SUBSTATION':
       return { kind: 'inspect', dest: CHECK, note: '선택된 Substation을 찾을 수 없습니다 — 6단계 Substation 목록에서 다시 선택하세요' };
     default:
