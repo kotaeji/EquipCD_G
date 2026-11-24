@@ -60,6 +60,7 @@ import { ConfirmerDialog } from './ConfirmerDialog';
 import { confirmationJump } from './confirmationJump';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
+import { DraftDiffToggle, ProjectDiffPanel } from './ProjectDiffView';
 import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
@@ -997,9 +998,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const askRecovery = (id: string, draft: DraftMeta, saved: SavedStamp | null) => {
     setModal({
       title: '저장 안 된 변경이 있습니다',
-      body: saved
-        ? <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>
-        : <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 없습니다.</p>,
+      body: <div>
+        {saved
+          ? <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>
+          : <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 없습니다.</p>}
+        <DraftDiffToggle kv={kv} draftId={id} hasSaved={!!saved} />
+      </div>,
       actions: [
         { label: '복구', primary: true, focus: true, run: () => recoverInto(id, saved) },
         { label: '버리기', danger: true, run: () => dropDraft(id) },
@@ -1078,6 +1082,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <div><b>{item.draft.name}</b><div className="muted">임시 저장 {formatClock(item.draft.savedAt)} · rev {item.draft.revision}{item.saved ? ` · 저장본 rev ${item.saved.revision}` : ' · 저장본 없음'}</div></div>
           <button type="button" className="btn-main danger" aria-label={`${item.draft.name} 임시 저장 버리기`} onClick={() => { dropDraft(item.draft.id); promptDrafts(items.filter((x) => x.draft.id !== item.draft.id)); }}>버리기</button>
           <button type="button" className="btn-main primary" aria-label={`${item.draft.name} 임시 저장 복구`} onClick={() => { recoverInto(item.draft.id, item.saved); promptDrafts(items.filter((x) => x.draft.id !== item.draft.id)); }}>복구</button>
+          <DraftDiffToggle kv={kv} draftId={item.draft.id} hasSaved={!!item.saved} />
         </div>)}
       </div>,
       actions: [{ label: '나중에', focus: true, run: () => {} }],
@@ -2134,7 +2139,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />
             </Fold>
           </section>}
-          {sub === 'diag' && <><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} onJumpConfirmation={goConfirmation} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
+          {sub === 'diag' && <><ProjectDiffPanel project={p} savedRevision={tab.savedRevision} kv={storage.kv} onJump={(jump) => goItem({ level: 'optional', kind: 'gap', text: jump.field ?? jump.step, jump })} /><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} onJumpConfirmation={goConfirmation} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
           {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
           {sub === 'lab' && <LabSheet project={p} locked={locked} variants={tab.labVariants} result={tab.labResult}
             onChangeVariants={(variants) => updTab(tab.key, (t) => ({ ...t, labVariants: variants }))}
