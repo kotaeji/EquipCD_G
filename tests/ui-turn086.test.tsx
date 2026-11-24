@@ -75,7 +75,8 @@ describe('TURN-086 3D view controls', () => {
     expect(stage().getAttribute('data-viewpoint')).toBe('iso');
     expect(stage().getAttribute('data-camera-yaw')).toBe('0.700');
     await ui.click(ui.el.querySelector('[aria-label="시점 위"]')!);
-    expect(stage().getAttribute('data-camera-pitch')).toBe('1.350');
+    expect(stage().getAttribute('data-camera-yaw')).toBe('0.000');
+    expect(stage().getAttribute('data-camera-pitch')).toBe('1.500');
     expect(stage().getAttribute('data-viewpoint')).toBe('top');
     expect(loadView(localStorage).sceneViewpoint).toBe('top');
     const host = stage() as HTMLElement;
@@ -113,7 +114,7 @@ describe('TURN-086 3D view controls', () => {
       await vi.advanceTimersByTimeAsync(VIEW_WAIT);
       draw();
     });
-    expect(stage().getAttribute('data-camera-pitch')).toBe('1.350');
+    expect(stage().getAttribute('data-camera-pitch')).toBe('1.500');
   });
 
   it('AC2 the compass follows the camera and a click goes to that side', async () => {

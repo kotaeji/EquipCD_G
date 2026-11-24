@@ -1,4 +1,18 @@
 /* TURN-086. Viewpoint buttons, compass, grid numbers, selected name. Tokens only. */
+/* The 28px bar clipped the 28px buttons under the canvas. Keep a full row above the scene. */
+.run-stage > .scene3d-bar {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: calc(28px + var(--sp-1) * 2);
+  padding: var(--sp-1) var(--sp-2);
+  position: relative;
+  z-index: 2;
+}
+.run-stage > .scene3d-bar button {
+  height: 28px;
+  line-height: 20px;
+  padding: 0 var(--sp-2);
+}
 .scene3d-views {
   display: flex;
   align-items: center;

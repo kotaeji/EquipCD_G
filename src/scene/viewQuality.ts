@@ -28,7 +28,8 @@ export interface ViewpointAngles { yaw: number; pitch: number }
 /** yaw 0 looks from +z (앞). pitch is radians above the floor, capped like orbit. */
 const POSE: Record<SceneViewpoint, ViewpointAngles> = {
   iso: { yaw: 0.7, pitch: 0.62 },
-  top: { yaw: 0.7, pitch: 1.35 },
+  /** yaw 0 matches the diagram's front. Pitch stays short of straight down so the view basis stays defined. */
+  top: { yaw: 0, pitch: 1.5 },
   front: { yaw: 0, pitch: 0.42 },
   side: { yaw: Math.PI / 2, pitch: 0.42 },
   back: { yaw: Math.PI, pitch: 0.42 },

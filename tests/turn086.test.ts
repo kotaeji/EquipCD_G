@@ -39,6 +39,9 @@ describe('TURN-086 viewpoint math', () => {
     expect(compassRotationDeg(Math.PI / 2)).toBeCloseTo(270, 3);
     expect(compassRotationDeg(0.7)).not.toBe(compassRotationDeg(0));
     expect(COMPASS_POINTS.map((item) => item.label)).toEqual(['앞', '우', '뒤', '좌']);
+    expect(viewpointAngles('top').yaw).toBe(0);
+    expect(viewpointAngles('top').pitch).toBeGreaterThan(1.45);
+    expect(viewpointAngles('top').pitch).toBeLessThan(Math.PI / 2);
     expect(viewpointAngles('front').yaw).toBe(0);
     expect(viewpointAngles('back').yaw).toBeCloseTo(Math.PI);
     expect(viewpointAngles('left').yaw).toBeCloseTo(-Math.PI / 2);
