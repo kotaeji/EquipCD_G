@@ -2105,7 +2105,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             <h2><Terms text="Substation 시퀀스" /></h2>
             <SubSequencePanel p={p} unitId={subUnitId} setUnitId={(id) => setSubUnitPref(id)} locked={locked} edit={edit} confirmDelete={confirmDelete} gs={null} />
           </section>}
-          {sub === 'sfc' && <section className="sheet wide"><h2><Terms text="SFC 미리보기" /></h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · 신호 기다림 · Substation 단계를 읽기 전용으로 그립니다.</p><SfcPanel p={p} rt={rt} /></section>}
+          {sub === 'sfc' && <section className="sheet wide"><h2><Terms text="SFC 미리보기" /></h2><p className="muted">분기 · 병렬 · 반복 · 재시도 · 신호 기다림 · Substation 단계를 읽기 전용으로 그립니다. Substation 단계는 접혀 있고, 펼치면 그 시퀀스의 흐름이 보입니다.</p><SfcPanel p={p} rt={rt} /></section>}
           {sub === 'extend' && <><ExtendSheet /><Fold className="fold-panel" summary="미구현 안내"><ExtendPanel /></Fold></>}
         </div>
       </div>}
