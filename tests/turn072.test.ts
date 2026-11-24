@@ -139,7 +139,7 @@ describe('TURN-072 substation sequence flow', () => {
 
   it('AC5 samples without a Substation flow keep their time, log shape, and file bytes', () => {
     expect(FILE_FORMAT_VERSION).toBe('0.3.0');
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.9.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.10.0');
     const times = [buildSampleProject(), buildParallelSampleProject(), buildFlowSampleProject()].map((p) => runToEnd(createRuntime(p)).state.timeMs);
     expect(times).toEqual([11100, 2500, 13100]);
     for (const build of [buildSampleProject, buildParallelSampleProject, buildFlowSampleProject]) {
@@ -153,7 +153,7 @@ describe('TURN-072 substation sequence flow', () => {
     }
     const plain = runToEnd(createRuntime(buildParallelSampleProject()));
     expect(plain.state.log.some((l) => l.code === 'BRANCH_TAKEN' || l.code === 'LOOP_ITER' || l.code === 'RETRY')).toBe(false);
-    expect(plain.state.log.find((l) => l.code === 'RUN_START')?.message).toContain('seq-runtime/0.9.0');
+    expect(plain.state.log.find((l) => l.code === 'RUN_START')?.message).toContain('seq-runtime/0.10.0');
     const twice = runToEnd(createRuntime(buildParallelSampleProject()));
     expect(twice.state.log).toEqual(plain.state.log);
   });

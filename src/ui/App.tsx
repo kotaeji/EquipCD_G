@@ -49,6 +49,7 @@ import { deviceDisplayStatus, gapJudgementMark, ITEM_LEVEL_STATUS, statusCssVars
 import { BADGE_MARK, BADGE_WORD, evaluateSteps, stepBadge, STEPS, type StepId, type StepItem } from './wizard';
 import { connectStartLabel, devName, runStatusBar, runStatusLabel, unitName } from './labels';
 import { QtyInput, TextInput } from './widgets';
+import { MaterialMix } from './MaterialMix';
 import { DiagPanel, ExportPanel, ExtendPanel, ExtractPanel, fmtTime, GapPanel, InputHubPanel, MaterialPanel, RunGapSection, SequencePanel, SfcPanel } from './Panels';
 import { PaletteIcon } from './Symbols';
 import { PaletteTemplateGroup, SaveTemplateDialog } from './UserTemplates';
@@ -2382,6 +2383,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <label data-jump={`material:${p.materials[0].id}:weight`}>무게<span className="field-ro">{p.materials[0].weight.value ?? '미정'} {p.materials[0].weight.unit}{p.materials[0].weight.assumption ? ' · 가정' : ''}{qtyNote(p, { kind: 'material', id: p.materials[0].id, field: 'weight' }) && <span className="confirm-note" data-confirm-note>{qtyNote(p, { kind: 'material', id: p.materials[0].id, field: 'weight' })}</span>}</span></label>
                 <label>Unit 경로<span className="field-ro">{routeText(p)}</span></label>
               </div> : <EmptyState symbol="○" line={EMPTY.materials} actions={[{ label: '자재 추가', disabled: locked, reason: locked ? RUN_LOCK : undefined, onClick: () => edit(C.addMaterial(p), '자재 추가'), attrs: { 'data-jump': 'material-add' } }]} />}
+              {p.materials[0] && <MaterialMix p={p} locked={locked} edit={edit} confirmDelete={confirmDelete} />}
               <button type="button" className="btn-main primary" onClick={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, sequence: 'sequence' })); }}><Terms text="Station 시퀀스 작성" /></button>
             </section>
             <aside className="sheet">
@@ -2389,7 +2391,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <table className="grid plain"><thead><tr><th>상태</th><th><Terms text="완료 Action" /></th></tr></thead>
                 <tbody>{p.actions.filter((a) => a.effect.setState || a.effect.moveTo).slice(0, 6).map((a) => <tr key={a.id}><td>{a.effect.setState ?? (a.effect.moveTo === 'EXIT' ? '배출' : a.effect.moveTo ? unitName(p, a.effect.moveTo) : a.name)}</td><td>{a.name}</td></tr>)}
                   {p.actions.every((a) => !a.effect.setState && !a.effect.moveTo) && <tr><td colSpan={2}>자재 변화가 있는 Action이 없습니다.</td></tr>}</tbody></table>
-              <p className="warn-note">실행은 자재 정의 하나를 투입 개수만큼 이어서 넣습니다. 정의가 여러 종류이거나 캐리어에 싣는 것은 없습니다.</p>
+              <p className="warn-note">정의가 하나이면 그 정의를 투입 개수만큼 넣습니다. 종류를 더하면 정한 순서를 되풀이합니다. 캐리어에 싣는 것은 없습니다.</p>
             </aside>
             <Fold className="fold-panel" summary="자재 값과 경로 편집"><MaterialPanel p={p} locked={locked} edit={edit} /></Fold>
           </div>}

@@ -6,6 +6,7 @@
 // capacity wait instead of failing. A piece's own location, state, and holder are what
 // its conditions see. Sensor signals stay on while any piece is in the unit.
 import { stepOrder } from '../model/flow';
+import { feedMaterialAt, materialMark, mixActive, pieceHead } from '../model/materialMix';
 import type { Action, Project } from '../model/types';
 import { feedCountOf } from '../model/types';
 import {
@@ -22,10 +23,13 @@ export function makePieces(p: Project): PieceRun[] | null {
   const first = stepOrder(p)?.[0] ?? 0;
   const pieces: PieceRun[] = [];
   for (let i = 0; i < n; i++) {
+    const def = feedMaterialAt(p, i) ?? m;
+    const state = def.initialState ?? m.initialState;
+    const instanceId = `${def.id}#${i + 1}`;
     pieces.push({
       index: i + 1,
-      instanceId: `${m.id}#${i + 1}`,
-      material: { instanceId: `${m.id}#${i + 1}`, materialId: m.id, location: '', state: m.initialState, holder: null },
+      instanceId,
+      material: { instanceId, materialId: def.id, location: '', state, holder: null },
       stepIndex: first,
       planCursor: 0,
       phase: 'queued',
@@ -114,27 +118,37 @@ export function admitPieces(p: Project, s: RuntimeState): boolean {
 }
 
 function tryAdmit(p: Project, s: RuntimeState): boolean {
-  const m = p.materials[0];
-  const start = m?.initialLocation;
-  if (!m || !start || !m.initialState) return false;
-  const cap = capOf(p, start);
-  const unit = p.units.find((u) => u.id === start);
+  const pieces = piecesOf(s);
   let changed = false;
-  for (const pc of piecesOf(s)) {
+  const blocked = new Set<string>();
+  for (let i = 0; i < pieces.length; i++) {
+    const pc = pieces[i];
     if (pc.fedAtMs != null) continue;
     if (pc.phase !== 'queued' && pc.phase !== 'waiting') continue;
     if (pc.readyAtMs > s.timeMs) break;
-    if (countAt(piecesOf(s), start) >= cap) {
+    const def = p.materials.find((m) => m.id === pc.material.materialId) ?? p.materials[0];
+    const start = def?.initialLocation;
+    if (!def || !start || !def.initialState) continue;
+    const unit = p.units.find((u) => u.id === start);
+    if (blocked.has(start) || countAt(pieces, start) >= capOf(p, start)) {
       if (s.status === 'running') {
         openWait(s, pc, { reason: 'capacity', unitId: start, note: `Unit 가득 (${unit?.name ?? start})` });
       }
-      break;
+      blocked.add(start);
+      const laterOther = pieces.slice(i + 1).some((other) => {
+        if (other.fedAtMs != null || other.readyAtMs > s.timeMs) return false;
+        const otherDef = p.materials.find((m) => m.id === other.material.materialId) ?? p.materials[0];
+        return !!otherDef?.initialLocation && otherDef.initialLocation !== start;
+      });
+      if (!laterOther) break;
+      continue;
     }
     closeWait(s, pc);
     pc.phase = 'ready';
     pc.fedAtMs = s.timeMs;
-    pc.material = { ...pc.material, location: start, state: m.initialState, holder: null };
-    logAt(s, 'info', 'FEED', `개체 ${pc.index} 투입 — ${unit?.name ?? start}`, pc.instanceId);
+    pc.material = { ...pc.material, location: start, state: def.initialState, holder: null };
+    const kind = mixActive(p) ? ` 종류 ${materialMark(p, def.id)}` : '';
+    logAt(s, 'info', 'FEED', `개체 ${pc.index}${kind} 투입 — ${unit?.name ?? start}`, pc.instanceId);
     changed = true;
   }
   return changed;
@@ -274,7 +288,7 @@ function tryStart(p: Project, s: RuntimeState, pc: PieceRun): boolean {
   const timeout = (step.timeoutOverride ?? a.timeout).value ?? 0;
   const neverTrue = a.completeSignalId ? p.simSettings.faults.neverTrueSignalIds.includes(a.completeSignalId) : true;
   const rec: StepRecord = {
-    stepId: step.id, status: 'active', startMs: s.timeMs, lane: `개체 ${pc.index}`, instanceId: pc.instanceId,
+    stepId: step.id, status: 'active', startMs: s.timeMs, lane: pieceHead(p, pc.index, pc.material.materialId), instanceId: pc.instanceId,
   };
   if (pc.pendingWaitMs > 0) {
     rec.waitMs = pc.pendingWaitMs;
@@ -319,7 +333,8 @@ function commitStep(p: Project, s: RuntimeState, pc: PieceRun): boolean {
     if (resultSig) s.signals[resultSig.id] = !readFail;
   }
   if (readFail) {
-    if (p.materials[0]?.states.includes('식별실패')) pc.material = { ...pc.material, state: '식별실패' };
+    const def = p.materials.find((m) => m.id === pc.material.materialId) ?? p.materials[0];
+    if (def?.states.includes('식별실패')) pc.material = { ...pc.material, state: '식별실패' };
     failRun(s, 'READ_FAILED', step.id, `[개체 ${pc.index} ${step.name}] 읽기 완료, 결과=실패 (식별 실패 상태 구별). 이후 공정 진행 안 함`);
     return false;
   }

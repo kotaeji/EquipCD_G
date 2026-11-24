@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { materialMark, mixActive } from '../model/materialMix';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import type { InterlockBlockRecord } from '../runtime/interlock';
@@ -48,19 +49,21 @@ function RunLog({ rt, scrubMs, onRun, runDisabled, runReason }: {
   );
 }
 
-function PieceTable({ rt }: { rt: RuntimeState | null }) {
+function PieceTable({ p, rt }: { p: Project; rt: RuntimeState | null }) {
   const rows = rt?.pieces ?? [];
   if (rows.length < 2) return null;
   const now = rt?.timeMs ?? 0;
+  const mixed = mixActive(p);
   return (
     <table className="grid" aria-label="개체별 시간">
-      <thead><tr><th>개체</th><th>투입 시각</th><th>배출 시각</th><th>기다린 시간</th><th>상태</th></tr></thead>
+      <thead><tr><th>개체</th>{mixed && <th>종류</th>}<th>투입 시각</th><th>배출 시각</th><th>기다린 시간</th><th>상태</th></tr></thead>
       <tbody>
         {rows.map((pc) => {
           const open = pc.wait ? Math.max(0, now - pc.wait.sinceMs) : 0;
           return (
             <tr key={pc.instanceId} data-piece-row={pc.instanceId}>
               <td>개체 {pc.index}</td>
+              {mixed && <td data-piece-kind={materialMark(p, pc.material.materialId)}>{materialMark(p, pc.material.materialId)}</td>}
               <td className="mono">{pc.fedAtMs == null ? '-' : formatMs(pc.fedAtMs)}</td>
               <td className="mono">{pc.exitedAtMs == null ? '-' : formatMs(pc.exitedAtMs)}</td>
               <td className="mono" data-piece-wait="">{formatMs(pc.waitMs + open)}</td>
@@ -149,7 +152,7 @@ export function RunDetails({ p, rt, open, tab, onToggle, onTab, onJumpInterlock,
           return copy ? <Problem copy={{ ...copy, jump: onJumpError ? copy.jump : undefined }} onJump={onJumpError} /> : null;
         })()}
         <InterlockHistory rows={rt?.interlockBlocks ?? []} onJump={onJumpInterlock} />
-        <PieceTable rt={rt} />
+        <PieceTable p={p} rt={rt} />
         <Tabs label="자세히" idBase="run-detail" value={tab} onChange={onTab} tabs={[
           { id: 'summary', label: '실행 결과 요약', icon: 'run-summary', panel: <><RunReportMenu p={p} rt={rt} /><RunSummary p={p} rt={rt} embedded chartPick={started ? chartPick : null} /></> },
           { id: 'timing', label: '타이밍 차트', icon: 'run-timing', panel: <TimingChart p={p} rt={chartRt ?? rt} nowMs={scrubMs == null ? undefined : scrubMs} onPick={(index) => { setChartPick(index); onTab('summary'); }} onRun={onRun} runDisabled={runDisabled} runReason={runReason} /> },

@@ -2,6 +2,7 @@
 // Guidance is resolved per actual Diagnostic object (not only per code) so the UI never promises an editor that does
 // not exist. Navigation only: never changes the model, the group gate rules, or run blocking.
 import type { Diagnostic } from '../model/validate';
+import { MAX_MATERIAL_DEFS } from '../model/materialMix';
 import type { Condition, Project, SubstationSequence } from '../model/types';
 import { findById } from '../model/flow';
 import { STEPS, type StepId } from './wizard';
@@ -36,7 +37,7 @@ export const GROUP_CODES = ['NO_SUBSTATION', 'NO_SUB_SEQUENCES', 'NO_STEPS', 'DE
   'DURATION_UNDEFINED', 'TIMEOUT_UNDEFINED', 'CONDITION_UNDEFINED', 'CAPACITY_UNDEFINED', 'DEVICE_CONFLICT',
   'SHARED_MATERIAL_CONFLICT', 'MATERIAL_COUNT', 'MAT_NO_LOCATION', 'MAT_NO_STATE', 'MULTI_FEED'] as const;
 /** Error codes of validateProject (src/model/validate.ts) — the group gate returns these first. */
-export const VALIDATE_ERROR_CODES = ['SHAPE', 'ID_INVALID', 'ID_DUPLICATE', 'REF_MISSING_UNIT', 'ORPHAN_UNIT', 'REF_MISSING_DEVICE',
+export const VALIDATE_ERROR_CODES = ['SHAPE', 'ID_INVALID', 'ID_DUPLICATE', 'REF_MISSING', 'REF_MISSING_UNIT', 'ORPHAN_UNIT', 'REF_MISSING_DEVICE',
   'DUP_OWNERSHIP', 'OWNERSHIP_MISMATCH', 'ASSET_UNKNOWN', 'REF_MISSING_SIGNAL', 'REF_MISSING_POSITION', 'REF_MISSING_ACTION',
   'REF_MISSING_NODE', 'STATE_UNKNOWN'] as const;
 
@@ -104,8 +105,8 @@ export function resolveBlocker(p: Project, b: { code: string; objectId: string; 
       return resolveStepValue(p, b, all);
     }
     case 'MATERIAL_COUNT':
-      if (p.materials.length === 0) return { kind: 'fix', dest: MATERIAL };
-      return { kind: 'unsupported', note: `자재 정의가 ${p.materials.length}개입니다. 이 시제품 실행은 1개만 지원하며, 현재 화면은 첫 자재만 편집하고 자재 삭제 기능이 없어 화면에서 개수를 줄일 수 없습니다.` };
+      if (p.materials.length === 0 || p.materials.length > MAX_MATERIAL_DEFS) return { kind: 'fix', dest: MATERIAL };
+      return { kind: 'unsupported', note: `자재 정의가 ${p.materials.length}개입니다. Substation 그룹 실행은 자재 정의 1개만 지원합니다. Station 시퀀스에서는 종류를 섞어 실행합니다.` };
     case 'MAT_NO_LOCATION': case 'MAT_NO_STATE': case 'FEED_INTERVAL': case 'FEED_COUNT': case 'MULTI_FEED':
       return { kind: 'fix', dest: MATERIAL };
     case 'MULTI_FLOW':

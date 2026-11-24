@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { shownStepCondition } from '../model/conditionFormula';
+import { kindTallies } from '../model/materialMix';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { summarizeRun } from '../runtime/runSummary';
@@ -42,6 +43,10 @@ export function RunSummary({ p, rt, embedded = false, chartPick = null }: {
     const top = node.offsetTop - scroller.clientHeight / 2;
     scroller.scrollTop = Math.max(0, top);
   }, [chartPick]);
+  const tallies = rt ? kindTallies(p, rt.pieces ?? (rt.material ? [{ material: rt.material, fedAtMs: 0, exitedAtMs: rt.material.location === 'EXIT' ? rt.timeMs : null }] : [])) : [];
+  const kindLine = tallies.length > 0
+    ? tallies.map((row) => `종류 ${row.mark} 생산 ${row.produced}${row.avgPassMs == null ? '' : ` · 평균 ${fmt(row.avgPassMs)}`}`).join(' · ')
+    : '';
   const body = notStarted || !summary ? <p className="run-summary-empty">실행하면 단계별 시간이 여기에 나옵니다</p> : (
         <>
           <p className="run-summary-head">
@@ -50,6 +55,7 @@ export function RunSummary({ p, rt, embedded = false, chartPick = null }: {
             {summary.longest && <> · 가장 긴 단계 {summary.longest.name} {fmt(summary.longest.elapsedMs)}</>}
             {(summary.skippedCount > 0 || summary.stoppedCount > 0 || summary.steps.some((s) => (s.pass ?? 1) > 1 || s.lane)) && <> · 실행 {summary.executedCount} · 건너뜀 {summary.skippedCount}{summary.stoppedCount > 0 ? ` · 정지 ${summary.stoppedCount}` : ''}</>}
           </p>
+          {kindLine && <p className="run-summary-head" data-kind-summary="">{kindLine}</p>}
           <div className="run-summary-scroll">
             <table className={`grid run-summary-table ${ECD_TABLE}`}>
               <thead>

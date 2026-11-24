@@ -14,6 +14,7 @@ import type { ConfirmDelete, EditFn } from './Inspector';
 import { stepLiveClass } from './RunSummary';
 import { conditionFormula } from '../model/conditionFormula';
 import { ConditionMark } from './conditionMark';
+import { materialMark } from '../model/materialMix';
 import { condLabel, devName, flowBlockTitle, flowBlockWord, signalChoiceLabel, unitName, type FlowBlockKind } from './labels';
 import { Terms } from './Term';
 import { ContextMenu } from './ContextMenu';
@@ -30,6 +31,7 @@ function condValue(c: Condition): string {
   if (c.kind === 'signal') return `sig:${c.signalId}:${c.equals ? '1' : '0'}`;
   if (c.kind === 'materialState') return `st:${c.state}`;
   if (c.kind === 'materialAt') return `at:${c.unitId}`;
+  if (c.kind === 'materialType') return `ty:${c.materialId}`;
   return 'undef';
 }
 
@@ -40,6 +42,7 @@ function condFrom(value: string): Condition {
   }
   if (value.startsWith('st:')) return { kind: 'materialState', state: value.slice(3) };
   if (value.startsWith('at:')) return { kind: 'materialAt', unitId: value.slice(3) };
+  if (value.startsWith('ty:')) return { kind: 'materialType', materialId: value.slice(3) };
   return { kind: 'undefined', note: '조건 없음' };
 }
 
@@ -51,6 +54,7 @@ function CondSelect({ p, cond, disabled, onChange, label = '조건' }: { p: Proj
     {p.signals.map((s) => <option key={`${s.id}:0`} value={`sig:${s.id}:0`}>{signalChoiceLabel(p, s.id, false)}</option>)}
     {states.map((st) => <option key={st} value={`st:${st}`}>자재 상태 = {st}</option>)}
     {p.units.map((u) => <option key={u.id} value={`at:${u.id}`}>자재 위치 = {u.name}</option>)}
+    {p.materials.map((m) => <option key={m.id} value={`ty:${m.id}`}>자재 종류 = {materialMark(p, m.id)}</option>)}
   </select>;
 }
 

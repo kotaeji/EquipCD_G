@@ -5,7 +5,7 @@ export const FILE_FORMAT_ID = 'equipment-concept-designer/project';
 export const FILE_FORMAT_VERSION = '0.3.0'; // file format version (separate from app / asset / model revision). 0.1.x and 0.2.x files open as-is; `flow` is optional.
 export const APP_VERSION = '0.3.0-prototype';
 export const PRODUCT_NAME = 'Aurora Concept Designer';
-export const RUNTIME_RULES_VERSION = 'seq-runtime/0.9.0';
+export const RUNTIME_RULES_VERSION = 'seq-runtime/0.10.0';
 /** Extra tries after the first body run. 2 → at most 3 executions. */
 export const DEFAULT_MAX_RETRIES = 2;
 /** Substation group runtime rules (v0.3 설계 제안): shared virtual clock, fixed lane order at equal instants, conservative group stop on error. Sensor signals follow the same unit rule as the station runtime. */
@@ -207,6 +207,11 @@ export type Condition =
   | { kind: 'materialAt'; unitId: Id }
   | { kind: 'materialState'; state: string }
   | { kind: 'materialHeldBy'; deviceId: Id | null }
+  /**
+   * This piece's material definition. Absent on files saved before TURN-080.
+   * The screen shows it as 「자재 종류 = 표식」.
+   */
+  | { kind: 'materialType'; materialId: Id }
   | { kind: 'undefined'; note: string }; // explicitly 미정 — never treated as true
 
 export interface MaterialEffect {
@@ -249,8 +254,14 @@ export interface Material {
   /**
    * How many instances of this one definition to feed. Absent means 1
    * (0.1 / 0.2 / 0.3 files, and any project saved before TURN-040).
+   * With several definitions the count on the first definition is the shared total.
    */
   feedCount?: number;
+  /**
+   * Short letter drawn on the piece. Absent on files saved before TURN-080
+   * and on a definition that still uses the fallback letter (A, B, C, D).
+   */
+  mark?: string;
 }
 
 /** Instances to feed. A missing value is 1, so older files run as they did. */
@@ -427,6 +438,12 @@ export interface Project {
   positions: Position[];
   actions: Action[];
   materials: Material[];
+  /**
+   * Repeating feed order (material definition ids). Cycled until the shared feed count.
+   * Absent when there is one definition, or when the order is just the definition list.
+   * Older files and the three samples omit it, so their save stays the same.
+   */
+  feedPattern?: Id[];
   connections: Connection[];
   constraints: Constraint[];
   /** Station-level sequence (v0.1/v0.2 single sequence, kept for compatibility) */

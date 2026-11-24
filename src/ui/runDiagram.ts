@@ -6,6 +6,7 @@ import type { Project, Unit } from '../model/types';
 import type { FlowFiber, PieceRun, RuntimeState } from '../runtime/engine';
 import { deviceOfStep } from '../scene/describe';
 import { deviceMotions } from '../scene/motion';
+import { materialMark, mixActive } from '../model/materialMix';
 import { waitingLead } from './status';
 
 /** Wall-clock lengths of the three motion steps. Virtual progress does not use these. */
@@ -51,6 +52,8 @@ export interface MaterialPose {
   label: string;
   waiting: boolean;
   pieceId?: string;
+  /** Kind letter when several definitions are in the feed. */
+  mark?: string;
   /** Fraction along the flow line. Null when the marker is sitting on a unit. */
   travel: number | null;
 }
@@ -295,14 +298,16 @@ export function materialPoses(project: Project, state: RuntimeState | null, moti
       const move = pieceMove(project, state, pc);
       const placed = move ? placeMove(project, off, move, rest, motion) : { at: rest, travel: null };
       const at = placed.travel === null ? { x: placed.at.x + shift, y: placed.at.y } : placed.at;
+      const mark = mixActive(project) ? materialMark(project, pc.material.materialId) : '';
       out.push({
         id: pc.index === 1 ? 'runtime-material' : `runtime-material-${pc.instanceId}`,
         x: at.x,
         y: at.y,
-        label: `${pc.phase === 'waiting' ? `${waitingLead()} · ` : ''}개체 ${pc.index} · ${pc.material.state}`,
+        label: `${pc.phase === 'waiting' ? `${waitingLead()} · ` : ''}개체 ${pc.index}${mark ? ` ${mark}` : ''} · ${pc.material.state}`,
         waiting: pc.phase === 'waiting',
         pieceId: pc.instanceId,
         travel: placed.travel,
+        ...(mark ? { mark } : {}),
       });
     }
     return out;

@@ -6,7 +6,7 @@ import type { Diagnostic } from './validate';
 export interface LaneRef { id: string; name: string; steps: SequenceStep[] }
 
 const touchesMaterial = (a: Action) => a.effect.moveTo !== undefined || a.effect.holder !== undefined || a.effect.setState !== undefined || a.kind === 'read';
-const matCond = (c: Condition) => c.kind === 'materialAt' || c.kind === 'materialState' || c.kind === 'materialHeldBy';
+const matCond = (c: Condition) => c.kind === 'materialAt' || c.kind === 'materialState' || c.kind === 'materialHeldBy' || c.kind === 'materialType';
 
 export interface LaneCheck { blockers: Diagnostic[]; usesMaterial: boolean }
 

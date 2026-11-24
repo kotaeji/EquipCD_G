@@ -6,7 +6,11 @@ import type { BlockerGuide } from '../../src/ui/blockerTarget';
 export const S1 = 'U-PS1';
 export const undef = (note: string) => ({ kind: 'undefined' as const, note });
 export const first = (p: Project) => { const s = p.substationSequences!.find((q) => q.unitId === S1)!.steps[0]; return { s, a: p.actions.find((x) => x.id === s.actionId)! }; };
-const twoMaterials = (p: Project) => { const m = buildSampleProject().materials[0]; p.materials = [1, 2].map((i) => ({ ...structuredClone(m), id: `MAT-T${i}`, initialLocation: S1, route: [] })); };
+const materials = (p: Project, n: number) => {
+  const m = buildSampleProject().materials[0];
+  p.materials = Array.from({ length: n }, (_, i) => ({ ...structuredClone(m), id: `MAT-T${i + 1}`, initialLocation: S1, route: [] as string[] }));
+};
+const twoMaterials = (p: Project) => materials(p, 2);
 
 /** fixtures that produce real Diagnostics through checkGroupReadiness — shared with the React test */
 export const FIXTURES: { name: string; code: string; mutate: (p: Project) => void; unitId?: string; expect: Partial<BlockerGuide> & { label?: string }; focusId?: string; ui?: false }[] = [
@@ -19,7 +23,7 @@ export const FIXTURES: { name: string; code: string; mutate: (p: Project) => voi
   { name: 'Action duration null', code: 'DURATION_UNDEFINED', mutate: (p) => { const { a } = first(p); a.duration = { ...a.duration, value: null }; }, expect: { kind: 'fix', label: '3 속성·Action › Action' }, focusId: 'STP-A1' },
   { name: 'destination capacity null', code: 'CAPACITY_UNDEFINED', mutate: (p) => { first(p).a.effect = { moveTo: 'U-PS2' }; const u = p.units.find((x) => x.id === 'U-PS2')!; u.capacity.maxMaterials = { ...u.capacity.maxMaterials, value: null }; }, expect: { kind: 'fix', label: '3 속성·Action › 속성 (수용 개수)' }, focusId: 'U-PS2' },
   { name: 'materials 0 (material-touching step)', code: 'MATERIAL_COUNT', mutate: (p) => { first(p).a.effect = { moveTo: 'U-PS2' }; p.materials = []; }, expect: { kind: 'fix', label: '4 자재·시퀀스 › 자재·Flow (F4)' } },
-  { name: 'materials 2', code: 'MATERIAL_COUNT', mutate: (p) => { first(p).a.effect = { moveTo: 'U-PS2' }; twoMaterials(p); }, expect: { kind: 'unsupported', dest: undefined } },
+  { name: 'materials 5', code: 'MATERIAL_COUNT', mutate: (p) => { first(p).a.effect = { moveTo: 'U-PS2' }; materials(p, 5); }, expect: { kind: 'fix', label: '4 자재·시퀀스 › 자재·Flow (F4)' } },
   { name: 'material initial location missing', code: 'MAT_NO_LOCATION', mutate: (p) => { first(p).a.effect = { moveTo: 'U-PS2' }; twoMaterials(p); p.materials = [{ ...p.materials[0], initialLocation: null }]; }, expect: { kind: 'fix', label: '4 자재·시퀀스 › 자재·Flow (F4)' } },
   { name: 'device used by two sequences', code: 'DEVICE_CONFLICT', mutate: (p) => { const q = p.substationSequences!.filter((x) => x.unitId === S1); q[0].steps.push({ ...structuredClone(q[1].steps[0]), id: 'SSTEP-CONFLICT' }); }, expect: { kind: 'fix', label: '4 자재·시퀀스 › Substation 시퀀스' } },
   { name: 'missing signal reference (validateProject)', code: 'REF_MISSING_SIGNAL', mutate: (p) => { first(p).a.commandSignalId = 'SIG-NOPE'; }, expect: { kind: 'inspect', label: '5 점검 › 진단·저장·AML' }, ui: false }, // a project with a broken reference is not opened from storage (load rejects it) → unit test only

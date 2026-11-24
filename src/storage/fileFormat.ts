@@ -11,8 +11,32 @@ export function toProjectFile(p: Project): ProjectFile {
   return {
     format: FILE_FORMAT_ID, formatVersion: FILE_FORMAT_VERSION, appVersion: APP_VERSION,
     assetDefinitions: [...used.entries()].map(([id, version]) => ({ id, version })),
-    project: omitEmptyScenarios(projectForFile(p)),
+    project: omitUnusedMix(omitEmptyScenarios(projectForFile(p))),
   };
+}
+
+/**
+ * A single definition does not store a feed order. An empty mark is the same as no mark.
+ * Files with one definition stay byte-identical.
+ */
+function omitUnusedMix(p: Project): Project {
+  let next = p;
+  if (next.materials.length < 2 && next.feedPattern !== undefined) {
+    next = { ...next };
+    delete next.feedPattern;
+  }
+  if (next.materials.some((m) => m.mark !== undefined && m.mark.trim() === '')) {
+    next = {
+      ...next,
+      materials: next.materials.map((m) => {
+        if (m.mark === undefined || m.mark.trim() !== '') return m;
+        const copy = { ...m };
+        delete copy.mark;
+        return copy;
+      }),
+    };
+  }
+  return next;
 }
 
 /** An empty list is the same file as a project that never stored scenarios. */

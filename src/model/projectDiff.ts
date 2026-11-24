@@ -112,6 +112,7 @@ function condText(c: Condition): string {
     case 'materialAt': return `자재 위치 ${c.unitId}`;
     case 'materialState': return `자재 상태 ${c.state}`;
     case 'materialHeldBy': return `자재 보유 ${c.deviceId ?? '없음'}`;
+    case 'materialType': return `자재 종류 ${c.materialId}`;
     case 'undefined': return `미정 ${c.note}`;
   }
 }
