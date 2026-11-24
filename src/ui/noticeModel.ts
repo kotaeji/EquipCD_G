@@ -23,6 +23,8 @@ export interface NoticeItem {
   problem?: ProblemCopy;
   full?: boolean;
   action?: NoticeAction;
+  /** An action stays until the user closes it or runs it. A dialog must not outlast the button. */
+  hold?: boolean;
 }
 
 export interface NoticeInput {
@@ -66,15 +68,17 @@ export function useNotices() {
 
   const push = useCallback((input: NoticeInput) => {
     const now = Date.now();
+    const hold = !!input.action;
     const item: NoticeItem = {
       id: ++seq.current,
       kind: input.kind,
       at: now,
-      deadline: now + (input.kind === 'reject' ? REJECT_MS : NOTICE_MS),
+      deadline: now + (hold ? 0 : input.kind === 'reject' ? REJECT_MS : NOTICE_MS),
       text: input.text,
       problem: input.problem,
       full: input.full,
       action: input.action,
+      hold,
     };
     setLive((cur) => [item, ...cur].slice(0, NOTICE_STACK));
     setLog((cur) => [item, ...cur].slice(0, NOTICE_LOG));
@@ -86,7 +90,7 @@ export function useNotices() {
 
   useEffect(() => {
     if (live.length === 0) return;
-    const timers = live.map((item) => window.setTimeout(() => dismiss(item.id), Math.max(0, item.deadline - Date.now())));
+    const timers = live.filter((item) => !item.hold).map((item) => window.setTimeout(() => dismiss(item.id), Math.max(0, item.deadline - Date.now())));
     return () => { for (const timer of timers) window.clearTimeout(timer); };
   }, [live, dismiss]);
 

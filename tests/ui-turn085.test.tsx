@@ -243,6 +243,10 @@ describe('TURN-085 screen', () => {
     expect(loadView(localStorage).minimap).toEqual({ layout: true, run: false });
     expect(loadView(localStorage).helpSide).toBe('right');
     expect(loadView(localStorage).explorerOpen).toBe(true);
+    expect(app(u.el).querySelector('.modal-bg')).not.toBeNull();
+    const undoBtn = app(u.el).querySelector('[data-notice-action="되돌리기"]')!;
+    expect(undoBtn).toBeTruthy();
+    expect(undoBtn.closest('[data-notice-hold]')!.getAttribute('data-notice-hold')).toBe('1');
     expect(app(u.el).className).not.toContain('ex-collapsed');
     expect(u.history().present.revision).toBe(rev);
     expect(u.history().past.length).toBe(undo);
