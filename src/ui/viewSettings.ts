@@ -1,6 +1,7 @@
 // UserView (user-local, NOT design data). Stored under a separate key; never serialized into project files.
 import { normalizeConfirmerName } from '../model/confirmationLog';
 import { VIEW_KEY, type KV } from '../storage/localStore';
+import { cleanLayoutTiers, defaultLayouts } from './layoutTier';
 import { STEPS, type StepId } from './wizard';
 
 export type ThemeId = 'A' | 'B' | 'C';
@@ -22,6 +23,21 @@ export function paletteTheme(t: ThemeId): 'A' | 'B' { return t === 'B' ? 'B' : '
 export function nextTheme(t: ThemeId): ThemeId { return appearanceOf(t) === 'dark' ? 'A' : 'B'; }
 
 export type LayerId = 'background' | 'units' | 'axis' | 'io' | 'positions' | 'flow';
+/** TURN-085. Narrow is 1024–1279, normal is 1280–1599, wide is 1600 and up. */
+export type WidthTier = 'narrow' | 'normal' | 'wide';
+/**
+ * Panel widths and folds for one width tier. Palette, minimap, and help position stay on UserView.
+ * The top-level `panels` / `explorerOpen` / run folds mirror the normal tier so older readers keep working.
+ */
+export interface LayoutSlice {
+  panels: PanelWidths;
+  explorerOpen: boolean;
+  propsFolded: boolean;
+  condFolded: boolean;
+  stepsFolded: boolean;
+  runStripFolded: boolean;
+  runDetailsOpen: boolean;
+}
 export interface UserView {
   theme: ThemeId;
   visualMode: 'schematic' | 'photo';
@@ -36,8 +52,10 @@ export interface UserView {
   treeCollapsed: Record<string, string[]>;
   /** S00 start hub. View only — does not change the open project, revision, or run. */
   home: boolean;
-  /** TURN-007: panel widths in px. This browser only — never written into a project file. */
+  /** TURN-007: panel widths in px. This browser only — never written into a project file. Mirrors the normal tier. */
   panels: PanelWidths;
+  /** TURN-085: widths and folds remembered apart for narrow, normal, and wide. */
+  layoutByTier: Record<WidthTier, LayoutSlice>;
   /** TURN-008: which explorer tab is showing. This browser only — never written into a project file. */
   explorerTab: ExplorerTab;
   /** TURN-009: card board or diagram under the layout palette. This browser only — never written into a project file. */
@@ -90,9 +108,17 @@ export const PANEL_LIMITS: Record<PanelKey, { min: number; max: number; def: num
   run: { min: 240, max: 560, def: 380 },
 };
 export const PANEL_MAIN_MIN = 480;
+/** TURN-085. On a wide window the property column may grow past the normal 560px cap. */
+export const WIDE_CANVAS_MAX = 720;
 export const DEFAULT_PANELS: PanelWidths = {
   explorer: PANEL_LIMITS.explorer.def, library: PANEL_LIMITS.library.def, canvas: PANEL_LIMITS.canvas.def, run: PANEL_LIMITS.run.def,
 };
+
+export function panelLimit(kind: PanelKey, tier?: WidthTier): { min: number; max: number; def: number } {
+  const lim = PANEL_LIMITS[kind];
+  if (tier === 'wide' && kind === 'canvas') return { ...lim, max: WIDE_CANVAS_MAX };
+  return lim;
+}
 
 /**
  * Clamp a panel width. `container` is the width of the row that holds the panel and the main column
@@ -100,8 +126,8 @@ export const DEFAULT_PANELS: PanelWidths = {
  * (jsdom has no layout) and keeps only the panel min/max. When the window cannot satisfy both,
  * the 480px main floor wins and the panel may sit below its minimum.
  */
-export function clampPanel(kind: PanelKey, value: number, container: number | null): number {
-  const lim = PANEL_LIMITS[kind];
+export function clampPanel(kind: PanelKey, value: number, container: number | null, tier?: WidthTier): number {
+  const lim = panelLimit(kind, tier);
   const n = Number.isFinite(value) ? Math.round(value) : lim.def;
   let hi = lim.max;
   if (container !== null && container > 0) {
@@ -124,7 +150,7 @@ function cleanPanels(v: unknown): PanelWidths {
 }
 
 export const DEFAULT_VIEW: UserView = { theme: 'A', visualMode: 'schematic', layers: { background: true, units: true, axis: true, io: true, positions: true, flow: true }, zoom: 1,
-  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
+  step: 'library', confirmed: {}, libraryFilter: { q: '', category: '' }, treeCollapsed: {}, home: true, panels: { ...DEFAULT_PANELS }, layoutByTier: defaultLayouts(), explorerTab: 'project', layoutTab: 'board', runView: 'diagram',
   explorerOpen: true, runStripFolded: false, runDetailsOpen: false, runDetailsTab: 'summary', tourSeen: false, autoDraft: true,
   paletteOpen: true, minimap: { layout: true, run: false }, helpOpen: false, termHints: true, helpSide: 'right', helpFolded: false, confirmerName: '' };
 
@@ -148,6 +174,12 @@ export function loadView(kv: KV | null): UserView {
     // TURN-030 `runTab` is retired. Drop it so a saved view does not keep the old key.
     delete o.runTab;
     const rest = o;
+    const panels = cleanPanels(o.panels);
+    const explorerOpen = o.explorerOpen === false ? false : true;
+    const runStripFolded = o.runStripFolded === true;
+    const runDetailsOpen = o.runDetailsOpen === true;
+    const layoutByTier = cleanLayoutTiers(o.layoutByTier, { panels, explorerOpen, runStripFolded, runDetailsOpen });
+    const normal = layoutByTier.normal;
     return { ...DEFAULT_VIEW, ...rest, layers: { ...DEFAULT_VIEW.layers, ...(o.layers ?? {}) }, theme: THEME_ORDER.includes(o.theme) ? o.theme : 'A',
       // broken/unknown UserView step → first valid step (model is never reset because of view data)
       step: STEPS.some((s) => s.id === o.step) ? o.step : 'library',
@@ -155,13 +187,14 @@ export function loadView(kv: KV | null): UserView {
       confirmed: o.confirmed && typeof o.confirmed === 'object' ? o.confirmed : {},
       libraryFilter: { ...DEFAULT_VIEW.libraryFilter, ...(o.libraryFilter ?? {}) },
       treeCollapsed: cleanCollapsed(o.treeCollapsed),
-      panels: cleanPanels(o.panels),
+      panels: { ...normal.panels },
+      layoutByTier,
       explorerTab: o.explorerTab === 'workspace' ? 'workspace' : 'project',
       layoutTab: o.layoutTab === 'diagram' ? 'diagram' : 'board',
       runView: o.runView === '3d' ? '3d' : 'diagram',
-      explorerOpen: o.explorerOpen === false ? false : true,
-      runStripFolded: o.runStripFolded === true,
-      runDetailsOpen: o.runDetailsOpen === true,
+      explorerOpen: normal.explorerOpen,
+      runStripFolded: normal.runStripFolded,
+      runDetailsOpen: normal.runDetailsOpen,
       runDetailsTab: o.runDetailsTab === 'log' || o.runDetailsTab === 'signals' || o.runDetailsTab === 'timing' ? o.runDetailsTab : 'summary',
       // missing home (views saved before the start hub) opens S00 once; an explicit false is kept. Theme C is not rewritten here.
       home: o.home === false ? false : true,

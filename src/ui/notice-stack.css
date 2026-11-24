@@ -12,6 +12,9 @@
   pointer-events: none;
 }
 
+/* A notice with a button sits above .modal-bg (z-index 60) so 「되돌리기」 can be pressed while 보기 설정 is open. */
+.toast-stack:has([data-notice-action]) { z-index: 70; }
+
 .toast-stack .toast-card {
   pointer-events: auto;
   display: flex;

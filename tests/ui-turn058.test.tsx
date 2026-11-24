@@ -220,9 +220,14 @@ describe('TURN-058 Evolution Lab screen', () => {
     expect(revOf(u.el)).toBe(rev);
     expect(undoOf(u.el)).toBe(undo);
 
-    await u.click(u.el.querySelector('.stepper [data-stepid="run"]'));
-    await u.click(u.btn('▶ 실행'));
-    await u.click(u.btn('❚❚ 일시정지'));
+    const clock = holdRuntimeClock();
+    try {
+      await u.click(u.el.querySelector('.stepper [data-stepid="run"]'));
+      await u.click(u.btn('▶ 실행'));
+      await u.click(u.btn('❚❚ 일시정지'));
+    } finally {
+      clock.restore();
+    }
     await u.click(u.el.querySelector('.stepper [data-stepid="check"]'));
     await u.click(u.btn('Evolution Lab (F7)'));
     const apply = u.el.querySelector('[data-lab-apply="lab-1"]') as HTMLButtonElement;
