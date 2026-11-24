@@ -17,9 +17,10 @@ export function NoticeStack({ items, onDismiss }: { items: NoticeItem[]; onDismi
       {items.map((item) => {
         const kind = KIND[item.kind];
         return (
-          <div key={item.id} className="toast-card" data-toast-kind={item.kind} data-notice-id={item.id} role={item.kind === 'reject' ? 'alert' : 'status'}>
+          <div key={item.id} className="toast-card" data-toast-kind={item.kind} data-notice-id={item.id} data-notice-hold={item.hold ? '1' : '0'} role={item.kind === 'reject' ? 'alert' : 'status'}>
             <StatusMark status={kind.status} word={kind.word} />
             <div className={`toast${item.kind === 'reject' ? ' err' : ''}`}>{item.problem ? <Problem copy={item.problem} compact={!item.full} /> : item.text}</div>
+            {item.action && <button type="button" className="small" data-notice-action={item.action.label} onClick={() => { item.action?.run(); onDismiss(item.id); }}>{item.action.label}</button>}
             <button type="button" className="toast-x" aria-label="알림 닫기" onClick={() => onDismiss(item.id)}>×</button>
           </div>
         );

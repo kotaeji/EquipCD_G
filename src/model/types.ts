@@ -5,7 +5,7 @@ export const FILE_FORMAT_ID = 'equipment-concept-designer/project';
 export const FILE_FORMAT_VERSION = '0.3.0'; // file format version (separate from app / asset / model revision). 0.1.x and 0.2.x files open as-is; `flow` is optional.
 export const APP_VERSION = '0.3.0-prototype';
 export const PRODUCT_NAME = 'Aurora Concept Designer';
-export const RUNTIME_RULES_VERSION = 'seq-runtime/0.8.0';
+export const RUNTIME_RULES_VERSION = 'seq-runtime/0.9.0';
 /** Extra tries after the first body run. 2 → at most 3 executions. */
 export const DEFAULT_MAX_RETRIES = 2;
 /** Substation group runtime rules (v0.3 설계 제안): shared virtual clock, fixed lane order at equal instants, conservative group stop on error. Sensor signals follow the same unit rule as the station runtime. */
@@ -339,6 +339,8 @@ export interface SequenceDraft {
  * v0.3: one of several sequences that belong to ONE Unit (= Substation) and are played / paused / resumed together
  * as a group on a shared virtual clock. The Station-level `Project.sequence` (v0.1/v0.2) is kept unchanged.
  * Steps may only use Actions of Devices inside the same Substation (checked before run).
+ * Optional `flow` (TURN-072) is branch, loop, retry, and signal wait. Absent means the steps run in order.
+ * A parallel block or a Substation step inside this flow is rejected.
  */
 export interface SubstationSequence extends SequenceDraft { unitId: Id }
 

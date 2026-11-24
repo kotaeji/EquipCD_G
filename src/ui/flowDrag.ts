@@ -110,13 +110,20 @@ export function judgeDrop(flow: FlowNode[] | undefined, ids: string[], listKey: 
   return { valid: true, noop: false };
 }
 
+function flowOfProject(p: Project, seqId?: string) {
+  if (!seqId) return p.sequence.flow;
+  return (p.substationSequences ?? []).find((q) => q.id === seqId)?.flow;
+}
+
 /** One relocation. `null` means the drop does not change the tree, so the caller must not edit. */
-export function relocateFlow(p0: Project, ids: string[], listKey: string, index: number): CmdResult | null {
-  const verdict = judgeDrop(p0.sequence.flow, ids, listKey, index);
+export function relocateFlow(p0: Project, ids: string[], listKey: string, index: number, seqId?: string): CmdResult | null {
+  const verdict = judgeDrop(flowOfProject(p0, seqId), ids, listKey, index);
   if (!verdict.valid) return { ok: false, reason: verdict.reason ?? '이동 불가' };
   if (verdict.noop) return null;
   const p = structuredClone(p0);
-  const flow = p.sequence.flow!;
+  const owned = seqId ? (p.substationSequences ?? []).find((q) => q.id === seqId) : null;
+  if (seqId && !owned?.flow) return { ok: false, reason: '흐름 없음' };
+  const flow = seqId ? owned!.flow! : p.sequence.flow!;
   const target = listOf(flow, listKey)!;
   const first = findById(flow, ids[0])!;
   const at = placeIndex(first.index, ids.length, first.list.length, target.length, index, first.list === target);

@@ -1,0 +1,16 @@
+/* TURN-085. A tool row keeps one line. What does not fit moves into 「더 보기」. */
+
+.overflow-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.overflow-row > .is-overflow { display: none; }
+
+.overflow-row.diagram-tools { flex-wrap: wrap; }
+.overflow-row > [data-overflow-more] { margin-left: auto; }

@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { clampPanel, PANEL_LIMITS, type PanelKey } from './viewSettings';
+import { clampPanel, panelLimit, type PanelKey, type WidthTier } from './viewSettings';
 
 const HOST: Record<PanelKey, string> = { explorer: '.app', library: '.libws', canvas: '.ws-canvas', run: '.ws-run' };
 
@@ -9,10 +9,10 @@ function hostWidth(el: HTMLElement, kind: PanelKey): number {
 }
 
 /** Vertical splitter. `start` grows the panel when the pointer moves right (explorer). `end` shrinks it (right panels). */
-export function PanelSplit({ kind, value, onChange, label }: { kind: PanelKey; value: number; onChange: (n: number) => void; label: string }) {
+export function PanelSplit({ kind, value, onChange, label, tier }: { kind: PanelKey; value: number; onChange: (n: number) => void; label: string; tier?: WidthTier }) {
   const edge = kind === 'explorer' ? 'start' : 'end';
-  const lim = PANEL_LIMITS[kind];
-  const apply = (el: HTMLElement, raw: number) => onChange(clampPanel(kind, raw, hostWidth(el, kind)));
+  const lim = panelLimit(kind, tier);
+  const apply = (el: HTMLElement, raw: number) => onChange(clampPanel(kind, raw, hostWidth(el, kind), tier));
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
