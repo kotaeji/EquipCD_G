@@ -4,8 +4,8 @@ import {
   Float32BufferAttribute, Fog, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, Raycaster,
   NoToneMapping, RepeatWrapping, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer, type Material, type Object3D,
 } from 'three';
-import { applyCameraKey, fitDistance, fitToPoints, gestureMode, orbitCamera, panCamera, projectToScreen, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
-import { framePoints, type PartDelta, type SceneDescription } from '../scene/describe';
+import { CAMERA_FOV, applyCameraKey, fitDistance, fitToPoints, gestureMode, orbitCamera, panCamera, projectToScreen, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
+import { framePoints, zoneLookAt, type PartDelta, type SceneDescription } from '../scene/describe';
 import { shouldRedraw, prefersReducedMotion } from '../scene/motion';
 import { emWidth, floorNameAxes, floorNameYaw, type FloorName } from '../scene/floorLabel';
 import { anchorLabels, placeLabels, sceneLabelInRange, visibleFloorNames, type ScreenLabel } from '../scene/labels';
@@ -776,14 +776,16 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
   viewpointRef.current = viewpoint;
   const framed = (aspect: number, view?: Viewport, pose?: { yaw: number; pitch: number }) => {
     const points = framePoints(scene);
-    const fit = fitToPoints(points, aspect, view);
-    if (!pose) return fit;
-    const iso = Math.abs(pose.yaw - fit.yaw) < 1e-6 && Math.abs(pose.pitch - fit.pitch) < 1e-6;
-    if (iso) return fit;
+    if (!pose) return fitToPoints(points, aspect, view);
     const sized = view && view.width > 40 && view.height > 40
       ? view
       : { width: Math.max(80, Math.round(400 * Math.max(0.2, aspect))), height: 400 };
-    return fitDistance({ ...fit, yaw: pose.yaw, pitch: pose.pitch }, points, sized);
+    const look = zoneLookAt(scene);
+    return fitDistance({
+      targetX: look.x, targetY: look.y, targetZ: look.z,
+      yaw: pose.yaw, pitch: pose.pitch,
+      distance: 800, aspect: sized.width / sized.height, fov: CAMERA_FOV,
+    }, points, sized);
   };
   const [cam, setCam] = useState<CameraState>(() => framed(1.4, undefined, viewpointAngles(viewpoint)));
   const viewSize = useRef({ width: 640, height: 400 });

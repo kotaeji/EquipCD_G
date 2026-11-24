@@ -211,8 +211,9 @@ export function fitToPoints(
 }
 
 /**
- * Keep yaw, pitch, and the look-at point. Move `distance` so the points fill the view.
- * Used when a preset angle would make the iso fit loop back away.
+ * Keep yaw, pitch, and the look-at point. Pull `distance` in until the points
+ * still sit inside the frame on both axes. A box that is small but off to one
+ * side does not count as fitting.
  */
 export function fitDistance(cam: CameraState, points: { x: number; y: number; z: number }[], viewport?: Viewport): CameraState {
   const view = viewport && viewport.width > 40 && viewport.height > 40
@@ -224,13 +225,14 @@ export function fitDistance(cam: CameraState, points: { x: number; y: number; z:
   const limitY = 1 - (FRAME_MARGIN * 2) / view.height;
   let lo = 30;
   let hi = 20000;
-  let best = Math.min(hi, Math.max(lo, cam.distance));
-  for (let i = 0; i < 22; i += 1) {
+  let best = hi;
+  for (let i = 0; i < 24; i += 1) {
     const mid = (lo + hi) / 2;
     const box = ndcBox({ ...cam, distance: mid, aspect }, safe);
-    if (!box) { lo = mid; continue; }
-    const scale = Math.max((box.maxX - box.minX) / (2 * limitX), (box.maxY - box.minY) / (2 * limitY));
-    if (scale > 1) lo = mid;
+    const inside = !!box
+      && box.minX >= -limitX && box.maxX <= limitX
+      && box.minY >= -limitY && box.maxY <= limitY;
+    if (!inside) lo = mid;
     else { best = mid; hi = mid; }
   }
   return { ...cam, distance: best, aspect };

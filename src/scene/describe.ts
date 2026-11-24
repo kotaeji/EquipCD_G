@@ -98,6 +98,29 @@ export interface SceneBounds {
   maxZ: number;
 }
 
+/** Center of every unit zone. Y is the middle of the framed scene, so a front view is not stuck on the floor. */
+export function zoneLookAt(scene: SceneDescription): { x: number; y: number; z: number } {
+  const points = framePoints(scene);
+  const ys = points.length ? points : [{ x: 0, y: 0, z: 0 }];
+  const minY = ys.reduce((m, p) => Math.min(m, p.y), 0);
+  const maxY = ys.reduce((m, p) => Math.max(m, p.y), 0);
+  if (!scene.zones.length) {
+    const b = scene.bounds;
+    return { x: (b.minX + b.maxX) / 2, y: (minY + maxY) / 2, z: (b.minZ + b.maxZ) / 2 };
+  }
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const zone of scene.zones) {
+    minX = Math.min(minX, zone.x);
+    maxX = Math.max(maxX, zone.x + zone.w);
+    minZ = Math.min(minZ, zone.z);
+    maxZ = Math.max(maxZ, zone.z + zone.d);
+  }
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2, z: (minZ + maxZ) / 2 };
+}
+
 /** Unit corners on the floor and the top face of every device. These are what 「전체 보기」 must keep on screen. */
 export function framePoints(scene: SceneDescription): { x: number; y: number; z: number }[] {
   const pts: { x: number; y: number; z: number }[] = [];

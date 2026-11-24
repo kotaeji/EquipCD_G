@@ -5,8 +5,8 @@ import {
   BoxGeometry, BufferGeometry, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments,
   Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
 } from 'three';
-import { fitToPoints } from '../src/scene/camera';
-import { describeScene } from '../src/scene/describe';
+import { CAMERA_FOV, fitDistance, fitToPoints, projectToScreen } from '../src/scene/camera';
+import { describeScene, framePoints, zoneLookAt } from '../src/scene/describe';
 import { buildSampleProject } from '../src/model/sample';
 import { loadView } from '../src/ui/viewSettings';
 import {
@@ -39,6 +39,32 @@ describe('TURN-086 viewpoint math', () => {
     expect(compassRotationDeg(Math.PI / 2)).toBeCloseTo(270, 3);
     expect(compassRotationDeg(0.7)).not.toBe(compassRotationDeg(0));
     expect(COMPASS_POINTS.map((item) => item.label)).toEqual(['앞', '우', '뒤', '좌']);
+    const scene = describeScene(buildSampleProject(), null);
+    const look = zoneLookAt(scene);
+    const minX = Math.min(...scene.zones.map((zone) => zone.x));
+    const maxX = Math.max(...scene.zones.map((zone) => zone.x + zone.w));
+    const minZ = Math.min(...scene.zones.map((zone) => zone.z));
+    const maxZ = Math.max(...scene.zones.map((zone) => zone.z + zone.d));
+    expect(look.x).toBeCloseTo((minX + maxX) / 2);
+    expect(look.z).toBeCloseTo((minZ + maxZ) / 2);
+    const view = { width: 576, height: 360 };
+    const points = framePoints(scene);
+    for (const id of ['iso', 'top', 'front', 'side'] as const) {
+      const pose = viewpointAngles(id);
+      const cam = fitDistance({
+        targetX: look.x, targetY: look.y, targetZ: look.z,
+        yaw: pose.yaw, pitch: pose.pitch, distance: 800,
+        aspect: view.width / view.height, fov: CAMERA_FOV,
+      }, points, view);
+      for (const point of points) {
+        const at = projectToScreen(cam, point, view);
+        expect(at.ok, id).toBe(true);
+        expect(at.x, `${id} x`).toBeGreaterThanOrEqual(16);
+        expect(at.x, `${id} x`).toBeLessThanOrEqual(view.width - 16);
+        expect(at.y, `${id} y`).toBeGreaterThanOrEqual(16);
+        expect(at.y, `${id} y`).toBeLessThanOrEqual(view.height - 16);
+      }
+    }
     expect(viewpointAngles('top').yaw).toBe(0);
     expect(viewpointAngles('top').pitch).toBeGreaterThan(1.45);
     expect(viewpointAngles('top').pitch).toBeLessThan(Math.PI / 2);
