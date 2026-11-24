@@ -31,6 +31,10 @@ import { CommandPaletteDialog, PALETTE_LABEL, ShortcutSheet } from './CommandPal
 import { HistoryMenu } from './HistoryList';
 import type { ObjectEntry } from './objectFind';
 import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
+import {
+  burstOpen, crossingUnit, cursorPlace, diagramEffect, diagramTarget, movedPlace, NUDGE_GAP_MS, NUDGE_LABEL, nextZoom, planCanvasKey,
+  type DiagramCursor, type DiagramLink, type NudgeBurst,
+} from './canvasKeyboard';
 import { ContextMenu } from './ContextMenu';
 import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
 import { selectAll, SELECT_HINT } from './selectAll';
@@ -215,6 +219,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [propsFold, setPropsFold] = useState(true);
   const [propPeek, setPropPeek] = useState(false);
   const [fitToken, setFitToken] = useState(0);
+  const [kbd, setKbd] = useState<DiagramCursor | null>(null);
+  const [kbdLink, setKbdLink] = useState<DiagramLink | null>(null);
+  const [kbdPlace, setKbdPlace] = useState('');
+  const [reveal, setReveal] = useState<{ id: string; n: number } | null>(null);
+  const kbdRef = useRef<DiagramCursor | null>(null);
+  const linkRef = useRef<DiagramLink | null>(null);
+  /** Selection ids last written by the keyboard. A pointer selection that differs drops the cursor. */
+  const kbdSelection = useRef<string[] | null>(null);
+  const revealN = useRef(0);
+  const nudgeRef = useRef<(NudgeBurst & { timer: number; token: object }) | null>(null);
+  kbdRef.current = kbd;
+  linkRef.current = kbdLink;
   const [rightTab, setRightTab] = useState('props');
   const [subTab, setSubTab] = useState<Record<StepId, string>>({ library: 'cards', canvas: '', attributes: '', sequence: 'sequence', check: 'gap', run: '' });
   const [itemsStep, setItemsStep] = useState<StepId | null>(null);
@@ -457,8 +473,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (next === tab.history) return;
     updTab(tab.key, (t) => ({ ...t, history: next, runtime: null }));
   };
-  const doUndo = () => { const o = undo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
-  const doRedo = () => { const o = redo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
+  const clearNudge = () => {
+    const burst = nudgeRef.current;
+    if (burst?.timer) window.clearTimeout(burst.timer);
+    nudgeRef.current = null;
+  };
+  const doUndo = () => { clearNudge(); const o = undo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
+  const doRedo = () => { clearNudge(); const o = redo(tab.history, locked); if (o.error) say(o.error, true); else updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); };
   const doJump = (index: number) => {
     const o = jumpHistory(tab.history, index, locked);
     if (o.error) { say(o.error, true); return; }
@@ -840,6 +861,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (id === 'matchH') { runArrange(C.matchUnitSize(p, selection, 'h'), '높이 같게'); return; }
   };
 
+  // A pointer selection leaves the keyboard cursor. The owned ids stay put, so a second effect run does not drop them.
+  useEffect(() => {
+    const owned = kbdSelection.current;
+    if (owned && owned.length === selection.length && owned.every((id, i) => id === selection[i])) return;
+    kbdSelection.current = null;
+    clearNudge();
+    kbdRef.current = null;
+    linkRef.current = null;
+    setKbd(null);
+    setKbdLink(null);
+    setKbdPlace('');
+  }, [selection]);
+
   // ---------- keyboard ----------
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -884,17 +918,172 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       // rev 4: while any dialog is open, background project shortcuts (Undo/Redo/Delete/Esc mode reset) never act
       if (blocked) return;
       if (typing) return;
-      if (!(e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-        const el = e.target as HTMLElement | null;
-        if (el?.closest?.('.rf-host') && !el.closest('button, input, textarea, select, a') && !view.home && !guide && step === 'canvas') {
-          const stepPx = 10;
-          const dx = e.key === 'ArrowLeft' ? -stepPx : e.key === 'ArrowRight' ? stepPx : 0;
-          const dy = e.key === 'ArrowUp' ? -stepPx : e.key === 'ArrowDown' ? stepPx : 0;
-          const lockedIds = new Set(p.units.filter((u) => u.positionLocked === true).map((u) => u.id));
-          const movable = selection.filter((id) => !lockedIds.has(id) && (p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id)));
-          if (movable.length) {
-            e.preventDefault();
-            edit(C.moveNodes(p, movable, dx, dy), '방향키 이동');
+      const host = diagramTarget(e.target);
+      const diagramOn = !!host && !view.home && !guide && (
+        (step === 'canvas' && view.layoutTab === 'diagram') || (step === 'run' && view.runView === 'diagram')
+      );
+      if (diagramOn && host) {
+        const plan = planCanvasKey(e);
+        if (plan.type !== 'pass') {
+          e.preventDefault();
+          const nav = { cursor: kbdRef.current, link: linkRef.current };
+          const fx = diagramEffect(plan, nav, p, selection, locked);
+          const focusNode = (id: string) => {
+            const safe = id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            host.querySelector<HTMLElement>(`.react-flow__node[data-id="${safe}"]`)?.focus({ preventScroll: true });
+          };
+          const revealNode = (id: string) => {
+            revealN.current += 1;
+            setReveal({ id, n: revealN.current });
+          };
+          const publish = (cursor: DiagramCursor | null, link: DiagramLink | null, place: string, selectId: string | null) => {
+            kbdRef.current = cursor;
+            linkRef.current = link;
+            setKbd(cursor);
+            setKbdLink(link);
+            setKbdPlace(place);
+            if (selectId) {
+              kbdSelection.current = [selectId];
+              setSelection([selectId]);
+              focusNode(selectId);
+              revealNode(selectId);
+            }
+          };
+          const historyNow = () => tabsRef.current.find((t) => t.key === tab.key)?.history ?? tab.history;
+          const busyNow = () => {
+            const rtNow = tabsRef.current.find((t) => t.key === tab.key)?.runtime?.state.status;
+            return rtNow === 'running' || rtNow === 'paused';
+          };
+          if (fx.type === 'cursor') publish(fx.cursor, null, fx.place, fx.focusId);
+          else if (fx.type === 'link') {
+            publish(fx.cursor, fx.link, fx.place, fx.focusId);
+            setMode(fx.mode);
+            setConnectFrom(fx.connectFrom);
+            if (fx.toast) say(fx.toast);
+          } else if (fx.type === 'cancel-link') {
+            setConnectFrom(null);
+            setMode('select');
+            publish(fx.cursor, null, fx.place, fx.cursor?.id ?? null);
+          } else if (fx.type === 'esc-top') {
+            setConnectFrom(null);
+            setMode('select');
+            publish(null, null, '', null);
+          } else if (fx.type === 'refuse') {
+            setKbdPlace(fx.place);
+            say(fx.toast, true);
+          } else if (fx.type === 'zoom') {
+            if (fx.dir === 0) { setFitToken((n) => n + 1); setKbdPlace('화면 맞춤'); }
+            else {
+              const dir = fx.dir;
+              const zoom = nextZoom(view.zoom, dir);
+              setView((v) => ({ ...v, zoom: nextZoom(v.zoom, dir) }));
+              setKbdPlace(`${dir > 0 ? '확대' : '축소'} ${Math.round(zoom * 100)}%`);
+            }
+          } else if (fx.type === 'commit-link') {
+            clearNudge();
+            const kind = fx.link.kind === 'flow' ? 'flow' as const : 'signal' as const;
+            const from = fx.link.kind === 'flow' ? fx.link.fromId : fx.link.fromSignalId;
+            const to = fx.link.kind === 'flow' ? fx.link.targetId : fx.link.targetSignalId;
+            const label = kind === 'flow' ? '물류 연결' : '신호 연결';
+            const cur = historyNow();
+            const o = applyEdit(cur, C.addConnection(cur.present, kind, from, to), label, busyNow());
+            if (o.error) sayProblem(refusal('connect', o.error));
+            else { updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null })); say(label + ' 추가'); }
+            setConnectFrom(null);
+            setMode('select');
+            publish(fx.cursor, null, fx.place, fx.cursor.id);
+          } else if (fx.type === 'nudge') {
+            if (fx.note) say(fx.note, true);
+            const pending = nudgeRef.current && burstOpen(nudgeRef.current, fx.ids, Date.now()) ? nudgeRef.current : null;
+            const shifted = pending ? C.moveNodes(pending.base, pending.ids, pending.dx, pending.dy) : null;
+            const viewP = shifted && shifted.ok ? shifted.project : p;
+            const only = fx.ids.length === 1 ? viewP.devices.find((d) => d.id === fx.ids[0]) : undefined;
+            const hit = only ? crossingUnit(
+              viewP.units.map((u) => ({ id: u.id, x: u.layout.x, y: u.layout.y, w: u.layout.w, h: u.layout.h })),
+              only.unitId, only.layout.x, only.layout.y, only.layout.w, only.layout.h, fx.dx, fx.dy,
+            ) : null;
+            if (only && hit) {
+              clearNudge();
+              const target = viewP.units.find((u) => u.id === hit);
+              const fromUnit = viewP.units.find((u) => u.id === only.unitId);
+              const imp = C.impactOf(viewP, only.id);
+              const key = tab.key;
+              const deviceId = only.id;
+              const applyAt = (kind: 'move' | 'reparent') => {
+                const cur = tabsRef.current.find((t) => t.key === key)?.history;
+                if (!cur) return;
+                const dev = cur.present.devices.find((d) => d.id === deviceId);
+                if (!dev) return;
+                const r = kind === 'move'
+                  ? C.moveNodes(cur.present, [deviceId], fx.dx, fx.dy)
+                  : C.reparentDevice(cur.present, deviceId, hit, { x: dev.layout.x + fx.dx, y: dev.layout.y + fx.dy });
+                const done = applyEdit(cur, r, kind === 'move' ? '이동' : 'Device 소속 변경', busyNow());
+                if (done.error) say(done.error, true);
+                else updTab(key, (t) => ({ ...t, history: done.history, runtime: null }));
+              };
+              setModal({
+                title: `${only.name}의 소속 Unit 변경?`,
+                body: <div><p>{fromUnit?.name ?? only.unitId} → <b>{target?.name ?? hit}</b> (계층 이동). 좌표 이동과 별개입니다.</p>
+                  <p>영향 Action {imp.actions.length}개: {imp.actions.map((a) => a.name).join(', ') || '없음'}</p>
+                  <p>영향 시퀀스 단계 {imp.steps.length}개: {imp.steps.map((s) => s.name).join(', ') || '없음'}</p>
+                  <p className="muted">Action의 소속 Unit도 함께 바뀝니다. 자재 이동 조건은 바뀌지 않으니 Gap 재분석을 권장합니다.</p></div>,
+                actions: [
+                  { label: '소속 변경 + 이동', primary: true, run: () => applyAt('reparent') },
+                  { label: '좌표만 이동 (소속 유지)', run: () => applyAt('move') },
+                  { label: '취소', run: () => {} },
+                ],
+              });
+              return;
+            }
+            const now = Date.now();
+            const burst = nudgeRef.current;
+            const open = burstOpen(burst, fx.ids, now);
+            let movedProject: Project | null = null;
+            if (open && burst) {
+              window.clearTimeout(burst.timer);
+              const ndx = burst.dx + fx.dx;
+              const ndy = burst.dy + fx.dy;
+              if (ndx === 0 && ndy === 0) {
+                nudgeRef.current = null;
+                updTab(tab.key, (t) => {
+                  const h = t.history;
+                  if (h.labels[h.labels.length - 1] !== NUDGE_LABEL) return t;
+                  const prev = h.past[h.past.length - 1];
+                  if (!prev) return t;
+                  return { ...t, runtime: null, history: { ...h, past: h.past.slice(0, -1), present: prev, labels: h.labels.slice(0, -1), future: [], futureLabels: [] } };
+                });
+                movedProject = burst.base;
+              } else {
+                const moved = C.moveNodes(burst.base, fx.ids, ndx, ndy);
+                if (!moved.ok) say(moved.reason, true);
+                else {
+                  nudgeRef.current = { ids: [...fx.ids], base: burst.base, dx: ndx, dy: ndy, upAt: null, timer: 0, token: burst.token };
+                  updTab(tab.key, (t) => ({ ...t, runtime: null, history: { ...t.history, present: moved.project, future: [], futureLabels: [] } }));
+                  movedProject = moved.project;
+                }
+              }
+            } else {
+              if (burst?.timer) window.clearTimeout(burst.timer);
+              const base = historyNow().present;
+              const moved = C.moveNodes(base, fx.ids, fx.dx, fx.dy);
+              const o = applyEdit(historyNow(), moved, NUDGE_LABEL, busyNow());
+              if (o.error) say(o.error, true);
+              else {
+                nudgeRef.current = { ids: [...fx.ids], base, dx: fx.dx, dy: fx.dy, upAt: null, timer: 0, token: {} };
+                updTab(tab.key, (t) => ({ ...t, history: o.history, runtime: null }));
+                movedProject = moved.ok ? moved.project : null;
+              }
+            }
+            if (movedProject) {
+              const id = fx.ids[0];
+              const unit = movedProject.units.find((u) => u.id === id);
+              const dev = movedProject.devices.find((d) => d.id === id);
+              const parent = dev ? movedProject.units.find((u) => u.id === dev.unitId) : undefined;
+              const label = unit ? unit.name : dev ? cursorPlace(parent?.name ?? dev.unitId, dev.name) : id;
+              const box = unit?.layout ?? dev?.layout;
+              if (box) setKbdPlace(movedPlace(label, box.x, box.y));
+              if (id) revealNode(id);
+            }
           }
           return;
         }
@@ -944,10 +1133,45 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         if (selectedNodeIds.length >= 2) { e.preventDefault(); requestDeleteMany(selectedNodeIds); }
         else if (selection.length === 1) { e.preventDefault(); requestDelete(selection[0]); }
       }
-      else if (e.key === 'Escape') { setConnectFrom(null); setMode('select'); }
+      else if (e.key === 'Escape') {
+        setConnectFrom(null);
+        setMode('select');
+        // A link keeps its own state. Esc cancels it even when focus has left the diagram.
+        if (linkRef.current) {
+          const fx = diagramEffect({ type: 'esc' }, { cursor: kbdRef.current, link: linkRef.current }, p, selection, locked);
+          if (fx.type === 'cancel-link') {
+            kbdRef.current = fx.cursor;
+            linkRef.current = null;
+            setKbd(fx.cursor);
+            setKbdLink(null);
+            setKbdPlace(fx.place);
+            if (fx.cursor) {
+              kbdSelection.current = [fx.cursor.id];
+              setSelection([fx.cursor.id]);
+            }
+          }
+        }
+      }
     };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
+    const up = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      const burst = nudgeRef.current;
+      if (!burst) return;
+      window.clearTimeout(burst.timer);
+      const token = {};
+      burst.upAt = Date.now();
+      burst.token = token;
+      burst.timer = window.setTimeout(() => {
+        if (nudgeRef.current?.token === token) nudgeRef.current = null;
+      }, NUDGE_GAP_MS);
+    };
+    // Capture so a diagram node cannot swallow Tab, Esc, or the arrow keys first.
+    window.addEventListener('keydown', h, true);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', h, true);
+      window.removeEventListener('keyup', up);
+    };
   });
 
   // ---------- file / workspace ----------
@@ -1609,10 +1833,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const runCanvasEl = <Canvas frame="run" runMotion={runMotion} project={p} rt={shown} activeDeviceIds={activeDeviceIds.length ? activeDeviceIds : undefined} faultDeviceIds={faultIds.length ? faultIds : undefined} interlockDeviceIds={interlockIds.length ? interlockIds : undefined} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
+    kbdSource={kbdLink ? (kbdLink.kind === 'flow' ? kbdLink.fromId : kbdLink.deviceId) : null}
+    kbdTarget={kbdLink ? (kbdLink.kind === 'flow' ? kbdLink.targetId : p.signals.find((s) => s.id === kbdLink.targetSignalId)?.deviceId ?? null) : kbd?.id ?? null}
+    reveal={reveal}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote} />;
   const canvasEl = <Canvas runMotion={runMotion} project={p} rt={rt} view={view} selection={selection} mode={mode} connectFrom={connectFrom} locked={locked}
     onSelect={(ids) => setSelection(ids)} onMoveCommit={onMoveCommit} onResizeCommit={onResizeCommit} onDropAsset={onDropAsset} onPortClick={onPortClick}
     onSignalConnect={onSignalConnect} onFlowConnect={onFlowConnect} onConnectCancel={onConnectCancel} onContextMenu={openContext} fitToken={fitToken}
+    kbdSource={kbdLink ? (kbdLink.kind === 'flow' ? kbdLink.fromId : kbdLink.deviceId) : null}
+    kbdTarget={kbdLink ? (kbdLink.kind === 'flow' ? kbdLink.targetId : p.signals.find((s) => s.id === kbdLink.targetSignalId)?.deviceId ?? null) : kbd?.id ?? null}
+    reveal={reveal}
     onUnitConnectClick={onUnitConnectClick} onBlocked={(m) => say(m, true)} onZoomChange={onZoomChange} onMinimapChange={onMinimapChange} connectNote={connectNote}
     backgroundPicking={bgPoints !== null}
     onBackgroundMove={(x, y) => edit(updateDiagramBackground(p, { x, y }), '배경 위치')}
@@ -2200,6 +2430,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <span>rev {p.revision}</span><span>Undo {tab.history.past.length}</span>
         <span>{runStatusBar(rt?.status)}</span>
         {locked && <span>실행 중 편집 잠금</span>}
+        <span className="kbd-place" data-kbd-place="" role="status" aria-live="polite">{kbdPlace}</span>
         <button type="button" className="small" data-notice-button="" aria-expanded={notices.open} onClick={() => notices.setOpen((v) => !v)}>알림</button>
         <span className="grow" />
         {!view.home && <>
