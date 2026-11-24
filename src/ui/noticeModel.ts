@@ -9,6 +9,11 @@ export const NOTICE_LOG = 20;
 
 export type NoticeKind = 'info' | 'success' | 'reject';
 
+export interface NoticeAction {
+  label: string;
+  run: () => void;
+}
+
 export interface NoticeItem {
   id: number;
   kind: NoticeKind;
@@ -17,6 +22,7 @@ export interface NoticeItem {
   text: string;
   problem?: ProblemCopy;
   full?: boolean;
+  action?: NoticeAction;
 }
 
 export interface NoticeInput {
@@ -24,6 +30,7 @@ export interface NoticeInput {
   text: string;
   problem?: ProblemCopy;
   full?: boolean;
+  action?: NoticeAction;
 }
 
 /**
@@ -67,6 +74,7 @@ export function useNotices() {
       text: input.text,
       problem: input.problem,
       full: input.full,
+      action: input.action,
     };
     setLive((cur) => [item, ...cur].slice(0, NOTICE_STACK));
     setLog((cur) => [item, ...cur].slice(0, NOTICE_LOG));

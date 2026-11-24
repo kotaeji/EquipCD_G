@@ -55,6 +55,9 @@ import { conditionsFormula, runBlockFormula } from '../model/conditionFormula';
 import type { ConditionFinding } from '../model/conditionCheck';
 import { confirmedCaption, gapConfirmationChange, normalizeConfirmerName, quantityOf } from '../model/confirmationLog';
 import { appearanceOf, loadView, paletteTheme, saveView, THEMES, type ExplorerTab, type LayerId, type LayoutTab, type PanelKey, type RunDetailsTab, type UserView } from './viewSettings';
+import { captureLayout, columnWidths, patchLayout, resetLayout, restoreLayout, useLayoutWidth, viewportTooNarrow, widthTier, workColumnWidth, type LayoutSnapshot } from './layoutTier';
+import { OverflowRow } from './OverflowRow';
+import './layout-tier.css';
 import { ConfirmationGate, type ConfirmationRunner } from './confirmationGate';
 import { ConfirmerDialog } from './ConfirmerDialog';
 import { confirmationJump } from './confirmationJump';
@@ -173,6 +176,13 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   useState(() => { restoreImportedAml(kv); return 0; });
   const [libVersion, setLibVersion] = useState(0);
   const [view, setView] = useState<UserView>(() => loadView(kv));
+  const layoutWidth = useLayoutWidth();
+  const tier = widthTier(layoutWidth);
+  const tooNarrow = viewportTooNarrow(layoutWidth);
+  const slice = view.layoutByTier[tier];
+  const tierRef = useRef(tier);
+  tierRef.current = tier;
+  const layoutUndo = useRef<LayoutSnapshot | null>(null);
   const [draftBoot] = useState(() => bootDrafts(kv));
   const [qlist, setQlist] = useState<QuarantineEntry[]>(() => draftBoot.quarantine);
   const [drafts, setDrafts] = useState<DraftMeta[]>(() => draftBoot.drafts);
@@ -276,8 +286,6 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [showNames, setShowNames] = useState(true);
   const [emphasizeMotion, setEmphasizeMotion] = useState(true);
   const [equipmentMotion, setEquipmentMotion] = useState(() => equipmentMotionDefault(prefersReducedMotion()));
-  const [foldSteps, setFoldSteps] = useState(false);
-  const [foldCond, setFoldCond] = useState(false);
   const [scrub, setScrub] = useState<{ key: string; ms: number | null }>({ key: '', ms: null });
   const durationBaseline = useRef<{ sessionKey: string; depth: number; snap: DurationSnap[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -288,7 +296,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const locked = rt?.status === 'running' || rt?.status === 'paused';
   const [subUnitPref, setSubUnitPref] = useState('');
   const runMode = 'station' as const;
-  const explorerOpen = view.explorerOpen;
+  const explorerOpen = slice.explorerOpen;
   const [libDetail, setLibDetail] = useState(false);
   const [guide, setGuide] = useState<'files' | 'bundle' | 'search' | null>(null);
   const [gapFilter, setGapFilter] = useState<'all' | 'shortfall' | 'human' | 'hidden'>('all');
@@ -1117,12 +1125,50 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   };
   const openExplorerTab = (id: ExplorerTab) => {
     setHelpScope('explorer');
-    setView((v) => (v.explorerTab === id && v.explorerOpen ? v : { ...v, explorerTab: id, explorerOpen: true }));
+    setView((v) => {
+      const t = tierRef.current;
+      const next = v.explorerTab === id && v.layoutByTier[t].explorerOpen ? v : { ...v, explorerTab: id };
+      return next.layoutByTier[t].explorerOpen ? next : patchLayout(next, t, { explorerOpen: true });
+    });
   };
-  const toggleExplorer = () => setView((v) => ({ ...v, explorerOpen: !v.explorerOpen }));
-  const setRunDetailsOpen = (open: boolean) => setView((v) => (v.runDetailsOpen === open ? v : { ...v, runDetailsOpen: open }));
+  const toggleExplorer = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { explorerOpen: !v.layoutByTier[t].explorerOpen });
+  });
+  const setRunDetailsOpen = (open: boolean) => setView((v) => patchLayout(v, tierRef.current, { runDetailsOpen: open }));
   const setRunDetailsTab = (id: RunDetailsTab) => setView((v) => (v.runDetailsTab === id ? v : { ...v, runDetailsTab: id }));
-  const toggleRunStrip = () => setView((v) => ({ ...v, runStripFolded: !v.runStripFolded }));
+  const toggleRunStrip = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { runStripFolded: !v.layoutByTier[t].runStripFolded });
+  });
+  const togglePropsFold = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { propsFolded: !v.layoutByTier[t].propsFolded });
+  });
+  const toggleStepsFold = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { stepsFolded: !v.layoutByTier[t].stepsFolded });
+  });
+  const toggleCondFold = () => setView((v) => {
+    const t = tierRef.current;
+    return patchLayout(v, t, { condFolded: !v.layoutByTier[t].condFolded });
+  });
+  const resetScreenLayout = () => {
+    layoutUndo.current = captureLayout(view);
+    setView((v) => resetLayout(v));
+    notices.push({
+      kind: 'info',
+      text: '화면 배치를 처음으로 되돌렸습니다.',
+      action: {
+        label: '되돌리기',
+        run: () => {
+          const snap = layoutUndo.current;
+          layoutUndo.current = null;
+          if (snap) setView((v) => restoreLayout(v, snap));
+        },
+      },
+    });
+  };
   const openLayoutTab = (id: LayoutTab) => {
     setHelpScope('main');
     setView((v) => (v.layoutTab === id ? v : { ...v, layoutTab: id }));
@@ -1218,10 +1264,16 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
 
   const appearance = appearanceOf(view.theme);
   const themeVars = THEMES[paletteTheme(view.theme)].vars;
-  const setPanel = (key: PanelKey, n: number) => setView((v) => (v.panels[key] === n ? v : { ...v, panels: { ...v.panels, [key]: n } }));
+  const setPanel = (key: PanelKey, n: number) => setView((v) => {
+    const t = tierRef.current;
+    if (v.layoutByTier[t].panels[key] === n) return v;
+    return patchLayout(v, t, { panels: { ...v.layoutByTier[t].panels, [key]: n } });
+  });
+  const cols = columnWidths(tier, slice);
   const style = { ...Object.fromEntries(Object.entries(themeVars).map(([k, v]) => [`--${k}`, v])),
     ...statusCssVars(appearance),
-    '--exw': `${explorerOpen ? view.panels.explorer : 40}px`, '--libw': `${view.panels.library}px`, '--propw': `${view.panels.canvas}px`, '--runw': `${view.panels.run}px` } as React.CSSProperties;
+    '--exw': `${cols.explorer}px`, '--ex-panel': `${slice.panels.explorer}px`, '--libw': `${slice.panels.library}px`, '--propw': `${cols.props}px`, '--runw': `${slice.panels.run}px`,
+    '--steps-col': `${cols.steps}px`, '--cond-col': `${cols.cond}px` } as React.CSSProperties;
   const selectedId = selection.length === 1 ? selection[0] : null;
   const dirty = tab.savedRevision !== p.revision;
   const L = view.layers;
@@ -1550,7 +1602,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     </div>
   </div>;
   const explorer = <aside className={`explorer ${explorerOpen ? '' : 'collapsed'}`} aria-label="Workspace / Project 탐색기">
-    {explorerOpen && <PanelSplit kind="explorer" value={view.panels.explorer} onChange={(n) => setPanel('explorer', n)} label="탐색기 너비" />}
+    {explorerOpen && <PanelSplit kind="explorer" tier={tier} value={slice.panels.explorer} onChange={(n) => setPanel('explorer', n)} label="탐색기 너비" />}
     <div className="exhead"><button className="small icon" onClick={toggleExplorer} aria-expanded={explorerOpen} aria-label={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'} title={explorerOpen ? '탐색기 접기' : '탐색기 펼치기'}><IconLabel id="explorer" glyph={explorerOpen ? '⟨' : '⟩'} /></button>{explorerOpen && <b>탐색기</b>}</div>
     {explorerOpen && <Tabs label="탐색기" idBase="explorer" value={view.explorerTab} onChange={openExplorerTab} tabs={[
       { id: 'workspace', label: 'Workspace', icon: 'workspace', panel: workspacePanel },
@@ -1727,7 +1779,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   return (
     <ConfirmationGate.Provider value={requestConfirmation}>
     <TermHintsProvider value={view.termHints}>
-    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen} data-help-layout={helpPlace} data-motion={runMotion ? 'on' : 'off'}>
+    <div className={`app ${explorerOpen ? '' : 'ex-collapsed'} ${view.home ? 'is-home' : ''} ${view.helpOpen ? 'help-open' : ''}`} style={style} data-theme={view.theme} data-appearance={appearance} data-step={step} data-screen={screen} data-help-layout={helpPlace} data-motion={runMotion ? 'on' : 'off'} data-width-tier={tier} data-narrow-warn={tooNarrow ? '1' : '0'} data-work-width={workColumnWidth(layoutWidth, tier, slice, step === 'run' ? 'run' : 'canvas')}>
+      {tooNarrow && <div className="layout-narrow-banner" role="status" data-narrow-banner="">화면이 좁습니다 — 1024 이상에서 쓰세요</div>}
       <HeaderBar
         viewportWidth={viewportWidth}
         dirty={dirty}
@@ -1759,7 +1812,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       <div className="stepper" role="navigation" aria-label="단계" data-tour="stepbar">
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
           <div key={s.id} className={`st ${on ? 'on' : ''}`} data-stepid={s.id} onClick={(e) => { if ((e.target as HTMLElement).closest('[data-step-badge]')) return; goStep(s.id); }}>
-            <button type="button" className="st-go" aria-current={on ? 'step' : undefined}>{s.no} <Terms text={s.label} /></button>
+            <button type="button" className="st-go" title={`${s.no} ${s.label}`} aria-label={`${s.no} ${s.label}`} aria-current={on ? 'step' : undefined}>{s.no} <span className="st-full"><Terms text={s.label} /></span><span className="st-short">{s.short}</span></button>
             <button type="button" className={`badge st-badge status-${WIZARD_BADGE_STATUS[b]}`} data-step-badge={s.id} data-status={WIZARD_BADGE_STATUS[b]} aria-haspopup="dialog" aria-expanded={itemsStep === s.id}
               aria-label={`${s.no} ${s.label} ${BADGE_WORD[b]}, 남은 항목 ${n}`}
               onClick={(e) => { e.stopPropagation(); toggleItems(s.id); }}
@@ -1793,7 +1846,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       {guide === 'search' && <div className="workspace ws-full"><div className="bbody sparse-page"><button type="button" onClick={() => setGuide(null)}><IconLabel id="close">닫기</IconLabel></button>
         <SearchSheet tabs={tabs.map((t) => ({ key: t.key, name: t.history.present.name, active: t.key === tab.key }))}
           tree={p.units.flatMap((u) => [{ id: u.id, label: u.name, depth: 0 }, ...u.deviceIds.map((id) => ({ id, label: devName(p, id), depth: 1 }))])}
-          onTab={(key) => switchTab(key)} onPick={(id) => { setSelection([id]); setGuide(null); goStep('canvas'); }} onFold={() => setView((v) => ({ ...v, explorerOpen: false }))} onCanvas={() => { setGuide(null); goStep('canvas'); }} />
+          onTab={(key) => switchTab(key)} onPick={(id) => { setSelection([id]); setGuide(null); goStep('canvas'); }} onFold={() => setView((v) => patchLayout(v, tierRef.current, { explorerOpen: false }))} onCanvas={() => { setGuide(null); goStep('canvas'); }} />
       </div></div>}
 
       {!guide && view.home && <div className="workspace home-main">
@@ -1828,7 +1881,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           : sub === 'aml' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="AML 입출력 결과" /></h1><AmlResultSheet onCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /></div>
           : sub === 'extract' ? <div className="bbody sparse-page"><h1 className="stage-title"><Terms text="자료 입력" /></h1><ExtractSheet p={p} locked={locked} onCandidates={(next) => edit({ ok: true, project: next }, '자료 후보')} onOpenCandidates={() => { setHelpScope('main'); setSubTab((t) => ({ ...t, library: 'input' })); }} /><Fold className="fold-panel" summary="형식 안내"><ExtractPanel /></Fold></div>
           : <LibraryWorkspace p={p} locked={locked} mode={view.visualMode} filter={view.libraryFilter} libVersion={libVersion} detail={libDetail} setDetail={setLibDetail}
-            detailWidth={view.panels.library} onDetailWidth={(n) => setPanel('library', n)}
+            detailWidth={slice.panels.library} onDetailWidth={(n) => setPanel('library', n)}
             setFilter={(f) => setView({ ...view, libraryFilter: f })} setMode={(m) => setView({ ...view, visualMode: m })}
             onAdd={onAddFromLibrary} onImportAml={onImportAml} onExportAml={() => download('ecd-library-export.aml', exportLibraryAml(), 'application/xml')}
             templateKv={kv} onTemplatesChanged={() => setTplTick((n) => n + 1)} onTemplateMessage={(message, err) => say(message, !!err)}
@@ -1838,11 +1891,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             }} />}
       </div>}
 
-      {!guide && !view.home && step === 'canvas' && <div className="workspace ws-canvas">
+      {!guide && !view.home && step === 'canvas' && <div className={`workspace ws-canvas ${slice.propsFolded ? 'fold-props' : ''}`}>
         <div className="stage layout-stage">
           <div className="stage-head">
             <h1 className="stage-title"><span data-tour="canvas"><Terms text="배치·연결" /></span></h1>
-            <div className="tool-pills">
+            <OverflowRow className="tool-pills">
               <button className={mode === 'select' ? 'on' : ''} onClick={() => { setMode('select'); setConnectFrom(null); }}><IconLabel id="select">선택/이동</IconLabel></button>
               <button className={mode === 'flow' ? 'on' : ''} onClick={() => { setMode('flow'); setConnectFrom(null); }} title="Unit → Unit 물류 흐름 연결"><IconLabel id="mode-flow"><Terms text="물류 연결" /></IconLabel></button>
               <button className={mode === 'signal' ? 'on' : ''} onClick={() => { setMode('signal'); setConnectFrom(null); openLayoutTab('diagram'); }} title="출력 포트를 입력 포트로 끌어 연결합니다. 이 모드에서는 두 번 눌러서도 됩니다. 포트는 도면 도식 탭에 있습니다"><IconLabel id="mode-signal"><Terms text="신호 연결" /></IconLabel></button>
@@ -1851,7 +1904,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <label key={k}><input type="checkbox" checked={L[k]} onChange={(e) => setView({ ...view, layers: { ...L, [k]: e.target.checked } })} /> {l}</label>)}
                   <div className="muted">숨김은 삭제가 아니고 실행에서도 빼지 않습니다.</div></div>}</div>
               <span className="zoom-pill"><span>{Math.round(view.zoom * 100)}%</span><button type="button" aria-label="축소" onClick={() => setView({ ...view, zoom: Math.max(0.5, +(view.zoom - 0.1).toFixed(2)) })}><IconLabel id="zoom-out" glyph="−" /></button><button type="button" aria-label="확대" onClick={() => setView({ ...view, zoom: Math.min(2, +(view.zoom + 0.1).toFixed(2)) })}><IconLabel id="zoom-in" glyph="+" /></button></span>
-            </div>
+            </OverflowRow>
           </div>
           <p className="palette-hint">팔레트: 빈 유닛 / 푸셔 / 실린더 / 센서 / 유닛 템플릿. 카드를 끌어 다른 Substation에 놓으면 소속이 바뀝니다.</p>
           {starterHintId === p.id && <div className="starter-next"><EmptyState symbol="→" line={STARTER_NEXT} attrs={{ 'data-starter-next': 'canvas' }} /></div>}
@@ -1875,8 +1928,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                 <p className="path-note">{p.connections.some((c) => c.kind === 'flow') ? <>{flowSummary(p)}<br /></> : null}카드는 실제 Substation·Device입니다. 좌표·포트·신호선은 도면 도식 탭에서 움직입니다. 정밀 물리 검증은 아닙니다.</p>
               </> },
               { id: 'diagram', label: '도면 도식', icon: 'tab-diagram', panel: <>
-                <div className="diagram-tools">
-                  <p className="diagram-hint" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>물류: Unit 오른쪽 손잡이를 다른 Unit으로 끌기 · 신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
+                <OverflowRow className="diagram-tools">
+                  <p className="diagram-hint" data-overflow-keep="" title={`Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>물류: Unit 오른쪽 손잡이를 다른 Unit으로 끌기 · 신호: 출력● 포트를 입력○ 포트로 끌어 연결 · 장치 이동은 몸체를 끌기 · Shift + 끌기: 여러 개 고르기<br />{SELECT_HINT}</p>
                   {visualToggle}
                   <button onClick={() => runArrange(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}><IconLabel id="align-left">좌 정렬</IconLabel></button>
                   <button onClick={() => runArrange(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}><IconLabel id="align-top">상 정렬</IconLabel></button>
@@ -1916,15 +1969,18 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                     onLockAll={(on) => edit(C.setAllUnitPositionLock(p, on), on ? '모두 잠금' : '모두 풀기')}
                   />
                   <button type="button" className="danger" onClick={() => { if (selectedNodeIds.length >= 2) requestDeleteMany(selectedNodeIds); else if (selectedNodeIds.length === 1) requestDelete(selectedNodeIds[0]); else if (selection.length === 1) requestDelete(selection[0]); }} disabled={locked || (selectedNodeIds.length === 0 && !(selection.length === 1 && p.connections.some((c) => c.id === selection[0])))}><IconLabel id="delete">삭제</IconLabel></button>
-                </div>
+                </OverflowRow>
                 <div className="diagram-canvas">{canvasEl}</div>
               </> },
             ]} />
           </div>
         </div>
-        <PanelSplit kind="canvas" value={view.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />
-        <div className="right prop-col">
-          <div className="prop-body">{(() => {
+        {!slice.propsFolded && <PanelSplit kind="canvas" tier={tier} value={slice.panels.canvas} onChange={(n) => setPanel('canvas', n)} label="속성 패널 너비" />}
+        <div className={`right prop-col ${slice.propsFolded ? 'is-folded' : ''}`}>
+          <div className="prop-fold-head">
+            <button type="button" className="small" aria-label={slice.propsFolded ? '속성 칸 펼치기' : '속성 칸 접기'} onClick={togglePropsFold}><IconLabel id={slice.propsFolded ? 'unfold' : 'fold'}>{slice.propsFolded ? '펼치기' : '접기'}</IconLabel></button>
+          </div>
+          {!slice.propsFolded && <div className="prop-body">{(() => {
           const d = p.devices.find((x) => x.id === selection[0]);
           const host = d ? p.units.find((u) => u.id === d.unitId) : p.units.find((u) => u.id === selection[0]);
           const def = d ? findAsset(d.kind) : undefined;
@@ -1949,7 +2005,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             </div>
             <Fold className="prop-more" summary="속성 자세히" open={propsFold} onToggle={setPropsFold}>{inspectorEl}</Fold>
           </div>;
-        })()}</div></div>
+        })()}</div>}
+        </div>
       </div>}
 
       {!guide && !view.home && step === 'attributes' && <div className="workspace ws-full ws-noTabs">
@@ -2143,19 +2200,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         </div>
       </div>}
 
-      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${foldSteps ? 'fold-steps' : ''} ${foldCond ? 'fold-cond' : ''} ${view.runStripFolded ? 'fold-strip' : ''}`} data-run-view={view.runView}>
+      {!guide && !view.home && step === 'run' && <div className={`workspace ws-run ${slice.stepsFolded ? 'fold-steps' : ''} ${slice.condFolded ? 'fold-cond' : ''} ${slice.runStripFolded ? 'fold-strip' : ''}`} data-run-view={view.runView}>
         <h1 className="stage-title run-title"><Terms text={screen === 'S62' ? '실행 차단과 수정' : 'Station 논리 실행'} /></h1>
-        <div className="toolbar tool-pills">
+        <OverflowRow className="toolbar tool-pills">
           {runControls}<div className="sep" />{runViewToggle}<div className="sep" />
           <button className={view.visualMode === 'schematic' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'schematic' })}>도식</button>
           <button className={view.visualMode === 'photo' ? 'on' : ''} onClick={() => setView({ ...view, visualMode: 'photo' })} title="AI 생성 실사풍 이미지 표시 — 실제 촬영 사진 아님 (모델·연결·상태 불변)">실사풍(AI)</button>
           <div className="sep" /><button onClick={doSave}>저장</button>
           <span className="badge">{dirty ? '저장 안 됨' : '저장됨'}</span>
           <span className="badge">시뮬 {runStatusLabel(rt?.status)}</span>
-          <span className="badge">실행 전 검사 {checkRunReadiness(p).ok ? '통과' : '미통과'}</span></div>
-        <RunStepsPanel p={p} rt={shown} selectedId={selection[0] ?? null} folded={foldSteps} onToggleFold={() => setFoldSteps((v) => !v)} onPauseSubstation={scrubbing ? undefined : doPauseSub} onResumeSubstation={scrubbing ? undefined : doResumeSub} />
+          <span className="badge">실행 전 검사 {checkRunReadiness(p).ok ? '통과' : '미통과'}</span></OverflowRow>
+        <RunStepsPanel p={p} rt={shown} selectedId={selection[0] ?? null} folded={slice.stepsFolded} onToggleFold={toggleStepsFold} onPauseSubstation={scrubbing ? undefined : doPauseSub} onResumeSubstation={scrubbing ? undefined : doResumeSub} />
         <div className="run-center">
-          <RunSummaryStrip p={p} rt={shown} folded={view.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
+          <RunSummaryStrip p={p} rt={shown} folded={slice.runStripFolded} onToggleFold={toggleRunStrip} onOpenGaps={() => goStep('check', 'gap')} />
           {shown?.error && (() => {
             const named = shown.error.message.match(/^\[([^\]]+)\]/)?.[1] ?? null;
             const interlockId = shown.interlockBlocks.find((row) => row.stepId === shown.error?.stepId)?.interlockId ?? shown.interlockBlocks[0]?.interlockId;
@@ -2186,11 +2243,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               : <div className="diagram-canvas">{runCanvasEl}</div>}
           </div>
           {scrubIndex && <RunScrubber totalMs={scrubIndex.totalMs} timeMs={scrubbing && scrubMs != null ? scrubMs : scrubIndex.totalMs} markers={scrubIndex.markers} scrubbing={scrubbing} onScrub={(ms) => setScrub({ key: scrubKey, ms })} />}
-          <RunDetails p={p} rt={shown} open={view.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!view.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock}
+          <RunDetails p={p} rt={shown} open={slice.runDetailsOpen} tab={view.runDetailsTab} onToggle={() => setRunDetailsOpen(!slice.runDetailsOpen)} onTab={setRunDetailsTab} onJumpInterlock={jumpInterlock}
             onRun={doRun} runDisabled={running || rt?.status === 'paused'} runReason={running || rt?.status === 'paused' ? '실행 중이거나 일시정지 중입니다. 초기화한 뒤 다시 실행하세요.' : undefined} onJumpError={jumpRunError}
             logRt={scrubbing ? finishedRun?.state : undefined} scrubMs={scrubbing ? scrubMs : null} chartRt={scrubbing ? finishedRun?.state : undefined} />
         </div>
-        <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
+        <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={slice.condFolded} onToggleFold={toggleCondFold}
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
           sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} emphasizeFirst={nextBlocker} />
       </div>}
@@ -2243,6 +2300,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           }}>{view.tourSeen ? TOUR_AGAIN : TOUR_BUTTON}</button>
         </div>
         <p className="muted">화면 {screen} · 단계 {cur.no} {cur.label} · 확대 {Math.round(view.zoom * 100)}%</p>
+        <div className="row">
+          <button type="button" className="btn-main secondary" data-layout-reset="" onClick={resetScreenLayout}>화면 배치 처음으로</button>
+        </div>
+        <p className="muted">패널 너비, 접힘, 미니맵, 팔레트, 도움말 칸 위치만 처음으로 되돌립니다. 테마와 이름 표시 같은 다른 설정은 그대로입니다. 확인 없이 바로 적용되고, 알림의 「되돌리기」로 한 번 취소할 수 있습니다.</p>
         <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn-main secondary" onClick={() => setViewOpen(false)}><IconLabel id="close">닫기</IconLabel></button></div>
       </StaticModalFrame>}
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} kind={ctx.kind} items={menuItems} returnFocus={ctx.focus} onRun={runMenu} onClose={() => setCtx(null)} />}

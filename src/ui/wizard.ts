@@ -12,13 +12,13 @@ import { runStatusLabel } from './labels';
 import { wizardBadgeMark } from './status';
 
 export type StepId = 'library' | 'canvas' | 'attributes' | 'sequence' | 'check' | 'run';
-export const STEPS: { id: StepId; no: number; label: string; workspace: string; goal: string }[] = [
-  { id: 'library', no: 1, label: '입력·에셋 선택', workspace: '에셋 라이브러리 카드 · 입력 후보표', goal: '사용할 에셋(AML 정의)을 고르고 프로젝트에 추가합니다.' },
-  { id: 'canvas', no: 2, label: '배치·연결', workspace: 'Canvas (F2)', goal: 'Unit 안에 Device를 배치하고 물류/신호를 연결합니다.' },
-  { id: 'attributes', no: 3, label: '속성·Action', workspace: '속성/Action 편집기 (F3)', goal: '필요 사양, 명령·완료 Signal, 동작/타임아웃을 채웁니다.' },
-  { id: 'sequence', no: 4, label: '자재·시퀀스', workspace: '자재/Flow (F4) · 시퀀스 Draft/SFC (F5)', goal: '자재 초기 위치·경로와 시퀀스 단계를 정합니다.' },
-  { id: 'check', no: 5, label: '점검', workspace: 'Gap 목록 (F6) · 진단 · Export 미리보기', goal: '차단 사유·미정·사람 확인 항목을 확인합니다.' },
-  { id: 'run', no: 6, label: '실행·저장', workspace: '논리 시뮬레이션 (C04) · 저장 상태', goal: '실행 전 검사를 통과하면 실행하고 결과를 저장합니다.' },
+export const STEPS: { id: StepId; no: number; label: string; short: string; workspace: string; goal: string }[] = [
+  { id: 'library', no: 1, label: '입력·에셋 선택', short: '입력', workspace: '에셋 라이브러리 카드 · 입력 후보표', goal: '사용할 에셋(AML 정의)을 고르고 프로젝트에 추가합니다.' },
+  { id: 'canvas', no: 2, label: '배치·연결', short: '배치', workspace: 'Canvas (F2)', goal: 'Unit 안에 Device를 배치하고 물류/신호를 연결합니다.' },
+  { id: 'attributes', no: 3, label: '속성·Action', short: '속성', workspace: '속성/Action 편집기 (F3)', goal: '필요 사양, 명령·완료 Signal, 동작/타임아웃을 채웁니다.' },
+  { id: 'sequence', no: 4, label: '자재·시퀀스', short: '시퀀스', workspace: '자재/Flow (F4) · 시퀀스 Draft/SFC (F5)', goal: '자재 초기 위치·경로와 시퀀스 단계를 정합니다.' },
+  { id: 'check', no: 5, label: '점검', short: '점검', workspace: 'Gap 목록 (F6) · 진단 · Export 미리보기', goal: '차단 사유·미정·사람 확인 항목을 확인합니다.' },
+  { id: 'run', no: 6, label: '실행·저장', short: '실행', workspace: '논리 시뮬레이션 (C04) · 저장 상태', goal: '실행 전 검사를 통과하면 실행하고 결과를 저장합니다.' },
 ];
 
 export type ItemLevel = 'missing' | 'assumption' | 'undetermined' | 'optional' | 'human';

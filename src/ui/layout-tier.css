@@ -1,0 +1,113 @@
+/* TURN-085. Width tiers. Spacing and type use the shared tokens. */
+
+.app[data-width-tier] { position: relative; }
+
+.layout-narrow-banner {
+  position: absolute;
+  z-index: 28;
+  left: 0;
+  right: 0;
+  bottom: 48px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--panel);
+  color: var(--text);
+  border-top: 2px solid var(--warning);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  text-align: center;
+}
+
+.app.app[data-narrow-warn="1"] { min-width: 0; }
+
+/* Narrow: the explorer rail stays 40px. Opening it overlays the workspace. */
+.app[data-width-tier="narrow"] {
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+.app[data-width-tier="narrow"] > .explorer {
+  z-index: 16;
+  overflow: hidden;
+}
+.app[data-width-tier="narrow"]:not(.ex-collapsed) > .explorer {
+  position: absolute;
+  top: 180px;
+  bottom: 48px;
+  left: 0;
+  width: var(--ex-panel, 224px);
+  z-index: 24;
+  overflow: hidden;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  box-shadow: var(--sp-1) 0 var(--sp-4) color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+.app .ws-canvas.fold-props > .vsplit { display: none; }
+.app .ws-canvas.fold-props > .right { overflow: hidden; }
+.prop-fold-head {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--sp-1) var(--sp-2) 0;
+  flex: 0 0 auto;
+}
+.prop-col.is-folded {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0;
+}
+.prop-col.is-folded .prop-fold-head { padding: var(--sp-2) 0; }
+.prop-col.is-folded .prop-fold-head button,
+.app .ws-run.fold-cond > .run-conditions .run3d-head button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  overflow: hidden;
+}
+.prop-col.is-folded .icon-host,
+.app .ws-run.fold-cond > .run-conditions .run3d-head .icon-host {
+  font-size: 0;
+  line-height: 0;
+  display: inline-flex;
+}
+.app .ws-run.fold-cond > .run-conditions { overflow: hidden; }
+
+.app .ws-run,
+.app .ws-run.fold-steps,
+.app .ws-run.fold-cond,
+.app .ws-run.fold-steps.fold-cond {
+  grid-template-columns: var(--steps-col, 232px) minmax(0, 1fr) var(--cond-col, 248px);
+}
+
+
+.app[data-width-tier="narrow"] .st-full { display: none; }
+.app[data-width-tier="narrow"] .st-short { display: inline; }
+.st-short { display: none; }
+.app[data-width-tier="narrow"] > .stepper .st .st-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.app[data-width-tier="narrow"] .workspace,
+.app[data-width-tier="narrow"] .stage,
+.app[data-width-tier="narrow"] .layout-stage,
+.app[data-width-tier="narrow"] .diagram-canvas,
+.app[data-width-tier="narrow"] .run-center,
+.app[data-width-tier="narrow"] .sparse-page,
+.app[data-width-tier="narrow"] .sheet {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app > .statusbar { min-width: 0; }
+.app > .statusbar > b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
