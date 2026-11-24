@@ -142,7 +142,7 @@ function SceneOption({ label, checked, enabled, onChange }: { label: string; che
 }
 
 /** Right column of the run step, shared by the diagram and the 3D view. */
-export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, equipmentMotion, setEquipmentMotion, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold, sceneOptions, onGoBlocker, emphasizeFirst }: {
+export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, equipmentMotion, setEquipmentMotion, showGrid, setShowGrid, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold, sceneOptions, onGoBlocker, emphasizeFirst }: {
   p: Project;
   locked: boolean;
   edit: EditFn;
@@ -154,6 +154,8 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
   setEmphasize: (v: boolean) => void;
   equipmentMotion: boolean;
   setEquipmentMotion: (v: boolean) => void;
+  showGrid: boolean;
+  setShowGrid: (v: boolean) => void;
   canRevert: boolean;
   onRevert: () => void;
   onDuration: (actionId: string, value: number) => void;
@@ -189,6 +191,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
       <SceneOption label="이름 표시" checked={showNames} enabled={sceneOptions} onChange={setShowNames} />
       <SceneOption label="동작 강조" checked={emphasize} enabled={sceneOptions} onChange={setEmphasize} />
       <SceneOption label="설비 동작" checked={equipmentMotion} enabled={sceneOptions} onChange={setEquipmentMotion} />
+      <SceneOption label="바닥 격자" checked={showGrid} enabled={sceneOptions} onChange={setShowGrid} />
       <RunReadiness p={p} onGoBlocker={onGoBlocker} emphasizeFirst={emphasizeFirst} />
       <h3>동작 시간 · 타임아웃</h3>
       {locked && <p className="run3d-lock" data-duration-locked="true" data-timeout-locked="true">실행 중 · 일시정지 중에는 동작 시간과 타임아웃을 바꿀 수 없습니다. 초기화한 뒤 편집하세요.</p>}
