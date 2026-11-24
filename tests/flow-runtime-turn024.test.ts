@@ -304,15 +304,15 @@ describe('TURN-024 first-N hint and unchanged results (AC6 AC7 AC8)', () => {
     expect(rt.state.steps.some((s) => s.status === 'stopped')).toBe(false);
   });
 
-  it('AC8 rules are seq-runtime/0.8.0 and a 0.3.0 file still opens', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.8.0');
+  it('AC8 rules are seq-runtime/0.9.0 and a 0.3.0 file still opens', () => {
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.9.0');
     expect(FILE_FORMAT_VERSION).toBe('0.3.0');
     const sample = buildSampleProject();
     const text = serializeProject(sample);
     expect(text).toContain('"formatVersion": "0.3.0"');
     const opened = parseProjectFile(text);
     expect(opened.ok).toBe(true);
-    expect(runToEnd(createRuntime(sample)).state.rulesVersion).toBe('seq-runtime/0.8.0');
+    expect(runToEnd(createRuntime(sample)).state.rulesVersion).toBe('seq-runtime/0.9.0');
     const legacy = JSON.parse(text) as { formatVersion: string };
     legacy.formatVersion = '0.3.0';
     expect(parseProjectFile(JSON.stringify(legacy)).ok).toBe(true);

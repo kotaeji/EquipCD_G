@@ -1,5 +1,6 @@
 // One line for a condition, shared by the screens. The runtime log keeps flow.conditionText.
 import { branchArms, findById } from './flow';
+import { materialMark } from './materialMix';
 import type { Condition, Project, SequenceStep } from './types';
 
 export function stepById(p: Project, id: string): SequenceStep | undefined {
@@ -27,6 +28,10 @@ export function conditionFormula(p: Project, c: Condition): string {
       return `자재 위치 = ${unit?.name ?? `없는 Unit ${c.unitId}`}`;
     }
     case 'materialState': return `자재 상태 = ${c.state}`;
+    case 'materialType': {
+      const known = p.materials.some((m) => m.id === c.materialId);
+      return `자재 종류 = ${known ? materialMark(p, c.materialId) : `없는 자재 ${c.materialId}`}`;
+    }
     case 'materialHeldBy': {
       if (!c.deviceId) return '자재 잡음 = 없음';
       const dev = p.devices.find((d) => d.id === c.deviceId);

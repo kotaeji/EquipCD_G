@@ -1,6 +1,7 @@
 // Station sequence flow tree (TURN-022). Flat `steps` stay the action list; `flow` is the control structure.
 // Parallel-inside-parallel is rejected. A Substation step may sit in a parallel lane (TURN-049) so one
 // Substation can be paused while another keeps the virtual clock moving. Other nesting is allowed.
+import { materialMark } from './materialMix';
 import type { BranchCase, Condition, FlowNode, Project, SequenceStep } from './types';
 import { DEFAULT_MAX_RETRIES } from './types';
 import type { Diagnostic } from './validate';
@@ -335,6 +336,7 @@ export function flowIntegrity(p: Project): Diagnostic[] {
     if (c.kind === 'signal' && !p.signals.some((s) => s.id === c.signalId)) err('REF_MISSING_SIGNAL', owner, `${label}: 없는 Signal ${c.signalId}`);
     if (c.kind === 'materialAt' && !p.units.some((u) => u.id === c.unitId)) err('REF_MISSING_UNIT', owner, `${label}: 없는 Unit ${c.unitId}`);
     if (c.kind === 'materialHeldBy' && c.deviceId && !p.devices.some((d) => d.id === c.deviceId)) err('REF_MISSING_DEVICE', owner, `${label}: 없는 Device ${c.deviceId}`);
+    if (c.kind === 'materialType' && !p.materials.some((m) => m.id === c.materialId)) err('REF_MISSING', owner, `${label}: 없는 자재 ${c.materialId}`);
   };
   walk(flow, (n) => {
     if (n.kind === 'step') {
@@ -532,6 +534,10 @@ export function conditionText(p: Project, c: Condition): string {
     }
     case 'materialAt': return `자재 위치 == ${p.units.find((u) => u.id === c.unitId)?.name ?? c.unitId}`;
     case 'materialState': return `자재 상태 == ${c.state}`;
+    case 'materialType': {
+      const known = p.materials.some((m) => m.id === c.materialId);
+      return `자재 종류 == ${known ? materialMark(p, c.materialId) : `없는 자재 ${c.materialId}`}`;
+    }
     case 'materialHeldBy': {
       const dev = c.deviceId ? p.devices.find((d) => d.id === c.deviceId) : undefined;
       return `자재 holder == ${dev?.name ?? (c.deviceId ?? '없음')}`;

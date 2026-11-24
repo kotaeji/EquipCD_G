@@ -4,7 +4,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { History } from '../src/model/history';
-import { buildSampleProject } from '../src/model/sample';
+import { buildParallelSampleProject, buildSampleProject } from '../src/model/sample';
 import { saveProject } from '../src/storage/localStore';
 import { App } from '../src/ui/App';
 import { BootGate, LOADING_DELAY_MS } from '../src/ui/EmptyState';
@@ -12,7 +12,7 @@ import { BlockerList, Problem } from '../src/ui/Problem';
 import { resolveBlocker } from '../src/ui/blockerTarget';
 import { ExtractSheet, FilesSheet, SearchSheet } from '../src/ui/SparseScreens';
 import { LOADING_3D, runErrorProblem, saveProblem } from '../src/ui/problemCopy';
-import { checkRunReadiness } from '../src/model/validate';
+import { checkGroupReadiness } from '../src/runtime/group';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -95,11 +95,14 @@ describe('TURN-051 problem shape', () => {
   });
 
   it('AC6 a blocker with nowhere to go has no jump and keeps the unsupported note', async () => {
-    const p = buildSampleProject();
+    const p = buildParallelSampleProject();
+    const step = p.substationSequences!.find((q) => q.unitId === 'U-PS1')!.steps[0];
+    const action = p.actions.find((a) => a.id === step.actionId)!;
+    action.effect = { moveTo: 'U-PS2' };
     const extra = structuredClone(p.materials[0]);
     extra.id = 'MAT-EXTRA';
     p.materials.push(extra);
-    const ready = checkRunReadiness(p);
+    const ready = checkGroupReadiness(p, 'U-PS1');
     const b = ready.blockers.find((x) => x.code === 'MATERIAL_COUNT')!;
     expect(b).toBeDefined();
     const g = resolveBlocker(p, b, ready.blockers);
@@ -108,7 +111,7 @@ describe('TURN-051 problem shape', () => {
     const el = await mount(<BlockerList p={p} blockers={[b]} onGuide={() => {}} />);
     const item = el.querySelector('.blocker-item')!;
     expect(item.textContent).toContain('현재 화면에서 직접 편집 불가');
-    expect(item.textContent).toContain('자재 삭제 기능이 없어');
+    expect(item.textContent).toContain('Substation 그룹 실행은 자재 정의 1개만');
     expect(item.querySelector('button')).toBeNull();
   });
 });

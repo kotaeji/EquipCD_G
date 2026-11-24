@@ -1,6 +1,7 @@
 // Read-only "what else is touched" text for delete buttons. Does not change the model.
 import type { Condition, FlowNode, Project } from './types';
 import { walk } from './flow';
+import { feedCycle } from './materialMix';
 
 export interface UsageParts {
   steps?: number;
@@ -114,4 +115,44 @@ export function subSequenceDeleteDetail(p: Project, seqId: string): string | nul
   const q = (p.substationSequences ?? []).find((x) => x.id === seqId);
   if (!q || q.steps.length === 0) return null;
   return `단계 ${q.steps.length}개 함께 지워짐`;
+}
+
+function materialCond(id: string) {
+  return (c: Condition) => c.kind === 'materialType' && c.materialId === id;
+}
+
+/** Conditions and the feed cycle (stored or the default one-each order) that name this definition. */
+export function materialUsage(p: Project, id: string): string | null {
+  const hit = materialCond(id);
+  let conditions = 0;
+  for (const a of p.actions) conditions += countConds(a.pre, hit) + countConds(a.post, hit);
+  for (const s of p.sequence.steps) conditions += countConds(s.entry, hit);
+  for (const q of p.substationSequences ?? []) for (const s of q.steps) conditions += countConds(s.entry, hit);
+  const seeFlow = (flow: FlowNode[] | undefined) => {
+    if (!flow) return;
+    walk(flow, (n) => {
+      if (n.kind === 'branch') {
+        if (hit(n.cond)) conditions += 1;
+        for (const arm of n.cases ?? []) if (hit(arm.cond)) conditions += 1;
+      }
+      if (n.kind === 'retry' && hit(n.until)) conditions += 1;
+      if (n.kind === 'wait' && hit(n.cond)) conditions += 1;
+    });
+  };
+  seeFlow(p.sequence.flow);
+  for (const q of p.substationSequences ?? []) seeFlow(q.flow);
+  for (const k of p.constraints) {
+    if (k.rule?.form === 'allow') conditions += countConds(k.rule.conditions, hit);
+  }
+  const pattern = feedCycle(p).filter((x) => x === id).length;
+  const bits: string[] = [];
+  if (conditions) bits.push(`조건 ${conditions}`);
+  if (pattern) bits.push(`투입 순서 ${pattern}`);
+  if (!bits.length) return null;
+  return `${bits.join(' · ')}에서 쓰임`;
+}
+
+export function materialDeleteDetail(p: Project, id: string): string | null {
+  const u = materialUsage(p, id);
+  return u ? `${u}. 확인하면 참조가 풀리고 자재 정의는 지워집니다` : null;
 }

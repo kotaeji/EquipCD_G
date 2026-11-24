@@ -1,0 +1,55 @@
+/* TURN-080 material definitions and the repeating feed order. Tokens only. */
+.material-mix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.material-mix h3 {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.mix-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.mix-defs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mix-def {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+.mix-letter {
+  font-weight: 700;
+  font-size: var(--fs-md);
+  min-width: var(--sp-4);
+}
+.mix-pattern {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mix-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.mix-preview {
+  margin: 0;
+  font-size: var(--fs-sm);
+}

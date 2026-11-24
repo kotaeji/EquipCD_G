@@ -338,7 +338,7 @@ export function MaterialPanel({ p, locked, edit }: { p: Project; locked: boolean
         <div className="row"><label>상태집합</label><TextInput value={m.states.join(', ')} width={210} disabled={locked} onCommit={(v) => edit(C.updateMaterial(p, m.id, { states: v.split(',').map((x) => x.trim()).filter(Boolean) }), '상태집합')} /></div>
         <div className="row" data-jump="material-state"><label>초기 상태</label><select disabled={locked} value={m.initialState ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialState: e.target.value || null }), '초기 상태')}><option value="">(미정)</option>{m.states.map((s) => <option key={s}>{s}</option>)}</select></div>
         <div className="row" data-jump="material-location"><label>초기 위치</label><select disabled={locked} value={m.initialLocation ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialLocation: e.target.value || null }), '초기 위치')}><option value="">(미정)</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-        <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>자재 정의는 하나이고, 실행은 그 정의를 투입 개수만큼 이어서 넣습니다. 정의가 여러 종류이거나 캐리어에 싣는 것은 없습니다.</div>
+        <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>종류를 더하고 투입 순서를 고치는 칸은 위쪽 자재 화면입니다. 여기에는 첫 정의의 크기와 경로가 있습니다. 캐리어에 싣는 것은 없습니다.</div>
       </div>
       <div style={{ width: 300, overflow: 'auto', borderRight: '1px solid var(--border)', paddingRight: 8 }}>
         <b style={{ fontSize: 'var(--fs-sm)' }} data-jump="material-route">Unit 경로 (순서)</b>

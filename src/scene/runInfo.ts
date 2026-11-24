@@ -1,6 +1,7 @@
 // Left-hand run info for the 3D view. Numbers match summarizeRun once a run has started.
 // Before a run, bars use each Action's assumed duration.
 
+import { kindTallies } from '../model/materialMix';
 import { feedCountOf, type Project } from '../model/types';
 import { collectStepIds } from '../model/flow';
 import { analyzeGaps, GAP_KIND_LABEL, type GapKind } from '../model/gaps';
@@ -75,6 +76,8 @@ export interface RunInfo {
   exitCount: number;
   /** Strip text for the material cell. */
   materialText: string;
+  /** Per-kind production and mean pass time. Null when there is one definition. */
+  kindText: string | null;
   /** Live piece rows. Null on a one-piece run. */
   pieceRows: PieceRow[] | null;
 }
@@ -310,6 +313,8 @@ export function describeRunInfo(p: Project, rt: RuntimeState | null): RunInfo {
   const materialText = multi
     ? `투입 ${fedCount}/${feedTotal} · 배출 ${exitCount}`
     : material ? `${material.where} · ${material.state || '상태 없음'}` : '없음';
+  const tallies = rt ? kindTallies(p, rt.pieces ?? []) : [];
+  const kindText = tallies.length === 0 ? null : tallies.map((row) => `종류 ${row.mark} 생산 ${row.produced}${row.avgPassMs == null ? '' : ` · 평균 ${formatMs(row.avgPassMs)}`}`).join(' · ');
 
   return {
     projectName: p.name,
@@ -336,6 +341,7 @@ export function describeRunInfo(p: Project, rt: RuntimeState | null): RunInfo {
     fedCount,
     exitCount,
     materialText,
+    kindText,
     pieceRows: pieceRowsOf(p, rt),
   };
 }

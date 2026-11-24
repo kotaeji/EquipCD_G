@@ -2,6 +2,7 @@
 // Diagram x stays 3D x. Diagram y becomes 3D z. A device footprint is its layout box,
 // so a device that sits inside its unit on the diagram sits inside that zone here.
 
+import { materialMark, mixActive } from '../model/materialMix';
 import type { Project, Unit } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { floorNameForZone, type FloorName } from './floorLabel';
@@ -80,6 +81,8 @@ export interface SceneMaterial {
   exited: boolean;
   /** Standing still for a device or a full unit. */
   waiting?: boolean;
+  /** Kind letter. Set when the project has more than one material definition. */
+  mark?: string;
 }
 
 export interface SceneHighlight {
@@ -352,15 +355,17 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
       list.forEach((pc, i) => {
         const span = Math.max(1, list.length - 1);
         const dx = list.length > 1 ? (i - span / 2) * 52 : 0;
+        const mark = mixActive(p) ? materialMark(p, pc.material.materialId) : '';
         materials.push({
           id: pc.instanceId,
-          name: `개체 ${pc.index}`,
+          name: mark ? `개체 ${pc.index} ${mark}` : `개체 ${pc.index}`,
           unitId,
           state: pc.material.state,
           x: c.x + dx,
           z: c.z,
           exited: false,
           waiting: pc.phase === 'waiting',
+          ...(mark ? { mark } : {}),
         });
       });
     }

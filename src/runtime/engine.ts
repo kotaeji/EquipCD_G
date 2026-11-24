@@ -7,6 +7,7 @@
 // This is NOT equipment control and NOT physics simulation.
 import type { Action, Condition, FlowNode, Project } from '../model/types';
 import { armLabel, branchArms, collectStepIds, conditionText, flowUsesSignal, hasFlow, stepOrder, walk } from '../model/flow';
+import { feedMaterialAt, pieceHead } from '../model/materialMix';
 import { RUNTIME_RULES_VERSION } from '../model/types';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
 import { judgeInterlock, type InterlockBlockRecord, type InterlockHit } from './interlock';
@@ -195,9 +196,10 @@ function initialState(p: Project, runId: string): RuntimeState {
   const linear = stepOrder(p);
   const pieces = linear ? makePieces(p) : attachFlowPieces(makePieces(p), p);
   let material: MaterialInstance | null = null;
-  if (!pieces && m && m.initialLocation && m.initialState) {
-    material = { instanceId: `${m.id}#1`, materialId: m.id, location: m.initialLocation, state: m.initialState, holder: null };
-    occupancy[m.initialLocation] = material.instanceId;
+  const lead = !pieces && m ? (feedMaterialAt(p, 0) ?? m) : null;
+  if (lead?.initialLocation && lead.initialState) {
+    material = { instanceId: `${lead.id}#1`, materialId: lead.id, location: lead.initialLocation, state: lead.initialState, holder: null };
+    occupancy[lead.initialLocation] = material.instanceId;
   }
   const devicePositions: Record<string, string | null> = {};
   for (const d of p.devices) devicePositions[d.id] = null;
@@ -317,6 +319,7 @@ export function evalCond(c: Condition, s: Pick<RuntimeState, "signals" | "materi
     }
     case 'materialAt': return { ok: s.material?.location === c.unitId, why: `자재 위치 == ${c.unitId}`, sensor: false };
     case 'materialState': return { ok: s.material?.state === c.state, why: `자재 상태 == ${c.state}`, sensor: false };
+    case 'materialType': return { ok: s.material?.materialId === c.materialId, why: `자재 종류 == ${c.materialId}`, sensor: false };
     case 'materialHeldBy': return { ok: (s.material?.holder ?? null) === c.deviceId, why: `자재 holder == ${c.deviceId ?? '없음'}`, sensor: false };
     case 'undefined': return { ok: false, why: `미정 조건: ${c.note}`, sensor: false };
   }
@@ -405,7 +408,7 @@ function complete(p: Project, s: RuntimeState) {
   if (readFail) {
     if (s.material) s.material = { ...s.material, state: s.material.state };
     fail(s, 'READ_FAILED', step.id, `[${step.name}] 읽기 완료, 결과=실패 (식별 실패 상태 구별). 분기 미지원으로 이후 공정 진행 안 함`);
-    if (s.material && p.materials[0]?.states.includes('식별실패')) s.material.state = '식별실패';
+    if (s.material && knowsFailState(p, s.material.materialId)) s.material.state = '식별실패';
     return;
   }
   if (m && a.effect.setState) m.state = a.effect.setState;
@@ -669,7 +672,7 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
     if (iter < count) {
       frame.iter = iter + 1;
       frame.index = 0;
-      logAt(s, 'info', 'LOOP_ITER', `${pieceTag(s)}${frame.name ?? '반복'} ${frame.iter}/${count}`, frame.blockId);
+      logAt(s, 'info', 'LOOP_ITER', `${pieceTag(p, s)}${frame.name ?? '반복'} ${frame.iter}/${count}`, frame.blockId);
       return;
     }
     fiber.stack.pop();
@@ -681,7 +684,7 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
     const verdict = evalCond(until, s, p);
     const used = frame.attempt ?? 0;
     const max = frame.maxRetries ?? 0;
-    const tag = pieceTag(s);
+    const tag = pieceTag(p, s);
     if (verdict.ok) { fiber.stack.pop(); if (!top(fiber)) finishFiber(s, fiber); return; }
     if (used < max) {
       frame.attempt = used + 1;
@@ -769,7 +772,12 @@ function activateFiber(p: Project, s: RuntimeState, fiber: FlowFiber, stepId: st
   return 'go';
 }
 
-function spawnLanes(s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], labels: string[], message: string, owner?: FlowFiber['owner']) {
+function knowsFailState(p: Project, materialId: string | undefined): boolean {
+  const def = (materialId ? p.materials.find((m) => m.id === materialId) : undefined) ?? p.materials[0];
+  return !!def?.states.includes('식별실패');
+}
+
+function spawnLanes(p: Project, s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], labels: string[], message: string, owner?: FlowFiber['owner']) {
   if (!s.flowRun) return;
   const pc = activePiece(s);
   parent.status = 'joining';
@@ -777,7 +785,7 @@ function spawnLanes(s: RuntimeState, parent: FlowFiber, lists: FlowNode[][], lab
   lists.forEach((nodes, i) => {
     const id = s.flowRun!.nextId++;
     childIds.push(id);
-    const lane = pc ? `개체 ${pc.index} · ${labels[i]}` : labels[i];
+    const lane = pc ? `${pieceHead(p, pc.index, pc.material.materialId)} · ${labels[i]}` : labels[i];
     s.flowRun!.fibers.push({
       id, status: 'live', parentId: parent.id, lane, active: null,
       stack: [{ role: 'seq', nodes, index: 0 }],
@@ -839,7 +847,7 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
   if (node.kind === 'step') return activateFiber(p, s, fiber, node.stepId);
   if (node.kind === 'wait') return beginWait(p, s, fiber, node);
   frame.index += 1;
-  const tag = pieceTag(s);
+  const tag = pieceTag(p, s);
   if (node.kind === 'branch') {
     const arms = branchArms(node);
     let taken = arms.length - 1;
@@ -870,14 +878,14 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
   }
   if (node.kind === 'parallel') {
     if (node.lanes.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${tag}${node.name} 합류`); return 'go'; }
-    spawnLanes(s, fiber, node.lanes, node.lanes.map((_, i) => `갈래 ${i + 1}`), `${tag}${node.name} 합류`);
+    spawnLanes(p, s, fiber, node.lanes, node.lanes.map((_, i) => `갈래 ${i + 1}`), `${tag}${node.name} 합류`);
     return 'go';
   }
   const unit = p.units.find((u) => u.id === node.unitId);
   const seqs = (p.substationSequences ?? []).filter((q) => q.unitId === node.unitId);
   if (seqs.length === 0) { logAt(s, 'info', 'PAR_JOIN', `${tag}${unit?.name ?? node.unitId} Substation 합류`); return 'go'; }
   spawnLanes(
-    s, fiber,
+    p, s, fiber,
     seqs.map((q) => q.steps.map((step) => ({ kind: 'step' as const, stepId: step.id }))),
     seqs.map((q) => q.name),
     `${tag}${unit?.name ?? node.unitId} Substation 합류`,
@@ -919,7 +927,7 @@ function completeFiber(p: Project, s: RuntimeState, fiber: FlowFiber) {
   const keepGoing = readFail && !!resultSig && !!p.sequence.flow && flowUsesSignal(p.sequence.flow, resultSig.id);
   if (a.kind === 'read' && resultSig) s.signals[resultSig.id] = !readFail;
   if (readFail && !keepGoing) {
-    if (s.material && p.materials[0]?.states.includes('식별실패')) s.material.state = '식별실패';
+    if (s.material && knowsFailState(p, s.material.materialId)) s.material.state = '식별실패';
     const who = pc ? `개체 ${pc.index} ` : '';
     failFlow(s, 'READ_FAILED', step.id, `[${who}${step.name}] 읽기 완료, 결과=실패 (식별 실패 상태 구별). 분기 미지원으로 이후 공정 진행 안 함`);
     return;
@@ -1070,9 +1078,9 @@ function activePiece(s: RuntimeState): PieceRun | undefined {
   return s.pieces.find((pc) => pc.flow === s.flowRun);
 }
 
-function pieceTag(s: RuntimeState): string {
+function pieceTag(p: Project, s: RuntimeState): string {
   const pc = activePiece(s);
-  return pc ? `개체 ${pc.index} ` : '';
+  return pc ? `${pieceHead(p, pc.index, pc.material.materialId)} ` : '';
 }
 
 function attachFlowPieces(pieces: PieceRun[] | null, p: Project): PieceRun[] | null {
@@ -1081,7 +1089,7 @@ function attachFlowPieces(pieces: PieceRun[] | null, p: Project): PieceRun[] | n
     pc.flow = {
       nextId: 2,
       fibers: [{
-        id: 1, status: 'live', active: null, lane: `개체 ${pc.index}`,
+        id: 1, status: 'live', active: null, lane: pieceHead(p, pc.index, pc.material.materialId),
         stack: [{ role: 'seq', nodes: p.sequence.flow, index: 0 }],
       }],
     };

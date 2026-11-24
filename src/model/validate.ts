@@ -37,6 +37,7 @@ function condRefs(c: Condition, ix: Index, owner: string, out: Diagnostic[], ctx
   if (c.kind === 'signal' && !ix.signal.has(c.signalId)) push('REF_MISSING_SIGNAL', `없는 Signal 참조 ${c.signalId}`);
   if (c.kind === 'materialAt' && !ix.unit.has(c.unitId)) push('REF_MISSING_UNIT', `없는 Unit 참조 ${c.unitId}`);
   if (c.kind === 'materialHeldBy' && c.deviceId !== null && !ix.device.has(c.deviceId)) push('REF_MISSING_DEVICE', `없는 Device 참조 ${c.deviceId}`);
+  if (c.kind === 'materialType' && !ix.material.has(c.materialId)) push('REF_MISSING', `없는 자재 참조 ${c.materialId}`);
 }
 
 /** Reference integrity (D04). Never fills missing references with placeholder objects. */
@@ -137,11 +138,14 @@ export function checkRunReadiness(p: Project): Readiness {
   if (flow) {
     if (flow.length === 0 && p.sequence.steps.length === 0) b('NO_STEPS', p.sequence.id, '시퀀스 단계가 없음');
   } else if (p.sequence.steps.length === 0) b('NO_STEPS', p.sequence.id, '시퀀스 단계가 없음');
-  if (p.materials.length !== 1) b('MATERIAL_COUNT', 'materials', `이번 시제품 실행은 자재 정의 1개만 지원 (현재 ${p.materials.length}개)`);
+  if (p.materials.length === 0) b('MATERIAL_COUNT', 'materials', '이번 시제품 실행은 자재 정의 1개만 지원 (현재 0개)');
+  else if (p.materials.length > 4) b('MATERIAL_COUNT', 'materials', `자재 정의는 4개까지입니다 (현재 ${p.materials.length}개)`);
   const m = p.materials[0];
+  for (const mat of p.materials) {
+    if (!mat.initialLocation) b('MAT_NO_LOCATION', mat.id, '자재 초기 위치 미정');
+    if (!mat.initialState) b('MAT_NO_STATE', mat.id, '자재 초기 상태 미정');
+  }
   if (m) {
-    if (!m.initialLocation) b('MAT_NO_LOCATION', m.id, '자재 초기 위치 미정');
-    if (!m.initialState) b('MAT_NO_STATE', m.id, '자재 초기 상태 미정');
     if (m.feedCount != null && (!Number.isInteger(m.feedCount) || m.feedCount < 1)) b('FEED_COUNT', m.id, '투입 개수는 1 이상의 정수여야 합니다');
     const n = feedCountOf(m);
     if (n >= 2 && m.feedInterval.value === null) b('FEED_INTERVAL', m.id, '투입 개수가 2 이상이면 투입 간격을 정해야 합니다');
@@ -158,7 +162,7 @@ export function checkRunReadiness(p: Project): Readiness {
       const u = ix.unit.get(mv)!;
       if (u.capacity.maxMaterials.value === null) b('CAPACITY_UNDEFINED', s.id, `단계 ${s.name}: 이동 대상 ${u.name} 수용 개수 미정`);
     }
-    if (a.effect.setState && m && !m.states.includes(a.effect.setState)) b('STATE_UNKNOWN', s.id, `단계 ${s.name}: 상태 ${a.effect.setState}가 자재 상태집합에 없음`);
+    if (a.effect.setState && p.materials.length > 0 && !p.materials.some((mat) => mat.states.includes(a.effect.setState!))) b('STATE_UNKNOWN', s.id, `단계 ${s.name}: 상태 ${a.effect.setState}가 자재 상태집합에 없음`);
   }
   if (flow) {
     for (const d of flowShapeBlockers(p)) blockers.push(d);

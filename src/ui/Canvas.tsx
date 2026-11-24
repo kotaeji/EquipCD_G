@@ -315,7 +315,7 @@ type DeviceData = {
   done: boolean;
   motion: boolean;
 };
-type MatData = { label: string; waiting?: boolean; pieceId?: string; x: number; y: number; travel: number | null };
+type MatData = { label: string; waiting?: boolean; pieceId?: string; mark?: string; x: number; y: number; travel: number | null };
 type EdgeView = { on?: boolean; tone: EdgeTone; caption: string; hover: boolean };
 
 function edgePaint(kind: 'flow' | 'signal', tone: EdgeTone, selected: boolean, liveColor: string) {
@@ -485,7 +485,7 @@ function DeviceNode({ data }: NodeProps) {
 function MaterialNode({ data }: NodeProps) {
   const d = data as MatData;
   return (
-    <div className={`rf-mat nopan${d.waiting ? ' is-waiting' : ''}`} data-waiting={d.waiting ? 'true' : 'false'} data-piece={d.pieceId ?? ''} data-x={d.x} data-y={d.y} data-travel={d.travel === null ? '' : String(d.travel)}>
+    <div className={`rf-mat nopan${d.waiting ? ' is-waiting' : ''}`} data-waiting={d.waiting ? 'true' : 'false'} data-piece={d.pieceId ?? ''} data-mark={d.mark ?? ''} data-x={d.x} data-y={d.y} data-travel={d.travel === null ? '' : String(d.travel)}>
       <div className="rf-mat-box" />
       <div className="rf-mat-label">{d.label}</div>
     </div>
@@ -961,7 +961,7 @@ function FlowCanvas(props: Props) {
       draggable: false, selectable: false, connectable: false, deletable: false, focusable: false,
       className: 'nopan',
       style: { pointerEvents: 'none' },
-      data: { label: mat.label, waiting: mat.waiting, pieceId: mat.pieceId, x: mat.x, y: mat.y, travel: mat.travel } satisfies MatData,
+      data: { label: mat.label, waiting: mat.waiting, pieceId: mat.pieceId, mark: mat.mark, x: mat.x, y: mat.y, travel: mat.travel } satisfies MatData,
     });
   }
 

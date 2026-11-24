@@ -10,6 +10,7 @@ import { EmptyState } from './EmptyState';
 import { EMPTY, RUN_LOCK } from './problemCopy';
 import { templateOriginText } from '../model/userTemplates';
 import { ConditionMark } from './conditionMark';
+import { materialMark } from '../model/materialMix';
 import { condLabel, devName, effectLabel, sigName, unitName } from './labels';
 import { conditionsFormula } from '../model/conditionFormula';
 import { StatusMark } from './StatusMark';
@@ -52,6 +53,7 @@ function ConditionEditor({ p, list, onChange, disabled }: { p: Project; list: Co
     if (kind === 'signal' && target) c = { kind, signalId: target, equals: eq };
     if (kind === 'materialAt' && target) c = { kind, unitId: target };
     if (kind === 'materialState' && target) c = { kind, state: target };
+    if (kind === 'materialType' && target) c = { kind, materialId: target };
     if (kind === 'materialHeldBy') c = { kind, deviceId: target || null };
     if (kind === 'undefined') c = { kind, note: target || '미정 조건' };
     if (c) onChange([...list, c]);
@@ -68,12 +70,13 @@ function ConditionEditor({ p, list, onChange, disabled }: { p: Project; list: Co
       ))}
       <div className="row" style={{ flexWrap: 'wrap' }}>
         <select value={kind} disabled={disabled} onChange={(e) => { setKind(e.target.value as Condition['kind']); setTarget(''); }}>
-          <option value="signal">Signal 값</option><option value="materialAt">자재 위치</option><option value="materialState">자재 상태</option><option value="materialHeldBy">자재 잡음</option><option value="undefined">미정(메모)</option>
+          <option value="signal">Signal 값</option><option value="materialAt">자재 위치</option><option value="materialState">자재 상태</option><option value="materialType">자재 종류</option><option value="materialHeldBy">자재 잡음</option><option value="undefined">미정(메모)</option>
         </select>
         {kind === 'signal' && <><select value={target} disabled={disabled} onChange={(e) => setTarget(e.target.value)} style={{ width: 150 }}><option value="">Signal 선택</option>{p.signals.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <select value={String(eq)} disabled={disabled} onChange={(e) => setEq(e.target.value === 'true')}><option value="true">= true</option><option value="false">= false</option></select></>}
         {kind === 'materialAt' && <select value={target} disabled={disabled} onChange={(e) => setTarget(e.target.value)}><option value="">Unit 선택</option>{p.units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}
         {kind === 'materialState' && <select value={target} disabled={disabled} onChange={(e) => setTarget(e.target.value)}><option value="">상태 선택</option>{states.map((s) => <option key={s}>{s}</option>)}</select>}
+        {kind === 'materialType' && <select aria-label="자재 종류 선택" value={target} disabled={disabled} onChange={(e) => setTarget(e.target.value)}><option value="">종류 선택</option>{p.materials.map((m) => <option key={m.id} value={m.id}>{materialMark(p, m.id)} {m.name}</option>)}</select>}
         {kind === 'materialHeldBy' && <select value={target} disabled={disabled} onChange={(e) => setTarget(e.target.value)}><option value="">없음(비어 있음)</option>{p.devices.filter((d) => d.kind === 'picker').map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>}
         {kind === 'undefined' && <input value={target} disabled={disabled} placeholder="미정 내용" onChange={(e) => setTarget(e.target.value)} />}
         <button className="small" disabled={disabled} onClick={add}>+ 조건</button>

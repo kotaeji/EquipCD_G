@@ -58,6 +58,7 @@ function condKey(c: Condition): string {
     case 'materialAt': return `at:${c.unitId}`;
     case 'materialState': return `st:${c.state}`;
     case 'materialHeldBy': return `held:${c.deviceId ?? ''}`;
+    case 'materialType': return `type:${c.materialId}`;
     case 'undefined': return `undef:${c.note}`;
   }
 }
@@ -159,6 +160,8 @@ function bundleFindings(p: Project, site: Site, states: Set<string>): ConditionF
       push('broken', 'error', `broken:${site.key}:device:${i}`, `끊긴 참조 — 없는 Device ${c.deviceId}`);
     } else if (c.kind === 'materialState' && !states.has(c.state)) {
       push('broken', 'error', `broken:${site.key}:state:${i}`, `끊긴 참조 — 자재 상태 「${c.state}」가 자재 정의에 없습니다`);
+    } else if (c.kind === 'materialType' && !p.materials.some((m) => m.id === c.materialId)) {
+      push('broken', 'error', `broken:${site.key}:type:${i}`, `끊긴 참조 — 없는 자재 종류 ${c.materialId}`);
     }
   });
   const on = new Map<string, boolean>();
@@ -167,6 +170,7 @@ function bundleFindings(p: Project, site: Site, states: Set<string>): ConditionF
   const statesSeen: string[] = [];
   const units: string[] = [];
   const holders: string[] = [];
+  const types: string[] = [];
   for (const c of site.list) {
     if (c.kind === 'signal') {
       (c.equals ? on : off).set(c.signalId, true);
@@ -176,12 +180,15 @@ function bundleFindings(p: Project, site: Site, states: Set<string>): ConditionF
     else if (c.kind === 'materialHeldBy') {
       const key = c.deviceId ?? '';
       if (!holders.includes(key)) holders.push(key);
-    }
+    } else if (c.kind === 'materialType' && !types.includes(c.materialId)) types.push(c.materialId);
   }
   for (const id of places.keys()) {
     if (on.has(id) && off.has(id)) {
       push('alwaysFalse', 'error', `false:${site.key}:signal:${id}`, `항상 거짓 — ${places.get(id)} 를 ON 과 OFF 로 함께 요구합니다`);
     }
+  }
+  if (types.length > 1) {
+    push('alwaysFalse', 'error', `false:${site.key}:type`, '항상 거짓 — 자재 종류를 두 가지 이상으로 함께 요구합니다');
   }
   if (units.length > 1) {
     const names = units.map((id) => p.units.find((u) => u.id === id)?.name ?? id);

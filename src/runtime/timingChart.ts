@@ -1,5 +1,6 @@
 // Timing chart geometry (TURN-064). Reads a finished or in-progress run.
 // Does not advance time and does not write the engine or the model.
+import { materialMark, mixActive } from '../model/materialMix';
 import type { Project } from '../model/types';
 import type { RuntimeState, StepRecord } from './engine';
 import { summarizeRun, type RunStepSummary } from './runSummary';
@@ -194,11 +195,13 @@ function emptyModel(lane: TimingLane, lanes: TimingLane[]): TimingModel {
   };
 }
 
-function rowIdentity(lane: TimingLane, draft: Draft): { id: string; label: string } {
+function rowIdentity(p: Project, state: RuntimeState | null, lane: TimingLane, draft: Draft): { id: string; label: string } {
   if (lane === 'device') return { id: draft.place.deviceId, label: draft.place.deviceLabel };
   if (lane === 'piece') {
     if (draft.piece == null) return { id: 'piece:seq', label: '순차' };
-    return { id: `piece:${draft.piece}`, label: `개체 ${draft.piece}` };
+    const pc = state?.pieces?.find((row) => row.index === draft.piece);
+    const mark = pc && mixActive(p) ? ` ${materialMark(p, pc.material.materialId)}` : '';
+    return { id: `piece:${draft.piece}`, label: `개체 ${draft.piece}${mark}` };
   }
   return { id: draft.place.unitId, label: draft.place.unitLabel };
 }
@@ -321,13 +324,13 @@ export function timingChart(p: Project, state: RuntimeState | null, requested: T
 
   const seen: { id: string; label: string }[] = [];
   for (const draft of drafts) {
-    const row = rowIdentity(lane, draft);
+    const row = rowIdentity(p, state, lane, draft);
     if (!seen.some((item) => item.id === row.id)) seen.push(row);
   }
   const order = orderRowIds(p, lane, seen.map((item) => item.id));
   const labelOf = new Map(seen.map((item) => [item.id, item.label]));
   const bars: TimingBar[] = drafts.map((draft) => {
-    const row = rowIdentity(lane, draft);
+    const row = rowIdentity(p, state, lane, draft);
     return {
       summaryIndex: draft.summaryIndex,
       stepId: draft.stepId,

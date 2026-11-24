@@ -11,6 +11,7 @@ import type { Action, AssetKind, Candidate, Condition, Connection, Device, FlowN
 import { DEFAULT_MAX_RETRIES, q } from './types';
 import { armLists, branchArms, branchFromArms, containsList, containsParallel, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, MAX_BRANCH_ARMS, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes, type BranchArm } from './flow';
 import { arrangeUnitDevices } from './deviceArrange';
+import { MAX_MATERIAL_DEFS, materialMark, nextMark, patternFromCounts } from './materialMix';
 import { UNIT_DEFAULT_H, UNIT_DEFAULT_W, fitUnit, nextDeviceSlot, rectsOverlap, tightUnitLayout, unitMinSize } from './unitLayout';
 
 export type CmdResult = { ok: true; project: Project; note?: string } | { ok: false; reason: string };
@@ -915,9 +916,107 @@ export function updateMaterial(p0: Project, id: string, patch: Partial<Pick<Mate
 }
 
 export function addMaterial(p0: Project, idOf: (s: string) => string = newId): CmdResult {
+  if (p0.materials.length >= MAX_MATERIAL_DEFS) return no(`자재 정의는 ${MAX_MATERIAL_DEFS}개까지입니다`);
   const p = clone(p0);
-  p.materials.push({ id: idOf('mat'), name: '새 자재', kind: 'individual', carrierOf: null, size: { w: q(null, 'mm'), l: q(null, 'mm'), h: q(null, 'mm') },
-    weight: q(null, 'kg'), handling: '', states: ['대기'], initialState: '대기', initialLocation: p.units[0]?.id ?? null, route: p.units.map((u) => u.id), feedInterval: q(null, 's') });
+  const id = idOf('mat');
+  const base = p.materials[0];
+  const created: Material = base
+    ? { ...structuredClone(base), id, name: '새 자재', carrierOf: null }
+    : {
+      id, name: '새 자재', kind: 'individual', carrierOf: null,
+      size: { w: q(null, 'mm'), l: q(null, 'mm'), h: q(null, 'mm') },
+      weight: q(null, 'kg'), handling: '', states: ['대기'], initialState: '대기',
+      initialLocation: p.units[0]?.id ?? null, route: p.units.map((u) => u.id), feedInterval: q(null, 's'),
+    };
+  delete created.mark;
+  delete created.feedCount;
+  p.materials.push(created);
+  if (p.materials.length > 1) {
+    const letter = nextMark(p, id);
+    created.mark = letter;
+    created.name = `자재 ${letter}`;
+  }
+  return ok(p, id);
+}
+
+function rewriteConditions(p: Project, fix: (c: Condition) => Condition): void {
+  for (const a of p.actions) {
+    a.pre = a.pre.map(fix);
+    a.post = a.post.map(fix);
+  }
+  for (const s of p.sequence.steps) s.entry = s.entry.map(fix);
+  if (p.sequence.flow) p.sequence.flow = scrubFlow(p.sequence.flow, new Set(), new Set(), fix);
+  for (const q of p.substationSequences ?? []) {
+    for (const s of q.steps) s.entry = s.entry.map(fix);
+    if (q.flow) q.flow = scrubFlow(q.flow, new Set(), new Set(), fix);
+  }
+  for (const k of p.constraints) {
+    if (k.rule?.form === 'allow') k.rule = { ...k.rule, conditions: k.rule.conditions.map(fix) };
+  }
+}
+
+/** Drop one definition. The shared feed count and interval stay on the first that remains. */
+export function removeMaterial(p0: Project, id: string): CmdResult {
+  const index = p0.materials.findIndex((m) => m.id === id);
+  if (index < 0) return no('자재 없음');
+  const p = clone(p0);
+  const removed = p.materials[index];
+  p.materials = p.materials.filter((m) => m.id !== id);
+  if (index === 0 && p.materials[0]) {
+    if (p.materials[0].feedCount == null && removed.feedCount != null) p.materials[0].feedCount = removed.feedCount;
+    p.materials[0].feedInterval = structuredClone(removed.feedInterval);
+  }
+  if (p.feedPattern) {
+    const known = new Set(p.materials.map((m) => m.id));
+    const next = p.feedPattern.filter((x) => known.has(x));
+    if (next.length === 0 || p.materials.length < 2) delete p.feedPattern;
+    else p.feedPattern = next;
+  }
+  const fix = (c: Condition): Condition => (
+    c.kind === 'materialType' && c.materialId === id
+      ? { kind: 'undefined', note: `삭제된 자재 ${removed.name} 참조 해제됨` }
+      : c
+  );
+  rewriteConditions(p, fix);
+  return ok(p);
+}
+
+/** Repeating feed order. Omitted from the file when only one definition remains. */
+export function setFeedPattern(p0: Project, ids: readonly string[]): CmdResult {
+  if (p0.materials.length < 2) return no('자재 정의가 하나이면 투입 순서를 두지 않습니다');
+  if (ids.length < 1) return no('투입 순서가 비어 있습니다');
+  if (ids.some((id) => !p0.materials.some((m) => m.id === id))) return no('없는 자재');
+  const p = clone(p0);
+  p.feedPattern = [...ids];
+  return ok(p);
+}
+
+/** Per-kind counts inside one cycle, in definition order. The cycle repeats up to the feed count. */
+export function setFeedCounts(p0: Project, counts: Readonly<Record<string, number>>): CmdResult {
+  if (p0.materials.length < 2) return no('자재 정의가 하나이면 종류별 개수를 두지 않습니다');
+  for (const m of p0.materials) {
+    const n = counts[m.id] ?? 0;
+    if (!Number.isInteger(n) || n < 0) return no('종류별 개수는 0 이상의 정수입니다');
+  }
+  const ids = patternFromCounts(p0, counts);
+  if (ids.length === 0) return no('한 종류는 1개 이상이어야 합니다');
+  return setFeedPattern(p0, ids);
+}
+
+/** Drawing letter. Empty clears it and the fallback letter is used. Two letters at most. */
+export function setMaterialMark(p0: Project, id: string, mark: string): CmdResult {
+  const p = clone(p0);
+  const m = p.materials.find((x) => x.id === id);
+  if (!m) return no('자재 없음');
+  const text = mark.trim();
+  if (!text) {
+    delete m.mark;
+    return ok(p);
+  }
+  if ([...text].length > 2) return no('표식은 두 글자까지입니다');
+  const taken = p.materials.some((other) => other.id !== id && materialMark(p, other.id) === text);
+  if (taken) return no('같은 표식이 있습니다');
+  m.mark = text;
   return ok(p);
 }
 
@@ -1006,6 +1105,7 @@ function ruleConditionsOk(p: Project, conditions: Condition[]): string | null {
     if (c.kind === 'signal' && !p.signals.some((s) => s.id === c.signalId)) return '없는 Signal';
     if (c.kind === 'materialAt' && !p.units.some((u) => u.id === c.unitId)) return '없는 Unit';
     if (c.kind === 'materialHeldBy' && c.deviceId && !p.devices.some((d) => d.id === c.deviceId)) return '없는 Device';
+    if (c.kind === 'materialType' && !p.materials.some((m) => m.id === c.materialId)) return '없는 자재';
   }
   return null;
 }
