@@ -165,7 +165,12 @@ function pointCenter(points: { x: number; y: number; z: number }[]) {
  * Frame these world points inside the viewport by `FRAME_MARGIN` pixels,
  * with the projected box centered on the panel.
  */
-export function fitToPoints(points: { x: number; y: number; z: number }[], aspect = 1.4, viewport?: Viewport): CameraState {
+export function fitToPoints(
+  points: { x: number; y: number; z: number }[],
+  aspect = 1.4,
+  viewport?: Viewport,
+  pose?: { yaw: number; pitch: number },
+): CameraState {
   const aspectSafe = aspect > 0.2 ? aspect : 1.4;
   const view = viewport && viewport.width > 40 && viewport.height > 40
     ? viewport
@@ -176,7 +181,7 @@ export function fitToPoints(points: { x: number; y: number; z: number }[], aspec
   const span = safe.reduce((m, p) => Math.max(m, Math.hypot(p.x - mid.x, p.y - mid.y, p.z - mid.z)), 1);
   let cam: CameraState = {
     targetX: mid.x, targetY: mid.y, targetZ: mid.z,
-    yaw: 0.7, pitch: 0.62,
+    yaw: pose?.yaw ?? 0.7, pitch: pose?.pitch ?? 0.62,
     distance: Math.max(80, span / Math.sin((CAMERA_FOV * Math.PI) / 360)),
     aspect: aspectSafe, fov: CAMERA_FOV,
   };
@@ -203,6 +208,32 @@ export function fitToPoints(points: { x: number; y: number; z: number }[], aspec
     cam = { ...cam, distance: cam.distance * 1.06 };
   }
   return cam;
+}
+
+/**
+ * Keep yaw, pitch, and the look-at point. Move `distance` so the points fill the view.
+ * Used when a preset angle would make the iso fit loop back away.
+ */
+export function fitDistance(cam: CameraState, points: { x: number; y: number; z: number }[], viewport?: Viewport): CameraState {
+  const view = viewport && viewport.width > 40 && viewport.height > 40
+    ? viewport
+    : { width: Math.max(80, Math.round(400 * Math.max(0.2, cam.aspect))), height: 400 };
+  const safe = points.length ? points : [{ x: 0, y: 0, z: 0 }, { x: 200, y: 40, z: 200 }];
+  const aspect = view.width / view.height;
+  const limitX = 1 - (FRAME_MARGIN * 2) / view.width;
+  const limitY = 1 - (FRAME_MARGIN * 2) / view.height;
+  let lo = 30;
+  let hi = 20000;
+  let best = Math.min(hi, Math.max(lo, cam.distance));
+  for (let i = 0; i < 22; i += 1) {
+    const mid = (lo + hi) / 2;
+    const box = ndcBox({ ...cam, distance: mid, aspect }, safe);
+    if (!box) { lo = mid; continue; }
+    const scale = Math.max((box.maxX - box.minX) / (2 * limitX), (box.maxY - box.minY) / (2 * limitY));
+    if (scale > 1) lo = mid;
+    else { best = mid; hi = mid; }
+  }
+  return { ...cam, distance: best, aspect };
 }
 
 /** Frame the bounds box. Prefer `fitToPoints` with the scene's zone corners and device tops. */

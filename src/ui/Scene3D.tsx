@@ -1,21 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import {
-  ACESFilmicToneMapping, AmbientLight, BoxGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight,
-  Group, Mesh, MeshStandardMaterial, PCFSoftShadowMap, PerspectiveCamera, PlaneGeometry, Raycaster,
+  ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, DirectionalLight,
+  Float32BufferAttribute, Fog, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, Raycaster,
   NoToneMapping, RepeatWrapping, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer, type Material, type Object3D,
 } from 'three';
-import { applyCameraKey, fitToPoints, gestureMode, orbitCamera, panCamera, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
+import { applyCameraKey, fitDistance, fitToPoints, gestureMode, orbitCamera, panCamera, projectToScreen, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
 import { framePoints, type PartDelta, type SceneDescription } from '../scene/describe';
-import { shouldRedraw } from '../scene/motion';
+import { shouldRedraw, prefersReducedMotion } from '../scene/motion';
 import { emWidth, floorNameAxes, floorNameYaw, type FloorName } from '../scene/floorLabel';
 import { anchorLabels, placeLabels, sceneLabelInRange, visibleFloorNames, type ScreenLabel } from '../scene/labels';
 import type { LocalPart } from '../scene/shapes';
 import { floorNameColors, materialFor, photoPartsFor, photoZoneColors, renderStyle, type StyledPart, type VisualStyleId } from '../scene/style';
+import {
+  COMPASS_POINTS, DEVICE_OUTLINE_MM, VIEW_MOVE_MS, VIEWPOINT_BUTTONS, ZONE_BORDER_MM, ZONE_EMPHASIS_MM,
+  cameraMoveSamples, compassRotationDeg, contactShadows, floorGrid, sceneFog, sceneLabelClass,
+  viewpointAngles, viewpointByKey, zoneBorderThickness, type SceneViewpoint,
+} from '../scene/viewQuality';
 import { BootGate } from './EmptyState';
 import { LOADING_3D } from './problemCopy';
 import { canUseWebGL } from './webgl';
 import { markerText, STATUS_COLOR, waitingLead } from './status';
 import { THEMES } from './viewSettings';
+import './scene3d-quality.css';
 
 export const PHOTO_NOTE = '3D 실사풍은 재질 · 조명 표현입니다. 실제 설비 형상이 아닙니다.';
 
@@ -33,6 +39,7 @@ export interface ScenePalette {
   flow: string;
   label: string;
   edge: string;
+  focus: string;
 }
 
 function readPalette(): ScenePalette {
@@ -54,6 +61,7 @@ function readPalette(): ScenePalette {
     flow: pick('--accent', fallback.accent),
     label: pick('--text', fallback.text),
     edge: pick('--text', fallback.text),
+    focus: pick('--focus', fallback.focus),
   };
 }
 
@@ -128,8 +136,8 @@ function styledMesh(part: StyledPart, delta?: PartDelta): Mesh {
     : new BoxGeometry(part.w, part.h, part.d);
   const mesh = new Mesh(geo, new MeshStandardMaterial({ color: spec.color, metalness: spec.metalness, roughness: spec.roughness }));
   placePart(mesh, part, delta);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
   return mesh;
 }
 
@@ -150,10 +158,10 @@ function markerRing(w: number, d: number, color: string): Group {
   return g;
 }
 
-function zoneBorder(x: number, z: number, w: number, d: number, color: string): Group {
+function zoneBorder(x: number, z: number, w: number, d: number, color: string, thickness = ZONE_BORDER_MM): Group {
   const g = new Group();
-  const t = 4;
-  const h = 3;
+  const t = thickness;
+  const h = thickness >= ZONE_EMPHASIS_MM ? 6 : 3;
   const y = h / 2;
   const mat = () => new MeshStandardMaterial({ color, roughness: 0.8 });
   const add = (px: number, pz: number, bw: number, bd: number) => {
@@ -185,6 +193,68 @@ function arrowBetween(ax: number, az: number, bx: number, bz: number, color: str
   cone.position.set(bx - dir.x * head / 2, 3, bz - dir.z * head / 2);
   cone.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), dir);
   g.add(cone);
+  return g;
+}
+
+function contactBatch(shadows: { x: number; z: number; w: number; d: number; opacity: number }[], dark: boolean): Mesh {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const y = 1.08;
+  shadows.forEach((shadow, index) => {
+    const x0 = shadow.x - shadow.w / 2;
+    const x1 = shadow.x + shadow.w / 2;
+    const z0 = shadow.z - shadow.d / 2;
+    const z1 = shadow.z + shadow.d / 2;
+    const base = index * 4;
+    positions.push(x0, y, z0, x1, y, z0, x1, y, z1, x0, y, z1);
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  });
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  const mesh = new Mesh(geo, new MeshBasicMaterial({
+    color: dark ? '#000000' : '#1a1a1a',
+    transparent: true,
+    opacity: shadows[0]?.opacity ?? 0.3,
+    depthWrite: false,
+  }));
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.userData.contactShadow = shadows.length;
+  return mesh;
+}
+
+function gridLines(bounds: SceneDescription['bounds'], color: string): LineSegments {
+  const grid = floorGrid(bounds);
+  const y = 1.02;
+  const positions: number[] = [];
+  for (const x of grid.xStops) positions.push(x, y, grid.minZ, x, y, grid.maxZ);
+  for (const z of grid.zStops) positions.push(grid.minX, y, z, grid.maxX, y, z);
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  const lines = new LineSegments(geo, new LineBasicMaterial({ color, transparent: true, opacity: 0.38 }));
+  lines.userData.floorGrid = true;
+  return lines;
+}
+
+function deviceOutline(w: number, d: number, color: string): Group {
+  const g = new Group();
+  const t = DEVICE_OUTLINE_MM;
+  const h = 8;
+  const y = 6;
+  const mat = () => new MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.04, emissive: color, emissiveIntensity: 0.35 });
+  const add = (px: number, pz: number, bw: number, bd: number) => {
+    const mesh = new Mesh(new BoxGeometry(bw, h, bd), mat());
+    mesh.position.set(px, y, pz);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    g.add(mesh);
+  };
+  add(w / 2, t / 2, w + t, t);
+  add(w / 2, d - t / 2, w + t, t);
+  add(t / 2, d / 2, t, d);
+  add(w - t / 2, d / 2, t, d);
+  g.userData.deviceOutline = true;
   return g;
 }
 
@@ -284,7 +354,7 @@ function applyFloorYaw(root: Group, cameraYaw: number) {
   });
 }
 
-function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette, emphasize: boolean, visual: VisualStyleId, showNames: boolean, cameraYaw: number, anisotropy: number) {
+function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette, emphasize: boolean, visual: VisualStyleId, showNames: boolean, cameraYaw: number, anisotropy: number, showGrid: boolean, selectedId: string | null, selectedUnitId: string | null) {
   disposeTree(root);
   root.clear();
   const photo = visual === 'photo';
@@ -301,8 +371,9 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
   }
   const floor = new Mesh(new BoxGeometry(floorW, 1, floorD), floorMat);
   floor.position.set((b.minX + b.maxX) / 2, -0.5, (b.minZ + b.maxZ) / 2);
-  floor.receiveShadow = photo;
+  floor.receiveShadow = false;
   root.add(floor);
+  if (showGrid) root.add(gridLines(scene.bounds, dark ? '#9aabbd' : '#6d747c'));
 
   const zoneLook = photo ? photoZoneColors(dark) : null;
   for (const zone of scene.zones) {
@@ -311,18 +382,23 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
       new MeshStandardMaterial({ color: zoneLook?.fill ?? palette.zone, roughness: 1 }),
     );
     fill.position.set(zone.x + zone.w / 2, 0.4, zone.z + zone.d / 2);
-    fill.receiveShadow = photo;
+    fill.receiveShadow = false;
     root.add(fill);
-    root.add(zoneBorder(zone.x, zone.z, zone.w, zone.d, zoneLook?.edge ?? palette.edge));
+    const picked = zone.id === selectedUnitId;
+    const edge = picked ? palette.focus : (zoneLook?.edge ?? palette.edge);
+    root.add(zoneBorder(zone.x, zone.z, zone.w, zone.d, edge, zoneBorderThickness(picked)));
   }
 
   const yaw = floorNameYaw(cameraYaw);
   for (const name of visibleFloorNames(scene.floorNames, showNames)) root.add(floorNameMesh(name, yaw, dark, anisotropy));
 
+  const shadows = contactShadows(scene.solids, dark);
+  if (shadows.length) root.add(contactBatch(shadows, dark));
   for (const solid of scene.solids) {
     const group = new Group();
     group.position.set(solid.draw.x, 0, solid.draw.z);
     group.userData.deviceId = solid.id;
+    if (solid.id === selectedId) group.add(deviceOutline(solid.draw.w, solid.draw.d, palette.focus));
     const deltaFor = (motion?: string) => (motion ? solid.deltas?.find((delta) => delta.motion === motion) : undefined);
     if (photo) {
       for (const part of photoPartsFor(solid.shape, solid.draw.w, solid.draw.d)) group.add(styledMesh(part, deltaFor(part.motion)));
@@ -355,7 +431,7 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
       opacity: mat.waiting ? 0.55 : 1,
     }));
     box.position.set(mat.x, 18, mat.z);
-    box.castShadow = photo;
+    box.castShadow = false;
     root.add(box);
   }
 }
@@ -415,7 +491,7 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
       ? (label.text.includes('일시정지') ? ' paused' : label.text.includes(markerText('fault')) || label.text.includes('오류') ? ' fault' : ' active')
       : '';
     const waiting = label.kind === 'material' && label.text.startsWith(`${waitingLead()}`);
-    el.className = `scene3d-label ${label.kind}${marker}${waiting ? ' waiting' : ''}${label.hidden ? ' is-culled' : ''}`;
+    el.className = sceneLabelClass(label.kind, marker, waiting, !!label.hidden, !!label.selected);
     el.textContent = label.hidden ? '' : label.text;
     el.title = label.title;
     el.style.left = `${label.x + label.w / 2}px`;
@@ -424,7 +500,22 @@ function syncLabels(layer: HTMLElement, camera: PerspectiveCamera, scene: SceneD
   }));
 }
 
-function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, selectedId, onCamera, onSelect, onView, onReady }: {
+function GridTicks({ bounds, cam, width, height, show }: { bounds: SceneDescription['bounds']; cam: CameraState; width: number; height: number; show: boolean }) {
+  if (!show || width < 2 || height < 2) return null;
+  const grid = floorGrid(bounds);
+  const view = { width, height };
+  return (
+    <div className="scene3d-ticks">
+      {grid.labels.map((label) => {
+        const at = projectToScreen(cam, { x: label.x, y: 2, z: label.z }, view);
+        if (!at.ok || at.x < 0 || at.y < 0 || at.x > width || at.y > height) return null;
+        return <span key={`${label.axis}:${label.x}:${label.z}`} className="scene3d-tick" style={{ left: at.x, top: at.y }}>{label.text}</span>;
+      })}
+    </div>
+  );
+}
+
+function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, selectedId, selectedUnitId, showGrid, onCamera, onSelect, onView, onReady }: {
   scene: SceneDescription;
   palette: ScenePalette;
   cam: CameraState;
@@ -432,6 +523,8 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
   emphasize: boolean;
   visualMode: VisualStyleId;
   selectedId: string | null;
+  selectedUnitId: string | null;
+  showGrid: boolean;
   onCamera: (fn: (cam: CameraState) => CameraState) => void;
   onSelect: (id: string | null) => void;
   onView: (width: number, height: number) => void;
@@ -469,8 +562,9 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
     render: () => void;
   } | null>(null);
   const drag = useRef<{ x: number; y: number; button: number; shift: boolean; moved: boolean } | null>(null);
-  const props = useRef({ scene, palette, showNames, emphasize, visualMode, selectedId, onSelect });
-  props.current = { scene, palette, showNames, emphasize, visualMode, selectedId, onSelect };
+  const props = useRef({ scene, palette, showNames, emphasize, visualMode, selectedId, selectedUnitId, showGrid, onSelect });
+  props.current = { scene, palette, showNames, emphasize, visualMode, selectedId, selectedUnitId, showGrid, onSelect };
+  const [px, setPx] = useState({ width: 1, height: 1 });
   const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
@@ -492,7 +586,7 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
     }
     renderer.outputColorSpace = SRGBColorSpace;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.shadowMap.type = PCFSoftShadowMap;
+    renderer.shadowMap.enabled = false;
     renderer.domElement.setAttribute('aria-label', '3D 장면');
     host.appendChild(renderer.domElement);
     const threeScene = new Scene();
@@ -513,6 +607,7 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      setPx({ width: w, height: h });
       render();
       paintSink.current();
       viewSink.current(w, h);
@@ -541,15 +636,15 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
   buildRef.current = () => {
     const view = api.current;
     if (!view) return;
-    const { scene, palette, showNames, emphasize, visualMode, selectedId } = props.current;
+    const { scene, palette, showNames, emphasize, visualMode, selectedId, selectedUnitId, showGrid } = props.current;
     const look = renderStyle(visualMode);
-    view.renderer.shadowMap.enabled = look.shadows;
+    view.renderer.shadowMap.enabled = false;
     view.renderer.toneMapping = visualMode === 'photo' ? ACESFilmicToneMapping : NoToneMapping;
     view.renderer.toneMappingExposure = visualMode === 'photo' ? 1.08 : 1;
     view.ambient.intensity = look.ambient;
     view.key.intensity = look.key;
     view.fill.intensity = look.fill;
-    view.key.castShadow = look.shadows;
+    view.key.castShadow = false;
     const b = scene.bounds;
     const cx = (b.minX + b.maxX) / 2;
     const cz = (b.minZ + b.maxZ) / 2;
@@ -576,8 +671,10 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
     shadowCam.far = 2200;
     shadowCam.updateProjectionMatrix();
     view.scene.background = new Color(palette.background);
+    const fog = sceneFog(camRef.current.distance, palette.background);
+    view.scene.fog = new Fog(fog.color, fog.near, fog.far);
     const anisotropy = Math.min(8, view.renderer.capabilities.getMaxAnisotropy());
-    buildScene(view.root, scene, palette, emphasize, visualMode, showNames, yawRef.current, anisotropy);
+    buildScene(view.root, scene, palette, emphasize, visualMode, showNames, yawRef.current, anisotropy, showGrid, selectedId, selectedUnitId);
     applyCamera(view.camera, camRef.current);
     view.camera.aspect = Math.max(0.2, view.renderer.domElement.clientWidth / Math.max(1, view.renderer.domElement.clientHeight));
     view.camera.updateProjectionMatrix();
@@ -587,7 +684,7 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
 
   useEffect(() => {
     buildRef.current();
-  }, [scene, palette, showNames, emphasize, visualMode, fontsReady]);
+  }, [scene, palette, showNames, emphasize, visualMode, fontsReady, showGrid, selectedId, selectedUnitId]);
 
   useEffect(() => {
     const view = api.current;
@@ -596,6 +693,8 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
     view.camera.aspect = Math.max(0.2, view.renderer.domElement.clientWidth / Math.max(1, view.renderer.domElement.clientHeight));
     view.camera.updateProjectionMatrix();
     applyFloorYaw(view.root, cam.yaw);
+    const fog = sceneFog(cam.distance, props.current.palette.background);
+    view.scene.fog = new Fog(fog.color, fog.near, fog.far);
     view.render();
     if (labelRef.current) syncLabels(labelRef.current, view.camera, scene, showNames, emphasize, cam.yaw, selectedId);
   }, [cam, scene, showNames, emphasize, selectedId]);
@@ -647,12 +746,13 @@ function SceneCanvas({ scene, palette, cam, showNames, emphasize, visualMode, se
       }}
       onContextMenu={(e) => e.preventDefault()}>
       <div className="scene3d-labels" ref={labelRef} />
+      <GridTicks bounds={scene.bounds} cam={cam} width={px.width} height={px.height} show={showGrid} />
     </div>
   );
 }
 
 /** Center column. Without WebGL it explains that and offers the diagram. */
-export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMotion, running, selectedId, onSelect, onDiagram }: {
+export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMotion, running, selectedId, selectedUnitId, viewpoint, onViewpoint, showGrid, onSelect, onDiagram }: {
   scene: SceneDescription;
   showNames: boolean;
   emphasize: boolean;
@@ -660,6 +760,10 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
   equipmentMotion: boolean;
   running: boolean;
   selectedId: string | null;
+  selectedUnitId: string | null;
+  viewpoint: SceneViewpoint;
+  onViewpoint: (id: SceneViewpoint) => void;
+  showGrid: boolean;
   onSelect: (id: string | null) => void;
   onDiagram: () => void;
 }) {
@@ -667,11 +771,30 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
   const [booted, setBooted] = useState(!gl);
   const [palette, setPalette] = useState(readPalette);
   const boundsKey = useMemo(() => scene.zones.map((z) => z.id).join('|') + '/' + scene.solids.map((s) => `${s.id}:${s.x}:${s.z}`).join('|'), [scene]);
-  const framed = (aspect: number, view?: Viewport) => fitToPoints(framePoints(scene), aspect, view);
-  const [cam, setCam] = useState<CameraState>(() => framed(1.4));
+  const presetHold = useRef(true);
+  const viewpointRef = useRef(viewpoint);
+  viewpointRef.current = viewpoint;
+  const framed = (aspect: number, view?: Viewport, pose?: { yaw: number; pitch: number }) => {
+    const points = framePoints(scene);
+    const fit = fitToPoints(points, aspect, view);
+    if (!pose) return fit;
+    const iso = Math.abs(pose.yaw - fit.yaw) < 1e-6 && Math.abs(pose.pitch - fit.pitch) < 1e-6;
+    if (iso) return fit;
+    const sized = view && view.width > 40 && view.height > 40
+      ? view
+      : { width: Math.max(80, Math.round(400 * Math.max(0.2, aspect))), height: 400 };
+    return fitDistance({ ...fit, yaw: pose.yaw, pitch: pose.pitch }, points, sized);
+  };
+  const [cam, setCam] = useState<CameraState>(() => framed(1.4, undefined, viewpointAngles(viewpoint)));
   const viewSize = useRef({ width: 640, height: 400 });
   const moved = useRef(false);
   const seen = useRef(boundsKey);
+  const moveTimers = useRef<number[]>([]);
+  const clearMove = () => {
+    for (const id of moveTimers.current) window.clearTimeout(id);
+    moveTimers.current = [];
+  };
+  useEffect(() => clearMove, []);
   useEffect(() => {
     const app = document.querySelector('.app');
     if (!app) return;
@@ -684,11 +807,14 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
   useEffect(() => {
     if (seen.current === boundsKey) return;
     seen.current = boundsKey;
-    setCam((c) => framed(c.aspect, viewSize.current));
+    const pose = presetHold.current ? viewpointAngles(viewpointRef.current) : undefined;
+    setCam((c) => framed(c.aspect, viewSize.current, pose));
   }, [boundsKey, scene.bounds]);
 
   const onCamera = useCallback((fn: (cam: CameraState) => CameraState) => {
     moved.current = true;
+    presetHold.current = false;
+    clearMove();
     setCam(fn);
   }, []);
   const fittedSize = useRef({ width: 0, height: 0 });
@@ -698,45 +824,106 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
     if (Math.abs(width - fittedSize.current.width) < 2 && Math.abs(height - fittedSize.current.height) < 2) return;
     fittedSize.current = { width, height };
     const aspect = width / height;
+    const pose = presetHold.current ? viewpointAngles(viewpointRef.current) : undefined;
     setCam((c) => (moved.current
       ? (Math.abs(c.aspect - aspect) < 0.01 ? c : { ...c, aspect })
-      : framed(aspect, { width, height })));
+      : framed(aspect, { width, height }, pose)));
+  };
+  const goViewpoint = (id: SceneViewpoint) => {
+    clearMove();
+    onViewpoint(id);
+    presetHold.current = true;
+    const pose = viewpointAngles(id);
+    const aspect = cam.aspect;
+    const to = framed(aspect, viewSize.current, pose);
+    const reduced = prefersReducedMotion();
+    if (reduced) {
+      moved.current = true;
+      setCam(to);
+      return;
+    }
+    const samples = cameraMoveSamples(cam, to, false);
+    samples.forEach((sample, index) => {
+      const handle = window.setTimeout(() => {
+        moved.current = true;
+        setCam(sample);
+      }, Math.round((VIEW_MOVE_MS * (index + 1)) / samples.length));
+      moveTimers.current.push(handle);
+    });
+  };
+  const fitAll = () => {
+    clearMove();
+    moved.current = false;
+    presetHold.current = false;
+    fittedSize.current = { width: 0, height: 0 };
+    setCam(framed(viewSize.current.width / Math.max(1, viewSize.current.height), viewSize.current));
   };
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      const preset = viewpointByKey(e.key);
+      if (preset) {
+        e.preventDefault();
+        goViewpoint(preset);
+        return;
+      }
+    }
     if (e.key === 'Home') {
       e.preventDefault();
-      moved.current = false;
-      setCam(framed(cam.aspect, viewSize.current));
+      fitAll();
       return;
     }
     const next = applyCameraKey(cam, e.key, scene.bounds, viewSize.current);
     if (!next) return;
     e.preventDefault();
+    clearMove();
     moved.current = true;
+    presetHold.current = false;
     setCam(next);
   };
+  const reduced = prefersReducedMotion();
+  const fog = sceneFog(cam.distance, palette.background);
+  const compass = compassRotationDeg(cam.yaw);
+  const compassStyle = { '--compass-spin': `${compass}deg` } as CSSProperties;
+  const hint = '끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · 1~4 시점 · +/− 확대 · Home 전체 보기';
 
   return (
     <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-selected-device={selectedId ?? ''}
       data-visual-style={visualMode} data-show-names={showNames ? 'on' : 'off'} data-floor-names={showNames ? scene.floorNames.length : 0}
       data-scene-materials={scene.materials.map((m) => `${m.unitId}:${m.state}${m.exited ? ':exit' : ''}`).join(' ') || 'none'}
       data-equipment-motion={equipmentMotion ? 'on' : 'off'} data-redraw={shouldRedraw({ running, interacting: false }) ? 'live' : 'still'}
-      data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}>
-      <div className="scene3d-bar" title="끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기">
-        <button type="button" aria-label="전체 보기" title="끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · +/− 확대 · Home 전체 보기" onClick={() => { moved.current = false; fittedSize.current = { width: 0, height: 0 }; setCam(framed(viewSize.current.width / Math.max(1, viewSize.current.height), viewSize.current)); }}>전체 보기</button>
+      data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}
+      data-viewpoint={viewpoint} data-view-move={reduced ? 'instant' : 'smooth'} data-floor-grid={showGrid ? 'on' : 'off'}
+      data-compass-rotation={compass} data-device-outline={selectedId ?? ''} data-outline-mm={selectedId ? DEVICE_OUTLINE_MM : 0}
+      data-zone-emphasis={selectedUnitId ?? ''} data-zone-mm={selectedUnitId ? ZONE_EMPHASIS_MM : ZONE_BORDER_MM}
+      data-label-emphasis={selectedId ?? ''} data-contact-shadows={scene.solids.length} data-shadow-map="off" data-fog="on"
+      data-fog-near={fog.near.toFixed(1)} data-fog-far={fog.far.toFixed(1)}>
+      <div className="scene3d-bar" title={hint}>
+        <div className="scene3d-views" role="group" aria-label="시점">
+          {VIEWPOINT_BUTTONS.map((item) => (
+            <button type="button" key={item.id} aria-label={`시점 ${item.label}`} aria-pressed={viewpoint === item.id} aria-keyshortcuts={item.key} onClick={() => goViewpoint(item.id)}>{item.label}</button>
+          ))}
+        </div>
+        <button type="button" aria-label="전체 보기" title={hint} onClick={fitAll}>전체 보기</button>
       </div>
       {visualMode === 'photo' && <p className="scene3d-photo-note">{PHOTO_NOTE}</p>}
       {gl
         ? <BootGate ready={booted} label={LOADING_3D}>
-          <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize} visualMode={visualMode} selectedId={selectedId}
+          <SceneCanvas scene={scene} palette={palette} cam={cam} showNames={showNames} emphasize={emphasize} visualMode={visualMode} selectedId={selectedId} selectedUnitId={selectedUnitId} showGrid={showGrid}
             onCamera={onCamera} onSelect={onSelect} onView={onView} onReady={() => setBooted(true)} />
         </BootGate>
         : <div className="scene3d-fallback" role="status">
           <p>이 브라우저에서는 3D 를 그릴 수 없습니다</p>
           <button type="button" onClick={onDiagram}>도면으로 보기</button>
         </div>}
+      <div className="scene3d-compass" aria-label="방향 표시" style={compassStyle}>
+        <div className="scene3d-compass-rose">
+          {COMPASS_POINTS.map((item) => (
+            <button type="button" key={item.id} data-compass={item.id} aria-label={`방향 ${item.label}`} aria-pressed={viewpoint === item.id} onClick={() => goViewpoint(item.id)}>{item.label}</button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

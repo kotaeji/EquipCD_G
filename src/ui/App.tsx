@@ -2182,6 +2182,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           <div className="run-canvas">
             {view.runView === '3d' && scene3d
               ? <Scene3D scene={scene3d} showNames={showNames} emphasize={emphasizeMotion} visualMode={view.visualMode} equipmentMotion={equipmentMotion} running={!scrubbing && rt?.status === 'running'} selectedId={p.devices.some((d) => d.id === selection[0]) ? selection[0] : null}
+                selectedUnitId={p.units.some((u) => u.id === selection[0]) ? selection[0] : null}
+                viewpoint={view.sceneViewpoint} onViewpoint={(sceneViewpoint) => setView((v) => (v.sceneViewpoint === sceneViewpoint ? v : { ...v, sceneViewpoint }))}
+                showGrid={view.floorGrid}
                 onSelect={(id) => setSelection(id ? [id] : [])} onDiagram={() => setRunView('diagram')} />
               : <div className="diagram-canvas">{runCanvasEl}</div>}
           </div>
@@ -2191,7 +2194,9 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             logRt={scrubbing ? finishedRun?.state : undefined} scrubMs={scrubbing ? scrubMs : null} chartRt={scrubbing ? finishedRun?.state : undefined} />
         </div>
         <RunConditions p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} showNames={showNames} setShowNames={setShowNames} folded={foldCond} onToggleFold={() => setFoldCond((v) => !v)}
-          emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion} canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
+          emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion}
+          showGrid={view.floorGrid} setShowGrid={(floorGrid) => setView((v) => (v.floorGrid === floorGrid ? v : { ...v, floorGrid }))}
+          canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
           sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} emphasizeFirst={nextBlocker} />
       </div>}
 
