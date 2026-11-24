@@ -131,6 +131,29 @@ function sitesOf(p: Project): Site[] {
       else if (n.kind === 'wait') out.push({ key: `flow:${n.id}`, where: `신호 기다림 ${n.name}`, list: [n.cond], jump: flowJump(n.id) });
     });
   }
+  for (const seq of p.substationSequences ?? []) {
+    if (!seq.flow) continue;
+    const jumpTo = (field: string): ConditionJump => ({ step: 'sequence', sub: 'subseq', selectId: seq.unitId, field });
+    walk(seq.flow, (n) => {
+      if (n.kind === 'branch') {
+        const arms = branchArms(n);
+        arms.forEach((arm, index) => {
+          if (!arm.cond) return;
+          const multi = arms.length > 2;
+          const key = index === 0 ? `flow:${n.id}` : `flow:${n.id}:arm:${index}`;
+          const field = multi ? `flow:${n.id}:arm:${index}` : `flow:${n.id}`;
+          out.push({
+            key,
+            where: multi ? `${seq.name} 분기 ${n.name} ${armLabel(arms.length, index)}` : `${seq.name} 분기 ${n.name}`,
+            list: [arm.cond],
+            jump: jumpTo(field),
+            sites: !multi ? undefined : index === 0 ? [`flow:${n.id}`, `flow:${n.id}:arm:0`] : [`flow:${n.id}:arm:${index}`],
+          });
+        });
+      } else if (n.kind === 'retry') out.push({ key: `flow:${n.id}`, where: `${seq.name} 재시도 ${n.name}`, list: [n.until], jump: jumpTo(`flow:${n.id}`) });
+      else if (n.kind === 'wait') out.push({ key: `flow:${n.id}`, where: `${seq.name} 신호 기다림 ${n.name}`, list: [n.cond], jump: jumpTo(`flow:${n.id}`) });
+    });
+  }
   for (const k of p.constraints) {
     if (k.rule?.form !== 'allow' || k.rule.conditions.length === 0) continue;
     const dev = k.relatedIds.find((id) => p.devices.some((d) => d.id === id));
@@ -277,10 +300,7 @@ function oppositeFindings(p: Project): ConditionFinding[] {
   return out;
 }
 
-/** A later arm repeats an earlier arm's condition, so the first true arm always wins. */
-function unreachableFindings(p: Project): ConditionFinding[] {
-  const flow = p.sequence.flow;
-  if (!flow) return [];
+function unreachableIn(p: Project, flow: FlowNode[], whereOf: (name: string, label: string) => string, jumpOf: (site: string) => ConditionJump): ConditionFinding[] {
   const out: ConditionFinding[] = [];
   walk(flow, (n) => {
     if (n.kind !== 'branch') return;
@@ -299,20 +319,38 @@ function unreachableFindings(p: Project): ConditionFinding[] {
         kind: 'unreachable',
         site,
         sites: [site],
-        where: `분기 ${n.name} ${armLabel(arms.length, index)}`,
+        where: whereOf(n.name, armLabel(arms.length, index)),
         formula: conditionFormula(p, arm.cond),
         reason: `도달하지 않음 — ${armLabel(arms.length, first)} 과 같은 조건이라 앞에서 먼저 갈라집니다`,
-        jump: { step: 'sequence', sub: 'sequence', field: site },
+        jump: jumpOf(site),
       });
     });
   });
   return out;
 }
 
-/** An empty arm is not a run block. The branch just passes through it. */
-function emptyArmFindings(p: Project): ConditionFinding[] {
-  const flow = p.sequence.flow;
-  if (!flow) return [];
+/** A later arm repeats an earlier arm's condition, so the first true arm always wins. */
+function unreachableFindings(p: Project): ConditionFinding[] {
+  const out: ConditionFinding[] = [];
+  if (p.sequence.flow) {
+    out.push(...unreachableIn(
+      p, p.sequence.flow,
+      (name, label) => `분기 ${name} ${label}`,
+      (site) => ({ step: 'sequence', sub: 'sequence', field: site }),
+    ));
+  }
+  for (const seq of p.substationSequences ?? []) {
+    if (!seq.flow) continue;
+    out.push(...unreachableIn(
+      p, seq.flow,
+      (name, label) => `${seq.name} 분기 ${name} ${label}`,
+      (site) => ({ step: 'sequence', sub: 'subseq', selectId: seq.unitId, field: site }),
+    ));
+  }
+  return out;
+}
+
+function emptyArmsIn(p: Project, flow: FlowNode[], whereOf: (name: string, label: string) => string, jumpOf: (site: string) => ConditionJump): ConditionFinding[] {
   const out: ConditionFinding[] = [];
   walk(flow, (n) => {
     if (n.kind !== 'branch') return;
@@ -327,13 +365,34 @@ function emptyArmFindings(p: Project): ConditionFinding[] {
         kind: 'emptyArm',
         site,
         sites: [site],
-        where: `분기 ${n.name} ${label}`,
+        where: whereOf(n.name, label),
         formula: arm.cond ? conditionFormula(p, arm.cond) : label,
         reason: '빈 갈래 — 줄이 없어 이 갈래는 그냥 지나갑니다',
-        jump: { step: 'sequence', sub: 'sequence', field: site },
+        jump: jumpOf(site),
       });
     });
   });
+  return out;
+}
+
+/** An empty arm is not a run block. The branch just passes through it. */
+function emptyArmFindings(p: Project): ConditionFinding[] {
+  const out: ConditionFinding[] = [];
+  if (p.sequence.flow) {
+    out.push(...emptyArmsIn(
+      p, p.sequence.flow,
+      (name, label) => `분기 ${name} ${label}`,
+      (site) => ({ step: 'sequence', sub: 'sequence', field: site }),
+    ));
+  }
+  for (const seq of p.substationSequences ?? []) {
+    if (!seq.flow) continue;
+    out.push(...emptyArmsIn(
+      p, seq.flow,
+      (name, label) => `${seq.name} 분기 ${name} ${label}`,
+      (site) => ({ step: 'sequence', sub: 'subseq', selectId: seq.unitId, field: site }),
+    ));
+  }
   return out;
 }
 

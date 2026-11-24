@@ -45,7 +45,8 @@ export function flattenFlowRows(p: Project, nodes: FlowNode[], depth: number, li
   const out: FlowRow[] = [];
   nodes.forEach((n, index) => {
     if (n.kind === 'step') {
-      const step = p.sequence.steps.find((s) => s.id === n.stepId);
+      const step = p.sequence.steps.find((s) => s.id === n.stepId)
+        ?? (p.substationSequences ?? []).flatMap((q) => q.steps).find((s) => s.id === n.stepId);
       out.push({
         key: n.stepId, depth, kind: 'step', title: step?.name ?? n.stepId, stepId: n.stepId,
         id: n.stepId, listKey, index, node: n,
@@ -112,45 +113,48 @@ function gate(id: FlowMenuAction, label: string, reason?: string, extra?: Partia
 
 const NAMED = new Set<FlowRow['kind']>(['branch', 'parallel', 'loop', 'retry', 'wait']);
 
-export function buildFlowMenu(input: { p: Project; row: FlowRow; ordered: string[]; locked: boolean }): FlowMenuItem[] {
-  const { p, row, ordered, locked } = input;
+export function buildFlowMenu(input: { p: Project; row: FlowRow; ordered: string[]; locked: boolean; seqId?: string }): FlowMenuItem[] {
+  const { p, row, ordered, locked, seqId } = input;
   const editLock = locked ? EDIT_LOCKED : undefined;
   const delLock = locked ? '실행 중에는 삭제가 차단됩니다' : undefined;
   const moveReason = (delta: number) => {
     if (row.kind === 'arm' && row.armOf === 'branch' && typeof row.arm === 'number' && row.blockId && (row.armCount ?? 0) > 2) {
       if (editLock) return editLock;
-      return fail(C.moveBranchArm(p, row.blockId, row.arm, delta as -1 | 1));
+      return fail(C.moveBranchArm(p, row.blockId, row.arm, delta as -1 | 1, seqId));
     }
     if (!row.id) return '갈래는 옮기지 않습니다';
     if (editLock) return editLock;
-    return fail(C.moveFlowNode(p, row.id, delta));
+    return fail(C.moveFlowNode(p, row.id, delta, seqId));
   };
   let intoReason: string | undefined;
   if (row.kind !== 'arm' || row.arm == null || !row.blockId) intoReason = '갈래 줄에서 고른 줄을 넣습니다';
   else if (editLock) intoReason = editLock;
   else if (ordered.length === 0) intoReason = '옮길 줄을 먼저 고르세요';
-  else intoReason = fail(C.moveFlowInto(p, ordered[0], row.blockId, row.arm));
-  const wrapReason = (kind: C.WrapKind) => editLock ?? fail(C.wrapFlow(p, ordered, kind));
+  else intoReason = fail(C.moveFlowInto(p, ordered[0], row.blockId, row.arm, seqId));
+  const wrapReason = (kind: C.WrapKind) => editLock ?? fail(C.wrapFlow(p, ordered, kind, undefined, seqId));
   let unwrapReason: string | undefined;
   if (editLock) unwrapReason = editLock;
   else if (row.kind === 'wait') unwrapReason = '신호 기다림은 삭제로 뺍니다';
   else if (!row.id || row.kind === 'arm' || row.kind === 'step') unwrapReason = '블록 없음';
-  else unwrapReason = fail(C.unwrapFlow(p, row.id));
+  else unwrapReason = fail(C.unwrapFlow(p, row.id, seqId));
   const renameReason = NAMED.has(row.kind) ? editLock : '이 줄은 이름을 바꾸지 않습니다';
-  const step = row.stepId ? p.sequence.steps.find((s) => s.id === row.stepId) : undefined;
+  const homeSteps = seqId
+    ? (p.substationSequences ?? []).find((q) => q.id === seqId)?.steps
+    : p.sequence.steps;
+  const step = row.stepId ? homeSteps?.find((s) => s.id === row.stepId) : undefined;
   const openReason = step && p.actions.some((a) => a.id === step.actionId) ? undefined : '이 줄에는 Action이 없습니다';
   let deleteReason: string | undefined;
   if (delLock) deleteReason = delLock;
-  else if (row.kind === 'step' && row.stepId) deleteReason = fail(C.removeStep(p, row.stepId));
-  else if (row.kind === 'wait' && row.blockId) deleteReason = fail(C.unwrapFlow(p, row.blockId));
-  else if (row.kind === 'arm' && row.armOf === 'branch' && typeof row.arm === 'number' && row.blockId) deleteReason = fail(C.removeBranchArm(p, row.blockId, row.arm));
-  else if (row.kind === 'arm' && row.armOf === 'parallel' && typeof row.arm === 'number' && row.blockId) deleteReason = fail(C.removeParallelLane(p, row.blockId, row.arm));
+  else if (row.kind === 'step' && row.stepId) deleteReason = fail(seqId ? C.removeSubStep(p, seqId, row.stepId) : C.removeStep(p, row.stepId));
+  else if (row.kind === 'wait' && row.blockId) deleteReason = fail(C.unwrapFlow(p, row.blockId, seqId));
+  else if (row.kind === 'arm' && row.armOf === 'branch' && typeof row.arm === 'number' && row.blockId) deleteReason = fail(C.removeBranchArm(p, row.blockId, row.arm, seqId));
+  else if (row.kind === 'arm' && row.armOf === 'parallel' && typeof row.arm === 'number' && row.blockId) deleteReason = fail(C.removeParallelLane(p, row.blockId, row.arm, seqId));
   else if (row.kind === 'arm') deleteReason = '참·거짓 갈래는 지울 수 없습니다';
   else deleteReason = '블록은 「블록 풀기」로 안의 줄을 남깁니다';
   return [
     gate('up', '위로', moveReason(-1)),
     gate('down', '아래로', moveReason(1)),
-    gate('out', '밖으로', !row.id ? '갈래는 옮기지 않습니다' : editLock ?? fail(C.moveFlowOut(p, row.id))),
+    gate('out', '밖으로', !row.id ? '갈래는 옮기지 않습니다' : editLock ?? fail(C.moveFlowOut(p, row.id, seqId))),
     gate('into', '선택 넣기', intoReason),
     gate('wrapBranch', '분기로 묶기', wrapReason('branch')),
     gate('wrapParallel', '병렬로 묶기', wrapReason('parallel')),
