@@ -8,6 +8,8 @@ import {
   ARRANGE_NEED_3,
   arrangeDevicesTarget,
   DUPLICATE_NEED_DEVICE,
+  SUB_NO_PARALLEL,
+  SUB_NO_SUBSTEP,
   type WrapKind,
 } from '../model/commands';
 import { COPY_NEED_NODE } from '../model/copyPaste';
@@ -55,6 +57,8 @@ export interface CommandState {
   hasClip: boolean;
   /** Row ids checked in the Station flow table. Survives a step change. */
   flowPicked: string[];
+  /** 4단계 Substation 시퀀스 화면. 그 화면에서는 병렬과 Substation 단계를 넣지 않는다. */
+  flowHome: 'station' | 'substation';
   appearance: 'light' | 'dark';
   showNames: boolean;
   explorerOpen: boolean;
@@ -183,6 +187,17 @@ function wrapGate(s: CommandState): Gate {
   if (s.locked) return no(EDIT_LOCKED);
   if (s.flowPicked.length === 0) return no(NO_FLOW_ROW);
   return yes();
+}
+
+function wrapParallelGate(s: CommandState): Gate {
+  if (s.flowHome === 'substation') return no(SUB_NO_PARALLEL);
+  return wrapGate(s);
+}
+
+function addSubstationGate(s: CommandState): Gate {
+  if (s.flowHome === 'substation') return no(SUB_NO_SUBSTEP);
+  if (s.locked) return no(EDIT_LOCKED);
+  return s.project.units.length ? yes() : no('Substation 없음');
 }
 
 function go(step: StepId, sub?: string) {
@@ -348,7 +363,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: 'wrap-parallel', name: '병렬로 묶기', group: '시퀀스', steps: ['sequence'],
-    available: wrapGate,
+    available: wrapParallelGate,
     run: (a) => { a.goStep('sequence', 'sequence'); a.wrapFlow('parallel'); },
   },
   {
@@ -379,7 +394,7 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: 'add-substation', name: 'Substation 시퀀스 넣기', group: '시퀀스', steps: ['sequence'],
-    available: (s) => (s.locked ? no(EDIT_LOCKED) : s.project.units.length ? yes() : no('Substation 없음')),
+    available: addSubstationGate,
     run: (a) => { a.goStep('sequence', 'sequence'); a.addSubstation(); },
   },
 
@@ -600,6 +615,7 @@ export function blankCommandState(project: Project, partial: Partial<CommandStat
     selection: [],
     hasClip: false,
     flowPicked: [],
+    flowHome: 'station',
     appearance: 'light',
     showNames: true,
     explorerOpen: true,

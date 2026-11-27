@@ -1189,8 +1189,8 @@ export function moveSubStep(p0: Project, seqId: string, from: number, to: number
 }
 
 // ---- Station flow (TURN-022) and Substation sequence flow (TURN-072). One command = rev +1 = one undo. ---
-const SUB_NO_PARALLEL = 'Substation 시퀀스 안에는 병렬을 넣지 않습니다. 한 Substation의 시퀀스들이 이미 함께 돕니다';
-const SUB_NO_SUBSTEP = 'Substation 시퀀스 안에는 Substation 단계를 넣지 않습니다. 한 Substation의 시퀀스들이 이미 함께 돕니다';
+export const SUB_NO_PARALLEL = 'Substation 시퀀스 안에는 병렬을 넣지 않습니다. 한 Substation의 시퀀스들이 이미 함께 돕니다';
+export const SUB_NO_SUBSTEP = 'Substation 시퀀스 안에는 Substation 단계를 넣지 않습니다. 한 Substation의 시퀀스들이 이미 함께 돕니다';
 
 interface FlowHome {
   read(): FlowNode[] | undefined;
