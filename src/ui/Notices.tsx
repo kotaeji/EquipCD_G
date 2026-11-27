@@ -44,7 +44,7 @@ export function NoticeLog({ items, onClose }: { items: NoticeItem[]; onClose: ()
             const kind = KIND[item.kind];
             return (
               <li key={item.id} data-notice-kind={item.kind}>
-                <time dateTime={new Date(item.at).toISOString()}>{noticeClock(item.at)}</time>
+                <time dateTime={new Date(item.at).toISOString()} title={new Date(item.at).toISOString()}>{noticeClock(item.at)}</time>
                 <StatusMark status={kind.status} word={kind.word} />
                 <span>{noticeBody(item)}</span>
               </li>

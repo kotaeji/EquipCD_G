@@ -118,6 +118,7 @@ function Diagram({ p }: { p: Project }) {
 
 export function PrintView({ project, onClose }: { project: Project; onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [printedAt] = useState(() => new Date());
   const [orient, setOrient] = useState<'landscape' | 'portrait'>('landscape');
   const [on, setOn] = useState<Record<PrintSectionId, boolean>>(() => Object.fromEntries(PRINT_SECTIONS.map((s) => [s.id, true])) as Record<PrintSectionId, boolean>);
   useEffect(() => { closeRef.current?.focus(); }, []);
@@ -175,7 +176,7 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
                   <tbody>
                     <tr><th scope="row">프로젝트</th><td>{project.name}</td></tr>
                     <tr><th scope="row">rev</th><td data-print-rev>{project.revision}</td></tr>
-                    <tr><th scope="row">날짜</th><td data-print-date>{printDate()}</td></tr>
+                    <tr><th scope="row">시각</th><td data-print-date title={printedAt.toISOString()}>{printDate(printedAt)}</td></tr>
                     <tr><th scope="row">앱 버전</th><td data-print-version>{APP_VERSION}</td></tr>
                     <tr><th scope="row">장비</th><td>{project.equipment.name}</td></tr>
                   </tbody>

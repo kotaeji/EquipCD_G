@@ -9,6 +9,7 @@ import { APP_VERSION, feedCountOf, type Condition, type FlowNode, type Project, 
 import type { RuntimeState } from '../runtime/engine';
 import { stepStatusLabel, summarizeRun, type RunStepSummary, type RunSummary } from '../runtime/runSummary';
 import { describeRunInfo, formatMs } from '../scene/runInfo';
+import { formatLocalClock } from './localClock';
 import { runErrorProblem, type ProblemCopy } from './problemCopy';
 
 /** Printed on every report. Not equipment control and not a safety proof. */
@@ -101,7 +102,7 @@ export function exportStamp(at: Date): string {
 }
 
 export function exportClockLabel(at: Date): string {
-  return `${at.getUTCFullYear()}-${pad(at.getUTCMonth() + 1)}-${pad(at.getUTCDate())} ${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())} UTC`;
+  return formatLocalClock(at);
 }
 
 export function runReportFileName(projectName: string, kind: ReportKind, exportedAt: Date): string {
@@ -354,7 +355,7 @@ ${gapHtml}
 ${noteHtml}
 <h2>Interlock 차단 이력</h2>
 ${blockHtml}
-<p class="stamp" data-exported-at="${esc(exportedAt.toISOString())}">내보낸 시각 ${esc(exportClockLabel(exportedAt))}</p>
+<p class="stamp" data-exported-at="${esc(exportedAt.toISOString())}" title="${esc(exportedAt.toISOString())}">내보낸 시각 ${esc(exportClockLabel(exportedAt))}</p>
 </body>
 </html>
 `;

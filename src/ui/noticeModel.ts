@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatLocalClock } from './localClock';
 import type { ProblemCopy } from './problemCopy';
 
 /** Info fades on its own. A rejection stays until it is closed, or for this long. */
@@ -47,9 +48,7 @@ export function noticeKind(err: boolean, text: string): NoticeKind {
 }
 
 export function noticeClock(at: number): string {
-  const d = new Date(at);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return formatLocalClock(at, { seconds: true });
 }
 
 export function noticeBody(item: NoticeItem): string {

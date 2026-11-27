@@ -106,6 +106,6 @@ describe('TURN-070 confirmation UI', () => {
     const label = [...u.el.querySelectorAll('.form-grid label')].find((node) => node.querySelector('input[type="checkbox"]')) as HTMLElement;
     await u.click(label.querySelector('input[type="checkbox"]'));
     const note = label.querySelector('[data-confirm-note]');
-    expect(note?.textContent).toMatch(/^확인: 박확인 · \d{4}-\d{2}-\d{2}$/);
+    expect(note?.textContent).toMatch(/^확인: 박확인 · \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC/);
   });
 });

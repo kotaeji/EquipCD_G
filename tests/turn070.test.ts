@@ -4,6 +4,7 @@ import {
   addressWord, assumptionWord, confirmationWord, confirmedCaption, gapStatusWord, normalizeConfirmerName,
   sortedConfirmationLog, targetLive, type ConfirmStamp,
 } from '../src/model/confirmationLog';
+import { formatLocalClock } from '../src/ui/localClock';
 import * as C from '../src/model/commands';
 import { buildAuroraExport, compareAuroraExport, parseAuroraExport, serializeAuroraExport } from '../src/model/auroraExport';
 import { analyzeGaps, reconcileGapReview } from '../src/model/gaps';
@@ -159,7 +160,7 @@ describe('TURN-070 confirmation log', () => {
     let p = buildSampleProject();
     const ref = { kind: 'action' as const, id: p.actions[0].id, field: 'duration' as const };
     p = okp(C.setQuantity(p, ref, p.actions[0].duration.value, false, stamp('2026-11-24T03:04:05.000Z', '박확인')));
-    expect(confirmedCaption(p.confirmationLog, { kind: 'quantity', ref }, true)).toBe('확인: 박확인 · 2026-11-24');
+    expect(confirmedCaption(p.confirmationLog, { kind: 'quantity', ref }, true)).toBe(`확인: 박확인 · ${formatLocalClock('2026-11-24T03:04:05.000Z')}`);
     p = okp(C.setQuantity(p, ref, p.actions[0].duration.value, true, stamp('2026-11-24T04:00:00.000Z', '박확인')));
     expect(confirmedCaption(p.confirmationLog, { kind: 'quantity', ref }, false)).toBeNull();
     expect(confirmedCaption(p.confirmationLog, { kind: 'quantity', ref }, true)).toBeNull();

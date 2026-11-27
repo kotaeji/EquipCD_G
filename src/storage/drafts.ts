@@ -4,6 +4,7 @@
  * Writes go through applyAtomic and the same file-format check as a real save.
  */
 import type { Project } from '../model/types';
+import { formatLocalClock } from '../ui/localClock';
 import { parseProjectFile, serializeProject, type ParseResult } from './fileFormat';
 import type { KV, QuarantineEntry } from './localStore';
 import { applyAtomic, type TxnOp } from './txn';
@@ -70,12 +71,9 @@ export function draftOffersRecovery(draft: { revision: number; savedAt: string }
   return true;
 }
 
-/** HH:MM in local time. Empty when the timestamp cannot be read. */
+/** Local date and minute, with the zone. Empty when the timestamp cannot be read. */
 export function formatClock(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatLocalClock(iso);
 }
 
 /** Work-line text. One line, no trailing separator. */
@@ -88,6 +86,14 @@ export function workTimesLabel(savedAt: string | null, draftAt: string | null, f
     const draft = formatClock(draftAt);
     if (draft) parts.push(`임시 저장 ${draft}`);
   }
+  return parts.join(' · ');
+}
+
+/** Tooltip for the work line. The stored instants, still ISO (UTC). */
+export function workTimesTitle(savedAt: string | null, draftAt: string | null, failed: boolean): string {
+  const parts: string[] = [];
+  if (savedAt) parts.push(`저장 ${savedAt}`);
+  if (!failed && draftAt) parts.push(`임시 저장 ${draftAt}`);
   return parts.join(' · ');
 }
 

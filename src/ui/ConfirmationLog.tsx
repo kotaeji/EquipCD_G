@@ -16,7 +16,7 @@ export function ConfirmationLog({ p, onJump }: { p: Project; onJump: (entry: Con
             const live = targetLive(p, e.target);
             return (
               <tr key={`${e.at}:${i}`} data-confirmation-at={e.at} data-confirmation-by={e.by} data-confirmation-live={live ? '1' : '0'}>
-                <td>{confirmationClock(e.at)}</td>
+                <td title={e.at}>{confirmationClock(e.at)}</td>
                 <td>{e.by}</td>
                 <td>
                   {e.name}

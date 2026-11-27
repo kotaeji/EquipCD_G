@@ -111,7 +111,9 @@ describe('TURN-079 print view', () => {
     expect(cover.textContent).toContain(name);
     expect(cover.querySelector('[data-print-rev]')!.textContent).toBe(String(rev));
     expect(cover.querySelector('[data-print-version]')!.textContent).toBe(APP_VERSION);
-    expect(cover.querySelector('[data-print-date]')!.textContent).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const printed = cover.querySelector('[data-print-date]')!;
+    expect(printed.textContent).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC(?:[+-]\d{1,2}(?::\d{2})?)?\)$/);
+    expect(printed.getAttribute('title')).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     const limits = [...view.querySelectorAll('[data-print-limit]')];
     expect(limits.length).toBeGreaterThanOrEqual(2);
     for (const node of limits) expect(node.textContent).toBe(PRINT_LIMIT);
