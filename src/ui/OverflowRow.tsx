@@ -1,5 +1,5 @@
 // TURN-085. Same idea as the header 「더 보기」: the tail leaves the row when it does not fit.
-import { Children, cloneElement, isValidElement, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { Children, Fragment, cloneElement, isValidElement, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenu } from './ContextMenu';
 import { IconLabel } from './Icon';
@@ -35,13 +35,26 @@ function tailThatOverflows(nodes: HTMLElement[], limit: number): number[] {
   return hide;
 }
 
+/** A fragment variable is one child to React.Children. Split it so each control can leave the row on its own. */
+function flatChildren(children: ReactNode): ReactNode[] {
+  const out: ReactNode[] = [];
+  const walk = (node: ReactNode) => {
+    Children.forEach(node, (child) => {
+      if (isValidElement(child) && child.type === Fragment) walk((child.props as { children?: ReactNode }).children);
+      else if (child != null && typeof child !== 'boolean') out.push(child);
+    });
+  };
+  walk(children);
+  return out;
+}
+
 /** Direct children stay direct children so `> button` rules keep matching. */
 export function OverflowRow({ className, children }: { className?: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const [hidden, setHidden] = useState<number[]>([]);
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
-  const items = Children.toArray(children);
+  const items = flatChildren(children);
   const measuring = useRef(false);
 
   useLayoutEffect(() => {
@@ -57,8 +70,19 @@ export function OverflowRow({ className, children }: { className?: string; child
           return;
         }
         nodes.forEach((n) => n.classList.remove('is-overflow'));
-        const hide = tailThatOverflows(nodes, el.clientWidth);
-        nodes.forEach((n, i) => { if (hide.includes(i)) n.classList.add('is-overflow'); });
+        let hide = tailThatOverflows(nodes, el.clientWidth);
+        const paint = (list: number[]) => {
+          nodes.forEach((n, i) => n.classList.toggle('is-overflow', list.includes(i)));
+        };
+        paint(hide);
+        let guard = 0;
+        while (el.scrollWidth > el.clientWidth + 1 && guard < nodes.length) {
+          const extra = [...nodes.keys()].reverse().find((i) => i > 0 && !hide.includes(i) && !nodes[i].hasAttribute('data-overflow-keep'));
+          if (extra == null) break;
+          hide = [...hide, extra].sort((a, b) => a - b);
+          paint(hide);
+          guard += 1;
+        }
         setHidden((cur) => (same(cur, hide) ? cur : hide));
       } finally { measuring.current = false; }
     };
@@ -66,7 +90,7 @@ export function OverflowRow({ className, children }: { className?: string; child
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [items.length]);
+  }, [items.length, hidden.length]);
 
   const tagged = items.map((child, i) => {
     const off = hidden.includes(i);

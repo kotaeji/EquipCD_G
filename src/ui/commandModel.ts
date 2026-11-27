@@ -141,6 +141,7 @@ export const EXTRA_SHORTCUTS: readonly ExtraShortcut[] = [
   { id: 'extra-esc', keys: 'Esc', name: '연결 취소 · 도면에서 한 겹 나오기', where: '연결 모드 · 2단계 도면' },
   { id: 'extra-tree', keys: '↑ ↓ ← →', name: '트리 이동·접기', where: '탐색기' },
   { id: 'extra-ctrl-click', keys: 'Ctrl+클릭', name: '선택과 해제', where: '2단계 도면' },
+  { id: 'extra-cam-view', keys: '1 2 3 4', name: '3D 시점 등각 · 위 · 앞 · 옆', where: '6단계 3D · 장면을 누른 뒤 1~4 키' },
   { id: 'extra-cam', keys: '← → ↑ ↓', name: '3D 카메라 돌리기', where: '6단계 3D' },
   { id: 'extra-cam-zoom', keys: '+ −', name: '3D 확대·축소', where: '6단계 3D' },
   { id: 'extra-cam-home', keys: 'Home', name: '3D 화면 맞춤', where: '6단계 3D' },

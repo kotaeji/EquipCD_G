@@ -18,7 +18,7 @@ needs separate approval).
 | Stepper | 64px | 6 wizard steps + goal + remaining items |
 | Workspace | rest | step-specific centre; each list/table/log owns its scroll |
 | Status bar | 26px | logic-simulation disclaimer, rev, run state, format/rule versions |
-- Target check sizes: 1280×800 and 1920×1080 (app min-width 1180px). Canvas step: palette 196 | canvas | inspector 300.
+- Target check sizes: 1280×800 and 1920×1080 (app min-width 1180px). Step 6 diagram and 3D are also checked at 1024×700. Canvas step: palette 196 | canvas | inspector 300.
   Run step: canvas | panel `minmax(380px, 42%)`.
 
 ## Tokens

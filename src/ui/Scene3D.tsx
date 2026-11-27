@@ -4,7 +4,7 @@ import {
   Float32BufferAttribute, Fog, Group, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, PerspectiveCamera, PlaneGeometry, Raycaster,
   NoToneMapping, RepeatWrapping, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer, type Material, type Object3D,
 } from 'three';
-import { CAMERA_FOV, applyCameraKey, fitDistance, fitToPoints, gestureMode, orbitCamera, panCamera, projectToScreen, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
+import { CAMERA_FOV, applyCameraKey, fitToPoints, gestureMode, orbitCamera, panCamera, projectToScreen, zoomCamera, type CameraState, type Viewport } from '../scene/camera';
 import { framePoints, zoneLookAt, type PartDelta, type SceneDescription } from '../scene/describe';
 import { shouldRedraw, prefersReducedMotion } from '../scene/motion';
 import { emWidth, floorNameAxes, floorNameYaw, type FloorName } from '../scene/floorLabel';
@@ -13,8 +13,8 @@ import type { LocalPart } from '../scene/shapes';
 import { floorNameColors, materialFor, photoPartsFor, photoZoneColors, renderStyle, type StyledPart, type VisualStyleId } from '../scene/style';
 import {
   COMPASS_POINTS, DEVICE_OUTLINE_MM, VIEW_MOVE_MS, VIEWPOINT_BUTTONS, ZONE_BORDER_MM, ZONE_EMPHASIS_MM,
-  cameraMoveSamples, compassRotationDeg, contactShadows, floorGrid, sceneFog, sceneLabelClass,
-  viewpointAngles, viewpointByKey, zoneBorderThickness, type SceneViewpoint,
+  cameraHold, cameraMoveSamples, compassRotationDeg, compassSize, contactShadows, fitViewpoint, floorGrid, heldCamera, sceneFog, sceneLabelClass,
+  viewpointAngles, viewpointByKey, zoneBorderThickness, VIEWPOINT_KEY_HINT, type SceneViewpoint,
 } from '../scene/viewQuality';
 import { BootGate } from './EmptyState';
 import { LOADING_3D } from './problemCopy';
@@ -776,12 +776,12 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
   viewpointRef.current = viewpoint;
   const framed = (aspect: number, view?: Viewport, pose?: { yaw: number; pitch: number }) => {
     const points = framePoints(scene);
-    if (!pose) return fitToPoints(points, aspect, view);
     const sized = view && view.width > 40 && view.height > 40
       ? view
       : { width: Math.max(80, Math.round(400 * Math.max(0.2, aspect))), height: 400 };
+    if (!pose) return fitToPoints(points, aspect, sized);
     const look = zoneLookAt(scene);
-    return fitDistance({
+    return fitViewpoint({
       targetX: look.x, targetY: look.y, targetZ: look.z,
       yaw: pose.yaw, pitch: pose.pitch,
       distance: 800, aspect: sized.width / sized.height, fov: CAMERA_FOV,
@@ -820,16 +820,48 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
     setCam(fn);
   }, []);
   const fittedSize = useRef({ width: 0, height: 0 });
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [cellH, setCellH] = useState(0);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const apply = (h: number) => {
+      const next = Math.round(h);
+      setCellH((cur) => (cur === next ? cur : next));
+    };
+    const ro = new ResizeObserver((entries) => {
+      apply(entries[0]?.contentRect.height ?? el.clientHeight);
+    });
+    ro.observe(el);
+    if (el.clientHeight > 0) apply(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
+  const roseRef = useRef(compassSize(0));
+  useEffect(() => {
+    const next = compassSize(cellH);
+    if (roseRef.current === next) return;
+    roseRef.current = next;
+    const hold = cameraHold(presetHold.current, moved.current);
+    if (hold === 'user') return;
+    clearMove();
+    const pose = hold === 'preset' ? viewpointAngles(viewpointRef.current) : undefined;
+    const view = viewSize.current;
+    setCam(() => framed(view.width / Math.max(1, view.height), view, pose));
+  }, [cellH]);
   const onView = (width: number, height: number) => {
     viewSize.current = { width, height };
     if (width < 2 || height < 2) return;
     if (Math.abs(width - fittedSize.current.width) < 2 && Math.abs(height - fittedSize.current.height) < 2) return;
     fittedSize.current = { width, height };
     const aspect = width / height;
-    const pose = presetHold.current ? viewpointAngles(viewpointRef.current) : undefined;
-    setCam((c) => (moved.current
-      ? (Math.abs(c.aspect - aspect) < 0.01 ? c : { ...c, aspect })
-      : framed(aspect, { width, height }, pose)));
+    const view = { width, height };
+    const hold = cameraHold(presetHold.current, moved.current);
+    if (hold !== 'user') clearMove();
+    setCam((c) => {
+      if (hold === 'user') return heldCamera(c, hold, aspect, c);
+      const pose = hold === 'preset' ? viewpointAngles(viewpointRef.current) : undefined;
+      return framed(aspect, view, pose);
+    });
   };
   const goViewpoint = (id: SceneViewpoint) => {
     clearMove();
@@ -890,8 +922,9 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
   const compassStyle = { '--compass-spin': `${compass}deg` } as CSSProperties;
   const hint = '끌어서 회전 · 오른쪽 끌기 또는 Shift+끌기 이동 · 휠 확대 · 화살표 회전 · 1~4 시점 · +/− 확대 · Home 전체 보기';
 
+  const rose = compassSize(cellH);
   return (
-    <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-selected-device={selectedId ?? ''}
+    <div ref={stageRef} className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-compass-size={rose} data-cell-height={cellH} data-selected-device={selectedId ?? ''}
       data-visual-style={visualMode} data-show-names={showNames ? 'on' : 'off'} data-floor-names={showNames ? scene.floorNames.length : 0}
       data-scene-materials={scene.materials.map((m) => `${m.unitId}:${m.state}${m.exited ? ':exit' : ''}`).join(' ') || 'none'}
       data-equipment-motion={equipmentMotion ? 'on' : 'off'} data-redraw={shouldRedraw({ running, interacting: false }) ? 'live' : 'still'}
@@ -904,7 +937,7 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
       <div className="scene3d-bar" title={hint}>
         <div className="scene3d-views" role="group" aria-label="시점">
           {VIEWPOINT_BUTTONS.map((item) => (
-            <button type="button" key={item.id} aria-label={`시점 ${item.label}`} aria-pressed={viewpoint === item.id} aria-keyshortcuts={item.key} onClick={() => goViewpoint(item.id)}>{item.label}</button>
+            <button type="button" key={item.id} aria-label={`시점 ${item.label}`} title={VIEWPOINT_KEY_HINT} aria-pressed={viewpoint === item.id} aria-keyshortcuts={item.key} onClick={() => goViewpoint(item.id)}>{item.label}</button>
           ))}
         </div>
         <button type="button" aria-label="전체 보기" title={hint} onClick={fitAll}>전체 보기</button>

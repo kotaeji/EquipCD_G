@@ -13,4 +13,13 @@
 .overflow-row > .is-overflow { display: none; }
 
 .overflow-row.diagram-tools { flex-wrap: wrap; }
-.overflow-row > [data-overflow-more] { margin-left: auto; }
+.overflow-row.tool-pills { flex-wrap: nowrap; }
+.overflow-row > [data-overflow-more] { margin-left: auto; flex: 0 0 auto; }
+
+/* The speed list and the clock share one item, with a real gap between them. */
+.run-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+}
