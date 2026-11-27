@@ -21,7 +21,29 @@
   text-align: center;
 }
 
-.app.app[data-narrow-warn="1"] { min-width: 0; }
+.app.app[data-narrow-warn="1"] {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+.app.app[data-narrow-warn="1"] > .header {
+  overflow: hidden;
+}
+.app.app[data-narrow-warn="1"] > .header > .brand {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.app.app[data-narrow-warn="1"] > .header .title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app.app[data-narrow-warn="1"] > .workspace {
+  min-width: 0;
+  overflow: auto;
+}
 
 /* Narrow: the explorer rail stays 40px. Opening it overlays the workspace. */
 .app[data-width-tier="narrow"] {

@@ -69,6 +69,14 @@ export interface Viewport { width: number; height: number }
 /** Pixels kept clear around a fitted scene. */
 export const FRAME_MARGIN = 16;
 
+/** Extra room on one side, in pixels. Omitted sides use `FRAME_MARGIN`. */
+export interface FrameEdges {
+  left?: number;
+  right?: number;
+  top?: number;
+  bottom?: number;
+}
+
 export interface ScreenPoint { x: number; y: number; ok: boolean }
 
 /** Project one world point into the viewport. y grows downward. */
@@ -210,28 +218,46 @@ export function fitToPoints(
   return cam;
 }
 
+function frameLimits(view: Viewport, edges?: FrameEdges) {
+  const left = edges?.left ?? FRAME_MARGIN;
+  const right = edges?.right ?? FRAME_MARGIN;
+  const top = edges?.top ?? FRAME_MARGIN;
+  const bottom = edges?.bottom ?? FRAME_MARGIN;
+  return {
+    minX: -1 + (2 * left) / view.width,
+    maxX: 1 - (2 * right) / view.width,
+    /** NDC +y is the top of the screen. */
+    maxY: 1 - (2 * top) / view.height,
+    minY: -1 + (2 * bottom) / view.height,
+  };
+}
+
 /**
- * Keep yaw, pitch, and the look-at point. Pull `distance` in until the points
- * still sit inside the frame on both axes. A box that is small but off to one
- * side does not count as fitting.
+ * Keep yaw, pitch, and the look-at point. Pull `distance` until the points
+ * sit inside the frame on both axes. A box that is small but off to one
+ * side does not count as fitting. `edges` reserves a corner (the compass).
  */
-export function fitDistance(cam: CameraState, points: { x: number; y: number; z: number }[], viewport?: Viewport): CameraState {
+export function fitDistance(
+  cam: CameraState,
+  points: { x: number; y: number; z: number }[],
+  viewport?: Viewport,
+  edges?: FrameEdges,
+): CameraState {
   const view = viewport && viewport.width > 40 && viewport.height > 40
     ? viewport
     : { width: Math.max(80, Math.round(400 * Math.max(0.2, cam.aspect))), height: 400 };
   const safe = points.length ? points : [{ x: 0, y: 0, z: 0 }, { x: 200, y: 40, z: 200 }];
   const aspect = view.width / view.height;
-  const limitX = 1 - (FRAME_MARGIN * 2) / view.width;
-  const limitY = 1 - (FRAME_MARGIN * 2) / view.height;
+  const limit = frameLimits(view, edges);
   let lo = 30;
   let hi = 20000;
   let best = hi;
-  for (let i = 0; i < 24; i += 1) {
+  for (let i = 0; i < 28; i += 1) {
     const mid = (lo + hi) / 2;
     const box = ndcBox({ ...cam, distance: mid, aspect }, safe);
     const inside = !!box
-      && box.minX >= -limitX && box.maxX <= limitX
-      && box.minY >= -limitY && box.maxY <= limitY;
+      && box.minX >= limit.minX && box.maxX <= limit.maxX
+      && box.minY >= limit.minY && box.maxY <= limit.maxY;
     if (!inside) lo = mid;
     else { best = mid; hi = mid; }
   }

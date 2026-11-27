@@ -24,7 +24,50 @@
   border-color: var(--focus);
   font-weight: 700;
 }
+.run-canvas .run-stage {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.run-canvas .run-stage > .boot-gate,
+.run-canvas .run-stage > .scene3d-fallback {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.run-canvas .run-stage > .boot-gate > div {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.run-canvas .run-stage .scene3d-host {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
 .run-stage { position: relative; }
+.run-stage[data-compass-size="compact"] .scene3d-compass {
+  right: var(--sp-1);
+  bottom: var(--sp-1);
+  width: calc(var(--sp-6) * 2);
+  height: calc(var(--sp-6) * 2);
+}
+.run-stage[data-compass-size="compact"] .scene3d-compass-rose::before {
+  height: var(--sp-6);
+}
+.run-stage[data-compass-size="compact"] .scene3d-compass-rose::after {
+  width: var(--sp-6);
+}
+.run-stage[data-compass-size="compact"] .scene3d-compass button {
+  width: var(--sp-5);
+  height: var(--sp-4);
+  font-size: var(--fs-xs);
+}
 .scene3d-compass {
   position: absolute;
   right: var(--sp-3);

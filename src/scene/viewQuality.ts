@@ -2,7 +2,7 @@
 // Pure numbers — no Three.js. The 3D view only draws what these functions return.
 // Diagram dots use a 20px gap at 1 unit = 1 mm, so the floor grid uses the same step.
 
-import type { CameraState } from './camera';
+import { FRAME_MARGIN, fitDistance, projectToScreen, type CameraState, type FrameEdges, type Viewport } from './camera';
 
 /** Same spacing as the diagram dot grid (`Background` gap in Canvas). */
 export const DIAGRAM_GRID_MM = 20;
@@ -107,6 +107,105 @@ export function cameraMoveSamples(from: CameraState, to: CameraState, reduced: b
   out[out.length - 1] = to;
   return out;
 }
+
+/** Step 6 diagram and 3D are checked at these windows, including the low laptop. */
+export const STEP6_CHECK_WINDOWS = [
+  { width: 1024, height: 700 },
+  { width: 1280, height: 800 },
+] as const;
+
+/** The corner rose shrinks when the 3D cell is shorter than this. */
+export const COMPASS_COMPACT_BELOW = 320;
+/** Full rose, `--sp-6 * 3`. Compact rose, `--sp-6 * 2`. Edge inset is `--sp-1`. */
+export const COMPASS_FULL_PX = 96;
+export const COMPASS_COMPACT_PX = 64;
+export const COMPASS_EDGE_PX = 4;
+
+export type CompassSize = 'full' | 'compact';
+
+/** A cell that has not been measured yet stays full, so the first paint is not a flicker. */
+export function compassSize(cellHeight: number): CompassSize {
+  return cellHeight > 0 && cellHeight < COMPASS_COMPACT_BELOW ? 'compact' : 'full';
+}
+
+/**
+ * Pixels the fitted scene must leave clear. Compact roses sit in the bottom-right,
+ * so that corner gets the rose plus the usual frame margin.
+ */
+export function compassFrameEdges(cellHeight: number): FrameEdges | undefined {
+  if (compassSize(cellHeight) !== 'compact') return undefined;
+  const clear = COMPASS_EDGE_PX + COMPASS_COMPACT_PX + FRAME_MARGIN;
+  return { left: FRAME_MARGIN, right: clear, top: FRAME_MARGIN, bottom: clear };
+}
+
+/** Screen box of the compact rose. Null while the rose is full size. */
+export function compassScreenRect(view: Viewport, cellHeight = view.height): { x: number; y: number; w: number; h: number } | null {
+  if (compassSize(cellHeight) !== 'compact') return null;
+  return {
+    x: view.width - COMPASS_EDGE_PX - COMPASS_COMPACT_PX,
+    y: view.height - COMPASS_EDGE_PX - COMPASS_COMPACT_PX,
+    w: COMPASS_COMPACT_PX,
+    h: COMPASS_COMPACT_PX,
+  };
+}
+
+export type CameraHold = 'preset' | 'free' | 'user';
+
+/**
+ * A named viewpoint follows the cell. 「전체 보기」 follows until the user
+ * orbits, pans, or zooms. After that the distance stays put.
+ */
+export function cameraHold(onPreset: boolean, userMoved: boolean): CameraHold {
+  if (onPreset) return 'preset';
+  return userMoved ? 'user' : 'free';
+}
+
+/** User hold keeps the distance and only updates the aspect. Any other hold takes `next`. */
+export function heldCamera(cam: CameraState, hold: CameraHold, aspect: number, next: CameraState): CameraState {
+  if (hold !== 'user') return next;
+  return Math.abs(cam.aspect - aspect) < 0.01 ? cam : { ...cam, aspect };
+}
+
+/**
+ * Fit a named viewpoint. The compact rose sits in the bottom-right corner, so a
+ * scene that already clears that corner keeps its distance. One that would slide
+ * under the rose is pulled back until the corner is empty.
+ */
+export function fitViewpoint(
+  cam: CameraState,
+  points: { x: number; y: number; z: number }[],
+  view: Viewport,
+): CameraState {
+  const plain = fitDistance(cam, points, view);
+  if (!projectionHitsRose(plain, points, view)) return plain;
+  return fitDistance(cam, points, view, compassFrameEdges(view.height));
+}
+
+function projectionHitsRose(
+  cam: CameraState,
+  points: { x: number; y: number; z: number }[],
+  view: Viewport,
+): boolean {
+  const rose = compassScreenRect(view);
+  if (!rose || points.length === 0) return false;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    const at = projectToScreen(cam, point, view);
+    if (!at.ok) return true;
+    minX = Math.min(minX, at.x);
+    maxX = Math.max(maxX, at.x);
+    minY = Math.min(minY, at.y);
+    maxY = Math.max(maxY, at.y);
+  }
+  const slop = 8;
+  return maxX > rose.x - slop && minX < rose.x + rose.w && maxY > rose.y - slop && minY < rose.y + rose.h;
+}
+
+/** Shown on the viewpoint buttons and in the shortcut sheet. */
+export const VIEWPOINT_KEY_HINT = '장면을 누른 뒤 1~4 키';
 
 /** Degrees for the corner rose. yaw 0 keeps 앞 at the top of the rose. */
 export function compassRotationDeg(yaw: number): number {

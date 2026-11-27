@@ -1899,8 +1899,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     <button onClick={doStep} disabled={rt?.status !== 'paused'} title="일시정지 중 가상 0.1초 진행"><IconLabel id="step-time">+0.1s</IconLabel></button>
     <button onClick={doReset} disabled={!tab.runtime || rt?.status === 'idle'}><IconLabel id="reset" glyph="⟲ ">초기화</IconLabel></button>
     <button onClick={doToEnd} disabled={!running} title="실행 중(▶ 실행 후)에만 활성 — 남은 단계를 즉시 계산"><IconLabel id="to-end">끝까지</IconLabel></button>
-    <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{RUN_SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}</select>
-    <span className="mono" style={{ minWidth: 80 }}>{fmtTime(rt?.timeMs ?? 0)}</span></>;
+    <span className="run-clock">
+      <select aria-label="배속" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="화면 재생 속도 (논리 결과에 영향 없음)">{RUN_SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}</select>
+      <span className="mono" style={{ minWidth: 80 }}>{fmtTime(rt?.timeMs ?? 0)}</span>
+    </span></>;
   const setRunView = (runView: 'diagram' | '3d') => { setHelpScope('main'); setView((v) => (v.runView === runView ? v : { ...v, runView })); };
   const runSession = `${tab.key}:${step}`;
   if (step === 'run') {
