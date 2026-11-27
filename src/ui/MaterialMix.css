@@ -31,6 +31,9 @@
   border-bottom: 1px solid var(--border);
 }
 .mix-letter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
   font-weight: 700;
   font-size: var(--fs-md);
   min-width: var(--sp-4);

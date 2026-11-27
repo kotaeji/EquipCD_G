@@ -4,8 +4,11 @@ import { shownStepCondition } from '../model/conditionFormula';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { faultDeviceIds, activeDeviceIds } from '../scene/describe';
-import { describeRunInfo, type RunInfoBar } from '../scene/runInfo';
+import { materialKindLook } from '../model/materialKind';
+import { kindTallies } from '../model/materialMix';
+import { describeRunInfo, formatMs, type RunInfoBar } from '../scene/runInfo';
 import { stepStatusLabel } from '../runtime/runSummary';
+import { MaterialKindText } from './MaterialKindMark';
 import { stepLiveClass } from './RunSummary';
 import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
@@ -77,6 +80,15 @@ function useFollowRunning(listRef: RefObject<HTMLElement | null>, token: string,
   }, [token, active, listRef]);
 }
 
+function kindStrip(p: Project, rt: RuntimeState | null) {
+  const tallies = rt ? kindTallies(p, rt.pieces ?? []) : [];
+  return tallies.map((row, i) => {
+    const text = `${i > 0 ? ' · ' : ''}종류 ${row.mark} 생산 ${row.produced}${row.avgPassMs == null ? '' : ` · 평균 ${formatMs(row.avgPassMs)}`}`;
+    const look = materialKindLook(p, row.materialId);
+    return look ? <MaterialKindText key={row.materialId} look={look} text={text} /> : <span key={row.materialId}>{text}</span>;
+  });
+}
+
 /** Center strip above the canvas. The first lines of the old info column, on two rows. */
 export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
   p: Project;
@@ -99,7 +111,7 @@ export function RunSummaryStrip({ p, rt, folded, onToggleFold, onOpenGaps }: {
         <span className="run-strip-fixed">가상 시간 <b className="mono" data-run-time="">{info.timeText}</b></span>
         <span className="run-strip-running">실행 중 <b data-running-count={info.running.length} title={full || undefined}>{info.running.length === 0 ? '없음' : shown}{extra > 0 ? ` 외 ${extra}` : ''}</b></span>
         {!folded && <span className="run-strip-fixed" data-material="" data-fed={info.fedCount} data-exited={info.exitCount} data-feed-total={info.feedTotal}>자재 {info.materialText}</span>}
-        {!folded && info.kindText && <span className="run-strip-fixed" data-kind-summary="">{info.kindText}</span>}
+        {!folded && info.kindText && <span className="run-strip-fixed" data-kind-summary="">{kindStrip(p, rt)}</span>}
         <button type="button" className="small run-strip-fold" aria-label={folded ? '요약 펼치기' : '요약 접기'} onClick={onToggleFold}><IconLabel id={folded ? 'unfold' : 'fold'}>{folded ? '펼치기' : '접기'}</IconLabel></button>
       </div>
       {!folded && <div className="run-strip-row metrics">

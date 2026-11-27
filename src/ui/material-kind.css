@@ -1,0 +1,79 @@
+/* TURN-091. Kind color is the fill. The letter stays --text. Patterns differ without color. */
+.mat-slot-1 { --mat-fill: var(--mat-1); }
+.mat-slot-2 { --mat-fill: var(--mat-2); }
+.mat-slot-3 { --mat-fill: var(--mat-3); }
+.mat-slot-4 { --mat-fill: var(--mat-4); }
+
+.mat-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text);
+}
+
+.mat-swatch {
+  display: inline-block;
+  width: var(--sp-4);
+  height: var(--sp-3);
+  box-sizing: border-box;
+  border: 1px solid var(--text);
+  border-radius: 2px;
+  background-color: var(--mat-fill);
+  color: var(--text);
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+
+.mat-swatch[data-mat-pattern="solid"] { background-image: none; }
+.mat-swatch[data-mat-pattern="hatch"] {
+  background-image: repeating-linear-gradient(-45deg, currentColor 0 1px, transparent 1px 4px);
+}
+.mat-swatch[data-mat-pattern="dots"] {
+  background-image: radial-gradient(currentColor 1px, transparent 1.4px);
+  background-size: var(--sp-1) var(--sp-1);
+}
+.mat-swatch[data-mat-pattern="lines"] {
+  background-image: repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 4px);
+}
+
+.mat-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: var(--sp-1) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--text);
+}
+
+.rf-legend.rf-legend-kinds {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  flex-wrap: wrap;
+  row-gap: var(--sp-1);
+  padding-top: var(--sp-1);
+  padding-bottom: var(--sp-1);
+}
+
+.rf-mat.is-kind .rf-mat-box {
+  border-color: var(--text);
+  background-color: var(--mat-fill);
+  color: var(--text);
+}
+.rf-mat.is-kind.is-hatch .rf-mat-box {
+  background-image: repeating-linear-gradient(-45deg, currentColor 0 1px, transparent 1px 4px);
+}
+.rf-mat.is-kind.is-dots .rf-mat-box {
+  background-image: radial-gradient(currentColor 1px, transparent 1.4px);
+  background-size: var(--sp-1) var(--sp-1);
+}
+.rf-mat.is-kind.is-lines .rf-mat-box {
+  background-image: repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 4px);
+}
+.rf-mat.is-kind.is-waiting .rf-mat-box {
+  border-style: dashed;
+  border-color: var(--text);
+  background-color: var(--mat-fill);
+}

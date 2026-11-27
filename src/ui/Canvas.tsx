@@ -40,6 +40,8 @@ import type { AssetKind, Device, Project, Signal } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { pausedDeviceIds, pausedUnitIds } from '../scene/describe';
 import { deviceRunMarks, materialPoses, waitSpots, type DeviceRunMark } from './runDiagram';
+import { materialKindLooks } from '../model/materialKind';
+import { MaterialKindMark } from './MaterialKindMark';
 import './run-diagram.css';
 import { Symbol } from './Symbols';
 import { overlappingUnitIds, rectsOverlap, unitMinSize, type Box } from '../model/unitLayout';
@@ -322,7 +324,10 @@ type DeviceData = {
   done: boolean;
   motion: boolean;
 };
-type MatData = { label: string; waiting?: boolean; pieceId?: string; mark?: string; x: number; y: number; travel: number | null };
+type MatData = {
+  label: string; waiting?: boolean; pieceId?: string; mark?: string; x: number; y: number; travel: number | null;
+  kindToken?: string; kindPattern?: string; kindSlot?: number;
+};
 type EdgeView = { on?: boolean; tone: EdgeTone; caption: string; hover: boolean };
 
 function edgePaint(kind: 'flow' | 'signal', tone: EdgeTone, selected: boolean, liveColor: string) {
@@ -491,8 +496,9 @@ function DeviceNode({ data }: NodeProps) {
 
 function MaterialNode({ data }: NodeProps) {
   const d = data as MatData;
+  const kind = d.kindToken ? ` is-kind is-${d.kindPattern} mat-slot-${d.kindSlot}` : '';
   return (
-    <div className={`rf-mat nopan${d.waiting ? ' is-waiting' : ''}`} data-waiting={d.waiting ? 'true' : 'false'} data-piece={d.pieceId ?? ''} data-mark={d.mark ?? ''} data-x={d.x} data-y={d.y} data-travel={d.travel === null ? '' : String(d.travel)}>
+    <div className={`rf-mat nopan${d.waiting ? ' is-waiting' : ''}${kind}`} data-waiting={d.waiting ? 'true' : 'false'} data-piece={d.pieceId ?? ''} data-mark={d.mark ?? ''} data-mat-token={d.kindToken} data-mat-pattern={d.kindPattern} data-x={d.x} data-y={d.y} data-travel={d.travel === null ? '' : String(d.travel)}>
       <div className="rf-mat-box" />
       <div className="rf-mat-label">{d.label}</div>
     </div>
@@ -536,6 +542,7 @@ function SignalEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
 
 function FlowCanvas(props: Props) {
   const { project: p, rt, view, selection, mode, connectFrom, frame = 'layout', runMotion = true } = props;
+  const kindLooks = materialKindLooks(p);
   const hostRef = useRef<HTMLDivElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -969,7 +976,10 @@ function FlowCanvas(props: Props) {
       draggable: false, selectable: false, connectable: false, deletable: false, focusable: false,
       className: 'nopan',
       style: { pointerEvents: 'none' },
-      data: { label: mat.label, waiting: mat.waiting, pieceId: mat.pieceId, mark: mat.mark, x: mat.x, y: mat.y, travel: mat.travel } satisfies MatData,
+      data: {
+        label: mat.label, waiting: mat.waiting, pieceId: mat.pieceId, mark: mat.mark, x: mat.x, y: mat.y, travel: mat.travel,
+        kindToken: mat.kindToken, kindPattern: mat.kindPattern, kindSlot: mat.kindSlot,
+      } satisfies MatData,
     });
   }
 
@@ -1362,11 +1372,14 @@ function FlowCanvas(props: Props) {
           >{minimapOpen ? <IconLabel id="fold">접기</IconLabel> : <IconLabel id="minimap">미니맵</IconLabel>}</button>
         </Panel>
         {props.connectNote && <Panel position="top-left" className="notice rf-connect-note nopan" style={{ position: 'absolute', top: 48, pointerEvents: 'none' }}>{props.connectNote}</Panel>}
-        <Panel position="top-left" className="rf-legend nopan" title={`배경: 격자 · 배경 도면은 있으면 레이어와 함께 · 배경 없이도 동작 · Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>
+        <Panel position="top-left" className={`rf-legend nopan${kindLooks.length > 0 ? ' rf-legend-kinds' : ''}`} title={`배경: 격자 · 배경 도면은 있으면 레이어와 함께 · 배경 없이도 동작 · Shift + 끌기: 여러 개 고르기 · ${SELECT_HINT}`}>
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="var(--text)" strokeWidth="2" /><path d="M12 1 L20 4 L12 7 Z" fill="var(--text)" /></svg>자재 흐름(물류)</div>
           <div><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="5 4" /></svg>논리 신호 (out●→in○)</div>
           <div><svg width="12" height="8" aria-hidden="true"><path d="M6 0 L2 8 L10 8 Z" fill="none" stroke="var(--warning)" /></svg>Position</div>
           <div><svg width="12" height="8" aria-hidden="true"><rect x="1" y="0" width="10" height="8" fill="var(--warning)" fillOpacity={0.2} stroke="var(--warning)" /></svg>자재(런타임 개체)</div>
+          {kindLooks.map((look) => (
+            <div key={look.materialId} data-kind-legend={look.mark}><MaterialKindMark look={look} name /></div>
+          ))}
         </Panel>
       </ReactFlow>
       {L.units && (

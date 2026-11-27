@@ -4,6 +4,8 @@ import { getAssetById } from '../assets/library';
 import { runBlockFormula, shownStepCondition } from '../model/conditionFormula';
 import { walk } from '../model/flow';
 import { GAP_KIND_LABEL, type Gap } from '../model/gaps';
+import { MATERIAL_KIND_COLORS, materialKindLooks } from '../model/materialKind';
+import { kindTallies } from '../model/materialMix';
 import { analyzeRunGaps } from '../model/runGaps';
 import { APP_VERSION, feedCountOf, type Condition, type FlowNode, type Project, type Quantity } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
@@ -253,8 +255,24 @@ function summaryHead(summary: RunSummary): string {
   return bits.join(' · ');
 }
 
+function kindReportHtml(p: Project, rt: RuntimeState): string {
+  const looks = materialKindLooks(p);
+  if (looks.length === 0) return '';
+  const tallies = new Map(kindTallies(p, rt.pieces ?? []).map((row) => [row.materialId, row]));
+  const items = looks.map((look) => {
+    const row = tallies.get(look.materialId);
+    const extra = row ? ` 생산 ${row.produced}${row.avgPassMs == null ? '' : ` · 평균 ${fmtMs(row.avgPassMs)}`}` : '';
+    return `<li data-mat-token="${look.token}" data-mat-pattern="${look.pattern}"><span class="mat-swatch mat-slot-${look.slot}" data-mat-pattern="${look.pattern}"></span>${esc(look.mark)} ${esc(look.name)}${esc(extra)}</li>`;
+  }).join('');
+  return `<ul class="mat-kinds" data-kind-legend="">${items}</ul>`;
+}
+
+function matVarText(mode: 'light' | 'dark'): string {
+  return Object.entries(MATERIAL_KIND_COLORS[mode]).map(([key, value]) => `--${key}: ${value}`).join('; ');
+}
+
 const REPORT_CSS = `
-:root { --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --fs-h2: 18px; --fs-h1: 24px; --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; }
+:root { --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --fs-h2: 18px; --fs-h1: 24px; --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; ${matVarText('light')}; }
 * { box-sizing: border-box; }
 body { margin: var(--sp-5); font-family: system-ui, sans-serif; font-size: var(--fs-md); line-height: 1.45; background: #fff; color: #1a1a1a; }
 h1 { font-size: var(--fs-h1); margin: 0 0 var(--sp-3); }
@@ -268,8 +286,18 @@ th, td { border: 1px solid #ccc; padding: var(--sp-1) var(--sp-2); text-align: l
 th { background: #f3f3f3; }
 table.kv th { width: 10em; }
 ul { margin: 0 0 var(--sp-3); padding-left: var(--sp-4); }
+.mat-kinds { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0 0 var(--sp-3); padding: 0; list-style: none; }
+.mat-swatch { display: inline-block; width: var(--sp-4); height: var(--sp-3); margin-right: var(--sp-1); vertical-align: middle; box-sizing: border-box; border: 1px solid currentColor; background-color: var(--mat-fill); color: currentColor; }
+.mat-slot-1 { --mat-fill: var(--mat-1); }
+.mat-slot-2 { --mat-fill: var(--mat-2); }
+.mat-slot-3 { --mat-fill: var(--mat-3); }
+.mat-slot-4 { --mat-fill: var(--mat-4); }
+.mat-swatch[data-mat-pattern="hatch"] { background-image: repeating-linear-gradient(-45deg, currentColor 0 1px, transparent 1px 4px); }
+.mat-swatch[data-mat-pattern="dots"] { background-image: radial-gradient(currentColor 1px, transparent 1.4px); background-size: var(--sp-1) var(--sp-1); }
+.mat-swatch[data-mat-pattern="lines"] { background-image: repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 4px); }
 .stamp { margin-top: var(--sp-5); font-size: var(--fs-sm); color: #5c5c5c; }
 @media (prefers-color-scheme: dark) {
+  :root { ${matVarText('dark')}; }
   body { background: #101b2a; color: #e7eef8; }
   .note, .meta, .stamp { color: #b3c4d9; }
   th, td { border-color: #3d5166; }
@@ -277,6 +305,7 @@ ul { margin: 0 0 var(--sp-3); padding-left: var(--sp-4); }
   .error { border-color: #ff9fab; }
 }
 @media print {
+  :root { ${matVarText('light')}; }
   body { margin: 12mm; background: #fff; color: #000; }
   .error { break-inside: avoid; }
   tr { break-inside: avoid; }
@@ -329,6 +358,7 @@ ${kv([
 </header>
 <h2>실행 요약</h2>
 <p>${esc(summaryHead(summary))}${summary.aborted ? ' · 오류로 중단' : ''}</p>
+${kindReportHtml(p, rt)}
 ${kv([
     ['총 시간', dash(summary.totalMs)],
     ['끝난 단계', `${summary.finishedCount} / ${summary.totalCount}`],

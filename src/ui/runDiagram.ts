@@ -6,7 +6,7 @@ import type { Project, Unit } from '../model/types';
 import type { FlowFiber, PieceRun, RuntimeState } from '../runtime/engine';
 import { deviceOfStep } from '../scene/describe';
 import { deviceMotions } from '../scene/motion';
-import { materialMark, mixActive } from '../model/materialMix';
+import { materialKindLook, type MaterialPattern } from '../model/materialKind';
 import { waitingLead } from './status';
 
 /** Wall-clock lengths of the three motion steps. Virtual progress does not use these. */
@@ -54,6 +54,10 @@ export interface MaterialPose {
   pieceId?: string;
   /** Kind letter when several definitions are in the feed. */
   mark?: string;
+  /** CSS token. Set with the letter, and only when several kinds are defined. */
+  kindToken?: string;
+  kindPattern?: MaterialPattern;
+  kindSlot?: number;
   /** Fraction along the flow line. Null when the marker is sitting on a unit. */
   travel: number | null;
 }
@@ -61,6 +65,12 @@ export interface MaterialPose {
 type OffFn = (id: string, unitId?: string) => { dx: number; dy: number };
 
 const noOff: OffFn = () => ({ dx: 0, dy: 0 });
+
+function kindPose(project: Project, materialId: string): Pick<MaterialPose, 'mark' | 'kindToken' | 'kindPattern' | 'kindSlot'> {
+  const look = materialKindLook(project, materialId);
+  if (!look) return {};
+  return { mark: look.mark, kindToken: look.token, kindPattern: look.pattern, kindSlot: look.slot };
+}
 
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -298,16 +308,16 @@ export function materialPoses(project: Project, state: RuntimeState | null, moti
       const move = pieceMove(project, state, pc);
       const placed = move ? placeMove(project, off, move, rest, motion) : { at: rest, travel: null };
       const at = placed.travel === null ? { x: placed.at.x + shift, y: placed.at.y } : placed.at;
-      const mark = mixActive(project) ? materialMark(project, pc.material.materialId) : '';
+      const kind = kindPose(project, pc.material.materialId);
       out.push({
         id: pc.index === 1 ? 'runtime-material' : `runtime-material-${pc.instanceId}`,
         x: at.x,
         y: at.y,
-        label: `${pc.phase === 'waiting' ? `${waitingLead()} · ` : ''}개체 ${pc.index}${mark ? ` ${mark}` : ''} · ${pc.material.state}`,
+        label: `${pc.phase === 'waiting' ? `${waitingLead()} · ` : ''}개체 ${pc.index}${kind.mark ? ` ${kind.mark}` : ''} · ${pc.material.state}`,
         waiting: pc.phase === 'waiting',
         pieceId: pc.instanceId,
         travel: placed.travel,
-        ...(mark ? { mark } : {}),
+        ...kind,
       });
     }
     return out;
@@ -323,12 +333,16 @@ export function materialPoses(project: Project, state: RuntimeState | null, moti
   if (!rest) return [];
   const move = state ? activeMove(project, state) : null;
   const placed = move ? placeMove(project, off, move, rest, motion) : { at: rest, travel: null };
+  const piece = state?.pieces?.length === 1 ? state.pieces[0] : null;
+  const materialId = piece?.material.materialId ?? defined?.id ?? '';
+  const kind = materialId ? kindPose(project, materialId) : {};
   return [{
     id: 'runtime-material',
     x: placed.at.x,
     y: placed.at.y,
-    label: `${defined?.name.split(' ')[0] ?? 'M'} · ${material.state}`,
+    label: kind.mark ? `${kind.mark} · ${material.state}` : `${defined?.name.split(' ')[0] ?? 'M'} · ${material.state}`,
     waiting: false,
     travel: placed.travel,
+    ...kind,
   }];
 }
