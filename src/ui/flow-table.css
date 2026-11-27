@@ -1,5 +1,45 @@
 /* TURN-073. Flow-table grip and the line that marks a drop. */
+/* TURN-090. One indent step (--sp-4, 16px) and one row height (--sp-6) on both flow tables.
+   The drag line still uses 16px per depth, the same step. */
+.flow-editor { min-width: 0; max-width: 100%; }
+.flow-table { width: 100%; max-width: 100%; }
 .flow-mark { white-space: nowrap; }
+
+table.flow-table.ecd-table.grid > tbody > tr > td {
+  height: var(--sp-6);
+}
+
+table.flow-table.ecd-table.grid > tbody > tr > td.flow-name {
+  --flow-step: var(--sp-4);
+  position: relative;
+  padding-left: calc(var(--sp-2) + (var(--flow-depth, 0) * var(--flow-step)));
+}
+
+table.flow-table.ecd-table.grid > tbody > tr > td.flow-name::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--sp-2);
+  width: calc(var(--flow-depth, 0) * var(--flow-step));
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(var(--flow-step) - 1px),
+    var(--border) calc(var(--flow-step) - 1px),
+    var(--border) var(--flow-step)
+  );
+  pointer-events: none;
+}
+
+.flow-table td.flow-detail,
+.flow-table td.flow-name { min-width: 0; }
+.flow-fit { min-width: 0; max-width: 100%; }
+.flow-table select,
+.flow-table input,
+.flow-block-name { max-width: 100%; min-width: 0; }
+.flow-table td.flow-actions { white-space: nowrap; width: 1%; text-align: right; }
+.flow-row-more { min-width: var(--sp-6); }
 .flow-grip {
   padding: 0 var(--sp-1);
   margin-right: var(--sp-1);

@@ -1,0 +1,31 @@
+/* TURN-090. Sequence cards stack when one card would be narrower than --seq-card-min.
+   16 × --sp-6 = 512px, the same number as SEQ_CARD_MIN. */
+
+.seqgrid {
+  --seq-card-min: calc(var(--sp-6) * 16);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--seq-card-min)), 1fr));
+  gap: var(--sp-3);
+}
+
+.seqcard {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-2);
+  background: var(--canvas);
+  min-width: 0;
+  max-width: 100%;
+  overflow: clip;
+}
+
+.seqcard > header {
+  margin-bottom: var(--sp-1);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.seqcard .flow-editor,
+.seqcard .flow-table {
+  min-width: 0;
+  max-width: 100%;
+}

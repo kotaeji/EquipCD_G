@@ -120,6 +120,7 @@ export function CommandPaletteDialog({ state, mac, onRun, onJump, onClose }: {
         aria-selected={i === index}
         aria-disabled={!row.ok}
         data-command={row.id}
+        title={row.ok ? undefined : row.reason}
         className={`cmd-row${i === index ? ' is-active' : ''}${row.ok ? '' : ' is-dim'}`}
         onMouseMove={() => setActive(i)}
         onClick={() => choose({ type: 'command', row }, false)}

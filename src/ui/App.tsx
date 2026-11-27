@@ -1933,6 +1933,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     idle: !rt || rt.status === 'idle', hasRuntime: !!tab.runtime,
     canUndo: tab.history.past.length > 0, canRedo: tab.history.future.length > 0,
     project: p, selection, hasClip: !!clip, flowPicked,
+    flowHome: step === 'sequence' && sub === 'subseq' ? 'substation' : 'station',
     appearance, showNames, explorerOpen, minimapLayout: view.minimap.layout, minimapRun: view.minimap.run,
     tourSeen: view.tourSeen,
   };

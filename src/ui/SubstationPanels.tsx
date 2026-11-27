@@ -17,6 +17,8 @@ import { StatusMark } from './StatusMark';
 import { laneShape } from './status';
 import { Badge, TextInput } from './widgets';
 import { FlowEditor } from './FlowEditor';
+import { SEQ_CARD_MIN } from './flowTableLayout';
+import './substation-panels.css';
 
 export const STATION = 'Station';
 export const SUBSTATION = 'Substation';
@@ -50,7 +52,7 @@ export function SubSequencePanel({ p, unitId, setUnitId, locked, edit, gs, confi
       {!ready.ok && <ul className="diaglist">{ready.blockers.slice(0, 8).map((b) => <li key={b.id}><span className="mono">[{b.code}]</span> {b.message}</li>)}</ul>}
     </div>}
     {seqs.length === 0 && <div className="empty"><b>{unit.name}에 Substation 시퀀스가 없습니다</b><div className="muted">“+ 시퀀스 추가”로 만들고, 이 Substation 소속 Device의 Action을 단계로 넣으세요.</div></div>}
-    <div className="seqgrid">
+    <div className="seqgrid" data-seq-card-min={SEQ_CARD_MIN}>
       {seqs.map((q) => {
         const lane = gs?.lanes.find((l) => l.seqId === q.id);
         return <section key={q.id} className="seqcard" aria-label={q.name}>
