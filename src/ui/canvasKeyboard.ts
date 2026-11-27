@@ -153,6 +153,33 @@ export function movedPlace(label: string, x: number, y: number): string {
   return `${label} (${Math.round(x)}, ${Math.round(y)})`;
 }
 
+/** The node whose coordinates the status line is following. */
+export interface TrackedPlace {
+  id: string;
+  x: number;
+  y: number;
+}
+
+export interface LiveBox {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Keep a coordinate status line on the model.
+ * `place` null leaves the text. `''` means the node is gone and the line should clear.
+ * The same x and y leave both the text and the track.
+ */
+export function syncTrackedPlace(track: TrackedPlace | null, live: LiveBox | null): { track: TrackedPlace | null; place: string | null } {
+  if (!track) return { track: null, place: null };
+  if (!live || live.id !== track.id) return { track: null, place: '' };
+  if (live.x === track.x && live.y === track.y) return { track, place: null };
+  const next = { id: live.id, x: live.x, y: live.y };
+  return { track: next, place: movedPlace(live.label, live.x, live.y) };
+}
+
 export function linkPlace(kind: 'flow' | 'signal', from: string, to: string): string {
   return `${kind === 'flow' ? '물류 연결' : '신호 연결'}: ${from} → ${to}`;
 }

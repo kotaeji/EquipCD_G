@@ -1,6 +1,6 @@
 // TURN-081. Diff two projects by id. Pure: neither project is mutated.
 import { addressWord, confirmationWord, gapStatusWord, targetKey } from './confirmationLog';
-import { branchArms, walk } from './flow';
+import { armLabel, branchArms, walk } from './flow';
 import type {
   Condition, ConfirmationEntry, Connection, Device, DiagramBackground, FlowNode, MaterialEffect, Project,
   Quantity, RunScenario, ScenarioInjection, SequenceDraft, Unit,
@@ -50,6 +50,11 @@ export interface DiffRow {
   field: string;
   before: string;
   after: string;
+  /**
+   * Set on a sequence or block order line (TURN-087).
+   * The screen shows this instead of two id lists. `after` is the same text.
+   */
+  orderText?: string;
 }
 
 export interface ProjectDiff {
@@ -130,15 +135,94 @@ function effectText(e: MaterialEffect | undefined): string {
   return parts.length ? parts.join(' · ') : '없음';
 }
 
-function nodeIds(nodes: readonly FlowNode[]): string {
-  return nodes.length ? nodes.map((n) => (n.kind === 'step' ? n.stepId : n.id)).join(' · ') : '없음';
+/** How many 더함 · 뺌 · 옮김 phrases one order line shows before 「그 밖 N개」. */
+export const ORDER_CHANGE_LIMIT = 6;
+
+export interface OrderEntry {
+  id: string;
+  name: string;
 }
 
-function flowOrder(nodes: FlowNode[] | undefined): string {
-  if (!nodes) return '단계 순서';
-  const ids: string[] = [];
-  walk(nodes, (n) => { ids.push(n.kind === 'step' ? n.stepId : n.id); });
-  return ids.length ? ids.join(' · ') : '없음';
+const BLOCK_WORD: Record<'branch' | 'parallel' | 'loop' | 'retry' | 'wait', string> = {
+  branch: '분기', parallel: '병렬', loop: '반복', retry: '재시도', wait: '신호 기다림',
+};
+
+/** The name on the flow table: the kind word, or the name typed into the block. */
+function blockVisibleName(kind: keyof typeof BLOCK_WORD, name: string): string {
+  const word = BLOCK_WORD[kind];
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === word) return word;
+  return trimmed;
+}
+
+function ordinal(index: number): string {
+  return `${index}번째`;
+}
+
+/**
+ * Ids kept by one deterministic LCS.
+ * A tie skips the earlier before-item, so the same two lists always pick the same kept ids.
+ */
+function lcsKept(before: readonly string[], after: readonly string[]): Set<string> {
+  const n = before.length;
+  const m = after.length;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = before[i] === after[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const kept = new Set<string>();
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (before[i] === after[j]) {
+      kept.add(before[i]);
+      i += 1;
+      j += 1;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) i += 1;
+    else j += 1;
+  }
+  return kept;
+}
+
+/**
+ * What changed between two orders. Empty when the ids are the same sequence.
+ * Phrases are 뺌 (before order), then 더함 (after order), then 옮김 (before order).
+ * A shift caused only by an insert or delete is not a move.
+ * More than {@link ORDER_CHANGE_LIMIT} phrases keep the first ones and end with 「그 밖 N개」.
+ */
+export function describeOrderChange(before: readonly OrderEntry[], after: readonly OrderEntry[]): string {
+  const beforeIds = before.map((e) => e.id);
+  const afterIds = after.map((e) => e.id);
+  if (beforeIds.length === afterIds.length && beforeIds.every((id, i) => id === afterIds[i])) return '';
+  const beforeName = new Map(before.map((e) => [e.id, e.name]));
+  const afterName = new Map(after.map((e) => [e.id, e.name]));
+  const nameOf = (id: string) => afterName.get(id) ?? beforeName.get(id) ?? '단계';
+  const afterSet = new Set(afterIds);
+  const beforeSet = new Set(beforeIds);
+  const phrases: string[] = [];
+  for (const entry of before) {
+    if (!afterSet.has(entry.id)) phrases.push(`뺌: ${entry.name}`);
+  }
+  for (let index = 0; index < after.length; index++) {
+    const entry = after[index];
+    if (beforeSet.has(entry.id)) continue;
+    const anchor = index > 0 ? `(${nameOf(afterIds[index - 1])} 뒤)` : '(맨 앞)';
+    phrases.push(`더함: ${entry.name}${anchor}`);
+  }
+  const commonBefore = beforeIds.filter((id) => afterSet.has(id));
+  const commonAfter = afterIds.filter((id) => beforeSet.has(id));
+  const kept = lcsKept(commonBefore, commonAfter);
+  const beforePos = new Map(beforeIds.map((id, i) => [id, i + 1]));
+  const afterPos = new Map(afterIds.map((id, i) => [id, i + 1]));
+  for (const id of commonBefore) {
+    if (kept.has(id)) continue;
+    phrases.push(`옮김: ${nameOf(id)} ${ordinal(beforePos.get(id) ?? 0)} → ${ordinal(afterPos.get(id) ?? 0)}`);
+  }
+  if (phrases.length <= ORDER_CHANGE_LIMIT) return phrases.join(' · ');
+  const rest = phrases.length - ORDER_CHANGE_LIMIT;
+  return [...phrases.slice(0, ORDER_CHANGE_LIMIT), `그 밖 ${rest}개`].join(' · ');
 }
 
 function imageMark(dataUrl: string): string {
@@ -195,8 +279,6 @@ function sequenceFields(seq: SequenceDraft, unitId?: string): [string, string][]
   return [
     ['이름', seq.name],
     ['Unit', unitId ?? '없음'],
-    ['단계 순서', list(seq.steps.map((s) => s.id))],
-    ['흐름', flowOrder(seq.flow)],
     ['미정', list(seq.unresolved)],
   ];
 }
@@ -206,16 +288,16 @@ function flowFields(n: FlowNode): [string, string][] {
   const fields: [string, string][] = [['종류', flowKind(n.kind)], ['이름', n.kind === 'substation' ? n.unitId : n.name]];
   switch (n.kind) {
     case 'branch':
-      fields.push(['갈래', branchArms(n).map((arm) => `${arm.cond ? condText(arm.cond) : '나머지'} → ${nodeIds(arm.body)}`).join(' | ')]);
+      fields.push(['갈래', branchArms(n).map((arm) => (arm.cond ? condText(arm.cond) : '나머지')).join(' | ')]);
       break;
     case 'parallel':
-      fields.push(['갈래', n.lanes.map(nodeIds).join(' | ') || '없음']);
+      fields.push(['갈래 수', String(n.lanes.length)]);
       break;
     case 'loop':
-      fields.push(['횟수', String(n.count)], ['본문', nodeIds(n.body)]);
+      fields.push(['횟수', String(n.count)]);
       break;
     case 'retry':
-      fields.push(['조건', condText(n.until)], ['최대', String(n.maxRetries)], ['본문', nodeIds(n.body)]);
+      fields.push(['조건', condText(n.until)], ['최대', String(n.maxRetries)]);
       break;
     case 'wait':
       fields.push(['조건', condText(n.cond)], ['타임아웃', qtyText(n.timeout)]);
@@ -520,9 +602,116 @@ function sortRows(rows: DiffRow[]): DiffRow[] {
   ));
 }
 
+interface NameBook {
+  step: Map<string, string>;
+  unit: Map<string, string>;
+}
+
+function nameBook(project: Project, seq: SequenceDraft): NameBook {
+  return {
+    step: new Map(seq.steps.map((s) => [s.id, s.name.trim() || '단계'])),
+    unit: new Map(project.units.map((u) => [u.id, u.name])),
+  };
+}
+
+function flowEntry(n: FlowNode, names: NameBook): OrderEntry {
+  if (n.kind === 'step') return { id: n.stepId, name: names.step.get(n.stepId) ?? '단계' };
+  if (n.kind === 'substation') {
+    const unit = names.unit.get(n.unitId);
+    return { id: n.id, name: unit ? `Substation ${unit}` : 'Substation' };
+  }
+  return { id: n.id, name: blockVisibleName(n.kind, n.name) };
+}
+
+function flowEntries(nodes: readonly FlowNode[], names: NameBook): OrderEntry[] {
+  return nodes.map((n) => flowEntry(n, names));
+}
+
+function stepEntries(seq: SequenceDraft): OrderEntry[] {
+  return seq.steps.map((s) => ({ id: s.id, name: s.name.trim() || '단계' }));
+}
+
+interface ChildList {
+  label: string;
+  items: OrderEntry[];
+}
+
+function childLists(n: FlowNode, names: NameBook): ChildList[] {
+  if (n.kind === 'loop' || n.kind === 'retry') return [{ label: '순서', items: flowEntries(n.body, names) }];
+  if (n.kind === 'parallel') {
+    return n.lanes.map((lane, i) => ({
+      label: n.lanes.length > 1 ? `갈래 ${i + 1}` : '순서',
+      items: flowEntries(lane, names),
+    }));
+  }
+  if (n.kind === 'branch') {
+    const arms = branchArms(n);
+    return arms.map((arm, i) => ({ label: armLabel(arms.length, i), items: flowEntries(arm.body, names) }));
+  }
+  return [];
+}
+
+function pushOrder(rows: DiffRow[], kind: DiffKind, id: string, name: string, field: string, before: OrderEntry[], after: OrderEntry[]) {
+  const text = describeOrderChange(before, after);
+  if (!text) return;
+  rows.push({ change: 'changed', kind, id, name: name || id, field, before: '', after: text, orderText: text });
+}
+
+function blocksById(nodes: FlowNode[] | undefined): Map<string, FlowNode> {
+  const map = new Map<string, FlowNode>();
+  if (!nodes) return map;
+  walk(nodes, (n) => { if (n.kind !== 'step') map.set(n.id, n); });
+  return map;
+}
+
+function sequenceOrderRows(before: Project, after: Project, bSeq: SequenceDraft, aSeq: SequenceDraft): DiffRow[] {
+  const rows: DiffRow[] = [];
+  const name = aSeq.name || bSeq.name;
+  pushOrder(rows, 'sequence', aSeq.id, name, '단계 순서', stepEntries(bSeq), stepEntries(aSeq));
+  const bFlow = bSeq.flow ? flowEntries(bSeq.flow, nameBook(before, bSeq)) : null;
+  const aFlow = aSeq.flow ? flowEntries(aSeq.flow, nameBook(after, aSeq)) : null;
+  if (bFlow || aFlow) {
+    pushOrder(rows, 'sequence', aSeq.id, name, '흐름', bFlow ?? stepEntries(bSeq), aFlow ?? stepEntries(aSeq));
+  }
+  const bBlocks = blocksById(bSeq.flow);
+  const aBlocks = blocksById(aSeq.flow);
+  const bNames = nameBook(before, bSeq);
+  const aNames = nameBook(after, aSeq);
+  for (const id of [...bBlocks.keys()].filter((key) => aBlocks.has(key)).sort(cmp)) {
+    const bNode = bBlocks.get(id)!;
+    const aNode = aBlocks.get(id)!;
+    if (bNode.kind === 'step' || aNode.kind === 'step' || bNode.kind !== aNode.kind) continue;
+    const blockName = aNode.kind === 'substation' ? flowEntry(aNode, aNames).name : blockVisibleName(aNode.kind, aNode.name);
+    const bLists = childLists(bNode, bNames);
+    const aLists = childLists(aNode, aNames);
+    const count = Math.max(bLists.length, aLists.length);
+    for (let i = 0; i < count; i++) {
+      const label = aLists[i]?.label ?? bLists[i]?.label ?? '순서';
+      pushOrder(rows, 'flow', id, blockName, label, bLists[i]?.items ?? [], aLists[i]?.items ?? []);
+    }
+  }
+  return rows;
+}
+
+/** Step and block order lines. Same two models always emit the same phrases. */
+function orderRows(before: Project, after: Project): DiffRow[] {
+  const rows: DiffRow[] = [];
+  if (before.sequence.id === after.sequence.id) rows.push(...sequenceOrderRows(before, after, before.sequence, after.sequence));
+  const bSubs = new Map((before.substationSequences ?? []).map((seq) => [seq.id, seq]));
+  const aSubs = new Map((after.substationSequences ?? []).map((seq) => [seq.id, seq]));
+  for (const id of [...bSubs.keys()].filter((key) => aSubs.has(key)).sort(cmp)) {
+    rows.push(...sequenceOrderRows(before, after, bSubs.get(id)!, aSubs.get(id)!));
+  }
+  return rows;
+}
+
 /** Added, removed, and changed rows. Position (x, y, width, height) is one field. */
 export function diffProjects(before: Project, after: Project): ProjectDiff {
-  const rows = sortRows([...compareEntities(entitiesOf(before), entitiesOf(after)), ...lockRows(before, after)]);
+  const rows = sortRows([
+    ...compareEntities(entitiesOf(before), entitiesOf(after)),
+    ...lockRows(before, after),
+    ...orderRows(before, after),
+  ]);
   return {
     rows,
     added: rows.filter((r) => r.change === 'added').length,
