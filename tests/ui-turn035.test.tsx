@@ -144,7 +144,8 @@ describe('TURN-035 unified run layout', () => {
 
   it('AC4 moved diagram facts sit in the strip, the details, and the conditions', async () => {
     const u = await mount();
-    expect(u.el.querySelector('.run-conditions [data-readiness="ok"]')!.textContent).toBe('실행 가능');
+    expect(u.el.querySelector('.run-conditions [data-readiness-summary]')!.textContent).toMatch(/^경고 \d+$/);
+    expect(u.btn('▶ 실행').disabled).toBe(false);
     expect([...u.el.querySelectorAll('.run-conditions select')].some((node) => (node.textContent ?? '').includes('완료 신호 미발생'))).toBe(true);
     expect([...u.el.querySelectorAll('.run-conditions button')].some((b) => (b.textContent ?? '').trim() === '저장')).toBe(false);
     const clock = holdRuntimeClock();

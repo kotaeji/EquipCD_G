@@ -1,0 +1,114 @@
+/* TURN-093. Run-readiness checklist. Type and spacing use the shared tokens. */
+
+.readiness-summary {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.readiness-cols,
+.readiness-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: var(--sp-1);
+  align-items: start;
+}
+
+.readiness-cols {
+  margin: 0 0 var(--sp-1);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.readiness-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.readiness-row {
+  border-bottom: 1px solid var(--border);
+  padding: var(--sp-1) 0;
+}
+
+.readiness-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.readiness-line { cursor: pointer; }
+
+.readiness-kind {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.readiness-kind.is-block { color: var(--danger); }
+.readiness-kind.is-warn { color: var(--warning); }
+
+.readiness-code {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.readiness-what {
+  position: relative;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.readiness-where {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.readiness-detail { margin-top: var(--sp-1); }
+
+.readiness-jump { position: relative; }
+
+.readiness-jump-full {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.readiness-jump::after {
+  content: '이동';
+  font-size: var(--fs-xs);
+}
+
+.readiness-strip-count {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.readiness-strip-count.is-block { color: var(--danger); }
+.readiness-strip-count.is-clear { color: var(--muted); }
+.readiness-strip-count[hidden] { display: none; }
+
+.app .run-conditions.is-folded .run3d-head {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  height: auto;
+  gap: var(--sp-1);
+  padding-left: 0;
+  padding-right: 0;
+  line-height: 1.2;
+}

@@ -9,12 +9,13 @@ import { GAP_KIND_LABEL, type Gap, type GapKind } from '../model/gaps';
 import { parseStructuredSequence, type ParsedLine } from '../model/structuredText';
 import { feedCountOf, type AssetKind, type Project, type QuantityRef } from '../model/types';
 import { flowUsesSignal, hasFlow } from '../model/flow';
-import { checkRunReadiness, validateProject, type Diagnostic } from '../model/validate';
+import { validateProject, type Diagnostic } from '../model/validate';
 import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus, type AggregateStepStatus } from '../runtime/runSummary';
 import type { QuarantineEntry } from '../storage/localStore';
 import { type BlockerGuide } from './blockerTarget';
-import { BlockerList } from './Problem';
+import { ReadinessChecklist } from './readinessList';
+import type { ItemJump } from './wizard';
 import { EmptyState } from './EmptyState';
 import { EMPTY, RUN_LOCK } from './problemCopy';
 import type { ConfirmDelete, EditFn } from './Inspector';
@@ -206,24 +207,15 @@ export function RunStatusExtras({ p, rt }: { p: Project; rt: RuntimeState | null
   );
 }
 
-/** Readiness and the blocker list with move buttons. Shared by the run conditions column. */
-export function RunReadiness({ p, onGoBlocker, emphasizeFirst }: { p: Project; onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void; emphasizeFirst?: boolean }) {
-  const readiness = checkRunReadiness(p);
-  return (
-    <section className="run-readiness" aria-label="준비 검사">
-      <h3>준비 검사</h3>
-      {readiness.ok
-        ? <p data-readiness="ok">실행 가능</p>
-        : <p data-readiness="blocked">차단 {readiness.blockers.length}건</p>}
-      {readiness.warnings.filter((w) => w.code === 'INTERLOCK_NO_RULE' || w.code === 'INTERLOCK_UNDETERMINED').map((w) => (
-        <p key={w.id} className="notice" data-interlock-notice={w.objectId}>{w.message}</p>
-      ))}
-      {readiness.warnings.filter((w) => w.code === 'WAIT_UNREACHABLE').map((w) => (
-        <p key={w.id} className="notice" data-wait-notice={w.objectId}>{w.message}</p>
-      ))}
-      {!readiness.ok && <BlockerList p={p} blockers={readiness.blockers} onGuide={onGoBlocker} emphasizeFirst={emphasizeFirst} />}
-    </section>
-  );
+/** Readiness checklist. Shared by the run conditions column. */
+export function RunReadiness({ p, onGoBlocker, onGoJump, emphasizeFirst, folded }: {
+  p: Project;
+  onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void;
+  onGoJump?: (jump: ItemJump) => void;
+  emphasizeFirst?: boolean;
+  folded?: boolean;
+}) {
+  return <ReadinessChecklist p={p} onGoBlocker={onGoBlocker} onGoJump={onGoJump} emphasizeFirst={emphasizeFirst} folded={folded} />;
 }
 
 /** Readiness, blocker moves, and fault injection. Kept for the older runtime panel. */

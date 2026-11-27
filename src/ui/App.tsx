@@ -2093,11 +2093,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         {workTimes && <span className="work-times" title={workTimesTitle(tab.savedAt, tab.draftError ? null : draftShown, tab.draftError)}>{workTimes}</span>}
       </div>
       <div className="stepper" role="navigation" aria-label="단계" data-tour="stepbar">
-        {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
+        {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = s.id === 'run' ? checkRunReadiness(p).blockers.length : evals[s.id].items.length; const on = !view.home && step === s.id; return (
           <div key={s.id} className={`st ${on ? 'on' : ''}`} data-stepid={s.id} onClick={(e) => { if ((e.target as HTMLElement).closest('[data-step-badge]')) return; goStep(s.id); }}>
             <button type="button" className="st-go" title={`${s.no} ${s.label}`} aria-label={`${s.no} ${s.label}`} aria-current={on ? 'step' : undefined}>{s.no} <span className="st-full"><Terms text={s.label} /></span><span className="st-short">{s.short}</span></button>
             <button type="button" className={`badge st-badge status-${WIZARD_BADGE_STATUS[b]}`} data-step-badge={s.id} data-status={WIZARD_BADGE_STATUS[b]} aria-haspopup="dialog" aria-expanded={itemsStep === s.id}
-              aria-label={`${s.no} ${s.label} ${BADGE_WORD[b]}, 남은 항목 ${n}`}
+              aria-label={s.id === 'run' ? `${s.no} ${s.label} ${BADGE_WORD[b]}, 차단 ${n}` : `${s.no} ${s.label} ${BADGE_WORD[b]}, 남은 항목 ${n}`}
               onClick={(e) => { e.stopPropagation(); toggleItems(s.id); }}
               onKeyDown={(e) => onItemKey(e, () => toggleItems(s.id))}>
               <span aria-hidden="true">{BADGE_MARK[b]}</span>
@@ -2538,7 +2538,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
           emphasize={emphasizeMotion} setEmphasize={setEmphasizeMotion} equipmentMotion={equipmentMotion} setEquipmentMotion={setEquipmentMotion}
           showGrid={view.floorGrid} setShowGrid={(floorGrid) => setView((v) => (v.floorGrid === floorGrid ? v : { ...v, floorGrid }))}
           canRevert={canRevertDurations} onRevert={revertDurations} onDuration={onDuration} onTimeout={onTimeout}
-          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} emphasizeFirst={nextBlocker} />
+          sceneOptions={view.runView === '3d'} onGoBlocker={goBlocker} onGoJump={(jump) => goItem({ level: 'undetermined', kind: 'condition', text: jump.field ?? '', jump })} emphasizeFirst={nextBlocker} checklistFolded={running || scrubbing} />
       </div>}
 
       <div className="statusbar">

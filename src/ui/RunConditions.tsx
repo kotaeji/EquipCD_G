@@ -2,30 +2,17 @@ import { useEffect, useState } from 'react';
 import * as C from '../model/commands';
 import { feedCountOf, type Action, type Project } from '../model/types';
 import { NeverTrueFaults, ReadFailFaults, RunReadiness } from './Panels';
-import type { Diagnostic } from '../model/validate';
+import { checkRunReadiness, type Diagnostic } from '../model/validate';
 import type { BlockerGuide } from './blockerTarget';
 import type { EditFn } from './Inspector';
 import { IconLabel } from './Icon';
 import { RunScenarios } from './RunScenarios';
 import { StatusMark } from './StatusMark';
 import { RUN_SPEEDS } from '../model/scenarios';
+import { TIMEOUT_EQUAL, TIMEOUT_WARN, timeoutNote } from './timeoutNote';
+import type { ItemJump } from './wizard';
 
-export { RUN_SPEEDS };
-
-export const TIMEOUT_WARN = '타임아웃이 동작 시간보다 짧습니다 — 실행하면 TIMEOUT';
-export const TIMEOUT_EQUAL = '타임아웃이 동작 시간과 같습니다 — 여유가 없습니다';
-
-/** Matches the engine tie rule: equal millisecond instants succeed, a shorter timeout is TIMEOUT. */
-function timeoutNote(action: Action): string | null {
-  const timeout = action.timeout.value;
-  const duration = action.duration.value;
-  if (timeout === null || duration === null) return null;
-  const timeoutMs = Math.round(timeout * 1000);
-  const durationMs = Math.round(duration * 1000);
-  if (timeoutMs < durationMs) return TIMEOUT_WARN;
-  if (timeoutMs === durationMs) return TIMEOUT_EQUAL;
-  return null;
-}
+export { RUN_SPEEDS, TIMEOUT_EQUAL, TIMEOUT_WARN };
 
 function QuantityRow({ action, field, label, disabled, onCommit }: {
   action: Action;
@@ -142,7 +129,7 @@ function SceneOption({ label, checked, enabled, onChange }: { label: string; che
 }
 
 /** Right column of the run step, shared by the diagram and the 3D view. */
-export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, equipmentMotion, setEquipmentMotion, showGrid, setShowGrid, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold, sceneOptions, onGoBlocker, emphasizeFirst }: {
+export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, setShowNames, emphasize, setEmphasize, equipmentMotion, setEquipmentMotion, showGrid, setShowGrid, canRevert, onRevert, onDuration, onTimeout, folded, onToggleFold, sceneOptions, onGoBlocker, onGoJump, emphasizeFirst, checklistFolded }: {
   p: Project;
   locked: boolean;
   edit: EditFn;
@@ -165,14 +152,19 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
   /** Name, emphasis, and motion options apply only while the center canvas is 3D. */
   sceneOptions: boolean;
   onGoBlocker?: (b: Diagnostic, g: BlockerGuide) => void;
+  onGoJump?: (jump: ItemJump) => void;
   /** First remaining pre-run blocker, after coming back from a jump. */
   emphasizeFirst?: boolean;
+  /** Running or scrubbing folds the checklist. The strip still shows the blocker count. */
+  checklistFolded?: boolean;
 }) {
+  const blockCount = checkRunReadiness(p).blockers.length;
   return (
     <aside className={`run-conditions ${folded ? 'is-folded' : ''}`} aria-label="가동 조건">
       <div className="run3d-head">
         <h2>가동 조건</h2>
         <button type="button" className="small" aria-label={folded ? '가동 조건 펼치기' : '가동 조건 접기'} onClick={onToggleFold}><IconLabel id={folded ? 'unfold' : 'fold'}>{folded ? '펼치기' : '접기'}</IconLabel></button>
+        <span className={`readiness-strip-count ${blockCount ? 'is-block' : 'is-clear'}`} data-strip-blockers={blockCount} hidden={!folded} aria-label={`차단 ${blockCount}`}>{blockCount}</span>
       </div>
       {!folded && <>
       <RunScenarios p={p} locked={locked} edit={edit} speed={speed} setSpeed={setSpeed} />
@@ -192,7 +184,7 @@ export function RunConditions({ p, locked, edit, speed, setSpeed, showNames, set
       <SceneOption label="동작 강조" checked={emphasize} enabled={sceneOptions} onChange={setEmphasize} />
       <SceneOption label="설비 동작" checked={equipmentMotion} enabled={sceneOptions} onChange={setEquipmentMotion} />
       <SceneOption label="바닥 격자" checked={showGrid} enabled={sceneOptions} onChange={setShowGrid} />
-      <RunReadiness p={p} onGoBlocker={onGoBlocker} emphasizeFirst={emphasizeFirst} />
+      <RunReadiness p={p} onGoBlocker={onGoBlocker} onGoJump={onGoJump} emphasizeFirst={emphasizeFirst} folded={checklistFolded} />
       <h3>동작 시간 · 타임아웃</h3>
       {locked && <p className="run3d-lock" data-duration-locked="true" data-timeout-locked="true">실행 중 · 일시정지 중에는 동작 시간과 타임아웃을 바꿀 수 없습니다. 초기화한 뒤 편집하세요.</p>}
       {p.units.map((unit) => {
