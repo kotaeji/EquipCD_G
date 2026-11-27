@@ -132,6 +132,11 @@ describe('TURN-095 shared document frame', () => {
     expect(docCss).toContain('text-align: right');
     expect(docCss).toContain('tabular-nums');
     expect(docCss).not.toContain('ellipsis');
+    const numRule = docCss.match(/th\.ecd-num,\s*table\.doc-table td\.ecd-num \{[^}]*\}/)?.[0] ?? '';
+    expect(numRule).toContain('white-space: nowrap');
+    expect(numRule).not.toContain('anywhere');
+    expect(docCss).toContain('table.doc-table:not(.doc-kv) td.ecd-num');
+    expect(docCss).toMatch(/:not\(\.doc-kv\) td\.ecd-num \{\s*width: 1%/);
     expect(html).not.toContain('ellipsis');
     expect(printCss).toContain(`content: ${DOC_PAGE_NUMBER}`);
     expect(html).toContain(`content: ${DOC_PAGE_NUMBER}`);

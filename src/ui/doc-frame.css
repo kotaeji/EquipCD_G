@@ -118,10 +118,19 @@ table.doc-table > tbody > tr > th {
   width: 10em;
 }
 
+/* Numbers and times stay on one line. In a data table the column fits the text and the other columns take the rest. A two-column sheet keeps the value column wide. */
 table.doc-table th.ecd-num,
 table.doc-table td.ecd-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+table.doc-table:not(.doc-kv) th.ecd-num,
+table.doc-table:not(.doc-kv) td.ecd-num {
+  width: 1%;
 }
 
 table.doc-table tr,
