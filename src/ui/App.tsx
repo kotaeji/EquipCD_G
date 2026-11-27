@@ -33,7 +33,8 @@ import type { ObjectEntry } from './objectFind';
 import { commandById, commandForEvent, shortcutText, usesMacShortcut, type CommandActions, type CommandState } from './commandModel';
 import {
   burstOpen, crossingUnit, cursorPlace, diagramEffect, diagramTarget, movedPlace, NUDGE_GAP_MS, NUDGE_LABEL, nextZoom, planCanvasKey,
-  type DiagramCursor, type DiagramLink, type NudgeBurst,
+  syncTrackedPlace,
+  type DiagramCursor, type DiagramLink, type NudgeBurst, type TrackedPlace,
 } from './canvasKeyboard';
 import { ContextMenu } from './ContextMenu';
 import { buildContextMenu, hitFromSelection, isTextField, pasteBlockReason, planContext, type ContextRequest, type ContextSurface, type MenuAction, type MenuKind } from './contextMenuModel';
@@ -237,6 +238,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   const [reveal, setReveal] = useState<{ id: string; n: number } | null>(null);
   const kbdRef = useRef<DiagramCursor | null>(null);
   const linkRef = useRef<DiagramLink | null>(null);
+  /** Node whose coordinates the status line follows. Cleared when the pointer takes the selection. */
+  const placeTrack = useRef<TrackedPlace | null>(null);
   /** Selection ids last written by the keyboard. A pointer selection that differs drops the cursor. */
   const kbdSelection = useRef<string[] | null>(null);
   const revealN = useRef(0);
@@ -879,10 +882,38 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     clearNudge();
     kbdRef.current = null;
     linkRef.current = null;
+    placeTrack.current = null;
     setKbd(null);
     setKbdLink(null);
     setKbdPlace('');
   }, [selection]);
+
+  // A nudge, drag, align, or property edit moves the model without rewriting the status line.
+  // Follow the tracked node. Undo and redo come through the same present project.
+  useEffect(() => {
+    if (linkRef.current) return;
+    const track = placeTrack.current;
+    if (!track) return;
+    const unit = p.units.find((u) => u.id === track.id);
+    const dev = p.devices.find((d) => d.id === track.id);
+    const live = unit
+      ? { id: unit.id, label: unit.name, x: unit.layout.x, y: unit.layout.y }
+      : dev
+        ? { id: dev.id, label: cursorPlace(p.units.find((u) => u.id === dev.unitId)?.name ?? dev.unitId, dev.name), x: dev.layout.x, y: dev.layout.y }
+        : null;
+    const next = syncTrackedPlace(track, live);
+    placeTrack.current = next.track;
+    if (next.place === null) return;
+    if (next.place === '') {
+      kbdSelection.current = null;
+      kbdRef.current = null;
+      setKbd(null);
+      setKbdLink(null);
+      setKbdPlace('');
+      return;
+    }
+    setKbdPlace(next.place);
+  }, [p]);
 
   // ---------- keyboard ----------
   useEffect(() => {
@@ -959,12 +990,19 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               revealNode(selectId);
             }
           };
+          const trackNode = (id: string | null, project: Project) => {
+            if (!id) { placeTrack.current = null; return; }
+            const unit = project.units.find((u) => u.id === id);
+            const dev = project.devices.find((d) => d.id === id);
+            const box = unit?.layout ?? dev?.layout;
+            placeTrack.current = box ? { id, x: box.x, y: box.y } : null;
+          };
           const historyNow = () => tabsRef.current.find((t) => t.key === tab.key)?.history ?? tab.history;
           const busyNow = () => {
             const rtNow = tabsRef.current.find((t) => t.key === tab.key)?.runtime?.state.status;
             return rtNow === 'running' || rtNow === 'paused';
           };
-          if (fx.type === 'cursor') publish(fx.cursor, null, fx.place, fx.focusId);
+          if (fx.type === 'cursor') { publish(fx.cursor, null, fx.place, fx.focusId); trackNode(fx.cursor.id, p); }
           else if (fx.type === 'link') {
             publish(fx.cursor, fx.link, fx.place, fx.focusId);
             setMode(fx.mode);
@@ -974,10 +1012,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             setConnectFrom(null);
             setMode('select');
             publish(fx.cursor, null, fx.place, fx.cursor?.id ?? null);
+            trackNode(fx.cursor?.id ?? null, p);
           } else if (fx.type === 'esc-top') {
             setConnectFrom(null);
             setMode('select');
             publish(null, null, '', null);
+            trackNode(null, p);
           } else if (fx.type === 'refuse') {
             setKbdPlace(fx.place);
             say(fx.toast, true);
@@ -1002,6 +1042,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             setConnectFrom(null);
             setMode('select');
             publish(fx.cursor, null, fx.place, fx.cursor.id);
+            trackNode(fx.cursor.id, p);
           } else if (fx.type === 'nudge') {
             if (fx.note) say(fx.note, true);
             const pending = nudgeRef.current && burstOpen(nudgeRef.current, fx.ids, Date.now()) ? nudgeRef.current : null;
@@ -1091,7 +1132,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               const parent = dev ? movedProject.units.find((u) => u.id === dev.unitId) : undefined;
               const label = unit ? unit.name : dev ? cursorPlace(parent?.name ?? dev.unitId, dev.name) : id;
               const box = unit?.layout ?? dev?.layout;
-              if (box) setKbdPlace(movedPlace(label, box.x, box.y));
+              if (box) {
+                setKbdPlace(movedPlace(label, box.x, box.y));
+                trackNode(id, movedProject);
+              }
               if (id) revealNode(id);
             }
           }

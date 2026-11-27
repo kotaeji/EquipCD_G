@@ -47,7 +47,9 @@ export function ProjectDiffList({ diff, project, onJump }: {
           return <li key={`${row.change}:${row.kind}:${row.id}:${row.field}`} className="project-diff-row" data-diff-change={row.change} data-diff-kind={row.kind} data-diff-id={row.id} data-diff-field={row.field}>
             <span className="project-diff-tag">{CHANGE_WORD[row.change]}</span>
             <span>{row.name}</span>
-            {row.change === 'changed' && <span className="project-diff-values">{row.field} <span data-diff-before="">{row.before}</span> → <span data-diff-after="">{row.after}</span></span>}
+            {row.change === 'changed' && (row.orderText
+              ? <span className="project-diff-values" data-diff-order="">{row.field} <span data-diff-after="">{row.orderText}</span></span>
+              : <span className="project-diff-values">{row.field} <span data-diff-before="">{row.before}</span> → <span data-diff-after="">{row.after}</span></span>)}
             {jump && onJump && <button type="button" className="small" aria-label={`${row.name} 이동`} onClick={() => onJump(jump)}>이동</button>}
           </li>;
         })}
