@@ -13,9 +13,22 @@ import { stepStatusLabel, summarizeRun, type RunStepSummary, type RunSummary } f
 import { describeRunInfo, formatMs } from '../scene/runInfo';
 import { formatLocalClock } from './localClock';
 import { runErrorProblem, type ProblemCopy } from './problemCopy';
+import {
+  DOC_KIND_RUN,
+  DOC_LIMIT,
+  DOC_PAGE_NUMBER,
+  PATTERN_WORD,
+  docCoverHtml,
+  docFrameCss,
+  docKv,
+  docRunningHeadHtml,
+  docTable,
+  materialKindCss,
+} from './docFrame';
+import { STATUS, STATUS_COLOR, STATUS_KEYS } from './status';
 
-/** Printed on every report. Not equipment control and not a safety proof. */
-export const RUN_REPORT_LIMIT = '논리 시뮬레이션 — 실제 장비 제어 / 안전 검증 아님';
+/** Printed on every report. Same sentence as the print view. */
+export const RUN_REPORT_LIMIT = DOC_LIMIT;
 
 export const REPORT_BEFORE = '실행이 끝나면 보고서를 내보낼 수 있습니다';
 export const REPORT_DURING = '실행 중에는 보고서를 내보낼 수 없습니다. 실행이 끝난 뒤 내보내세요.';
@@ -227,16 +240,6 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function table(headers: readonly string[], rows: string[][]): string {
-  const head = headers.map((h) => `<th>${esc(h)}</th>`).join('');
-  const body = rows.map((row) => `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('');
-  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-}
-
-function kv(rows: [string, string][]): string {
-  return `<table class="kv">${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table>`;
-}
-
 function gapRows(gaps: Gap[]): string[][] {
   return gaps.map((g) => [
     `실행 결과 · ${GAP_KIND_LABEL[g.kind]}`,
@@ -263,7 +266,7 @@ function kindReportHtml(p: Project, rt: RuntimeState): string {
   const items = looks.map((look) => {
     const row = tallies.get(look.materialId);
     const extra = row ? ` 생산 ${row.produced}${row.avgPassMs == null ? '' : ` · 평균 ${fmtMs(row.avgPassMs)}`}` : '';
-    return `<li data-mat-token="${look.token}" data-mat-pattern="${look.pattern}"><span class="mat-swatch mat-slot-${look.slot}" data-mat-pattern="${look.pattern}"></span>${esc(look.mark)} ${esc(look.name)}${esc(extra)}</li>`;
+    return `<li data-mat-token="${look.token}" data-mat-pattern="${look.pattern}"><span class="mat-swatch mat-slot-${look.slot}" data-mat-pattern="${look.pattern}"></span>${esc(look.mark)} ${esc(look.name)} · ${esc(PATTERN_WORD[look.pattern])}${esc(extra)}</li>`;
   }).join('');
   return `<ul class="mat-kinds" data-kind-legend="">${items}</ul>`;
 }
@@ -272,46 +275,42 @@ function matVarText(mode: 'light' | 'dark'): string {
   return Object.entries(MATERIAL_KIND_COLORS[mode]).map(([key, value]) => `--${key}: ${value}`).join('; ');
 }
 
-const REPORT_CSS = `
-:root { --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --fs-h2: 18px; --fs-h1: 24px; --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; ${matVarText('light')}; }
+function statusVars(mode: 'light' | 'dark'): string {
+  return STATUS_KEYS.map((key) => `${STATUS[key].colorVar}: ${STATUS_COLOR[mode][key]}`).join('; ');
+}
+
+const REPORT_EXTRA = `
 * { box-sizing: border-box; }
-body { margin: var(--sp-5); font-family: system-ui, sans-serif; font-size: var(--fs-md); line-height: 1.45; background: #fff; color: #1a1a1a; }
-h1 { font-size: var(--fs-h1); margin: 0 0 var(--sp-3); }
-h2 { font-size: var(--fs-h2); margin: var(--sp-5) 0 var(--sp-2); }
-.error { border: 2px solid #b42336; padding: var(--sp-3); margin: 0 0 var(--sp-4); }
+.error { border: 2px solid var(--status-error); padding: var(--sp-3); margin: 0 0 var(--sp-4); }
 .error p { margin: 0 0 var(--sp-1); }
-.limit { font-weight: 700; margin: var(--sp-3) 0; }
-.note, .meta { color: #5c5c5c; font-size: var(--fs-sm); }
-table { border-collapse: collapse; width: 100%; margin: 0 0 var(--sp-3); }
-th, td { border: 1px solid #ccc; padding: var(--sp-1) var(--sp-2); text-align: left; vertical-align: top; font-size: var(--fs-sm); }
-th { background: #f3f3f3; }
-table.kv th { width: 10em; }
+.note, .meta { color: var(--muted, #5c5c5c); font-size: var(--fs-sm); }
 ul { margin: 0 0 var(--sp-3); padding-left: var(--sp-4); }
-.mat-kinds { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0 0 var(--sp-3); padding: 0; list-style: none; }
-.mat-swatch { display: inline-block; width: var(--sp-4); height: var(--sp-3); margin-right: var(--sp-1); vertical-align: middle; box-sizing: border-box; border: 1px solid currentColor; background-color: var(--mat-fill); color: currentColor; }
-.mat-slot-1 { --mat-fill: var(--mat-1); }
-.mat-slot-2 { --mat-fill: var(--mat-2); }
-.mat-slot-3 { --mat-fill: var(--mat-3); }
-.mat-slot-4 { --mat-fill: var(--mat-4); }
-.mat-swatch[data-mat-pattern="hatch"] { background-image: repeating-linear-gradient(-45deg, currentColor 0 1px, transparent 1px 4px); }
-.mat-swatch[data-mat-pattern="dots"] { background-image: radial-gradient(currentColor 1px, transparent 1.4px); background-size: var(--sp-1) var(--sp-1); }
-.mat-swatch[data-mat-pattern="lines"] { background-image: repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 4px); }
-.stamp { margin-top: var(--sp-5); font-size: var(--fs-sm); color: #5c5c5c; }
+.stamp { margin-top: var(--sp-5); font-size: var(--fs-sm); color: var(--muted, #5c5c5c); }
 @media (prefers-color-scheme: dark) {
-  :root { ${matVarText('dark')}; }
-  body { background: #101b2a; color: #e7eef8; }
+  :root { --text: #e7eef8; --muted: #b3c4d9; --border: #3d5166; --panel: #19283a; ${statusVars('dark')}; ${matVarText('dark')}; }
+  body.doc-page { background: #101b2a; color: #e7eef8; }
   .note, .meta, .stamp { color: #b3c4d9; }
-  th, td { border-color: #3d5166; }
-  th { background: #19283a; }
-  .error { border-color: #ff9fab; }
+  .error { border-color: var(--status-error); }
 }
 @media print {
-  :root { ${matVarText('light')}; }
-  body { margin: 12mm; background: #fff; color: #000; }
-  .error { break-inside: avoid; }
-  tr { break-inside: avoid; }
+  :root { --text: #1c1c1c; --muted: #5c5c5c; --border: #8c8c8c; --panel: #ffffff; ${statusVars('light')}; ${matVarText('light')}; }
+  .error { break-inside: avoid; page-break-inside: avoid; }
+}
+@page {
+  size: A4 portrait;
+  margin: 14mm 12mm 16mm;
+  @bottom-center { content: ${DOC_PAGE_NUMBER}; }
 }
 `.trim();
+
+function reportStyle(): string {
+  const root = `:root { --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --fs-h2: 18px; --fs-h1: 24px; --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --text: #1c1c1c; --muted: #5c5c5c; --border: #8c8c8c; --panel: #ffffff; ${statusVars('light')}; ${matVarText('light')}; }`;
+  return `${root}\n${docFrameCss}\n${materialKindCss}\n${REPORT_EXTRA}`;
+}
+
+function section(inner: string): string {
+  return `<tr class="doc-section"><td>${inner}</td></tr>`;
+}
 
 /** One self-contained HTML file. `exportedAt` is the only input that may change between two calls. */
 export function renderRunReportHtml(p: Project, rt: RuntimeState, exportedAt: Date): string {
@@ -328,39 +327,42 @@ export function renderRunReportHtml(p: Project, rt: RuntimeState, exportedAt: Da
     ? `<section class="error" data-run-error="${esc(rt.error?.code ?? '')}"><p><b>무엇</b> ${esc(error.what)}</p><p><b>왜</b> ${esc(error.why)}</p><p><b>어떻게</b> ${esc(error.how ?? '')}</p></section>`
     : '';
   const gapHtml = gaps.length
-    ? table(['종류', '항목', '근거', '수정 제안'], gapRows(gaps))
+    ? docTable(['종류', '항목', '근거', '수정 제안'], gapRows(gaps))
     : `<p>${esc(EMPTY_GAPS)}</p>`;
   const noteHtml = notes.length
-    ? table(['구분', '위치', '내용'], notes.map((n) => [n.kind, n.where, n.detail]))
+    ? docTable(['구분', '위치', '내용'], notes.map((n) => [n.kind, n.where, n.detail]))
     : '<p>없음</p>';
   const blockHtml = blocks.length
-    ? table(['가상 시각', 'Interlock', '단계', '까닭'], blocks)
+    ? docTable(['가상 시각', 'Interlock', '단계', '까닭'], blocks)
     : `<p>${esc(EMPTY_BLOCKS)}</p>`;
   const faults = faultLines(p).map((line) => `<li>${esc(line)}</li>`).join('');
+  const cover = docCoverHtml({
+    projectName: p.name,
+    kind: DOC_KIND_RUN,
+    printedAt: exportedAt,
+    rev,
+    rules: rt.rulesVersion,
+    version: APP_VERSION,
+    equipment: p.equipment.name,
+  });
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>${esc(p.name)} 실행 결과</title>
-<style>${REPORT_CSS}</style>
+<title>${esc(p.name)} ${esc(DOC_KIND_RUN)}</title>
+<style>${reportStyle()}</style>
 </head>
-<body>
-${errorHtml}
-<header>
-<h1>${esc(p.name)} 실행 결과</h1>
-${kv([
-    ['프로젝트', p.name],
-    ['rev', rev],
-    ['실행 시각', `${formatMs(rt.timeMs)} (가상 시각)`],
-    ['앱 버전', APP_VERSION],
-    ['실행 규칙 버전', rt.rulesVersion],
-  ])}
-<p class="limit">${esc(RUN_REPORT_LIMIT)}</p>
-</header>
-<h2>실행 요약</h2>
+<body class="doc-page">
+<table class="doc-frame">
+<thead><tr><td>${docRunningHeadHtml(p.name)}</td></tr></thead>
+<tbody>
+${section(`${errorHtml}
+${cover}`)}
+${section(`<h2>실행 요약</h2>
 <p>${esc(summaryHead(summary))}${summary.aborted ? ' · 오류로 중단' : ''}</p>
 ${kindReportHtml(p, rt)}
-${kv([
+${docKv([
+    ['실행 시각', `${formatMs(rt.timeMs)} (가상 시각)`],
     ['총 시간', dash(summary.totalMs)],
     ['끝난 단계', `${summary.finishedCount} / ${summary.totalCount}`],
     ['사이클', info.cycleText],
@@ -369,23 +371,25 @@ ${kv([
   ])}
 <p class="note">${esc(info.throughputNote)}</p>
 <p class="note">${info.metricBasis ? esc(info.metricBasis) : ''}</p>
-<p class="note">가정 시간 기준 · 실제 택트가 아닙니다</p>
-<h2>가동 조건</h2>
-${kv([
+<p class="note">가정 시간 기준 · 실제 택트가 아닙니다</p>`)}
+${section(`<h2>가동 조건</h2>
+${docKv([
     ['투입 개수', feed.count],
     ['투입 간격', feed.interval],
   ])}
 <p class="meta">오류 주입</p>
-<ul>${faults}</ul>
-<h2>단계 표</h2>
-${table(STEP_HEADERS, stepTableRows(p, rt))}
-<h2>실행 결과 Gap</h2>
-${gapHtml}
-<h2>가정 · 미정 값</h2>
-${noteHtml}
-<h2>Interlock 차단 이력</h2>
-${blockHtml}
-<p class="stamp" data-exported-at="${esc(exportedAt.toISOString())}" title="${esc(exportedAt.toISOString())}">내보낸 시각 ${esc(exportClockLabel(exportedAt))}</p>
+<ul>${faults}</ul>`)}
+${section(`<h2>단계 표</h2>
+${docTable(STEP_HEADERS, stepTableRows(p, rt))}`)}
+${section(`<h2>실행 결과 Gap</h2>
+${gapHtml}`)}
+${section(`<h2>가정 · 미정 값</h2>
+${noteHtml}`)}
+${section(`<h2>Interlock 차단 이력</h2>
+${blockHtml}`)}
+${section(`<p class="stamp" data-exported-at="${esc(exportedAt.toISOString())}" title="${esc(exportedAt.toISOString())}">내보낸 시각 ${esc(exportClockLabel(exportedAt))}</p>`)}
+</tbody>
+</table>
 </body>
 </html>
 `;
@@ -393,5 +397,7 @@ ${blockHtml}
 
 /** Drop the export clock so two renders of one run can be compared. */
 export function withoutExportStamp(html: string): string {
-  return html.replace(/<p class="stamp"[\s\S]*?<\/p>/, '');
+  return html
+    .replace(/<p class="stamp"[\s\S]*?<\/p>/, '')
+    .replace(/data-print-date title="[^"]*">[^<]*/g, 'data-print-date title="">');
 }

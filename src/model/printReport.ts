@@ -7,7 +7,7 @@ import { analyzeGaps, GAP_KIND_LABEL } from './gaps';
 import { interlockSummary } from './interlock';
 import type { FlowNode, Layout, Project, Quantity, SequenceStep } from './types';
 
-export const PRINT_LIMIT = '논리 시뮬레이션 — 실제 장비 제어 / 안전 검증 아님 · 검토 후보';
+export { DOC_LIMIT as PRINT_LIMIT } from '../ui/docFrame';
 
 export const PRINT_SECTIONS = [
   { id: 'cover', label: '표지' },

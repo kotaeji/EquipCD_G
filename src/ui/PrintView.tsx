@@ -1,13 +1,11 @@
 // TURN-079. Print preview. It reads the project and does not edit it.
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  PRINT_LIMIT,
   PRINT_SECTIONS,
   diagramFrame,
   gapRows,
   interlockRows,
   nodeLayout,
-  printDate,
   printFlags,
   signalRows,
   stationFlow,
@@ -18,12 +16,21 @@ import {
 } from '../model/printReport';
 import { MATERIAL_KIND_COLORS, materialKindLooks } from '../model/materialKind';
 import type { Project } from '../model/types';
-import { APP_VERSION, PRODUCT_NAME } from '../model/types';
+import { APP_VERSION, RUNTIME_RULES_VERSION } from '../model/types';
+import {
+  DOC_KIND_DESIGN,
+  PATTERN_WORD,
+  docCoverHtml,
+  docRunningHeadHtml,
+  statusMarkHtml,
+  statusParts,
+} from './docFrame';
 import { IconLabel } from './Icon';
 import { MaterialKindMark } from './MaterialKindMark';
 import { SfcView } from './SfcView';
 import { Symbol } from './Symbols';
 import { STATUS_COLOR } from './status';
+import './doc-frame.css';
 import './print-view.css';
 
 const LIGHT = STATUS_COLOR.light;
@@ -52,9 +59,14 @@ const SHEET_STYLE = {
   '--mat-4': MATERIAL_KIND_COLORS.light['mat-4'],
 } as CSSProperties;
 
+function StatusCell({ word }: { word: string }) {
+  if (!statusParts(word)) return <>{word}</>;
+  return <span dangerouslySetInnerHTML={{ __html: statusMarkHtml(word) }} />;
+}
+
 function FlowTable({ label, rows }: { label: string; rows: FlowLine[] }) {
   return (
-    <table className="grid print-table print-flow" aria-label={label}>
+    <table className="grid print-table doc-table print-flow" aria-label={label}>
       <thead><tr><th>흐름</th><th>내용</th></tr></thead>
       <tbody>
         {rows.length === 0 && <tr><td colSpan={2}>단계가 없습니다.</td></tr>}
@@ -160,37 +172,27 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
         <p className="print-hint">지금 모델을 인쇄합니다. 화면의 확대·이동·테마와 무관하고, rev · Undo 는 바꾸지 않습니다.</p>
       </div>
       <div className="print-scroll">
-        <article className="print-sheet" data-print-sheet style={SHEET_STYLE}>
-          <table className="print-frame">
+        <article className="print-sheet doc-page" data-print-sheet style={SHEET_STYLE}>
+          <table className="print-frame doc-frame">
             <thead>
               <tr>
-                <td>
-                  <div className="print-runhead" data-print-running-head>
-                    <span data-print-project>{project.name}</span>
-                    <span className="print-runhead-limit" data-print-limit>{PRINT_LIMIT}</span>
-                  </div>
-                </td>
+                <td dangerouslySetInnerHTML={{ __html: docRunningHeadHtml(project.name) }} />
               </tr>
             </thead>
             <tbody>
-              {show('cover') && <tr className="print-section" data-print-section="cover"><td data-print-cover>
-                <p className="print-kicker">{PRODUCT_NAME}</p>
-                <h1>{project.name}</h1>
-                <p className="print-limit" data-print-limit>{PRINT_LIMIT}</p>
-                <table className="grid print-table" aria-label="표지">
-                  <thead><tr><th>항목</th><th>값</th></tr></thead>
-                  <tbody>
-                    <tr><th scope="row">프로젝트</th><td>{project.name}</td></tr>
-                    <tr><th scope="row">rev</th><td data-print-rev>{project.revision}</td></tr>
-                    <tr><th scope="row">시각</th><td data-print-date title={printedAt.toISOString()}>{printDate(printedAt)}</td></tr>
-                    <tr><th scope="row">앱 버전</th><td data-print-version>{APP_VERSION}</td></tr>
-                    <tr><th scope="row">장비</th><td>{project.equipment.name}</td></tr>
-                  </tbody>
-                </table>
-              </td></tr>}
-              {show('structure') && <tr className="print-section" data-print-section="structure"><td>
+              {show('cover') && <tr className="print-section doc-section" data-print-section="cover"><td dangerouslySetInnerHTML={{ __html: docCoverHtml({
+                projectName: project.name,
+                kind: DOC_KIND_DESIGN,
+                printedAt,
+                rev: String(project.revision),
+                rules: RUNTIME_RULES_VERSION,
+                version: APP_VERSION,
+                equipment: project.equipment.name,
+              }) }} />
+              </tr>}
+              {show('structure') && <tr className="print-section doc-section" data-print-section="structure"><td>
                 <h2>장비 구조</h2>
-                <table className="grid print-table" aria-label="장비 구조">
+                <table className="grid print-table doc-table" aria-label="장비 구조">
                   <thead><tr><th>Station</th><th>Unit</th><th>코드</th><th>Device</th><th>종류</th></tr></thead>
                   <tbody>
                     {structureRows(project).length === 0 && <tr><td colSpan={5}>장비가 없습니다.</td></tr>}
@@ -202,22 +204,27 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
                   </tbody>
                 </table>
               </td></tr>}
-              {show('diagram') && <tr className="print-section" data-print-section="diagram"><td>
+              {show('diagram') && <tr className="print-section doc-section" data-print-section="diagram"><td>
                 <h2>도면 도식</h2>
                 <Diagram p={project} />
                 <p className="print-legend">실선은 물류, 점선은 논리 신호입니다. 화면의 확대·이동과 무관하게 지금 모델 전체를 한 쪽 너비에 맞춥니다.</p>
                 {materialKindLooks(project).length > 0 && (
                   <ul className="mat-kinds" data-kind-legend="" aria-label="자재 종류">
-                    {materialKindLooks(project).map((look) => <li key={look.materialId}><MaterialKindMark look={look} name /></li>)}
+                    {materialKindLooks(project).map((look) => (
+                      <li key={look.materialId}>
+                        <MaterialKindMark look={look} name />
+                        <span className="doc-pattern-word">{PATTERN_WORD[look.pattern]}</span>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </td></tr>}
-              {show('station') && <tr className="print-section" data-print-section="station"><td>
+              {show('station') && <tr className="print-section doc-section" data-print-section="station"><td>
                 <h2>Station 시퀀스</h2>
                 <h3>{flow.name}</h3>
                 <FlowTable label="Station 흐름" rows={flow.rows} />
               </td></tr>}
-              {show('substation') && <tr className="print-section" data-print-section="substation"><td>
+              {show('substation') && <tr className="print-section doc-section" data-print-section="substation"><td>
                 <h2>Substation 시퀀스</h2>
                 {subs.length === 0 && <p className="print-empty">Substation 시퀀스가 없습니다.</p>}
                 {subs.map((q) => (
@@ -227,14 +234,14 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
                   </div>
                 ))}
               </td></tr>}
-              {show('sfc') && <tr className="print-section" data-print-section="sfc"><td>
+              {show('sfc') && <tr className="print-section doc-section" data-print-section="sfc"><td>
                 <h2>SFC</h2>
                 <div className="print-sfc" data-print-sfc><SfcView p={project} rt={null} /></div>
               </td></tr>}
-              {show('signals') && <tr className="print-section" data-print-section="signals"><td>
+              {show('signals') && <tr className="print-section doc-section" data-print-section="signals"><td>
                 <h2>신호 · Interlock</h2>
                 <h3>신호</h3>
-                <table className="grid print-table" aria-label="신호">
+                <table className="grid print-table doc-table" aria-label="신호">
                   <thead><tr><th>이름</th><th>Device</th><th>방향</th><th>역할</th><th>주소</th></tr></thead>
                   <tbody>
                     {signalRows(project).length === 0 && <tr><td colSpan={5}>신호가 없습니다.</td></tr>}
@@ -244,7 +251,7 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
                   </tbody>
                 </table>
                 <h3>Interlock</h3>
-                <table className="grid print-table" aria-label="Interlock">
+                <table className="grid print-table doc-table" aria-label="Interlock">
                   <thead><tr><th>ID</th><th>종류</th><th>확인</th><th>설명</th><th>규칙</th></tr></thead>
                   <tbody>
                     {interlockRows(project).length === 0 && <tr><td colSpan={5}>Interlock이 없습니다.</td></tr>}
@@ -254,7 +261,7 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
                   </tbody>
                 </table>
               </td></tr>}
-              {show('notes') && <tr className="print-section" data-print-section="notes"><td>
+              {show('notes') && <tr className="print-section doc-section" data-print-section="notes"><td>
                 <h2>가정 · 미정 · Gap</h2>
                 <h3>가정 메모</h3>
                 {flags.memos.length === 0 && <p className="print-empty">가정 메모가 없습니다.</p>}
@@ -262,7 +269,7 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
                 <h3>미정</h3>
                 {flags.undetermined.length === 0 && <p className="print-empty">미정이 없습니다.</p>}
                 {flags.undetermined.length > 0 && (
-                  <table className="grid print-table" aria-label="미정">
+                  <table className="grid print-table doc-table" aria-label="미정">
                     <thead><tr><th>항목</th></tr></thead>
                     <tbody>{flags.undetermined.map((f) => <tr key={f.id}><td>{f.text}</td></tr>)}</tbody>
                   </table>
@@ -270,17 +277,17 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
                 <h3>가정 값</h3>
                 {flags.assumptions.length === 0 && <p className="print-empty">가정 값이 없습니다.</p>}
                 {flags.assumptions.length > 0 && (
-                  <table className="grid print-table" aria-label="가정 값">
+                  <table className="grid print-table doc-table" aria-label="가정 값">
                     <thead><tr><th>항목</th></tr></thead>
                     <tbody>{flags.assumptions.map((f) => <tr key={f.id}><td>{f.text}</td></tr>)}</tbody>
                   </table>
                 )}
                 <h3>Gap</h3>
-                <table className="grid print-table" aria-label="Gap">
+                <table className="grid print-table doc-table" aria-label="Gap">
                   <thead><tr><th>종류</th><th>판정</th><th>제목</th><th>근거</th></tr></thead>
                   <tbody>
                     {gaps.length === 0 && <tr><td colSpan={4}>Gap이 없습니다.</td></tr>}
-                    {gaps.map((g) => <tr key={g.id}><td>{g.kind}</td><td>{g.judgement}</td><td>{g.title}</td><td>{g.evidence}</td></tr>)}
+                    {gaps.map((g) => <tr key={g.id}><td>{g.kind}</td><td><StatusCell word={g.judgement} /></td><td>{g.title}</td><td>{g.evidence}</td></tr>)}
                   </tbody>
                 </table>
               </td></tr>}

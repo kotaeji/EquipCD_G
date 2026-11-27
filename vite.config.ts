@@ -13,5 +13,11 @@ export default defineConfig({
   esbuild: { charset: 'ascii' },
   build: { modulePreload: { polyfill: false }, outDir: 'dist', assetsInlineLimit: 100000000, cssCodeSplit: false },
   server: { host: '0.0.0.0', port: 5173, strictPort: true },
-  test: { environment: 'node', include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'], setupFiles: ['./tests/setup-dom.ts'] },
+  test: {
+    environment: 'node',
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    setupFiles: ['./tests/setup-dom.ts'],
+    // Vitest stubs CSS as an empty string, including `?raw`. These two files are inlined into the report.
+    css: { include: [/doc-frame\.css/, /material-kind\.css/] },
+  },
 } as any);

@@ -67,7 +67,7 @@
 .print-frame > thead td,
 .print-frame > tbody > tr > td { padding: 0; border: 0; vertical-align: top; }
 .print-runhead {
-  display: flex;
+  display: none;
   justify-content: space-between;
   align-items: baseline;
   gap: var(--sp-3);
@@ -117,12 +117,12 @@ table.grid.print-table thead { display: table-header-group; }
 @page print-land {
   size: A4 landscape;
   margin: 14mm 12mm 16mm;
-  @bottom-center { content: counter(page); }
+  @bottom-center { content: counter(page) " / " counter(pages); }
 }
 @page print-port {
   size: A4 portrait;
   margin: 14mm 12mm 16mm;
-  @bottom-center { content: counter(page); }
+  @bottom-center { content: counter(page) " / " counter(pages); }
 }
 .print-root[data-orientation="landscape"] .print-sheet { page: print-land; }
 .print-root[data-orientation="portrait"] .print-sheet { page: print-port; }
@@ -160,4 +160,8 @@ table.grid.print-table thead { display: table-header-group; }
   }
   .print-sheet { border: 0; margin: 0; padding: 0; }
   .print-scroll { padding: 0; }
+  .print-runhead,
+  .doc-runhead {
+    display: flex !important;
+  }
 }
