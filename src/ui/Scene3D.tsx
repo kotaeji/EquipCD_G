@@ -36,6 +36,7 @@ export interface ScenePalette {
   pending: string;
   beacon: string;
   material: string;
+  kinds: Record<string, string>;
   flow: string;
   label: string;
   edge: string;
@@ -58,6 +59,12 @@ function readPalette(): ScenePalette {
     pending: pick('--status-pending', STATUS_COLOR.light.pending),
     beacon: pick('--warning', fallback.warning),
     material: pick('--warning', fallback.warning),
+    kinds: {
+      '--mat-1': pick('--mat-1', fallback['mat-1']),
+      '--mat-2': pick('--mat-2', fallback['mat-2']),
+      '--mat-3': pick('--mat-3', fallback['mat-3']),
+      '--mat-4': pick('--mat-4', fallback['mat-4']),
+    },
     flow: pick('--accent', fallback.accent),
     label: pick('--text', fallback.text),
     edge: pick('--text', fallback.text),
@@ -422,10 +429,12 @@ function buildScene(root: Group, scene: SceneDescription, palette: ScenePalette,
   }
 
   for (const mat of scene.materials) {
+    const kind = mat.kindColor ? palette.kinds[mat.kindColor] : '';
+    const color = kind || (mat.waiting ? palette.pending : palette.material);
     const box = new Mesh(new BoxGeometry(42, 30, 42), new MeshStandardMaterial({
-      color: mat.waiting ? palette.pending : palette.material,
+      color,
       roughness: 0.45,
-      emissive: mat.waiting ? palette.pending : palette.material,
+      emissive: color,
       emissiveIntensity: mat.waiting ? 0.05 : (photo ? 0.18 : 0),
       transparent: !!mat.waiting,
       opacity: mat.waiting ? 0.55 : 1,
@@ -894,6 +903,7 @@ export function Scene3D({ scene, showNames, emphasize, visualMode, equipmentMoti
     <div className="run-stage" tabIndex={0} aria-label="3D 시뮬레이션" onKeyDown={onKey} data-selected-device={selectedId ?? ''}
       data-visual-style={visualMode} data-show-names={showNames ? 'on' : 'off'} data-floor-names={showNames ? scene.floorNames.length : 0}
       data-scene-materials={scene.materials.map((m) => `${m.unitId}:${m.state}${m.exited ? ':exit' : ''}`).join(' ') || 'none'}
+      data-scene-kind={scene.materials.some((m) => m.kindColor) ? scene.materials.map((m) => m.kindColor ?? '').filter(Boolean).join(' ') : 'none'}
       data-equipment-motion={equipmentMotion ? 'on' : 'off'} data-redraw={shouldRedraw({ running, interacting: false }) ? 'live' : 'still'}
       data-camera-yaw={cam.yaw.toFixed(3)} data-camera-pitch={cam.pitch.toFixed(3)} data-camera-distance={cam.distance.toFixed(1)}
       data-viewpoint={viewpoint} data-view-move={reduced ? 'instant' : 'smooth'} data-floor-grid={showGrid ? 'on' : 'off'}

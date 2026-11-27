@@ -2,11 +2,13 @@
 import { useState } from 'react';
 import * as C from '../model/commands';
 import { materialDeleteDetail } from '../model/deleteImpact';
+import { materialKindLook } from '../model/materialKind';
 import {
   countsOfCycle, feedCycle, feedMarks, materialMark, MAX_MATERIAL_DEFS, parsePatternText, patternText,
 } from '../model/materialMix';
 import type { Project } from '../model/types';
 import type { ConfirmDelete, EditFn } from './Inspector';
+import { MaterialKindSwatch } from './MaterialKindMark';
 import { TextInput } from './widgets';
 import './MaterialMix.css';
 
@@ -50,11 +52,12 @@ export function MaterialMix({ p, locked, edit, confirmDelete }: {
       <ul className="mix-defs">
         {p.materials.map((m) => {
           const letter = materialMark(p, m.id);
+          const look = several ? materialKindLook(p, m.id) : null;
           return (
-            <li key={m.id} className="mix-def" data-material-def={m.id} data-material-mark={letter}>
-              <span className="mix-letter" aria-hidden="true">{letter}</span>
+            <li key={m.id} className="mix-def" data-material-def={m.id} data-material-mark={letter} data-mat-token={look?.token} data-mat-pattern={look?.pattern}>
+              <span className="mix-letter" aria-hidden="true">{look && <MaterialKindSwatch look={look} />}{letter}</span>
               <label>이름 <TextInput value={m.name} disabled={locked} width={140} onCommit={(v) => edit(C.renameObject(p, m.id, v), '자재 이름')} /></label>
-              <label>표식 <input aria-label={`${letter} 표식`} className="num" disabled={locked} defaultValue={m.mark ?? ''} key={`${m.id}:${m.mark ?? ''}`}
+              <label>표식 <input aria-label={`${letter} 표식`} className="num" disabled={locked} defaultValue={m.mark ?? ''} placeholder={m.mark?.trim() ? undefined : letter} data-mark-stored={m.mark ?? ''} key={`${m.id}:${m.mark ?? ''}`}
                 onBlur={(e) => { const v = e.target.value.trim(); if (v !== (m.mark ?? '')) edit(C.setMaterialMark(p, m.id, v), '자재 표식'); }} /></label>
               <label>상태 <TextInput value={m.states.join(', ')} disabled={locked} width={180} onCommit={(v) => edit(C.updateMaterial(p, m.id, { states: v.split(',').map((x) => x.trim()).filter(Boolean) }), '상태집합')} /></label>
               <label>처음 상태 <select aria-label={`${letter} 처음 상태`} disabled={locked} value={m.initialState ?? ''} onChange={(e) => edit(C.updateMaterial(p, m.id, { initialState: e.target.value || null }), '초기 상태')}>
@@ -78,21 +81,27 @@ export function MaterialMix({ p, locked, edit, confirmDelete }: {
         <label>투입 순서 <input aria-label="투입 순서" value={shownPattern} disabled={locked} onChange={(e) => setPattern(e.target.value)} onBlur={commitPattern}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} /></label>
         <ol className="mix-pattern" data-feed-pattern="">
-          {cycle.map((id, i) => (
-            <li key={`${id}:${i}`} className="mix-slot" data-feed-slot={materialMark(p, id)}>
-              <span>{materialMark(p, id)}</span>
+          {cycle.map((id, i) => {
+            const look = materialKindLook(p, id);
+            const letter = materialMark(p, id);
+            return (
+            <li key={`${id}:${i}`} className="mix-slot" data-feed-slot={letter} data-mat-token={look?.token} data-mat-pattern={look?.pattern}>
+              {look && <MaterialKindSwatch look={look} />}
+              <span>{letter}</span>
               <button type="button" className="small" disabled={locked || i === 0} aria-label={`순서 ${i + 1} 위로`} onClick={() => move(i, -1)}>위로</button>
               <button type="button" className="small" disabled={locked || i === cycle.length - 1} aria-label={`순서 ${i + 1} 아래로`} onClick={() => move(i, 1)}>아래로</button>
               <button type="button" className="small" disabled={locked || cycle.length < 2} aria-label={`순서 ${i + 1} 빼기`} onClick={() => { const next = cycle.filter((_, j) => j !== i); if (next.length) edit(C.setFeedPattern(p, next), '투입 순서'); }}>빼기</button>
             </li>
-          ))}
+            );
+          })}
         </ol>
         <div className="mix-slot">
           <span className="mix-note">종류별 개수 (한 차례)</span>
           {p.materials.map((m) => {
             const letter = materialMark(p, m.id);
+            const look = materialKindLook(p, m.id);
             return (
-              <label key={m.id}>{letter} <input aria-label={`${letter} 종류별 개수`} className="num" type="number" min={0} step={1} disabled={locked}
+              <label key={m.id} data-mat-token={look?.token} data-mat-pattern={look?.pattern}>{look && <MaterialKindSwatch look={look} />}{letter} <input aria-label={`${letter} 종류별 개수`} className="num" type="number" min={0} step={1} disabled={locked}
                 key={`${m.id}:${counts[m.id] ?? 0}`} defaultValue={counts[m.id] ?? 0}
                 onBlur={(e) => {
                   const n = Number(e.target.value);

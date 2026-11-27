@@ -2,7 +2,7 @@
 // Diagram x stays 3D x. Diagram y becomes 3D z. A device footprint is its layout box,
 // so a device that sits inside its unit on the diagram sits inside that zone here.
 
-import { materialMark, mixActive } from '../model/materialMix';
+import { materialKindLook } from '../model/materialKind';
 import type { Project, Unit } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { floorNameForZone, type FloorName } from './floorLabel';
@@ -83,6 +83,8 @@ export interface SceneMaterial {
   waiting?: boolean;
   /** Kind letter. Set when the project has more than one material definition. */
   mark?: string;
+  /** CSS token `--mat-1` … `--mat-4`. Set with the letter, and only when several kinds are defined. */
+  kindColor?: string;
 }
 
 export interface SceneHighlight {
@@ -378,7 +380,8 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
       list.forEach((pc, i) => {
         const span = Math.max(1, list.length - 1);
         const dx = list.length > 1 ? (i - span / 2) * 52 : 0;
-        const mark = mixActive(p) ? materialMark(p, pc.material.materialId) : '';
+        const look = materialKindLook(p, pc.material.materialId);
+        const mark = look?.mark ?? '';
         materials.push({
           id: pc.instanceId,
           name: mark ? `개체 ${pc.index} ${mark}` : `개체 ${pc.index}`,
@@ -388,13 +391,14 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
           z: c.z,
           exited: false,
           waiting: pc.phase === 'waiting',
-          ...(mark ? { mark } : {}),
+          ...(look ? { mark: look.mark, kindColor: look.token } : {}),
         });
       });
     }
   } else if (live) {
     if (live.location === 'EXIT') {
       const last = p.units[p.units.length - 1];
+      const look = materialKindLook(p, live.materialId);
       materials.push({
         id: live.instanceId,
         name: def?.name ?? live.materialId,
@@ -403,20 +407,25 @@ export function describeScene(p: Project, rt: RuntimeState | null): SceneDescrip
         x: last ? last.layout.x + last.layout.w + 36 : 0,
         z: last ? last.layout.y + last.layout.h / 2 : 0,
         exited: true,
+        ...(look ? { mark: look.mark, kindColor: look.token } : {}),
       });
     } else {
       const u = p.units.find((unit) => unit.id === live.location);
       const c = u ? unitCenter(u) : { x: 0, z: 0 };
+      const look = materialKindLook(p, live.materialId);
       materials.push({
         id: live.instanceId, name: def?.name ?? live.materialId, unitId: live.location, state: live.state, x: c.x, z: c.z, exited: false,
+        ...(look ? { mark: look.mark, kindColor: look.token } : {}),
       });
     }
   } else if (def?.initialLocation) {
     const u = p.units.find((unit) => unit.id === def.initialLocation);
     if (u) {
       const c = unitCenter(u);
+      const look = materialKindLook(p, def.id);
       materials.push({
         id: def.id, name: def.name, unitId: u.id, state: def.initialState ?? '', x: c.x, z: c.z, exited: false,
+        ...(look ? { mark: look.mark, kindColor: look.token } : {}),
       });
     }
   }

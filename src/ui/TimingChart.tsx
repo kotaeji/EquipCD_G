@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { materialKindLook, materialKindLooks, type MaterialKindLook } from '../model/materialKind';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { chartPlotWidth, timingChart, type TimingBar, type TimingLane, type TimingRow } from '../runtime/timingChart';
 import { formatMs } from '../scene/runInfo';
+import { MaterialKindMark } from './MaterialKindMark';
 import { EmptyState } from './EmptyState';
 import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
@@ -75,6 +77,13 @@ export function TimingChart({ p, rt, nowMs, onPick, onRun, runDisabled, runReaso
       </div>
     );
   }
+  const kinds = materialKindLooks(p);
+  const rowLook = (rowId: string): MaterialKindLook | null => {
+    const index = /^piece:(\d+)$/.exec(rowId);
+    if (!index || !rt?.pieces) return null;
+    const pc = rt.pieces.find((row) => row.index === Number(index[1]));
+    return pc ? materialKindLook(p, pc.material.materialId) : null;
+  };
   const plotW = chartPlotWidth(model.spanMs, zoom);
   const tops = rowTops(model.rows);
   const plotH = model.rows.reduce((sum, row) => sum + row.sublanes * BAR + ROW_GAP, 0);
@@ -111,14 +120,34 @@ export function TimingChart({ p, rt, nowMs, onPick, onRun, runDisabled, runReaso
           </svg>
           대기 · 기다림
         </span>
+        {kinds.map((look) => <span key={look.materialId} data-kind-legend={look.mark}><MaterialKindMark look={look} name /></span>)}
       </div>
       <div className="timing-scroll" data-timing-scroll="">
         <div className="timing-sheet">
         <svg className="timing-labels" width={LABEL_W} height={plotH + AXIS} aria-hidden="true">
+          <defs>
+            <pattern id="mat-pat-hatch" width="4" height="4" patternUnits="userSpaceOnUse">
+              <path d="M-1 3 L3 -1 M1 5 L5 1" stroke="var(--text)" strokeWidth="1" />
+            </pattern>
+            <pattern id="mat-pat-dots" width="4" height="4" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="0.8" fill="var(--text)" />
+            </pattern>
+            <pattern id="mat-pat-lines" width="4" height="4" patternUnits="userSpaceOnUse">
+              <path d="M0 2 H4" stroke="var(--text)" strokeWidth="1" />
+            </pattern>
+          </defs>
           {model.rows.map((row) => {
             const y = tops.get(row.id) ?? 0;
             const h = row.sublanes * BAR + ROW_GAP;
-            return <text key={row.id} data-timing-row={row.id} x={LABEL_W - 8} y={y + h / 2} textAnchor="end" dominantBaseline="middle"><title>{row.label}</title>{clip(row.label)}</text>;
+            const look = rowLook(row.id);
+            const mid = y + h / 2;
+            return (
+              <g key={row.id}>
+                {look && <rect x={2} y={mid - 6} width={12} height={12} fill={`var(${look.token})`} stroke="var(--text)" />}
+                {look && look.pattern !== 'solid' && <rect x={2} y={mid - 6} width={12} height={12} fill={`url(#mat-pat-${look.pattern})`} />}
+                <text data-timing-row={row.id} data-mat-token={look?.token} data-mat-pattern={look?.pattern} data-mat-mark={look?.mark} x={LABEL_W - 8} y={mid} textAnchor="end" dominantBaseline="middle"><title>{row.label}</title>{clip(row.label)}</text>
+              </g>
+            );
           })}
         </svg>
           <svg width={plotW + 28} height={plotH + AXIS} role="group" aria-label="타이밍 차트">

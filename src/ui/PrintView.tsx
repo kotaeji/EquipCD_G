@@ -16,9 +16,11 @@ import {
   type FlowLine,
   type PrintSectionId,
 } from '../model/printReport';
+import { MATERIAL_KIND_COLORS, materialKindLooks } from '../model/materialKind';
 import type { Project } from '../model/types';
 import { APP_VERSION, PRODUCT_NAME } from '../model/types';
 import { IconLabel } from './Icon';
+import { MaterialKindMark } from './MaterialKindMark';
 import { SfcView } from './SfcView';
 import { Symbol } from './Symbols';
 import { STATUS_COLOR } from './status';
@@ -44,6 +46,10 @@ const SHEET_STYLE = {
   '--status-pending': LIGHT.pending,
   '--status-undetermined': LIGHT.undetermined,
   '--status-assumption': LIGHT.assumption,
+  '--mat-1': MATERIAL_KIND_COLORS.light['mat-1'],
+  '--mat-2': MATERIAL_KIND_COLORS.light['mat-2'],
+  '--mat-3': MATERIAL_KIND_COLORS.light['mat-3'],
+  '--mat-4': MATERIAL_KIND_COLORS.light['mat-4'],
 } as CSSProperties;
 
 function FlowTable({ label, rows }: { label: string; rows: FlowLine[] }) {
@@ -200,6 +206,11 @@ export function PrintView({ project, onClose }: { project: Project; onClose: () 
                 <h2>도면 도식</h2>
                 <Diagram p={project} />
                 <p className="print-legend">실선은 물류, 점선은 논리 신호입니다. 화면의 확대·이동과 무관하게 지금 모델 전체를 한 쪽 너비에 맞춥니다.</p>
+                {materialKindLooks(project).length > 0 && (
+                  <ul className="mat-kinds" data-kind-legend="" aria-label="자재 종류">
+                    {materialKindLooks(project).map((look) => <li key={look.materialId}><MaterialKindMark look={look} name /></li>)}
+                  </ul>
+                )}
               </td></tr>}
               {show('station') && <tr className="print-section" data-print-section="station"><td>
                 <h2>Station 시퀀스</h2>

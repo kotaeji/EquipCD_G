@@ -20,6 +20,7 @@ const BANNED = ['#245bce', '#e5edff', '#17283f', '#f2f5fa', '#cbd5e2', '#d5deea'
 
 const DARK = {
   bg: '#101b2a', panel: '#19283a', canvas: '#101b2a', border: '#5c8496', text: '#eff5fd', muted: '#b3c4d9', accent: '#42d6cc', focus: '#42d6cc', selected: '#203d4c', success: '#88dfb1', warning: '#ffd18a', danger: '#ff9fab', grid: '#5c8496', rowh: '32px', pad: '12px', scheme: 'dark', 'on-accent': '#102c2d', 'theme-light-bg': '#19283a', 'theme-light-fg': '#eff5fd', 'theme-dark-bg': '#42d6cc', 'theme-dark-fg': '#102c2d', 'header-bg': '#A20034', 'header-fg': '#FFFFFF', 'header-muted': '#F5D6DE', 'header-border': '#FFFFFF',
+  'mat-1': '#2775ad', 'mat-2': '#aa5b26', 'mat-3': '#237f54', 'mat-4': '#9e45d2',
 };
 const ARCHIVED = {
   bg: '#F1F0EB', panel: '#FCFBF7', canvas: '#F7F6F1', border: '#D9DDD5', text: '#283D3B', muted: '#73807B', accent: '#3E807A', focus: '#283D3B', selected: '#DFECE6', success: '#487D5E', warning: '#9E7B43', danger: '#A4473A', grid: '#E7E9E1', rowh: '36px', pad: '14px', scheme: 'light', 'on-accent': '#FFFFFF', 'header-bg': '#A20034', 'header-fg': '#FFFFFF', 'header-muted': '#F5D6DE', 'header-border': '#FFFFFF',

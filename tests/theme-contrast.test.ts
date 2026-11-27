@@ -126,4 +126,18 @@ describe('theme colors', () => {
     expect(header).toMatch(/\.header :focus-visible \{[\s\S]*?outline-offset:\s*2px/);
     expect(header).toMatch(/--focus:\s*#FFFFFF/);
   });
+
+  it('TURN-091 material kind colors clear the background at 3:1 and the text at 4.5:1', () => {
+    for (const t of ['A', 'B'] as const) {
+      const v = THEMES[t].vars;
+      const colors = ['mat-1', 'mat-2', 'mat-3', 'mat-4'].map((key) => v[key]);
+      expect(new Set(colors.map((c) => c.toUpperCase())).size, t).toBe(4);
+      for (const color of colors) {
+        for (const bg of [v.bg, v.panel, v.canvas]) {
+          expect(ratio(color, bg), `${t} ${color} on ${bg}`).toBeGreaterThanOrEqual(3);
+        }
+        expect(ratio(color, v.text), `${t} ${color} vs text`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { materialKindLook } from '../model/materialKind';
 import { materialMark, mixActive } from '../model/materialMix';
 import type { Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
@@ -15,6 +16,7 @@ import { EMPTY, runErrorProblem } from './problemCopy';
 import { IconLabel } from './Icon';
 import { StatusMark } from './StatusMark';
 import { piecePhaseStatus } from './status';
+import { MaterialKindText } from './MaterialKindMark';
 import { Tabs } from './Tabs';
 import type { RunDetailsTab } from './viewSettings';
 import { Terms } from './Term';
@@ -60,10 +62,12 @@ function PieceTable({ p, rt }: { p: Project; rt: RuntimeState | null }) {
       <tbody>
         {rows.map((pc) => {
           const open = pc.wait ? Math.max(0, now - pc.wait.sinceMs) : 0;
+          const letter = materialMark(p, pc.material.materialId);
+          const look = mixed ? materialKindLook(p, pc.material.materialId) : null;
           return (
             <tr key={pc.instanceId} data-piece-row={pc.instanceId}>
               <td>개체 {pc.index}</td>
-              {mixed && <td data-piece-kind={materialMark(p, pc.material.materialId)}>{materialMark(p, pc.material.materialId)}</td>}
+              {mixed && <td data-piece-kind={letter}>{look ? <MaterialKindText look={look} text={letter} /> : letter}</td>}
               <td className="mono">{pc.fedAtMs == null ? '-' : formatMs(pc.fedAtMs)}</td>
               <td className="mono">{pc.exitedAtMs == null ? '-' : formatMs(pc.exitedAtMs)}</td>
               <td className="mono" data-piece-wait="">{formatMs(pc.waitMs + open)}</td>
