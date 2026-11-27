@@ -6,6 +6,7 @@
 import { parseProjectFile } from './fileFormat';
 import { INDEX_KEY, PROJECT_KEY, readIndex, readIndexStrict, saveOps, type IndexEntry, type KV } from './localStore';
 import type { Project } from '../model/types';
+import { SAVEPOINTS_KEY } from './savePoints';
 import { applyAtomic, recoverJournal, type TxnGuard, type TxnOp } from './txn';
 
 export const WS_KEY = 'ecd.v1.workspaces';
@@ -234,11 +235,15 @@ export function deleteSavedProject(kv: KV, reg: WorkspaceRegistry, id: string): 
   const next = detachProject(reg, id);
   const t = applyAtomic(kv, `삭제 ${id}`, () => {
     const idx = readIndexStrict(kv); if (!idx.ok) return { ok: false, reason: idx.reason };
-    return { ok: true, guards: [regGuard(reg)], ops: [
+    let points: string | null;
+    try { points = kv.getItem(SAVEPOINTS_KEY(id)); } catch (e) { return { ok: false, reason: (e as Error).message }; }
+    const ops: TxnOp[] = [
       { key: INDEX_KEY, value: JSON.stringify(idx.entries.filter((e) => e.id !== id)) },
       { key: PROJECT_KEY(id), value: null },
       { key: WS_KEY, value: JSON.stringify(next) },
-    ] };
+    ];
+    if (points !== null) ops.push({ key: SAVEPOINTS_KEY(id), value: null });
+    return { ok: true, guards: [regGuard(reg)], ops };
   });
   return t.ok ? { ok: true, reg: next } : { ok: false, reason: t.reason };
 }

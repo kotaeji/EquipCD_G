@@ -36,9 +36,10 @@ const HASH_RE = /^\d{1,10}:[0-9a-f]{1,8}$/;
  * (saved index + workspace list + one key per project), so the cap is above the old 16.
  */
 export const TXN_OP_LIMIT = 128;
-/** the only keys a journal may touch. Draft keys are TURN-047 and never share a transaction with the saved body. */
+/** the only keys a journal may touch. Draft keys are TURN-047 and never share a transaction with the saved body. Save-point keys are TURN-094. */
 export const isDataKey = (k: string) => k === 'ecd.v1.index' || k === 'ecd.v1.workspaces' || k === 'ecd.v1.drafts'
-  || /^ecd\.v1\.project\.[^\s]{1,200}$/.test(k) || /^ecd\.v1\.draft\.[^\s]{1,200}$/.test(k);
+  || /^ecd\.v1\.project\.[^\s]{1,200}$/.test(k) || /^ecd\.v1\.draft\.[^\s]{1,200}$/.test(k)
+  || /^ecd\.v1\.savepoints\.[^\s]{1,200}$/.test(k);
 const matches = (cur: string | null, after: string | null) => (after === null ? cur === null : cur !== null && hashText(cur) === after);
 const sumOf = (j: Omit<Journal, 'sum'>) => hashText(JSON.stringify([j.v, j.at, j.label, j.ops.map((o) => [o.key, o.before, o.beforeHash, o.after])]));
 

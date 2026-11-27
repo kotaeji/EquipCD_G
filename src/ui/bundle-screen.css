@@ -52,6 +52,15 @@
   color: var(--text);
 }
 
+.bundle-include {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
 .bundle-summary {
   margin: 0;
   font-size: var(--fs-md);

@@ -72,6 +72,7 @@ export interface CommandActions {
   setLayoutTab: (tab: LayoutTab) => void;
   setRunView: (view: 'diagram' | '3d') => void;
   save: () => void;
+  createSavePoint: () => void;
   exportJson: () => void;
   openPrint: () => void;
   importJson: () => void;
@@ -238,6 +239,7 @@ export const COMMANDS: readonly CommandDef[] = [
   tab('tab-lab', 'Evolution Lab (F7)', 'check', 'lab', () => {}),
 
   { id: 'save', name: '저장', group: '파일', available: yes, run: (a) => a.save() },
+  { id: 'save-point', name: '저장 지점 만들기', group: '파일', available: yes, run: (a) => a.createSavePoint() },
   { id: 'export-json', name: 'JSON 내보내기', group: '파일', available: yes, run: (a) => a.exportJson() },
   { id: 'print-view', name: '인쇄용 보기', group: '파일', available: yes, run: (a) => a.openPrint() },
   { id: 'import-json', name: 'JSON 가져오기', group: '파일', available: yes, run: (a) => a.importJson() },

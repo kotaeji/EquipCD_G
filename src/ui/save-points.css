@@ -1,0 +1,39 @@
+/* TURN-094. Loaded by SavePoints. Not styles.css. */
+
+.save-points { margin-top: var(--sp-4); }
+.save-points h2 { margin: 0 0 var(--sp-2); font-size: var(--fs-h2); }
+.save-points-lead { margin: 0 0 var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
+.save-points-error { margin: var(--sp-2) 0; color: var(--danger); font-size: var(--fs-sm); }
+.save-points-empty { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.save-point-list { list-style: none; margin: var(--sp-3) 0 0; padding: 0; }
+.save-point-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.save-point-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.save-point-name { font-size: var(--fs-md); font-weight: 700; }
+.save-point-meta { font-size: var(--fs-sm); color: var(--muted); }
+.save-point-note { font-size: var(--fs-sm); }
+.save-point-actions { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.save-point-form label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-1);
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-sm);
+}
+.save-point-form .name-note { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); }
+.save-point-diff { margin-top: var(--sp-3); }
+.save-point-diff .project-diff-lead { margin: 0 0 var(--sp-2); }

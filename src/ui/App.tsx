@@ -6,7 +6,7 @@ import { calibrateScale, clearDiagramBackground, pixelDistance, placeDiagramBack
 import { captureCopy, COPY_NEED_NODE, PASTE_EMPTY, PASTE_LOCKED, pasteClipboard, splitPasteNote, type Clipboard } from '../model/copyPaste';
 import { captureUnitTemplate, PLACE_LOCKED, placeUserTemplate, STORAGE_UNAVAILABLE, suggestTemplateName, templateIdFromDrag, templateNameKey, templateOriginText, templateSaveGate } from '../model/userTemplates';
 import { readTemplates, saveTemplate } from '../storage/userTemplates';
-import { emptyProject } from '../model/factory';
+import { emptyProject, newId } from '../model/factory';
 import { analyzeGaps, reconcileGapReview, type Gap } from '../model/gaps';
 import { analyzeRunGaps } from '../model/runGaps';
 import { applyEdit, initHistory, jumpHistory, redo, redoTooltip, undo, undoTooltip, type History } from '../model/history';
@@ -24,6 +24,7 @@ import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type Dura
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
 import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDraft, readDraftList, saveDraft, sweepDrafts, workTimesLabel, workTimesTitle, type DraftMeta } from '../storage/drafts';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
+import { savePointCount } from '../storage/savePoints';
 import { Canvas, type Mode } from './Canvas';
 import { BackgroundTools } from './BackgroundTools';
 import { UnitLockTools } from './UnitLock';
@@ -70,6 +71,7 @@ import { confirmationJump } from './confirmationJump';
 import { screenOf } from './screens';
 import { AmlResultSheet, BlockerSheet, BundleSheet, DiagSheet, ExportSheet, ExtendSheet, ExtractSheet, FilesSheet, gapVisible, LabSheet, materialSize, routeText, SearchSheet, signalCaption, signalRole } from './SparseScreens';
 import { DraftDiffToggle, ProjectDiffPanel } from './ProjectDiffView';
+import { SavePoints } from './SavePoints';
 import * as W from '../storage/workspaces';
 import { collapseAllIds, ProjectTree } from './ProjectTree';
 import { dialogOpen, NameDialog, ProjectList, type ProjectListRow, StaticModalFrame, WorkspaceManager } from './WorkspacePanels';
@@ -220,6 +222,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
   /** Station flow checkboxes. Kept here so a command from another step still sees them. */
   const [flowPicked, setFlowPicked] = useState<string[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [savePointCreate, setSavePointCreate] = useState(false);
   const [shortcutOpen, setShortcutOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   /** App-held copy of Units or Devices. Shared by every project tab. Not the OS clipboard. */
@@ -1460,6 +1463,15 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     const t = makeTab(proj); setTabs((ts) => [...ts, t]); setActiveKey(t.key); setSelection([]);
     setView((v) => ({ ...v, home: false }));
   };
+  /** TURN-094. A save point opens as its own project. The tab that was open stays as it was. */
+  const openSavePointCopy = (snap: Project) => {
+    const proj = { ...snap, id: newId('prj') };
+    const t = makeTab(proj);
+    setTabs((ts) => [...ts, t]);
+    setActiveKey(t.key);
+    setSelection([]);
+    setView((v) => ({ ...v, home: false }));
+  };
   const openStarter = (spec: StarterSpec): boolean => {
     const built = buildStarter(spec);
     if (!built.ok) { say(built.reason, true); return false; }
@@ -1811,7 +1823,12 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       onSubmit: (n) => { const r = W.renameSavedProject(kv, id, n); if (!r.ok) { say(r.reason, true); return; } setNameDlg(null); setReg((x) => ({ ...x })); say(`저장된 프로젝트 이름을 「${n}」(으)로 바꿨습니다 (rev ${r.revision})`); } }); };
   const deleteSaved = (id: string) => { if (!kv) return; const e = W.listProjects(kv, reg, reg.activeId).find((x) => x.id === id); if (!e) return;
     if (openIds.has(id)) { say('열린 프로젝트는 삭제할 수 없습니다 — 먼저 탭을 닫으세요', true); return; }
+    const points = savePointCount(kv, id);
+    const pointLine = points.ok
+      ? `저장 지점 ${points.count}개도 함께 지워집니다.`
+      : '저장 지점 목록을 읽지 못했습니다. 삭제하면 그 기록도 함께 지웁니다.';
     setModal({ title: `프로젝트 영구 삭제 — ${e.name}`, body: <div><p><b>{e.name}</b> <span className="mono">({e.id})</span>, rev {e.revision}</p>
+      <p data-save-point-count={points.ok ? String(points.count) : 'unreadable'}>{pointLine}</p>
       <p className="err-text">이 브라우저 저장소에서 영구 삭제합니다. <b>되돌릴 수 없습니다</b>(Undo 대상 아님). 필요하면 먼저 JSON으로 내보내세요.</p></div>,
       actions: [{ label: '취소', focus: true, run: () => {} },
         { label: 'JSON 내보내기', run: () => { const raw = kv.getItem(`ecd.v1.project.${id}`); if (raw) download(`${e.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, raw); setTimeout(() => deleteSaved(id), 0); } },
@@ -1988,6 +2005,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     setLayoutTab: openLayoutTab,
     setRunView,
     save: doSave,
+    createSavePoint: () => { goStep('check', 'diag'); setSavePointCreate(true); },
     exportJson: () => download(`${p.name.replace(/[^\w가-힣-]+/g, '_')}.ecd.json`, serializeProject(p)),
     openPrint: () => { setExportOpen(false); setPrintOpen(true); },
     importJson: () => fileRef.current?.click(),
@@ -2475,7 +2493,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
               <GapPanel p={p} gaps={tab.gaps} analyzedRevision={tab.analyzedRevision} onReanalyze={reanalyze} onGo={goGap} onReview={reviewGap} />
             </Fold>
           </section>}
-          {sub === 'diag' && <><ProjectDiffPanel project={p} savedRevision={tab.savedRevision} kv={storage.kv} onJump={(jump) => goItem({ level: 'optional', kind: 'gap', text: jump.field ?? jump.step, jump })} /><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} onJumpConfirmation={goConfirmation} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
+          {sub === 'diag' && <><ProjectDiffPanel project={p} savedRevision={tab.savedRevision} kv={storage.kv} onJump={(jump) => goItem({ level: 'optional', kind: 'gap', text: jump.field ?? jump.step, jump })} /><SavePoints project={p} kv={storage.kv} locked={locked} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} createOpen={savePointCreate} onCreateOpenChange={setSavePointCreate} onRestore={(next) => edit({ ok: true, project: next }, '저장 지점으로 되돌리기')} onOpenCopy={openSavePointCopy} onJump={(jump) => goItem({ level: 'optional', kind: 'gap', text: jump.field ?? jump.step, jump })} /><DiagSheet p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={(name, text) => download(name, text, 'application/octet-stream')} onAml={() => goStep('library', 'aml')} onJumpCondition={(f: ConditionFinding) => goItem({ level: f.level === 'error' ? 'missing' : 'undetermined', kind: 'condition', text: f.where, jump: f.jump })} onJumpConfirmation={goConfirmation} /><Fold className="fold-panel" summary="진단 자세히"><DiagPanel p={p} storageReason={storage.kv ? null : storage.reason ?? '저장소 없음'} quarantineList={qlist} onDownload={download} /></Fold></>}
           {sub === 'export' && <><ExportSheet p={p} onDownload={download} onGuide={goBlocker} /><Fold className="fold-panel" summary="행 단위 미리보기"><ExportPanel p={p} /></Fold></>}
           {sub === 'lab' && <LabSheet project={p} locked={locked} variants={tab.labVariants} result={tab.labResult}
             onChangeVariants={(variants) => updTab(tab.key, (t) => ({ ...t, labVariants: variants }))}
