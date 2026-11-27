@@ -7,8 +7,9 @@
 // This is NOT equipment control and NOT physics simulation.
 import type { Action, Condition, FlowNode, Project } from '../model/types';
 import { armLabel, branchArms, collectStepIds, conditionText, flowUsesSignal, hasFlow, stepOrder, walk } from '../model/flow';
+import { conditionFormula } from '../model/conditionFormula';
 import { feedMaterialAt, pieceHead } from '../model/materialMix';
-import { RUNTIME_RULES_VERSION } from '../model/types';
+import { loopModeOf, RUNTIME_RULES_VERSION } from '../model/types';
 import { checkRunReadiness, type Diagnostic } from '../model/validate';
 import { judgeInterlock, type InterlockBlockRecord, type InterlockHit } from './interlock';
 import { admitPieces, advancePieces, makePieces, seatPieces } from './multi';
@@ -148,6 +149,10 @@ export interface FlowFrame {
   until?: Condition;
   blockId?: string;
   name?: string;
+  /** Absent is a counted loop. `until` checks after the body. `while` checks before it. */
+  loopMode?: 'until' | 'while';
+  cond?: Condition;
+  limit?: number;
 }
 
 export interface FlowFiber {
@@ -666,10 +671,50 @@ function finishFiber(s: RuntimeState, fiber: FlowFiber) {
   wakeParent(s, fiber);
 }
 
+function popFrame(s: RuntimeState, fiber: FlowFiber) {
+  fiber.stack.pop();
+  if (!top(fiber)) finishFiber(s, fiber);
+}
+
+function finishConditionalLoop(p: Project, s: RuntimeState, fiber: FlowFiber, frame: FlowFrame) {
+  const cond = frame.cond ?? { kind: 'undefined' as const, note: '조건 없음' };
+  const verdict = evalCond(cond, s, p);
+  const iter = frame.iter ?? 1;
+  const limit = frame.limit ?? frame.count ?? 1;
+  const phrase = conditionFormula(p, cond);
+  const tag = controlTag(p, s, fiber);
+  const name = frame.name ?? '반복';
+  const leave = () => {
+    logAt(s, 'info', 'LOOP_EXIT', `${tag}${name} ${iter}회 — ${phrase}`, frame.blockId);
+    popFrame(s, fiber);
+  };
+  const again = () => {
+    frame.iter = iter + 1;
+    frame.index = 0;
+    logAt(s, 'info', 'LOOP_ITER', `${tag}${name} ${frame.iter}/${limit}`, frame.blockId);
+  };
+  const capped = () => {
+    failFlow(s, 'LOOP_LIMIT', frame.blockId ?? null, `${tag}${name} 상한 — ${phrase} — ${limit}회`);
+  };
+  if (frame.loopMode === 'until') {
+    if (verdict.ok) { leave(); return; }
+    if (iter < limit) { again(); return; }
+    capped();
+    return;
+  }
+  if (!verdict.ok) { leave(); return; }
+  if (iter < limit) { again(); return; }
+  capped();
+}
+
 function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
   const frame = top(fiber);
   if (!frame) { finishFiber(s, fiber); return; }
   if (frame.role === 'loop') {
+    if (frame.loopMode === 'until' || frame.loopMode === 'while') {
+      finishConditionalLoop(p, s, fiber, frame);
+      return;
+    }
     const iter = frame.iter ?? 1;
     const count = frame.count ?? 1;
     if (iter < count) {
@@ -678,8 +723,7 @@ function finishFrame(p: Project, s: RuntimeState, fiber: FlowFiber) {
       logAt(s, 'info', 'LOOP_ITER', `${controlTag(p, s, fiber)}${frame.name ?? '반복'} ${frame.iter}/${count}`, frame.blockId);
       return;
     }
-    fiber.stack.pop();
-    if (!top(fiber)) finishFiber(s, fiber);
+    popFrame(s, fiber);
     return;
   }
   if (frame.role === 'retry') {
@@ -871,8 +915,25 @@ function enterNode(p: Project, s: RuntimeState, fiber: FlowFiber, node: FlowNode
     return 'go';
   }
   if (node.kind === 'loop') {
-    logAt(s, 'info', 'LOOP_ITER', `${tag}${node.name} 1/${node.count}`, node.id);
-    fiber.stack.push({ role: 'loop', nodes: node.body, index: 0, count: node.count, iter: 1, blockId: node.id, name: node.name });
+    const mode = loopModeOf(node);
+    if (mode === 'count') {
+      logAt(s, 'info', 'LOOP_ITER', `${tag}${node.name} 1/${node.count}`, node.id);
+      fiber.stack.push({ role: 'loop', nodes: node.body, index: 0, count: node.count, iter: 1, blockId: node.id, name: node.name });
+      return 'go';
+    }
+    const cond = node.cond ?? { kind: 'undefined' as const, note: '조건 없음' };
+    const limit = typeof node.limit === 'number' ? node.limit : 0;
+    const phrase = conditionFormula(p, cond);
+    if (mode === 'while' && !evalCond(cond, s, p).ok) {
+      logAt(s, 'info', 'LOOP_EXIT', `${tag}${node.name} 0회 — ${phrase}`, node.id);
+      skipTree(s, node.body, fiber.owner ? fiber.lane : undefined);
+      return 'go';
+    }
+    logAt(s, 'info', 'LOOP_ITER', `${tag}${node.name} 1/${limit}`, node.id);
+    fiber.stack.push({
+      role: 'loop', nodes: node.body, index: 0, count: limit, iter: 1, limit,
+      loopMode: mode, cond, blockId: node.id, name: node.name,
+    });
     return 'go';
   }
   if (node.kind === 'retry') {

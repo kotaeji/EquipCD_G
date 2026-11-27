@@ -223,6 +223,7 @@ function errorTitle(code: string, stepName: string | null): string {
   if (code === 'TIMEOUT') return `${stepName ?? '실행'} 타임아웃`;
   if (code === 'INTERLOCK_BLOCK') return `${stepName ?? '실행'} Interlock 차단`;
   if (code === 'WAIT_TIMEOUT') return `${stepName ?? '신호 기다림'} 시간 초과`;
+  if (code === 'LOOP_LIMIT') return `${stepName ?? '반복'} 상한`;
   if (code === 'PRE_UNMET' || code === 'POST_UNMET') return `${stepName ?? '실행'} 조건 불충족`;
   if (code === 'CAPACITY_FULL') return `${stepName ?? '실행'} 수용 부족`;
   return `${stepName ?? '실행'} 실행 오류`;
@@ -236,22 +237,29 @@ function errorSuggestion(code: string): string {
   if (code === 'READ_FAILED') return '읽기 결과가 실패입니다. 조건이나 오류 주입을 확인하세요.';
   if (code === 'INTERLOCK_BLOCK') return '확인된 Interlock이 이 단계의 시작을 막았습니다. 조건을 맞추거나 확인을 거절하세요.';
   if (code === 'WAIT_TIMEOUT') return '타임아웃을 늘리거나, 다른 갈래가 그 조건을 먼저 만들게 하세요.';
+  if (code === 'LOOP_LIMIT') return '조건을 몸통의 Action 이 바꾸게 하거나, 상한 횟수를 늘리세요.';
   return '이 단계에서 실행이 멈췄습니다. 근거를 보고 그 칸을 고치세요.';
 }
 
-function flowWaitName(p: Project, id: string | null): string | null {
-  if (!id || !p.sequence.flow) return null;
-  const hit = findById(p.sequence.flow, id);
-  return hit?.node.kind === 'wait' ? hit.node.name : null;
+function flowNodeName(p: Project, id: string | null, kind: 'wait' | 'loop'): string | null {
+  if (!id) return null;
+  const flows = [p.sequence.flow, ...(p.substationSequences ?? []).map((q) => q.flow)];
+  for (const flow of flows) {
+    if (!flow) continue;
+    const hit = findById(flow, id);
+    if (hit?.node.kind === kind) return hit.node.name;
+  }
+  return null;
 }
 
 function errorGap(p: Project, rt: RuntimeState): Gap | null {
   if (rt.status !== 'error' || !rt.error) return null;
   const err = rt.error;
   const found = err.stepId ? actionOf(p, err.stepId) : null;
-  const waited = err.code === 'WAIT_TIMEOUT' ? flowWaitName(p, err.stepId) : null;
+  const waited = err.code === 'WAIT_TIMEOUT' ? flowNodeName(p, err.stepId, 'wait') : null;
+  const limited = err.code === 'LOOP_LIMIT' ? flowNodeName(p, err.stepId, 'loop') : null;
   const stopped = rt.steps.find((rec) => rec.status === 'error' || rec.status === 'stopped');
-  const stepName = found?.step.name ?? waited ?? (stopped ? stepOf(p, stopped.stepId)?.name : undefined) ?? null;
+  const stepName = found?.step.name ?? waited ?? limited ?? (stopped ? stepOf(p, stopped.stepId)?.name : undefined) ?? null;
   const log = [...rt.log].reverse().find((entry) => entry.code === err.code);
   const when = log?.t ?? rt.timeMs;
   const block = err.code === 'INTERLOCK_BLOCK'
@@ -259,7 +267,7 @@ function errorGap(p: Project, rt: RuntimeState): Gap | null {
     : undefined;
   let fix: RunGapFix | undefined;
   if (block) fix = { to: 'interlock', interlockId: block.interlockId };
-  else if (err.code === 'WAIT_TIMEOUT' && err.stepId) fix = { to: 'flow', blockId: err.stepId };
+  else if ((err.code === 'WAIT_TIMEOUT' || err.code === 'LOOP_LIMIT') && err.stepId) fix = { to: 'flow', blockId: err.stepId };
   else if (err.code === 'TIMEOUT' && found) fix = { to: 'timeout', actionId: found.action.id, deviceId: found.action.deviceId };
   else if (err.code === 'CAPACITY_FULL' && found) fix = { to: 'unit', unitId: found.action.unitId };
   else if (err.code === 'DEADLOCK') {
@@ -273,7 +281,7 @@ function errorGap(p: Project, rt: RuntimeState): Gap | null {
     kind: errorKind(err.code),
     title: errorTitle(err.code, stepName),
     evidence: `${err.message}. ${basis(when, err.code, name)}`,
-    stepIds: found ? [found.step.id] : err.code === 'WAIT_TIMEOUT' && err.stepId ? [err.stepId] : stopped ? [stopped.stepId] : [],
+    stepIds: found ? [found.step.id] : (err.code === 'WAIT_TIMEOUT' || err.code === 'LOOP_LIMIT') && err.stepId ? [err.stepId] : stopped ? [stopped.stepId] : [],
     objectIds: found ? [found.action.deviceId, found.action.id] : fix?.to === 'unit' ? [fix.unitId] : [],
     suggestion: errorSuggestion(err.code),
     target: fix?.to === 'unit'

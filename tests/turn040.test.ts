@@ -278,8 +278,8 @@ describe('TURN-040 multi-piece feed', () => {
   });
 
   it('AC15 the rules version moved to 0.4.0', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.10.0');
-    expect(runToEnd(createRuntime(buildSampleProject())).state.rulesVersion).toBe('seq-runtime/0.10.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.11.0');
+    expect(runToEnd(createRuntime(buildSampleProject())).state.rulesVersion).toBe('seq-runtime/0.11.0');
   });
 
   it('three pieces are drawn, and a waiting one is marked', () => {

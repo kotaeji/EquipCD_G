@@ -35,6 +35,13 @@ table.flow-table.ecd-table.grid > tbody > tr > td.flow-name::before {
 .flow-table td.flow-detail,
 .flow-table td.flow-name { min-width: 0; }
 .flow-fit { min-width: 0; max-width: 100%; }
+.flow-loop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+}
 .flow-table select,
 .flow-table input,
 .flow-block-name { max-width: 100%; min-width: 0; }

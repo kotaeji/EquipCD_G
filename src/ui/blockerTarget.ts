@@ -3,7 +3,7 @@
 // not exist. Navigation only: never changes the model, the group gate rules, or run blocking.
 import type { Diagnostic } from '../model/validate';
 import { MAX_MATERIAL_DEFS } from '../model/materialMix';
-import type { Condition, Project, SubstationSequence } from '../model/types';
+import { loopModeOf, type Condition, type Project, type SubstationSequence } from '../model/types';
 import { findById } from '../model/flow';
 import { STEPS, type StepId } from './wizard';
 
@@ -77,6 +77,15 @@ export function branchArmField(p: Project, b: { objectId: string; message?: stri
   return `flow:${b.objectId}:arm:${Number(match[1]) - 1}`;
 }
 
+function conditionalLoopGuide(p: Project, objectId: string): BlockerGuide | null {
+  const owner = flowBlockOwner(p, objectId);
+  if (!owner) return null;
+  const flow = owner === 'station' ? p.sequence.flow : owner.flow;
+  const hit = flow && findById(flow, objectId);
+  if (!hit || hit.node.kind !== 'loop' || loopModeOf(hit.node) === 'count') return null;
+  return subFlowGuide(p, objectId, `flow:${objectId}`) ?? { kind: 'fix', dest: STATION_SEQ, field: `flow:${objectId}` };
+}
+
 function subFlowGuide(p: Project, objectId: string, field: string): BlockerGuide | null {
   const owner = flowBlockOwner(p, objectId);
   if (!owner || owner === 'station') return null;
@@ -102,8 +111,12 @@ export function resolveBlocker(p: Project, b: { code: string; objectId: string; 
     case 'CONDITION_UNDEFINED': {
       const field = branchArmField(p, b);
       if (field) return subFlowGuide(p, b.objectId, field) ?? { kind: 'fix', dest: STATION_SEQ, field };
+      const loop = conditionalLoopGuide(p, b.objectId);
+      if (loop) return loop;
       return resolveStepValue(p, b, all);
     }
+    case 'LOOP_LIMIT_UNDEFINED':
+      return conditionalLoopGuide(p, b.objectId) ?? { kind: 'fix', dest: STATION_SEQ, field: `flow:${b.objectId}` };
     case 'MATERIAL_COUNT':
       if (p.materials.length === 0 || p.materials.length > MAX_MATERIAL_DEFS) return { kind: 'fix', dest: MATERIAL };
       return { kind: 'unsupported', note: `자재 정의가 ${p.materials.length}개입니다. Substation 그룹 실행은 자재 정의 1개만 지원합니다. Station 시퀀스에서는 종류를 섞어 실행합니다.` };

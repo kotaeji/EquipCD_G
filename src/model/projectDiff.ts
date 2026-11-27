@@ -295,6 +295,11 @@ function flowFields(n: FlowNode): [string, string][] {
       break;
     case 'loop':
       fields.push(['횟수', String(n.count)]);
+      if (n.mode === 'until' || n.mode === 'while') {
+        fields.push(['방식', n.mode === 'until' ? '참이 될 때까지' : '참인 동안']);
+        if (n.cond) fields.push(['조건', condText(n.cond)]);
+        fields.push(['상한', n.limit == null ? '미정' : String(n.limit)]);
+      }
       break;
     case 'retry':
       fields.push(['조건', condText(n.until)], ['최대', String(n.maxRetries)]);

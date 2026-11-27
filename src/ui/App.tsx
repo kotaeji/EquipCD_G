@@ -2503,7 +2503,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
             const rule = p.constraints.find((k) => k.id === interlockId)?.rule;
             const phrase = runBlockFormula(p, shown.error.code, shown.error.stepId, rule?.form === 'allow' ? rule.conditions : undefined);
             const base = runErrorProblem(shown.error.code, shown.error.message, named, phrase);
-            const copy = base && phrase && shown.error.code !== 'WAIT_TIMEOUT' ? { ...base, why: `${base.why} ${phrase}` } : base;
+            const copy = base && phrase && shown.error.code !== 'WAIT_TIMEOUT' && shown.error.code !== 'LOOP_LIMIT'
+              ? { ...base, why: `${base.why} ${phrase}` } : base;
             if (!copy) return null;
             const jump = shown.error.code === 'INTERLOCK_BLOCK'
               ? () => {

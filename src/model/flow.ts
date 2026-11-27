@@ -3,7 +3,7 @@
 // Substation can be paused while another keeps the virtual clock moving. Other nesting is allowed.
 import { materialMark } from './materialMix';
 import type { BranchCase, Condition, FlowNode, Project, SequenceStep } from './types';
-import { DEFAULT_MAX_RETRIES } from './types';
+import { DEFAULT_MAX_RETRIES, LOOP_LIMIT_MAX, loopModeOf } from './types';
 import type { Diagnostic } from './validate';
 
 export { DEFAULT_MAX_RETRIES };
@@ -397,10 +397,7 @@ export function flowShapeBlockers(p: Project): Diagnostic[] {
       if (!Number.isInteger(n.maxRetries) || n.maxRetries < 0 || n.maxRetries > DEFAULT_MAX_RETRIES) err('RETRY_RANGE', n.id, `재시도 ${n.name}: 추가 횟수는 0~${DEFAULT_MAX_RETRIES}`);
       if (n.body.length === 0) err('EMPTY_BLOCK', n.id, `재시도 ${n.name}: 본문이 비어 있음`);
     }
-    if (n.kind === 'loop') {
-      if (!Number.isInteger(n.count) || n.count < 1 || n.count > 10) err('LOOP_RANGE', n.id, `반복 ${n.name}: 횟수는 1~10`);
-      if (n.body.length === 0) err('EMPTY_BLOCK', n.id, `반복 ${n.name}: 본문이 비어 있음`);
-    }
+    if (n.kind === 'loop') reportLoop(n, `반복 ${n.name}`, err);
     if (n.kind === 'parallel') {
       if (n.lanes.length < 2 || n.lanes.length > 4) err('LANE_RANGE', n.id, `병렬 ${n.name}: 갈래는 2~4개 (현재 ${n.lanes.length})`);
       n.lanes.forEach((lane, i) => { if (lane.length === 0) err('EMPTY_LANE', n.id, `병렬 ${n.name}: 갈래 ${i + 1} 이 비어 있음`); });
@@ -443,10 +440,7 @@ export function substationFlowShapeBlockers(p: Project): Diagnostic[] {
         if (!Number.isInteger(n.maxRetries) || n.maxRetries < 0 || n.maxRetries > DEFAULT_MAX_RETRIES) err('RETRY_RANGE', n.id, `${q.name} 재시도 ${n.name}: 추가 횟수는 0~${DEFAULT_MAX_RETRIES}`);
         if (n.body.length === 0) err('EMPTY_BLOCK', n.id, `${q.name} 재시도 ${n.name}: 본문이 비어 있음`);
       }
-      if (n.kind === 'loop') {
-        if (!Number.isInteger(n.count) || n.count < 1 || n.count > 10) err('LOOP_RANGE', n.id, `${q.name} 반복 ${n.name}: 횟수는 1~10`);
-        if (n.body.length === 0) err('EMPTY_BLOCK', n.id, `${q.name} 반복 ${n.name}: 본문이 비어 있음`);
-      }
+      if (n.kind === 'loop') reportLoop(n, `${q.name} 반복 ${n.name}`, err);
     });
   }
   return out;
@@ -458,7 +452,7 @@ export function sequenceRunSteps(q: { steps: SequenceStep[]; flow?: FlowNode[] }
   return collectStepIds(q.flow).map((id) => q.steps.find((s) => s.id === id)).filter((s): s is SequenceStep => !!s);
 }
 
-/** A branch or retry condition reads this signal. Used to keep a failed read going. */
+/** A branch, retry, wait, or conditional-loop condition reads this signal. Used to keep a failed read going. */
 export function flowUsesSignal(nodes: FlowNode[], signalId: string): boolean {
   let used = false;
   const see = (c: Condition) => { if (c.kind === 'signal' && c.signalId === signalId) used = true; };
@@ -466,8 +460,31 @@ export function flowUsesSignal(nodes: FlowNode[], signalId: string): boolean {
     if (n.kind === 'branch') for (const arm of branchArms(n)) if (arm.cond) see(arm.cond);
     if (n.kind === 'retry') see(n.until);
     if (n.kind === 'wait') see(n.cond);
+    if (n.kind === 'loop' && n.cond) see(n.cond);
   });
   return used;
+}
+
+/** How many times a gap estimate repeats a loop body. A missing conditional cap counts as 0. */
+export function loopTimes(n: Extract<FlowNode, { kind: 'loop' }>): number {
+  if (loopModeOf(n) === 'count') return n.count;
+  return typeof n.limit === 'number' && Number.isInteger(n.limit) ? n.limit : 0;
+}
+
+function reportLoop(n: Extract<FlowNode, { kind: 'loop' }>, place: string, err: (code: string, objectId: string, message: string) => void) {
+  if (n.body.length === 0) err('EMPTY_BLOCK', n.id, `${place}: 본문이 비어 있음`);
+  if (loopModeOf(n) === 'count') {
+    if (!Number.isInteger(n.count) || n.count < 1 || n.count > 10) err('LOOP_RANGE', n.id, `${place}: 횟수는 1~10`);
+    return;
+  }
+  if (!n.cond || n.cond.kind === 'undefined') {
+    const note = n.cond && n.cond.kind === 'undefined' ? n.cond.note : '조건 없음';
+    err('CONDITION_UNDEFINED', n.id, `${place}: 미정 조건 "${note}" — 임의 true 처리 안 함`);
+  }
+  const lim = n.limit;
+  if (lim == null || !Number.isInteger(lim) || lim < 1 || lim > LOOP_LIMIT_MAX) {
+    err('LOOP_LIMIT_UNDEFINED', n.id, `${place}: 상한 미정`);
+  }
 }
 
 export interface LaneWork { name: string; steps: SequenceStep[] }
@@ -496,7 +513,7 @@ export function assumedCycleSeconds(p: Project, nodes: FlowNode[]): number {
       if (n.kind === 'step') t += stepDur(n.stepId);
       else if (n.kind === 'branch') t += Math.max(...armLists(n).map(rec));
       else if (n.kind === 'parallel') t += n.lanes.reduce((m, lane) => Math.max(m, rec(lane)), 0);
-      else if (n.kind === 'loop') t += n.count * rec(n.body);
+      else if (n.kind === 'loop') t += loopTimes(n) * rec(n.body);
       else if (n.kind === 'retry') t += rec(n.body);
       else if (n.kind === 'wait') t += n.timeout.value ?? 0;
       else t += substationSeconds(p, n.unitId);
@@ -519,7 +536,7 @@ function nodesSeconds(p: Project, nodes: FlowNode[], seen: Set<string>): number 
     if (n.kind === 'step') t += anyStepSeconds(p, n.stepId);
     else if (n.kind === 'branch') t += Math.max(0, ...armLists(n).map((body) => nodesSeconds(p, body, seen)));
     else if (n.kind === 'parallel') t += n.lanes.reduce((m, lane) => Math.max(m, nodesSeconds(p, lane, seen)), 0);
-    else if (n.kind === 'loop') t += n.count * nodesSeconds(p, n.body, seen);
+    else if (n.kind === 'loop') t += loopTimes(n) * nodesSeconds(p, n.body, seen);
     else if (n.kind === 'retry') t += nodesSeconds(p, n.body, seen);
     else if (n.kind === 'wait') t += n.timeout.value ?? 0;
     else if (!seen.has(n.unitId)) t += substationSeconds(p, n.unitId, seen);
@@ -562,7 +579,7 @@ export function assumedSecondsByUnit(p: Project, nodes: FlowNode[]): Map<string,
         const keys = new Set(maps.flatMap((m) => [...m.keys()]));
         for (const k of keys) add(k, Math.max(...maps.map((m) => m.get(k) ?? 0)));
       } else if (n.kind === 'loop') {
-        for (const [k, v] of unitMap(p, n.body)) add(k, v * n.count);
+        for (const [k, v] of unitMap(p, n.body)) add(k, v * loopTimes(n));
       } else if (n.kind === 'retry') {
         for (const [k, v] of unitMap(p, n.body)) add(k, v);
       } else if (n.kind === 'wait') {

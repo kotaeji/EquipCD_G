@@ -8,7 +8,7 @@ import {
   type ConfirmStamp,
 } from './confirmationLog';
 import type { Action, AssetKind, Candidate, Condition, Connection, Device, FlowNode, GapReviewEntry, InterlockRule, Material, Position, Project, Quantity, QuantityRef, SequenceStep, Signal, SubstationSequence, Unit } from './types';
-import { DEFAULT_MAX_RETRIES, q } from './types';
+import { DEFAULT_MAX_RETRIES, LOOP_LIMIT_DEFAULT, LOOP_LIMIT_MAX, loopModeOf, q } from './types';
 import { armLists, branchArms, branchFromArms, containsList, containsParallel, findById, findConsecutive, findOwner, linearFlow, listInsideParallel, MAX_BRANCH_ARMS, moveNodeBy, moveNodeTo, scrubFlow, unwrapBlock, wrapStepNodes, type BranchArm } from './flow';
 import { arrangeUnitDevices } from './deviceArrange';
 import { MAX_MATERIAL_DEFS, materialMark, nextMark, patternFromCounts } from './materialMix';
@@ -1371,6 +1371,38 @@ export function setLoopCount(p0: Project, blockId: string, count: number, seqId?
   return ok(p);
 }
 
+/** Switch a loop among count, until, and while. One call is one revision. Count mode drops the optional fields. */
+export function setLoopMode(p0: Project, blockId: string, mode: 'count' | 'until' | 'while', seqId?: string): CmdResult {
+  if (mode !== 'count' && mode !== 'until' && mode !== 'while') return no('반복 방식 없음');
+  const p = clone(p0);
+  const flow = flowHome(p, seqId)?.read();
+  const hit = flow && findById(flow, blockId);
+  if (!hit || hit.node.kind !== 'loop') return no('반복 블록 없음');
+  const node = hit.node;
+  if (mode === 'count') {
+    delete node.mode;
+    delete node.cond;
+    delete node.limit;
+    return ok(p);
+  }
+  node.mode = mode;
+  if (!node.cond) node.cond = resultCond(p);
+  if (node.limit === undefined) node.limit = LOOP_LIMIT_DEFAULT;
+  return ok(p);
+}
+
+/** Conditional loops only. Null is 미정 and blocks a run. */
+export function setLoopLimit(p0: Project, blockId: string, limit: number | null, seqId?: string): CmdResult {
+  if (limit !== null && (!Number.isInteger(limit) || limit < 1 || limit > LOOP_LIMIT_MAX)) return no('상한은 1~999');
+  const p = clone(p0);
+  const flow = flowHome(p, seqId)?.read();
+  const hit = flow && findById(flow, blockId);
+  if (!hit || hit.node.kind !== 'loop') return no('반복 블록 없음');
+  if (loopModeOf(hit.node) === 'count') return no('횟수 반복에는 상한이 없습니다');
+  hit.node.limit = limit;
+  return ok(p);
+}
+
 export function setRetryMax(p0: Project, blockId: string, maxRetries: number, seqId?: string): CmdResult {
   if (!Number.isInteger(maxRetries) || maxRetries < 0 || maxRetries > DEFAULT_MAX_RETRIES) return no(`재시도는 0~${DEFAULT_MAX_RETRIES}`);
   const p = clone(p0);
@@ -1389,7 +1421,10 @@ export function setFlowCondition(p0: Project, blockId: string, cond: Condition, 
   if (hit.node.kind === 'branch') hit.node.cond = cond;
   else if (hit.node.kind === 'retry') hit.node.until = cond;
   else if (hit.node.kind === 'wait') hit.node.cond = cond;
-  else return no('조건을 두는 블록이 아닙니다');
+  else if (hit.node.kind === 'loop') {
+    if (loopModeOf(hit.node) === 'count') return no('조건을 두는 블록이 아닙니다');
+    hit.node.cond = cond;
+  } else return no('조건을 두는 블록이 아닙니다');
   return ok(p);
 }
 

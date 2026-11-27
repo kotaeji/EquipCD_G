@@ -161,7 +161,7 @@ describe('TURN-080 several material definitions', () => {
       expect(serializeProject(opened.project)).toBe(raw);
       const rt = runToEnd(createRuntime(opened.project));
       expect(rt.state.log.some((l) => l.message.includes('종류'))).toBe(false);
-      expect(rt.state.rulesVersion).toBe('seq-runtime/0.10.0');
+      expect(rt.state.rulesVersion).toBe('seq-runtime/0.11.0');
     }
     const sample = buildSampleProject();
     const opened = parseProjectFile(serializeProject(sample));
@@ -195,15 +195,15 @@ describe('TURN-080 several material definitions', () => {
   });
 
   it('AC8 the same model yields the same log and the rule version moved to 0.10.0', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.10.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.11.0');
     const p = withKind(fed(buildSampleProject(), 4, 1));
     const ordered = setFeedPattern(p, ['MAT-001', 'MAT-B']);
     if (!ordered.ok) throw new Error(ordered.reason);
     const a = runToEnd(createRuntime(ordered.project, 'same'));
     const b = runToEnd(createRuntime(ordered.project, 'same'));
     expect(b.state.log).toEqual(a.state.log);
-    expect(a.state.rulesVersion).toBe('seq-runtime/0.10.0');
-    expect(a.state.log.find((l) => l.code === 'RUN_START')?.message).toContain('seq-runtime/0.10.0');
+    expect(a.state.rulesVersion).toBe('seq-runtime/0.11.0');
+    expect(a.state.log.find((l) => l.code === 'RUN_START')?.message).toContain('seq-runtime/0.11.0');
   });
 
   it('refuses a fifth definition and clears a used kind only through the command', () => {

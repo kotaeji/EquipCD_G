@@ -5,7 +5,7 @@ import { conditionFormula } from './conditionFormula';
 import { walk } from './flow';
 import { analyzeGaps, GAP_KIND_LABEL } from './gaps';
 import { interlockSummary } from './interlock';
-import type { FlowNode, Layout, Project, Quantity, SequenceStep } from './types';
+import { loopModeOf, type FlowNode, type Layout, type Project, type Quantity, type SequenceStep } from './types';
 
 export const PRINT_LIMIT = '논리 시뮬레이션 — 실제 장비 제어 / 안전 검증 아님 · 검토 후보';
 
@@ -107,7 +107,10 @@ function flatten(p: Project, steps: SequenceStep[], nodes: FlowNode[], depth: nu
         out.push(...flatten(p, steps, lane, depth + 2));
       });
     } else if (n.kind === 'loop') {
-      out.push({ key: n.id, depth, title: blockTitle('loop', n.name), detail: `${n.count}회` });
+      const detail = loopModeOf(n) === 'count'
+        ? `${n.count}회`
+        : `${n.mode === 'until' ? '참이 될 때까지' : '참인 동안'} · ${n.cond ? conditionFormula(p, n.cond) : '미정'} · 최대 ${n.limit ?? '미정'}`;
+      out.push({ key: n.id, depth, title: blockTitle('loop', n.name), detail });
       out.push(...flatten(p, steps, n.body, depth + 1));
     } else if (n.kind === 'retry') {
       out.push({ key: n.id, depth, title: blockTitle('retry', n.name), detail: `${conditionFormula(p, n.until)} · 최대 ${n.maxRetries}회` });

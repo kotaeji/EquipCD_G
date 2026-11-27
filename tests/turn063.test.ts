@@ -184,8 +184,8 @@ describe('TURN-063 multi-way branch', () => {
     expect(createRuntime(added.project).state.status).toBe('idle');
   });
 
-  it('AC8 the runtime rule is seq-runtime/0.10.0', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.10.0');
-    expect(runToEnd(createRuntime(buildSampleProject())).state.rulesVersion).toBe('seq-runtime/0.10.0');
+  it('AC8 the runtime rule is seq-runtime/0.11.0', () => {
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.11.0');
+    expect(runToEnd(createRuntime(buildSampleProject())).state.rulesVersion).toBe('seq-runtime/0.11.0');
   });
 });

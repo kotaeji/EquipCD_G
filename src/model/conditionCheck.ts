@@ -2,10 +2,11 @@
 // The same model returns the same findings in the same order.
 import { armLabel, armLists, branchArms, walk } from './flow';
 import { conditionFormula, conditionsFormula, signalHead, stepById } from './conditionFormula';
-import type { Condition, FlowNode, Project, SequenceStep } from './types';
+import type { Action, Condition, FlowNode, Project, SequenceStep } from './types';
+import { loopModeOf } from './types';
 
 export type ConditionLevel = 'error' | 'undetermined' | 'info';
-export type ConditionKind = 'broken' | 'alwaysFalse' | 'overlap' | 'undetermined' | 'opposite' | 'unreachable' | 'emptyArm';
+export type ConditionKind = 'broken' | 'alwaysFalse' | 'overlap' | 'undetermined' | 'opposite' | 'unreachable' | 'emptyArm' | 'unchanged';
 
 export interface ConditionJump {
   step: 'attributes' | 'sequence';
@@ -130,6 +131,9 @@ function sitesOf(p: Project): Site[] {
       }
       else if (n.kind === 'retry') out.push({ key: `flow:${n.id}`, where: `재시도 ${n.name}`, list: [n.until], jump: flowJump(n.id) });
       else if (n.kind === 'wait') out.push({ key: `flow:${n.id}`, where: `신호 기다림 ${n.name}`, list: [n.cond], jump: flowJump(n.id) });
+      else if (n.kind === 'loop' && n.cond && loopModeOf(n) !== 'count') {
+        out.push({ key: `flow:${n.id}`, where: `반복 ${n.name}`, list: [n.cond], jump: flowJump(n.id) });
+      }
     });
   }
   for (const seq of p.substationSequences ?? []) {
@@ -153,6 +157,9 @@ function sitesOf(p: Project): Site[] {
         });
       } else if (n.kind === 'retry') out.push({ key: `flow:${n.id}`, where: `${seq.name} 재시도 ${n.name}`, list: [n.until], jump: jumpTo(`flow:${n.id}`) });
       else if (n.kind === 'wait') out.push({ key: `flow:${n.id}`, where: `${seq.name} 신호 기다림 ${n.name}`, list: [n.cond], jump: jumpTo(`flow:${n.id}`) });
+      else if (n.kind === 'loop' && n.cond && loopModeOf(n) !== 'count') {
+        out.push({ key: `flow:${n.id}`, where: `${seq.name} 반복 ${n.name}`, list: [n.cond], jump: jumpTo(`flow:${n.id}`) });
+      }
     });
   }
   for (const k of p.constraints) {
@@ -403,7 +410,83 @@ function emptyArmFindings(p: Project): ConditionFinding[] {
   return out;
 }
 
-/** Every condition site, then opposite lanes, then unreachable and empty arms. Order is file order. */
+function actionsIn(p: Project, nodes: FlowNode[]): Action[] {
+  const out: Action[] = [];
+  const rec = (list: FlowNode[]) => {
+    for (const n of list) {
+      if (n.kind === 'step') {
+        const step = stepById(p, n.stepId);
+        const action = step && p.actions.find((a) => a.id === step.actionId);
+        if (action) out.push(action);
+      } else if (n.kind === 'branch') armLists(n).forEach(rec);
+      else if (n.kind === 'parallel') n.lanes.forEach(rec);
+      else if (n.kind === 'loop' || n.kind === 'retry') rec(n.body);
+      else if (n.kind === 'substation') {
+        for (const q of (p.substationSequences ?? []).filter((seq) => seq.unitId === n.unitId)) {
+          rec(q.flow ?? q.steps.map((s) => ({ kind: 'step' as const, stepId: s.id })));
+        }
+      }
+    }
+  };
+  rec(nodes);
+  return out;
+}
+
+/** True when this Action writes the thing the condition reads. A material kind never changes. */
+function actionChanges(p: Project, action: Action, cond: Condition): boolean {
+  if (cond.kind === 'undefined' || cond.kind === 'materialType') return false;
+  if (cond.kind === 'materialAt') return action.effect.moveTo != null;
+  if (cond.kind === 'materialState') return action.effect.setState != null;
+  if (cond.kind === 'materialHeldBy') return action.effect.holder !== undefined;
+  if (action.commandSignalId === cond.signalId || action.completeSignalId === cond.signalId) return true;
+  if (action.kind === 'read') {
+    const result = p.signals.find((s) => s.deviceId === action.deviceId && s.role === 'result');
+    if (result?.id === cond.signalId) return true;
+  }
+  const sig = p.signals.find((s) => s.id === cond.signalId);
+  if (!sig) return false;
+  if (sig.role === 'sensor' && action.effect.moveTo) return true;
+  if (sig.role === 'complete' && action.deviceId === sig.deviceId) return true;
+  return false;
+}
+
+/**
+ * A conditional loop whose body never writes the condition will run until the cap
+ * (or, for while, never enter). Counted loops are not checked.
+ */
+function unchangedLoopFindings(p: Project): ConditionFinding[] {
+  const out: ConditionFinding[] = [];
+  const scan = (flow: FlowNode[], whereOf: (name: string) => string, jumpOf: (id: string) => ConditionJump) => {
+    walk(flow, (n) => {
+      if (n.kind !== 'loop' || loopModeOf(n) === 'count' || !n.cond || n.cond.kind === 'undefined') return;
+      if (actionsIn(p, n.body).some((action) => actionChanges(p, action, n.cond!))) return;
+      const site = `flow:${n.id}`;
+      out.push({
+        id: `unchanged:${n.id}`,
+        level: 'info',
+        kind: 'unchanged',
+        site,
+        sites: [site],
+        where: whereOf(n.name),
+        formula: conditionFormula(p, n.cond),
+        reason: '이 조건은 몸통의 어떤 Action 으로도 바뀌지 않는다',
+        jump: jumpOf(n.id),
+      });
+    });
+  };
+  if (p.sequence.flow) scan(p.sequence.flow, (name) => `반복 ${name}`, (id) => flowJump(id));
+  for (const seq of p.substationSequences ?? []) {
+    if (!seq.flow) continue;
+    scan(
+      seq.flow,
+      (name) => `${seq.name} 반복 ${name}`,
+      (id) => ({ step: 'sequence', sub: 'subseq', selectId: seq.unitId, field: `flow:${id}` }),
+    );
+  }
+  return out;
+}
+
+/** Every condition site, then opposite lanes, then unreachable, empty arms, and stuck loops. Order is file order. */
 export function checkConditions(p: Project): ConditionFinding[] {
   const states = knownStates(p);
   const out: ConditionFinding[] = [];
@@ -411,5 +494,6 @@ export function checkConditions(p: Project): ConditionFinding[] {
   out.push(...oppositeFindings(p));
   out.push(...unreachableFindings(p));
   out.push(...emptyArmFindings(p));
+  out.push(...unchangedLoopFindings(p));
   return out;
 }
