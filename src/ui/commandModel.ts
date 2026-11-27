@@ -7,7 +7,11 @@ import {
   ARRANGE_NEED_2,
   ARRANGE_NEED_3,
   arrangeDevicesTarget,
+  DEVICE_ARRANGE_NEED_2,
+  DEVICE_ARRANGE_NEED_3,
+  DEVICE_ARRANGE_ONE_UNIT,
   DUPLICATE_NEED_DEVICE,
+  selectedArrangeTarget,
   SUB_NO_PARALLEL,
   SUB_NO_SUBSTEP,
   type WrapKind,
@@ -89,6 +93,7 @@ export interface CommandActions {
   matchSize: (axis: 'w' | 'h') => void;
   spread: () => void;
   arrangeDevices: () => void;
+  arrangeSelected: () => void;
   fitUnit: () => void;
   connectMode: (mode: 'flow' | 'signal') => void;
   wrapFlow: (kind: WrapKind) => void;
@@ -158,6 +163,7 @@ export const EXTRA_SHORTCUTS: readonly ExtraShortcut[] = [
   { id: 'extra-diagram-signal', keys: 'S', name: '신호 잇기', where: '2단계 · 6단계 도면' },
   { id: 'extra-diagram-zoom', keys: '+ −', name: '도면 확대·축소', where: '2단계 · 6단계 도면' },
   { id: 'extra-diagram-fit', keys: '0', name: '도면 화면 맞춤', where: '2단계 · 6단계 도면' },
+  { id: 'extra-arrange-selected', keys: '배치 ▾', name: '고른 것만 자동 정렬', where: '2단계 도면 · Unit 둘 이상' },
 ];
 
 function unitIds(s: CommandState) {
@@ -171,6 +177,21 @@ function nodeIds(s: CommandState) {
 }
 function oneConnection(s: CommandState) {
   return s.selection.length === 1 && s.project.connections.some((c) => c.id === s.selection[0]);
+}
+
+/** Unit count wins. Otherwise Devices of one Unit. `unitsOnly` ignores Devices. */
+function arrangeGate(s: CommandState, min: number, unitsOnly = false): Gate {
+  if (s.locked) return no(EDIT_LOCKED);
+  const units = unitIds(s);
+  const devs = deviceIds(s);
+  if (!unitsOnly && units.length < 2 && devs.length >= 2) {
+    const owners = new Set(devs.map((id) => s.project.devices.find((d) => d.id === id)!.unitId));
+    if (owners.size !== 1) return no(DEVICE_ARRANGE_ONE_UNIT);
+    if (devs.length < min) return no(min >= 3 ? DEVICE_ARRANGE_NEED_3 : DEVICE_ARRANGE_NEED_2);
+    return yes();
+  }
+  if (units.length < min) return no(min >= 3 ? ARRANGE_NEED_3 : ARRANGE_NEED_2);
+  return yes();
 }
 
 function lockOr(s: CommandState, reason: string | undefined): Gate {
@@ -281,7 +302,7 @@ export const COMMANDS: readonly CommandDef[] = [
   {
     id: 'duplicate', name: '복제', group: '편집', steps: ['canvas', 'attributes'], where: '2단계 · 3단계',
     keys: [{ key: 'd', mod: true }],
-    available: (s) => (s.locked ? no('실행 중에는 복제가 차단됩니다') : deviceIds(s).length ? yes() : no(DUPLICATE_NEED_DEVICE)),
+    available: (s) => (s.locked ? no('실행 중에는 복제가 차단됩니다') : unitIds(s).length || deviceIds(s).length ? yes() : no(DUPLICATE_NEED_DEVICE)),
     run: (a) => a.duplicate(),
   },
   {
@@ -308,28 +329,38 @@ export const COMMANDS: readonly CommandDef[] = [
   },
   {
     id: 'gap-x', name: '가로 간격 같게', group: '편집', steps: ['canvas'],
-    available: (s) => lockOr(s, unitIds(s).length < 3 ? ARRANGE_NEED_3 : undefined),
+    available: (s) => arrangeGate(s, 3),
     run: (a) => { a.goStep('canvas'); a.setLayoutTab('diagram'); a.distribute('x'); },
   },
   {
     id: 'gap-y', name: '세로 간격 같게', group: '편집', steps: ['canvas'],
-    available: (s) => lockOr(s, unitIds(s).length < 3 ? ARRANGE_NEED_3 : undefined),
+    available: (s) => arrangeGate(s, 3),
     run: (a) => { a.goStep('canvas'); a.setLayoutTab('diagram'); a.distribute('y'); },
   },
   {
     id: 'match-w', name: '너비 같게', group: '편집', steps: ['canvas'],
-    available: (s) => lockOr(s, unitIds(s).length < 2 ? ARRANGE_NEED_2 : undefined),
+    available: (s) => arrangeGate(s, 2),
     run: (a) => { a.goStep('canvas'); a.setLayoutTab('diagram'); a.matchSize('w'); },
   },
   {
     id: 'match-h', name: '높이 같게', group: '편집', steps: ['canvas'],
-    available: (s) => lockOr(s, unitIds(s).length < 2 ? ARRANGE_NEED_2 : undefined),
+    available: (s) => arrangeGate(s, 2),
     run: (a) => { a.goStep('canvas'); a.setLayoutTab('diagram'); a.matchSize('h'); },
   },
   {
     id: 'spread', name: '겹침 풀기', group: '편집', steps: ['canvas'],
     available: (s) => lockOr(s, unitIds(s).length < 2 ? ARRANGE_NEED_2 : undefined),
     run: (a) => { a.goStep('canvas'); a.setLayoutTab('diagram'); a.spread(); },
+  },
+  {
+    id: 'arrange-selected', name: '고른 것만 자동 정렬', group: '편집', steps: ['canvas'],
+    available: (s) => {
+      if (s.locked) return no(ARRANGE_DEVICES_LOCKED);
+      const target = selectedArrangeTarget(s.project, s.selection);
+      if (target.kind !== 'units') return no(ARRANGE_NEED_2);
+      return yes();
+    },
+    run: (a) => { a.goStep('canvas'); a.setLayoutTab('diagram'); a.arrangeSelected(); },
   },
   {
     id: 'arrange', name: '자동 정렬', group: '편집', steps: ['canvas'],

@@ -148,13 +148,10 @@ describe('TURN-021 canvas edit UI', () => {
     const dup = () => u.btn('복제', tools());
     expect(dup().disabled).toBe(true);
     expect(dup().title).toBe(C.DUPLICATE_NEED_DEVICE);
+    const rev0 = u.history().present.revision;
     await u.point(u.unit('U-S1'), 'pointerdown', 40, 80);
     await u.point(u.unit('U-S1'), 'pointerup', 40, 80);
-    expect(dup().disabled).toBe(true);
-    const rev0 = u.history().present.revision;
-    await u.key(window, 'keydown', { key: 'd', ctrlKey: true });
-    expect(u.el.querySelector('.toast')?.textContent).toBe(C.DUPLICATE_NEED_DEVICE);
-    expect(u.history().present.revision).toBe(rev0);
+    expect(dup().disabled).toBe(false);
 
     await u.point(u.el.querySelector('[data-id="CYL-01"] .rf-device')!, 'pointerdown', 180, 140);
     await u.point(u.el.querySelector('[data-id="CYL-01"] .rf-device')!, 'pointerup', 180, 140);
