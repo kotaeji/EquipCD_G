@@ -215,7 +215,12 @@ describe('TURN-068 notices', () => {
     const log = u.el.querySelector('[aria-label="알림 이력"]')!;
     const rows = [...log.querySelectorAll('li')];
     expect(rows.length).toBe(4);
-    for (const row of rows) expect(row.querySelector('time')!.textContent).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    for (const row of rows) {
+      const clock = row.querySelector('time')!;
+      expect(clock.textContent).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \(UTC(?:[+-]\d{1,2}(?::\d{2})?)?\)$/);
+      expect(clock.getAttribute('title')).toBe(clock.getAttribute('dateTime'));
+      expect(clock.getAttribute('title')).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    }
     expect(rows.some((row) => row.textContent?.includes('재분석 완료'))).toBe(true);
     expect(rows.some((row) => row.textContent?.includes('되돌릴 편집이 없습니다'))).toBe(true);
 

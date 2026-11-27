@@ -22,7 +22,7 @@ import { equipmentMotionDefault, prefersReducedMotion, presentScene } from '../s
 import { diagramMotionOn } from './runDiagram';
 import { DURATION_EDIT_LABEL, TIMEOUT_EDIT_LABEL, revertDurationEdits, type DurationSnap } from '../scene/revertDurations';
 import { parseProjectFile, serializeProject } from '../storage/fileFormat';
-import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDraft, readDraftList, saveDraft, sweepDrafts, workTimesLabel, type DraftMeta } from '../storage/drafts';
+import { DRAFT_DELAY_MS, discardDraft, draftOffersRecovery, formatClock, loadDraft, readDraftList, saveDraft, sweepDrafts, workTimesLabel, workTimesTitle, type DraftMeta } from '../storage/drafts';
 import { detectStorage, loadProject, quarantine, readIndex, readQuarantine, type KV, type QuarantineEntry } from '../storage/localStore';
 import { Canvas, type Mode } from './Canvas';
 import { BackgroundTools } from './BackgroundTools';
@@ -1233,8 +1233,8 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       title: '저장 안 된 변경이 있습니다',
       body: <div>
         {saved
-          ? <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>
-          : <p>임시 저장 {formatClock(draft.savedAt)} · rev {draft.revision}. 저장본은 없습니다.</p>}
+          ? <p>임시 저장 <time dateTime={draft.savedAt} title={draft.savedAt}>{formatClock(draft.savedAt)}</time> · rev {draft.revision}. 저장본은 rev {saved.revision} 그대로 둡니다.</p>
+          : <p>임시 저장 <time dateTime={draft.savedAt} title={draft.savedAt}>{formatClock(draft.savedAt)}</time> · rev {draft.revision}. 저장본은 없습니다.</p>}
         <DraftDiffToggle kv={kv} draftId={id} hasSaved={!!saved} />
       </div>,
       actions: [
@@ -1312,7 +1312,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       body: <div>
         <p>임시 저장 {items.length}개가 있습니다. 복구하거나 버리기 전에는 같은 프로젝트의 새 편집이 이 임시 저장을 덮어쓰지 않습니다.</p>
         {items.map((item) => <div key={item.draft.id} className="home-recent" data-recovery-id={item.draft.id}>
-          <div><b>{item.draft.name}</b><div className="muted">임시 저장 {formatClock(item.draft.savedAt)} · rev {item.draft.revision}{item.saved ? ` · 저장본 rev ${item.saved.revision}` : ' · 저장본 없음'}</div></div>
+          <div><b>{item.draft.name}</b><div className="muted">임시 저장 <time dateTime={item.draft.savedAt} title={item.draft.savedAt}>{formatClock(item.draft.savedAt)}</time> · rev {item.draft.revision}{item.saved ? ` · 저장본 rev ${item.saved.revision}` : ' · 저장본 없음'}</div></div>
           <button type="button" className="btn-main danger" aria-label={`${item.draft.name} 임시 저장 버리기`} onClick={() => { dropDraft(item.draft.id); promptDrafts(items.filter((x) => x.draft.id !== item.draft.id)); }}>버리기</button>
           <button type="button" className="btn-main primary" aria-label={`${item.draft.name} 임시 저장 복구`} onClick={() => { recoverInto(item.draft.id, item.saved); promptDrafts(items.filter((x) => x.draft.id !== item.draft.id)); }}>복구</button>
           <DraftDiffToggle kv={kv} draftId={item.draft.id} hasSaved={!!item.saved} />
@@ -2043,7 +2043,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <button type="button" className="work-crumb" data-project-name={p.name} title={`Project ${p.name}`} onClick={() => openExplorerTab('project')}>Project {p.name}</button>
         <span className="work-rev" title={`rev ${p.revision}`}><Terms text="rev" /> {p.revision}</span>
         <span className={dirty ? 'save-chip dirty' : 'save-chip saved'} title={dirty ? '저장 안 됨' : '저장됨'}>{dirty ? '● 저장 안 됨' : '저장됨'}</span>
-        {workTimes && <span className="work-times">{workTimes}</span>}
+        {workTimes && <span className="work-times" title={workTimesTitle(tab.savedAt, tab.draftError ? null : draftShown, tab.draftError)}>{workTimes}</span>}
       </div>
       <div className="stepper" role="navigation" aria-label="단계" data-tour="stepbar">
         {STEPS.map((s) => { const b = stepBadge(evals[s.id], confirmed[s.id]); const n = evals[s.id].items.length; const on = !view.home && step === s.id; return (
@@ -2097,14 +2097,14 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
         <StarterHome templates={templates} onBlank={() => newProject('blank')} onOpenSample={newProject} onCreate={openStarter} />
         {unsavedDrafts.length > 0 && <h2>저장 안 된 작업</h2>}
         {unsavedDrafts.map((d) => <div key={d.id} className="home-recent" data-unsaved-draft={d.id}>
-          <div><b>{d.name}</b><div className="muted">rev {d.revision} · 임시 저장 {formatClock(d.savedAt)}</div></div>
+          <div><b>{d.name}</b><div className="muted">rev {d.revision} · 임시 저장 <time dateTime={d.savedAt} title={d.savedAt}>{formatClock(d.savedAt)}</time></div></div>
           <button type="button" className="btn-main danger" aria-label={`${d.name} 임시 저장 버리기`} onClick={() => dropDraft(d.id)}>버리기</button>
           <button type="button" className="btn-main primary" aria-label={`${d.name} 임시 저장 열기`} onClick={() => openDraft(d.id)}>열기</button>
         </div>)}
         <h2>최근 프로젝트</h2>
         {savedList.length === 0 && <EmptyState symbol="○" line={EMPTY.projects} actions={[{ label: '새 프로젝트', onClick: () => newProject('blank') }, { label: '예제', onClick: () => newProject('sample') }]} />}
         {savedList.slice(0, 6).map((e) => <div key={e.id} className="home-recent">
-          <div><b>{e.name}</b><div className="muted">rev {e.revision} · {e.savedAt ? new Date(e.savedAt).toLocaleString() : '저장 시각 없음'}</div></div>
+          <div><b>{e.name}</b><div className="muted">rev {e.revision} · {e.savedAt ? <time dateTime={e.savedAt} title={e.savedAt}>{formatClock(e.savedAt)}</time> : '저장 시각 없음'}</div></div>
           <button className="btn-main secondary" onClick={showOpen}>프로젝트 관리</button>
           <button className="btn-main primary" onClick={() => openSaved(e.id)}>계속하기</button>
         </div>)}

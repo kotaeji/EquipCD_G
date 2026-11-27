@@ -1,5 +1,6 @@
 // TURN-079. Read-only sheets for the print view. Nothing here edits the project.
 import { findAsset } from '../assets/library';
+import { formatLocalClock } from '../ui/localClock';
 import { conditionFormula } from './conditionFormula';
 import { walk } from './flow';
 import { analyzeGaps, GAP_KIND_LABEL } from './gaps';
@@ -218,8 +219,5 @@ export function gapRows(p: Project): GapLine[] {
 }
 
 export function printDate(d = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return formatLocalClock(d);
 }

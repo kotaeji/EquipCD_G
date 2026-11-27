@@ -99,7 +99,8 @@ describe('TURN-047 autosave and recovery', () => {
     expect(localStorage.getItem(PROJECT_KEY(u.history().present.id))).toBe(body);
     expect(JSON.parse(localStorage.getItem(INDEX_KEY)! )[0].revision).toBe(rev);
     const line = u.bar().querySelector('.work-times')!.textContent ?? '';
-    expect(line).toMatch(/^저장 \d{2}:\d{2} · 임시 저장 \d{2}:\d{2}$/);
+    expect(line).toMatch(/^저장 \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC(?:[+-]\d{1,2}(?::\d{2})?)?\) · 임시 저장 \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC(?:[+-]\d{1,2}(?::\d{2})?)?\)$/);
+    expect(u.bar().querySelector('.work-times')!.getAttribute('title')).toMatch(/^저장 \d{4}-\d{2}-\d{2}T.+Z · 임시 저장 \d{4}-\d{2}-\d{2}T.+Z$/);
     expect(line).not.toMatch(/\n/);
     expect(readFileSync('src/ui/styles.css', 'utf8')).toMatch(/\.work-times \{ white-space: nowrap/);
     expect(readFileSync('src/ui/styles.css', 'utf8')).toMatch(/\.app > \.workbar \{[^}]*flex-wrap: nowrap/);
@@ -120,7 +121,8 @@ describe('TURN-047 autosave and recovery', () => {
     await u.remount();
     const dlg = u.modal();
     expect(dlg?.textContent).toContain('저장 안 된 변경이 있습니다');
-    expect(dlg?.textContent).toMatch(/임시 저장 \d{2}:\d{2}/);
+    expect(dlg?.textContent).toMatch(/임시 저장 \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC/);
+    expect(dlg?.querySelector('time')?.getAttribute('title')).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(dlg?.textContent).toContain(`rev ${JSON.parse(localStorage.getItem(DRAFTS_KEY)!)[0].revision}`);
     await u.click(u.btn('복구', dlg!));
     expect(u.history().present.name).toBe('복구할 이름');

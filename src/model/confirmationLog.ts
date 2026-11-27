@@ -1,5 +1,6 @@
 // TURN-070 — who confirmed a value, and when. The log is part of the project, so one undo removes the row.
 import { getAssetById } from '../assets/library';
+import { formatLocalClock } from '../ui/localClock';
 import type {
   Confirmation, ConfirmationEntry, ConfirmationTarget, GapReviewEntry, Project, Quantity, QuantityRef, Signal,
 } from './types';
@@ -145,15 +146,14 @@ export function confirmedCaption(log: ConfirmationEntry[] | undefined, target: C
     const e = log![i];
     if (!sameTarget(e.target, target)) continue;
     if (!entryMarksConfirmed(e)) return null;
-    const day = /^\d{4}-\d{2}-\d{2}/.test(e.at) ? e.at.slice(0, 10) : e.at;
-    return `확인: ${e.by} · ${day}`;
+    const when = formatLocalClock(e.at) || e.at;
+    return `확인: ${e.by} · ${when}`;
   }
   return null;
 }
 
 export function confirmationClock(at: string): string {
-  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(at);
-  return m ? `${m[1]} ${m[2]}` : at;
+  return formatLocalClock(at) || at;
 }
 
 /** A quantity target is live while its object is still in the model. */
