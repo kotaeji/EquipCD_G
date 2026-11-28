@@ -57,6 +57,7 @@ export const COMMAND_ICONS = {
   'match-h': 'UnfoldVertical',
   spread: 'MoveHorizontal',
   arrange: 'LayoutTemplate',
+  'arrange-selected': 'GalleryVerticalEnd',
   'fit-unit': 'Scaling',
 
   'mode-flow': 'ArrowRight',
@@ -206,6 +207,7 @@ export const MENU_ICON = {
   paste: 'paste',
   duplicate: 'duplicate',
   arrange: 'arrange',
+  arrangeSelected: 'arrange-selected',
   fit: 'fit-unit',
   delete: 'delete',
   selectAll: 'select-all',

@@ -1,6 +1,6 @@
 // TURN-050. Context menu contents and on-screen position. Opening the menu does not edit the model.
 import type { Project } from '../model/types';
-import { ARRANGE_DEVICES_LOCKED, ARRANGE_DEVICES_NEED_ONE, ARRANGE_NEED_2, ARRANGE_NEED_3 } from '../model/commands';
+import { ARRANGE_DEVICES_LOCKED, ARRANGE_DEVICES_NEED_ONE, ARRANGE_NEED_2, ARRANGE_NEED_3, DEVICE_ARRANGE_NEED_2, DEVICE_ARRANGE_NEED_3 } from '../model/commands';
 import { PASTE_EMPTY, PASTE_LOCKED, PASTE_ONE_UNIT } from '../model/copyPaste';
 
 export type ContextHit =
@@ -29,6 +29,7 @@ export type MenuAction =
   | 'paste'
   | 'duplicate'
   | 'arrange'
+  | 'arrangeSelected'
   | 'fit'
   | 'delete'
   | 'selectAll'
@@ -133,6 +134,8 @@ export interface MenuBuildInput {
   unitCount: number;
   /** Every selected node is a Unit (edges ignored). */
   allUnits: boolean;
+  /** Devices of one Unit, when the selection has no Unit. 0 otherwise. */
+  deviceCount?: number;
   canViewProps: boolean;
   /** The one Unit under the pointer is position-locked. Multi menus ignore this. */
   unitLocked?: boolean;
@@ -160,7 +163,10 @@ export function buildContextMenu(input: MenuBuildInput): MenuItem[] {
     ];
   }
   if (input.kind === 'multi') {
-    const items: MenuItem[] = [{ id: 'copy', label: '복사', shortcut: SHORTCUT.copy }];
+    const items: MenuItem[] = [
+      { id: 'copy', label: '복사', shortcut: SHORTCUT.copy },
+      { id: 'duplicate', label: '복제', shortcut: SHORTCUT.duplicate, ...dim(input.locked ? '실행 중에는 복제가 차단됩니다' : undefined) },
+    ];
     if (input.allUnits) {
       const align = lock ?? (input.unitCount < 2 ? ARRANGE_NEED_2 : undefined);
       const gap = lock ?? (input.unitCount < 3 ? ARRANGE_NEED_3 : undefined);
@@ -172,8 +178,22 @@ export function buildContextMenu(input: MenuBuildInput): MenuItem[] {
         { id: 'gapY', label: '세로 간격 같게', ...dim(gap) },
         { id: 'matchW', label: '너비 같게', ...dim(size) },
         { id: 'matchH', label: '높이 같게', ...dim(size) },
+        { id: 'arrangeSelected', label: '고른 것만 자동 정렬', ...dim(lock ?? (input.unitCount < 2 ? ARRANGE_NEED_2 : undefined)) },
         { id: 'lockPosition', label: '위치 잠금', ...dim(lock) },
         { id: 'unlockPosition', label: '위치 잠금 해제', ...dim(lock) },
+      );
+    } else if ((input.deviceCount ?? 0) >= 2) {
+      const n = input.deviceCount ?? 0;
+      const align = lock ?? (n < 2 ? DEVICE_ARRANGE_NEED_2 : undefined);
+      const gap = lock ?? (n < 3 ? DEVICE_ARRANGE_NEED_3 : undefined);
+      const size = lock ?? (n < 2 ? DEVICE_ARRANGE_NEED_2 : undefined);
+      items.push(
+        { id: 'alignLeft', label: '좌 정렬', ...dim(align) },
+        { id: 'alignTop', label: '상 정렬', ...dim(align) },
+        { id: 'gapX', label: '가로 간격 같게', ...dim(gap) },
+        { id: 'gapY', label: '세로 간격 같게', ...dim(gap) },
+        { id: 'matchW', label: '너비 같게', ...dim(size) },
+        { id: 'matchH', label: '높이 같게', ...dim(size) },
       );
     }
     items.push({
@@ -207,6 +227,7 @@ export function buildContextMenu(input: MenuBuildInput): MenuItem[] {
     { id: 'props', label: '속성 열기' },
     { id: 'rename', label: '이름 변경', ...dim(lock) },
     { id: 'copy', label: '복사', shortcut: SHORTCUT.copy },
+    { id: 'duplicate', label: '복제', shortcut: SHORTCUT.duplicate, ...dim(input.locked ? '실행 중에는 복제가 차단됩니다' : undefined) },
     { id: 'paste', label: '붙여넣기(이 Unit 에)', shortcut: SHORTCUT.paste, ...dim(input.pasteReason) },
     { id: 'saveTemplate', label: '내 템플릿으로 저장', ...dim(input.saveTemplateReason) },
     { id: 'arrange', label: '자동 정렬', ...dim(arrange) },

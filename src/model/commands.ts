@@ -582,6 +582,20 @@ export {
   deviceVisualBox,
 } from './deviceArrange';
 
+export {
+  ARRANGE_SELECTED_HINT,
+  DEVICE_ARRANGE_NEED_2,
+  DEVICE_ARRANGE_NEED_3,
+  DEVICE_ARRANGE_ONE_UNIT,
+  DUPLICATE_NEED_UNIT,
+  arrangeSelectedUnits,
+  distributeDevices,
+  duplicateUnits,
+  matchDeviceSize,
+  selectedArrangeTarget,
+} from './selectedArrange';
+export type { DuplicateUnitsOptions } from './selectedArrange';
+
 /**
  * After auto-arrange, clear Unit boxes that overlap the arranged Unit.
  * Right side reuses 「겹침 풀기」: x order, minimum `UNIT_SPREAD_GAP`, y stays, Devices move with the Unit.

@@ -659,12 +659,33 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     if (scale == null) { say('실제 거리가 올바르지 않습니다', true); return; }
     if (edit(updateDiagramBackground(p, { scale }), '배경 배율')) setBgPoints(null);
   };
-  const arrangeItems: { label: string; icon: string; min: number; undo: string; run: () => C.CmdResult }[] = [
-    { label: '가로 간격 같게', icon: 'gap-x', min: 3, undo: '가로 간격 같게', run: () => C.distributeUnits(p, selection, 'x') },
-    { label: '세로 간격 같게', icon: 'gap-y', min: 3, undo: '세로 간격 같게', run: () => C.distributeUnits(p, selection, 'y') },
-    { label: '너비 같게', icon: 'match-w', min: 2, undo: '너비 같게', run: () => C.matchUnitSize(p, selection, 'w') },
-    { label: '높이 같게', icon: 'match-h', min: 2, undo: '높이 같게', run: () => C.matchUnitSize(p, selection, 'h') },
-    { label: '겹침 풀기', icon: 'spread', min: 2, undo: '겹침 풀기', run: () => C.spreadUnits(p, selection, C.UNIT_SPREAD_GAP) },
+  const arrangePick = C.selectedArrangeTarget(p, selection);
+  const runDistribute = (axis: 'x' | 'y') => (
+    arrangePick.kind === 'devices' ? C.distributeDevices(p, arrangePick.ids, axis) : C.distributeUnits(p, selection, axis)
+  );
+  const runMatch = (dim: 'w' | 'h') => (
+    arrangePick.kind === 'devices' ? C.matchDeviceSize(p, arrangePick.ids, dim) : C.matchUnitSize(p, selection, dim)
+  );
+  const arrangeReason = (min: number, unitsOnly?: boolean) => {
+    if (unitsOnly || arrangePick.kind === 'units') {
+      if (selectedUnitCount < min) return min >= 3 ? C.ARRANGE_NEED_3 : C.ARRANGE_NEED_2;
+      return undefined;
+    }
+    if (arrangePick.kind === 'devices') {
+      if (arrangePick.ids.length < min) return min >= 3 ? C.DEVICE_ARRANGE_NEED_3 : C.DEVICE_ARRANGE_NEED_2;
+      return undefined;
+    }
+    const pickedDevices = selection.filter((id) => p.devices.some((d) => d.id === id));
+    if (selectedUnitCount === 0 && pickedDevices.length >= 2) return C.DEVICE_ARRANGE_ONE_UNIT;
+    return min >= 3 ? C.ARRANGE_NEED_3 : C.ARRANGE_NEED_2;
+  };
+  const arrangeItems: { label: string; icon: string; min: number; unitsOnly?: boolean; undo: string; run: () => C.CmdResult }[] = [
+    { label: '가로 간격 같게', icon: 'gap-x', min: 3, undo: '가로 간격 같게', run: () => runDistribute('x') },
+    { label: '세로 간격 같게', icon: 'gap-y', min: 3, undo: '세로 간격 같게', run: () => runDistribute('y') },
+    { label: '너비 같게', icon: 'match-w', min: 2, undo: '너비 같게', run: () => runMatch('w') },
+    { label: '높이 같게', icon: 'match-h', min: 2, undo: '높이 같게', run: () => runMatch('h') },
+    { label: '겹침 풀기', icon: 'spread', min: 2, unitsOnly: true, undo: '겹침 풀기', run: () => C.spreadUnits(p, selection, C.UNIT_SPREAD_GAP) },
+    { label: '고른 것만 자동 정렬', icon: 'arrange-selected', min: 2, unitsOnly: true, undo: '고른 것만 자동 정렬', run: () => C.arrangeSelectedUnits(p, selection) },
   ];
   /** Library card "프로젝트에 추가" (C03-AC5): the only path from the library that changes the model. */
   const onAddFromLibrary = (def: AssetDefinition, unitId: string | null) => {
@@ -781,7 +802,33 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       actions: [{ label: '취소', focus: true, run: () => {} }, { label: '삭제', danger: true, run }],
     });
   };
+  const commitDuplicateUnits = (unitIds: string[], copySequences: boolean) => {
+    const r = C.duplicateUnits(p, unitIds, { copySequences });
+    if (edit(r, 'Unit 복제') && r.ok) setSelection(r.note ? r.note.split(',') : []);
+  };
   const requestDuplicate = () => {
+    const unitIds = selection.filter((id, i) => p.units.some((u) => u.id === id) && selection.indexOf(id) === i);
+    if (unitIds.length) {
+      const hasSeq = (p.substationSequences ?? []).some((q) => unitIds.includes(q.unitId));
+      if (!hasSeq) { commitDuplicateUnits(unitIds, false); return; }
+      const flag = { on: false };
+      setModal({
+        title: 'Unit 복제',
+        body: <div>
+          <p>고른 Unit {unitIds.length}개를 새 ID로 복사합니다. 이름은 「사본」이고, 자리는 원본 오른쪽입니다.</p>
+          <p className="muted">물류 연결, 다른 Unit과의 신호, Station 단계는 복사하지 않습니다.</p>
+          <label className="draft-toggle">
+            <input type="checkbox" data-copy-sequences onChange={(e) => { flag.on = e.target.checked; }} />
+            Substation 시퀀스도 복사
+          </label>
+        </div>,
+        actions: [
+          { label: '취소', run: () => {} },
+          { label: '복제', primary: true, focus: true, run: () => commitDuplicateUnits(unitIds, flag.on) },
+        ],
+      });
+      return;
+    }
     if (!selectedDeviceIds.length) { say(C.DUPLICATE_NEED_DEVICE, true); return; }
     const r = C.duplicateDevices(p, selection);
     if (edit(r, 'Device 복제') && r.ok) setSelection(r.note ? r.note.split(',') : []);
@@ -864,6 +911,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     }
     if (id === 'alignLeft') { runArrange(C.alignNodes(p, selection, 'left'), '왼쪽 정렬'); return; }
     if (id === 'alignTop') { runArrange(C.alignNodes(p, selection, 'top'), '위 정렬'); return; }
+    if (id === 'arrangeSelected') { runArrange(C.arrangeSelectedUnits(p, selection), '고른 것만 자동 정렬'); return; }
     if (id === 'lockPosition' || id === 'unlockPosition') {
       const ids = selection.filter((sid) => p.units.some((u) => u.id === sid));
       const single = ids.length === 1 ? p.units.find((u) => u.id === ids[0]) : undefined;
@@ -871,10 +919,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       edit(C.setUnitPositionLock(p, ids, on), on ? '위치 잠금' : '위치 잠금 해제');
       return;
     }
-    if (id === 'gapX') { const r = C.distributeUnits(p, selection, 'x'); runArrange(r, '가로 간격 같게'); return; }
-    if (id === 'gapY') { runArrange(C.distributeUnits(p, selection, 'y'), '세로 간격 같게'); return; }
-    if (id === 'matchW') { runArrange(C.matchUnitSize(p, selection, 'w'), '너비 같게'); return; }
-    if (id === 'matchH') { runArrange(C.matchUnitSize(p, selection, 'h'), '높이 같게'); return; }
+    if (id === 'gapX') { runArrange(runDistribute('x'), '가로 간격 같게'); return; }
+    if (id === 'gapY') { runArrange(runDistribute('y'), '세로 간격 같게'); return; }
+    if (id === 'matchW') { runArrange(runMatch('w'), '너비 같게'); return; }
+    if (id === 'matchH') { runArrange(runMatch('h'), '높이 같게'); return; }
   };
 
   // A pointer selection leaves the keyboard cursor. The owned ids stay put, so a second effect run does not drop them.
@@ -1978,6 +2026,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
     arrangeReason: 'unitId' in arrangeTarget ? undefined : arrangeTarget.reason,
     unitCount: menuNodes.filter((id) => p.units.some((u) => u.id === id)).length,
     allUnits: menuNodes.length >= 2 && menuNodes.every((id) => p.units.some((u) => u.id === id)),
+    deviceCount: (() => {
+      if (menuNodes.length < 2 || menuNodes.some((id) => p.units.some((u) => u.id === id))) return 0;
+      const owners = new Set(menuNodes.map((id) => p.devices.find((d) => d.id === id)?.unitId).filter((id): id is string => !!id));
+      return owners.size === 1 ? menuNodes.length : 0;
+    })(),
     canViewProps: selection.some((id) => p.units.some((u) => u.id === id) || p.devices.some((d) => d.id === id) || p.connections.some((c) => c.id === id)),
     unitLocked: p.units.find((u) => u.id === selection[0])?.positionLocked === true,
     saveTemplateReason: kv ? undefined : STORAGE_UNAVAILABLE,
@@ -2027,10 +2080,11 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
       else setSelection(hit.ids);
     },
     align: (mode) => { edit(C.alignNodes(p, selection, mode), mode === 'left' ? '왼쪽 정렬' : '위 정렬'); },
-    distribute: (axis) => runArrange(C.distributeUnits(p, selection, axis), axis === 'x' ? '가로 간격 같게' : '세로 간격 같게'),
-    matchSize: (axis) => runArrange(C.matchUnitSize(p, selection, axis), axis === 'w' ? '너비 같게' : '높이 같게'),
+    distribute: (axis) => runArrange(runDistribute(axis), axis === 'x' ? '가로 간격 같게' : '세로 간격 같게'),
+    matchSize: (axis) => runArrange(runMatch(axis), axis === 'w' ? '너비 같게' : '높이 같게'),
     spread: () => runArrange(C.spreadUnits(p, selection, C.UNIT_SPREAD_GAP), '겹침 풀기'),
     arrangeDevices: arrangeSelectedDevices,
+    arrangeSelected: () => runArrange(C.arrangeSelectedUnits(p, selection), '고른 것만 자동 정렬'),
     fitUnit: fitSelectedUnit,
     connectMode: (next) => { setMode(next); setConnectFrom(null); if (next === 'signal') openLayoutTab('diagram'); },
     wrapFlow: (kind) => {
@@ -2235,10 +2289,10 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <button onClick={() => runArrange(C.alignNodes(p, selection, 'left'), '왼쪽 정렬')} disabled={selection.length < 2 || locked}><IconLabel id="align-left">좌 정렬</IconLabel></button>
                   <button onClick={() => runArrange(C.alignNodes(p, selection, 'top'), '위 정렬')} disabled={selection.length < 2 || locked}><IconLabel id="align-top">상 정렬</IconLabel></button>
                   <div className="layerbox arrange-menu">
-                    <button type="button" className={arrangeOpen ? 'on' : ''} aria-expanded={arrangeOpen} aria-haspopup="menu" aria-controls="arrange-menu" title="고른 Unit의 간격·크기·겹침" onClick={() => setArrangeOpen((v) => !v)}><IconLabel id="arrange-menu">배치 ▾</IconLabel></button>
+                    <button type="button" className={arrangeOpen ? 'on' : ''} aria-expanded={arrangeOpen} aria-haspopup="menu" aria-controls="arrange-menu" title="고른 Unit·Device의 간격·크기·겹침" onClick={() => setArrangeOpen((v) => !v)}><IconLabel id="arrange-menu">배치 ▾</IconLabel></button>
                     {arrangeOpen && <div className="layerpop arrange-pop" id="arrange-menu" role="menu">
                       {arrangeItems.map((item) => {
-                        const reason = selectedUnitCount < item.min ? (item.min >= 3 ? C.ARRANGE_NEED_3 : C.ARRANGE_NEED_2) : undefined;
+                        const reason = arrangeReason(item.min, item.unitsOnly);
                         return <button key={item.label} type="button" role="menuitem" disabled={!!reason} title={reason} onClick={() => runArrange(item.run(), item.undo)}><IconLabel id={item.icon}>{item.label}</IconLabel></button>;
                       })}
                     </div>}
@@ -2246,7 +2300,7 @@ export function App({ onHistory }: { onHistory?: (h: History) => void } = {}) {
                   <button type="button" onClick={fitSelectedUnit} disabled={!(selection.length === 1 && p.units.some((u) => u.id === selection[0]))}><IconLabel id="fit-unit">크기 맞춤</IconLabel></button>
                   <button type="button" onClick={arrangeSelectedDevices} disabled={locked || !('unitId' in arrangeTarget)} title={arrangeDevicesTitle}><IconLabel id="arrange">자동 정렬</IconLabel></button>
                   {copyPasteButtons()}
-                  <button type="button" onClick={requestDuplicate} disabled={selectedDeviceIds.length === 0 || locked} title={selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : '선택한 Device 복제 (Ctrl+D)'}><IconLabel id="duplicate">복제</IconLabel></button>
+                  <button type="button" onClick={requestDuplicate} disabled={(selectedUnitCount === 0 && selectedDeviceIds.length === 0) || locked} title={selectedUnitCount === 0 && selectedDeviceIds.length === 0 ? C.DUPLICATE_NEED_DEVICE : locked ? '실행 중에는 복제가 차단됩니다' : selectedUnitCount > 0 ? '선택한 Unit 복제 (Ctrl+D)' : '선택한 Device 복제 (Ctrl+D)'}><IconLabel id="duplicate">복제</IconLabel></button>
                   <BackgroundTools
                     bg={readDiagramBackground(p)}
                     disabled={locked}
