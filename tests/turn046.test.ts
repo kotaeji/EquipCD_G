@@ -24,11 +24,11 @@ function errorsOf(p: Project) {
 
 describe('TURN-046 interlock runtime', () => {
   it('AC1 AC13 an unconfirmed rule does not change the three examples, and the rules version moved', () => {
-    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.10.0');
+    expect(RUNTIME_RULES_VERSION).toBe('seq-runtime/0.11.0');
     for (const build of [buildSampleProject, buildParallelSampleProject]) {
       const rt = runToEnd(createRuntime(build()));
       expect(rt.state.status).toBe('completed');
-      expect(rt.state.rulesVersion).toBe('seq-runtime/0.10.0');
+      expect(rt.state.rulesVersion).toBe('seq-runtime/0.11.0');
       expect(rt.state.log.some((l) => l.code === 'INTERLOCK_BLOCK')).toBe(false);
     }
     expect(runToEnd(createRuntime(buildSampleProject())).state.timeMs).toBe(11100);

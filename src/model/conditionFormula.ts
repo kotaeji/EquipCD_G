@@ -1,7 +1,7 @@
 // One line for a condition, shared by the screens. The runtime log keeps flow.conditionText.
 import { branchArms, findById } from './flow';
 import { materialMark } from './materialMix';
-import type { Condition, Project, SequenceStep } from './types';
+import type { Condition, FlowNode, Project, SequenceStep } from './types';
 
 export function stepById(p: Project, id: string): SequenceStep | undefined {
   return p.sequence.steps.find((s) => s.id === id)
@@ -60,6 +60,16 @@ export function shownStepCondition(p: Project, stepId: string): string | null {
   return list.length ? conditionsFormula(p, list) : null;
 }
 
+function flowNodeById(p: Project, id: string): FlowNode | null {
+  const flows = [p.sequence.flow, ...(p.substationSequences ?? []).map((q) => q.flow)];
+  for (const flow of flows) {
+    if (!flow) continue;
+    const hit = findById(flow, id);
+    if (hit) return hit.node;
+  }
+  return null;
+}
+
 /** Undefined conditions owned by a step or a flow block. Used on a readiness row. */
 export function undefinedFormula(p: Project, objectId: string): string {
   const bits: Condition[] = [];
@@ -70,10 +80,11 @@ export function undefinedFormula(p: Project, objectId: string): string {
       if (c.kind === 'undefined') bits.push(c);
     }
   }
-  const hit = p.sequence.flow ? findById(p.sequence.flow, objectId) : null;
-  const node = hit?.node;
+  const node = flowNodeById(p, objectId);
   if (node?.kind === 'branch') {
     for (const arm of branchArms(node)) if (arm.cond?.kind === 'undefined') bits.push(arm.cond);
+  } else if (node?.kind === 'loop') {
+    if (node.cond?.kind === 'undefined') bits.push(node.cond);
   } else {
     const cond = node?.kind === 'wait' ? node.cond : node?.kind === 'retry' ? node.until : null;
     if (cond?.kind === 'undefined') bits.push(cond);
@@ -91,8 +102,12 @@ export function runBlockFormula(p: Project, code: string, stepId: string | null,
     return conditionsFormula(p, list);
   }
   if (code === 'WAIT_TIMEOUT' && stepId) {
-    const hit = p.sequence.flow ? findById(p.sequence.flow, stepId) : null;
-    return hit?.node.kind === 'wait' ? conditionFormula(p, hit.node.cond) : '';
+    const node = flowNodeById(p, stepId);
+    return node?.kind === 'wait' ? conditionFormula(p, node.cond) : '';
+  }
+  if (code === 'LOOP_LIMIT' && stepId) {
+    const node = flowNodeById(p, stepId);
+    return node?.kind === 'loop' && node.cond ? conditionFormula(p, node.cond) : '';
   }
   if (code === 'INTERLOCK_BLOCK' && interlockConditions) return conditionsFormula(p, interlockConditions);
   return '';

@@ -5,7 +5,10 @@ export const FILE_FORMAT_ID = 'equipment-concept-designer/project';
 export const FILE_FORMAT_VERSION = '0.3.0'; // file format version (separate from app / asset / model revision). 0.1.x and 0.2.x files open as-is; `flow` is optional.
 export const APP_VERSION = '0.3.0-prototype';
 export const PRODUCT_NAME = 'Aurora Concept Designer';
-export const RUNTIME_RULES_VERSION = 'seq-runtime/0.10.0';
+export const RUNTIME_RULES_VERSION = 'seq-runtime/0.11.0';
+/** Cap for a conditional loop. Counted loops keep using `count` (1–10) and omit this. */
+export const LOOP_LIMIT_DEFAULT = 10;
+export const LOOP_LIMIT_MAX = 999;
 /** Extra tries after the first body run. 2 → at most 3 executions. */
 export const DEFAULT_MAX_RETRIES = 2;
 /** Substation group runtime rules (v0.3 설계 제안): shared virtual clock, fixed lane order at equal instants, conservative group stop on error. Sensor signals follow the same unit rule as the station runtime. */
@@ -264,6 +267,11 @@ export interface Material {
   mark?: string;
 }
 
+/** Absent `mode` is a counted loop. */
+export function loopModeOf(n: { mode?: string }): 'count' | 'until' | 'while' {
+  return n.mode === 'until' || n.mode === 'while' ? n.mode : 'count';
+}
+
 /** Instances to feed. A missing value is 1, so older files run as they did. */
 export function feedCountOf(m: { feedCount?: number } | null | undefined): number {
   const n = m?.feedCount;
@@ -328,7 +336,21 @@ export type FlowNode =
   | { kind: 'step'; stepId: Id }
   | { kind: 'branch'; id: Id; name: string; cond: Condition; then: FlowNode[]; else: FlowNode[]; cases?: BranchCase[] }
   | { kind: 'parallel'; id: Id; name: string; lanes: FlowNode[][] }
-  | { kind: 'loop'; id: Id; name: string; count: number; body: FlowNode[] }
+  | {
+      kind: 'loop'; id: Id; name: string;
+      /** Used when `mode` is absent. Range 1–10. Kept when the mode changes, so switching back restores it. */
+      count: number;
+      body: FlowNode[];
+      /**
+       * Absent means a counted loop, so files saved before TURN-092 stay the same.
+       * `until` runs the body once, then checks. `while` checks before the body.
+       */
+      mode?: 'until' | 'while';
+      /** Required for `until` and `while`. An `undefined` condition blocks the run. */
+      cond?: Condition;
+      /** Required for `until` and `while`. Null is 미정 and blocks the run. Default 10, range 1–999. */
+      limit?: number | null;
+    }
   | { kind: 'retry'; id: Id; name: string; until: Condition; maxRetries: number; body: FlowNode[] }
   | { kind: 'substation'; id: Id; unitId: Id }
   /**

@@ -1,7 +1,7 @@
 // Read-only SFC. Drawn 1:1 (11px text). The page scrolls when the chart is taller than the screen.
 import { useState, type ReactNode } from 'react';
 import { armLabel, branchArms } from '../model/flow';
-import type { FlowNode, Project } from '../model/types';
+import { loopModeOf, type FlowNode, type Project } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus } from '../runtime/runSummary';
 import { condLabel, flowBlockTitle } from './labels';
@@ -38,6 +38,13 @@ function box(key: string, label: string, x: number, y: number, tone: StatusKey):
 function arrowHead(x: number, y: number, dir: 'left' | 'up'): ReactNode {
   if (dir === 'left') return <polygon points={`${x},${y} ${x + 8},${y - 4} ${x + 8},${y + 4}`} fill="var(--text)" />;
   return <polygon points={`${x},${y} ${x - 4},${y + 8} ${x + 4},${y + 8}`} fill="var(--text)" />;
+}
+
+function loopBackEdge(p: Project, n: Extract<FlowNode, { kind: 'loop' }>): string {
+  if (loopModeOf(n) === 'count') return `×${n.count}`;
+  const phrase = n.cond ? condLabel(p, n.cond) : '조건 미정';
+  const cap = n.limit == null ? '미정' : String(n.limit);
+  return `${phrase} 최대 ${cap}`;
 }
 
 function layoutSeq(p: Project, nodes: FlowNode[], tone: (id: string) => StatusKey, draw: Draw): Block {
@@ -148,9 +155,9 @@ function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey, dr
     };
   }
   const inner = layoutSeq(p, n.body, tone, draw);
-  const tag = n.kind === 'loop' ? `×${n.count}` : `최대 ${n.maxRetries}회`;
+  const tag = n.kind === 'loop' ? loopBackEdge(p, n) : `최대 ${n.maxRetries}회`;
   const caption = n.kind === 'loop' ? flowBlockTitle('loop', n.name) : flowBlockTitle('retry', n.name);
-  const extra = n.kind === 'loop' ? 44 : 84;
+  const extra = n.kind === 'retry' ? 84 : loopModeOf(n) === 'count' ? 44 : Math.max(120, 28 + tag.length * 11);
   const w = inner.w + extra;
   const h = 20 + inner.h + 8;
   return {
@@ -158,7 +165,7 @@ function layoutNode(p: Project, n: FlowNode, tone: (id: string) => StatusKey, dr
       const top = y + 22;
       const bottom = top + inner.h;
       const rail = x + inner.w + 16;
-      return <g>
+      return <g data-sfc-loop={n.kind === 'loop' ? n.id : undefined} data-sfc-loop-tag={n.kind === 'loop' ? tag : undefined}>
         <text x={x} y={y + 14} fontSize={FONT} fill="var(--text)">{caption}</text>
         {inner.body(x, top)}
         <line x1={x + inner.w / 2} y1={bottom} x2={rail} y2={bottom} stroke="var(--text)" />

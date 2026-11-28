@@ -24,6 +24,7 @@ export interface EmptyAction {
 
 const UNDETERMINED = new Set([
   'TIMEOUT_UNDEFINED', 'DURATION_UNDEFINED', 'CONDITION_UNDEFINED', 'CAPACITY_UNDEFINED',
+  'LOOP_LIMIT_UNDEFINED',
   'NO_COMPLETE_SIGNAL', 'MAT_NO_LOCATION', 'MAT_NO_STATE', 'FEED_INTERVAL', 'FEED_COUNT',
 ]);
 
@@ -108,6 +109,7 @@ const RUN_WHAT: Record<string, (step: string) => string> = {
  */
 export function runErrorProblem(code: string, message: string, stepName: string | null, formula = ''): ProblemCopy | null {
   if (code === 'WAIT_TIMEOUT') return waitTimeoutProblem(message, formula);
+  if (code === 'LOOP_LIMIT') return loopLimitProblem(message, formula);
   const whatOf = RUN_WHAT[code];
   if (!whatOf) return null;
   const step = stepName ?? '실행';
@@ -121,7 +123,23 @@ export function runErrorProblem(code: string, message: string, stepName: string 
   };
 }
 
+/** Block name, the one-line condition, and the cap that stopped the loop. */
+function loopLimitProblem(message: string, formula: string): ProblemCopy {
+  const head = message.split('—')[0]?.trim() || '반복 상한';
+  const times = message.match(/(\d+)회\s*$/)?.[0] ?? '';
+  const why = [formula.trim(), times].filter(Boolean).join(' · ') || message;
+  return {
+    tone: 'error',
+    what: head,
+    why,
+    how: '조건을 몸통의 Action 이 바꾸게 하거나, 상한 횟수를 늘리세요.',
+    jump: '이동',
+    jumpAria: `${head} 이동`,
+  };
+}
+
 /** Block name, the one-line condition, and how long it waited. `formula` is the screen line when the caller has the model. */
+
 function waitTimeoutProblem(message: string, formula: string): ProblemCopy {
   const named = message.match(/\]\s*(.+?)\s*시간 초과/);
   const fromMessage = message.match(/시간 초과\s*—\s*(.+?)\s*—\s*(.+)$/);

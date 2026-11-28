@@ -4,8 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import * as C from '../model/commands';
 import { stepDeleteDetail } from '../model/deleteImpact';
 import { MAX_BRANCH_ARMS } from '../model/flow';
-import type { Condition, Project } from '../model/types';
-import { DEFAULT_MAX_RETRIES } from '../model/types';
+import type { Condition, FlowNode, Project } from '../model/types';
+import { DEFAULT_MAX_RETRIES, LOOP_LIMIT_MAX, loopModeOf } from '../model/types';
 import type { RuntimeState } from '../runtime/engine';
 import { aggregateStepStatus } from '../runtime/runSummary';
 import { StatusMark } from './StatusMark';
@@ -57,6 +57,38 @@ function CondSelect({ p, cond, disabled, onChange, label = '조건' }: { p: Proj
     {p.units.map((u) => <option key={u.id} value={`at:${u.id}`}>자재 위치 = {u.name}</option>)}
     {p.materials.map((m) => <option key={m.id} value={`ty:${m.id}`}>자재 종류 = {materialMark(p, m.id)}</option>)}
   </select>;
+}
+
+function LoopFields({ p, node, locked, blockId, seqId, edit }: {
+  p: Project;
+  node: Extract<FlowNode, { kind: 'loop' }>;
+  locked: boolean;
+  blockId: string;
+  seqId?: string;
+  edit: EditFn;
+}) {
+  const mode = loopModeOf(node);
+  return <div className="flow-loop">
+    <label>방식 <select aria-label="반복 방식" disabled={locked} value={mode}
+      onChange={(e) => edit(C.setLoopMode(p, blockId, e.target.value as 'count' | 'until' | 'while', seqId), '반복 방식')}>
+      <option value="count">횟수</option>
+      <option value="until">참이 될 때까지</option>
+      <option value="while">참인 동안</option>
+    </select></label>
+    {mode === 'count' && <label>횟수 <input aria-label="반복 횟수" type="number" min={1} max={10} disabled={locked} value={node.count} style={{ width: 48 }}
+      onChange={(e) => edit(C.setLoopCount(p, blockId, Number(e.target.value), seqId), '반복 횟수')} /></label>}
+    {mode !== 'count' && <>
+      <CondSelect p={p} cond={node.cond ?? { kind: 'undefined', note: '조건 없음' }} disabled={locked} label="반복 조건"
+        onChange={(c) => edit(C.setFlowCondition(p, blockId, c, seqId), '반복 조건')} />
+      <label>상한 <input aria-label="반복 상한" type="number" min={1} max={LOOP_LIMIT_MAX} disabled={locked} value={node.limit ?? ''} style={{ width: 64 }}
+        onChange={(e) => edit(C.setLoopLimit(p, blockId, e.target.value === '' ? null : Number(e.target.value), seqId), '반복 상한')} />회</label>
+    </>}
+  </div>;
+}
+
+function LoopFormula({ p, node, blockId }: { p: Project; node: Extract<FlowNode, { kind: 'loop' }>; blockId: string }) {
+  if (loopModeOf(node) === 'count') return null;
+  return <div className="muted cond-head" style={{ fontSize: 'var(--fs-xs)' }} data-cond-formula="">{node.cond ? condLabel(p, node.cond) : '조건 미정'}<ConditionMark p={p} site={`flow:${blockId}`} /></div>;
 }
 
 function isBlockKind(kind: FlowRow['kind']): kind is FlowBlockKind {
@@ -419,8 +451,10 @@ export function FlowEditor({ p, rt, locked, edit, picked, onPicked, confirmDelet
                 <label>최대 <input aria-label="재시도 횟수" type="number" min={0} max={DEFAULT_MAX_RETRIES} disabled={locked} value={row.node.maxRetries} style={{ width: 48 }}
                   onChange={(e) => edit(C.setRetryMax(p, row.blockId!, Number(e.target.value), seqId), '재시도 횟수')} />회</label>
               </div>}
-              {row.node?.kind === 'loop' && <label>횟수 <input aria-label="반복 횟수" type="number" min={1} max={10} disabled={locked} value={row.node.count} style={{ width: 48 }}
-                onChange={(e) => edit(C.setLoopCount(p, row.blockId!, Number(e.target.value), seqId), '반복 횟수')} /></label>}
+              {row.node?.kind === 'loop' && row.blockId && <>
+                <LoopFields p={p} node={row.node} locked={locked} blockId={row.blockId} seqId={seqId} edit={edit} />
+                <LoopFormula p={p} node={row.node} blockId={row.blockId} />
+              </>}
               {row.node?.kind === 'parallel' && <span>갈래 {row.node.lanes.length}
                 <button type="button" className="small" disabled={locked || row.node.lanes.length >= 4} onClick={() => edit(C.addParallelLane(p, row.blockId!, seqId), '갈래 추가')}>갈래 추가</button>
               </span>}
