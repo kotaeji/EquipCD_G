@@ -1,0 +1,199 @@
+/* TURN-095. One document frame for the run report and the print view.
+   Type and space use --fs-* and --sp-* only. The report inlines this file. */
+
+.doc-page {
+  font-family: system-ui, sans-serif;
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  color: #1c1c1c;
+}
+
+body.doc-page {
+  margin: var(--sp-5);
+  background: #fff;
+}
+
+.doc-cover {
+  margin: 0 0 var(--sp-5);
+}
+
+.doc-kicker {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--muted, #5c5c5c);
+}
+
+.doc-title {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.doc-kind {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.doc-limit {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border, #8c8c8c);
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.doc-section h2 {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-h2);
+  font-weight: 700;
+}
+
+.doc-section h3,
+.print-section h3 {
+  margin: var(--sp-4) 0 var(--sp-2);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.doc-frame {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.doc-frame > thead {
+  display: table-header-group;
+}
+
+.doc-frame > thead td,
+.doc-frame > tbody > tr > td {
+  padding: 0;
+  border: 0;
+  vertical-align: top;
+}
+
+/* On screen the running head is hidden. Print repeats it from the table head. */
+.doc-runhead {
+  display: none;
+}
+
+table.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 var(--sp-3);
+  background: #fff;
+  color: #1c1c1c;
+}
+
+table.doc-table > thead {
+  display: table-header-group;
+}
+
+table.doc-table > thead > tr > th,
+table.doc-table > tbody > tr > th,
+table.doc-table > tbody > tr > td {
+  min-height: var(--sp-6);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border, #8c8c8c);
+  vertical-align: middle;
+  text-align: left;
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
+  background: #fff;
+  color: #1c1c1c;
+  position: static;
+}
+
+table.doc-table > thead > tr > th {
+  font-weight: 700;
+}
+
+table.doc-table > tbody > tr > th {
+  font-weight: 700;
+  width: 10em;
+}
+
+/* Numbers and times stay on one line. In a data table the column fits the text and the other columns take the rest. A two-column sheet keeps the value column wide. */
+table.doc-table th.ecd-num,
+table.doc-table td.ecd-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+table.doc-table:not(.doc-kv) th.ecd-num,
+table.doc-table:not(.doc-kv) td.ecd-num {
+  width: 1%;
+}
+
+table.doc-table tr,
+table.doc-table th,
+table.doc-table td {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.doc-status {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.doc-status-mark {
+  margin-right: var(--sp-1);
+}
+
+.doc-status[data-status="active"] { color: var(--status-active, #1a1a1a); }
+.doc-status[data-status="done"] { color: var(--status-done, #176642); }
+.doc-status[data-status="error"] { color: var(--status-error, #b42336); }
+.doc-status[data-status="pending"] { color: var(--status-pending, #5c5c5c); }
+.doc-status[data-status="undetermined"] { color: var(--status-undetermined, #1a4f8b); }
+.doc-status[data-status="assumption"] { color: var(--status-assumption, #8b4800); }
+
+.doc-pattern-word {
+  margin-left: var(--sp-1);
+  font-size: var(--fs-xs);
+}
+
+.doc-note {
+  margin: 0 0 var(--sp-2);
+  color: var(--muted, #5c5c5c);
+  font-size: var(--fs-sm);
+}
+
+@media print {
+  body.doc-page {
+    margin: 0;
+    background: #fff !important;
+    color: #1c1c1c !important;
+  }
+
+  .doc-runhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--sp-3);
+    padding-bottom: var(--sp-2);
+    margin-bottom: var(--sp-3);
+    border-bottom: 1px solid #8c8c8c;
+    font-size: var(--fs-xs);
+    color: #5c5c5c;
+  }
+
+  .doc-runhead-limit {
+    text-align: right;
+  }
+
+  table.doc-table > thead > tr > th,
+  table.doc-table > tbody > tr > th,
+  table.doc-table > tbody > tr > td {
+    background: #fff;
+    color: #1c1c1c;
+  }
+}
