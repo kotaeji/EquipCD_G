@@ -33,12 +33,13 @@ export function BundleSheet({ kv, reg, dirtyNames, openIds, storageReason, onDow
   const ws = reg.workspaces.find((w) => w.id === reg.activeId) ?? reg.workspaces[0];
   const locked = !kv || !!storageReason;
   const lockReason = storageReason ?? (!kv ? '저장소를 쓸 수 없습니다' : null);
+  const [includeSavePoints, setIncludeSavePoints] = useState(false);
   const built = useMemo(() => {
     if (!kv) return null;
     const current = reg.workspaces.find((w) => w.id === reg.activeId) ?? reg.workspaces[0];
     if (!current) return null;
-    return exportWorkspaceBundle(kv, reg, current.id, new Date());
-  }, [kv, reg]);
+    return exportWorkspaceBundle(kv, reg, current.id, new Date(), { includeSavePoints });
+  }, [kv, reg, includeSavePoints]);
   const exported = built && !('ok' in built) ? built : null;
   const exportError = built && 'ok' in built ? built.reason : null;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -58,7 +59,7 @@ export function BundleSheet({ kv, reg, dirtyNames, openIds, storageReason, onDow
 
   const runExport = () => {
     if (!kv || !ws || locked) return;
-    const fresh = exportWorkspaceBundle(kv, reg, ws.id, new Date());
+    const fresh = exportWorkspaceBundle(kv, reg, ws.id, new Date(), { includeSavePoints });
     if ('ok' in fresh) { setProblem({ tone: 'error', what: '내보내지 않았습니다', why: fresh.reason, how: '저장소 상태를 확인한 뒤 다시 내보내세요.' }); return; }
     onDownload(fresh.fileName, fresh.text);
     setConfirmExport(false);
@@ -126,6 +127,8 @@ export function BundleSheet({ kv, reg, dirtyNames, openIds, storageReason, onDow
           </tbody></table>
         {exported && exported.omitted.length > 0 && <p className="bundle-note">읽지 못한 저장본 {exported.omitted.length}개는 넣지 않았습니다.</p>}
         <p className="bundle-bytes" data-bundle-bytes={exported ? String(exported.bytes) : ''}>{exported ? `${exported.bytes}바이트` : ''}</p>
+        <label className="bundle-include"><input type="checkbox" data-bundle-include-save-points="" checked={includeSavePoints} disabled={locked} onChange={(e) => setIncludeSavePoints(e.target.checked)} />저장 지점 포함</label>
+        <p className="bundle-note">기본은 꺼져 있습니다. 켜면 이 Workspace 프로젝트의 저장 지점이 파일에 들어갑니다.</p>
         <button type="button" data-bundle-export="" disabled={locked || !exported} title={lockReason ?? '이 Workspace의 저장된 프로젝트를 파일로 받습니다'} onClick={askExport}>묶음 내보내기</button>
       </section>
       <aside className="sheet">

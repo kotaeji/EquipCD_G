@@ -1,12 +1,17 @@
 /**
  * TURN-055 — one Workspace (its saved projects only) as a single JSON file.
  * Drafts, view settings, the quarantine box, and run records are not part of the file.
+ * TURN-094 save points are optional and off unless the caller asks. The bundle version stays `0.1.0`.
  * Import is one applyAtomic transaction: all of the accepted projects, or none of them.
  */
 import type { Project } from '../model/types';
 import { APP_VERSION, FILE_FORMAT_ID } from '../model/types';
 import { parseProjectFile, serializeProject, stableStringify } from './fileFormat';
 import { INDEX_KEY, PROJECT_KEY, readIndexStrict, type IndexEntry, type KV, type QuarantineEntry } from './localStore';
+import {
+  SAVE_POINT_LIMIT, SAVEPOINTS_KEY, normalizeSavePointName, normalizeSavePointNote, packSavePoints,
+  readSavePointRecords, retargetSavePointBody, savePointMetaError, type SavePointRecord,
+} from './savePoints';
 import { applyAtomic, TXN_OP_LIMIT, type TxnGuard, type TxnOp } from './txn';
 import {
   attachProject, createWorkspace, newWsId, normalizeName, ownerOf, uniqueName, WS_KEY,
@@ -16,6 +21,21 @@ import {
 export const BUNDLE_FORMAT = 'aurora-concept-designer/workspace-bundle';
 export const BUNDLE_VERSION = '0.1.0';
 
+export interface BundleSavePoint {
+  id: string;
+  name: string;
+  note: string;
+  savedAt: string;
+  revision: number;
+  /** Project file object, same shape as one `projects` entry. */
+  project: unknown;
+}
+
+export interface BundleSavePointGroup {
+  projectId: string;
+  points: BundleSavePoint[];
+}
+
 export interface WorkspaceBundle {
   format: typeof BUNDLE_FORMAT;
   formatVersion: typeof BUNDLE_VERSION;
@@ -23,6 +43,12 @@ export interface WorkspaceBundle {
   appVersion: string;
   workspaceName: string;
   projects: unknown[];
+  /** Present only when the export asked for save points and at least one project had some. */
+  savePoints?: BundleSavePointGroup[];
+}
+
+export interface BundleExportOptions {
+  includeSavePoints?: boolean;
 }
 
 export interface BundleProjectInfo {
@@ -117,8 +143,8 @@ function peekProject(entry: unknown): { id: string | null; name: string; revisio
   };
 }
 
-/** Saved projects of one workspace, in index order. Does not read drafts, view settings, or quarantine. */
-export function exportWorkspaceBundle(kv: KV, reg: WorkspaceRegistry, wsId: string, now = new Date()): BundleExport | BundleFailure {
+/** Saved projects of one workspace, in index order. Does not read drafts, view settings, or quarantine. Save points are included only when asked. */
+export function exportWorkspaceBundle(kv: KV, reg: WorkspaceRegistry, wsId: string, now = new Date(), options: BundleExportOptions = {}): BundleExport | BundleFailure {
   const ws = reg.workspaces.find((w) => w.id === wsId);
   if (!ws) return { ok: false, reason: 'Workspace를 찾을 수 없습니다' };
   const idx = readIndexStrict(kv);
@@ -140,6 +166,27 @@ export function exportWorkspaceBundle(kv: KV, reg: WorkspaceRegistry, wsId: stri
     projects.push(file);
     listed.push({ id: parsed.project.id, name: parsed.project.name, revision: parsed.project.revision, savedAt: entry.savedAt });
   }
+  let savePoints: BundleSavePointGroup[] | undefined;
+  if (options.includeSavePoints) {
+    const groups: BundleSavePointGroup[] = [];
+    for (const info of listed) {
+      const read = readSavePointRecords(kv, info.id);
+      if (!read.ok) return { ok: false, reason: `${info.name}: ${read.reason}` };
+      if (!read.points.length) continue;
+      groups.push({
+        projectId: info.id,
+        points: read.points.map((point) => ({
+          id: point.id,
+          name: point.name,
+          note: point.note,
+          savedAt: point.savedAt,
+          revision: point.revision,
+          project: JSON.parse(point.body) as unknown,
+        })),
+      });
+    }
+    if (groups.length) savePoints = groups;
+  }
   const bundle: WorkspaceBundle = {
     format: BUNDLE_FORMAT,
     formatVersion: BUNDLE_VERSION,
@@ -147,9 +194,56 @@ export function exportWorkspaceBundle(kv: KV, reg: WorkspaceRegistry, wsId: stri
     appVersion: APP_VERSION,
     workspaceName: ws.name,
     projects,
+    ...(savePoints ? { savePoints } : {}),
   };
   const text = stableStringify(bundle);
   return { text, fileName: bundleFileName(ws.name), bytes: bundleBytes(text), projects: listed, omitted };
+}
+
+function parseBundleSavePoints(value: unknown): { ok: true; groups: BundleSavePointGroup[] } | { ok: false; why: string } {
+  if (!Array.isArray(value)) return { ok: false, why: '저장 지점 목록이 배열이 아닙니다.' };
+  const groups: BundleSavePointGroup[] = [];
+  const projects = new Set<string>();
+  for (const group of value) {
+    if (!group || typeof group !== 'object' || Array.isArray(group)) return { ok: false, why: '저장 지점 묶음이 객체가 아닙니다.' };
+    const g = group as { projectId?: unknown; points?: unknown };
+    if (typeof g.projectId !== 'string' || !g.projectId) return { ok: false, why: '저장 지점의 프로젝트 ID가 없습니다.' };
+    if (projects.has(g.projectId)) return { ok: false, why: '저장 지점의 프로젝트 ID가 겹칩니다.' };
+    projects.add(g.projectId);
+    if (!Array.isArray(g.points)) return { ok: false, why: '저장 지점 목록이 배열이 아닙니다.' };
+    if (g.points.length > SAVE_POINT_LIMIT) return { ok: false, why: `저장 지점은 ${SAVE_POINT_LIMIT}개까지입니다.` };
+    const points: BundleSavePoint[] = [];
+    const ids = new Set<string>();
+    for (const item of g.points) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return { ok: false, why: '저장 지점이 객체가 아닙니다.' };
+      const row = item as Record<string, unknown>;
+      const meta = {
+        id: typeof row.id === 'string' ? row.id : '',
+        name: typeof row.name === 'string' ? row.name : '',
+        note: typeof row.note === 'string' ? row.note : '',
+        savedAt: typeof row.savedAt === 'string' ? row.savedAt : '',
+        revision: typeof row.revision === 'number' ? row.revision : Number.NaN,
+      };
+      const metaError = savePointMetaError(meta);
+      if (metaError) return { ok: false, why: `${metaError}.` };
+      if (ids.has(meta.id)) return { ok: false, why: '저장 지점 ID가 겹칩니다.' };
+      ids.add(meta.id);
+      if (row.project === undefined) return { ok: false, why: '저장 지점의 프로젝트가 없습니다.' };
+      const text = asProjectText(row.project);
+      const parsed = text === null ? null : parseProjectFile(text);
+      if (!parsed || !parsed.ok) return { ok: false, why: `저장 지점 「${normalizeSavePointName(meta.name)}」의 프로젝트를 읽지 못했습니다.` };
+      points.push({
+        id: meta.id,
+        name: normalizeSavePointName(meta.name),
+        note: normalizeSavePointNote(meta.note),
+        savedAt: meta.savedAt,
+        revision: meta.revision,
+        project: row.project,
+      });
+    }
+    groups.push({ projectId: g.projectId, points });
+  }
+  return { ok: true, groups };
 }
 
 /** Reject a file that is not a bundle. Does not write. */
@@ -172,6 +266,12 @@ export function parseWorkspaceBundle(raw: string): { ok: true; bundle: Workspace
       if (o[key] !== undefined && typeof o[key] !== 'string') return { ok: false, why: `${key} 값이 글자가 아닙니다.` };
     }
   }
+  let savePoints: BundleSavePointGroup[] | undefined;
+  if (o.savePoints !== undefined) {
+    const parsedPoints = parseBundleSavePoints(o.savePoints);
+    if (!parsedPoints.ok) return parsedPoints;
+    savePoints = parsedPoints.groups;
+  }
   return {
     ok: true,
     bundle: {
@@ -181,6 +281,7 @@ export function parseWorkspaceBundle(raw: string): { ok: true; bundle: Workspace
       appVersion: typeof o.appVersion === 'string' ? o.appVersion : '',
       workspaceName: o.workspaceName,
       projects: o.projects,
+      ...(savePoints ? { savePoints } : {}),
     },
   };
 }
@@ -233,6 +334,8 @@ function workspaceTitle(name: string, others: string[]): string {
 
 interface PlannedProject {
   id: string;
+  /** Project id in the file, before a conflict copy changes it. */
+  sourceId: string;
   text: string;
   entry: IndexEntry;
   /** null = leave membership where it is */
@@ -302,6 +405,7 @@ export function applyWorkspaceBundle(
       const project = parsed.project;
       planned.push({
         id: project.id,
+        sourceId: project.id,
         text,
         entry: { id: project.id, name: project.name, savedAt, revision: project.revision },
         attachTo: ownerOf(next, project.id) ? null : destId,
@@ -317,6 +421,7 @@ export function applyWorkspaceBundle(
       taken.add(id);
       planned.push({
         id,
+        sourceId: project.id,
         text: serializeProject(copy),
         entry: { id, name: copy.name, savedAt, revision: copy.revision },
         attachTo: destId,
@@ -327,6 +432,7 @@ export function applyWorkspaceBundle(
     taken.add(project.id);
     planned.push({
       id: project.id,
+      sourceId: project.id,
       text,
       entry: { id: project.id, name: project.name, savedAt, revision: project.revision },
       attachTo: destId,
@@ -344,13 +450,38 @@ export function applyWorkspaceBundle(
     next = attached.reg;
   }
 
+  const pointWrites: { id: string; value: string }[] = [];
+  if (bundle.savePoints?.length) {
+    const bySource = new Map(bundle.savePoints.map((g) => [g.projectId, g.points]));
+    for (const item of unique) {
+      const points = bySource.get(item.sourceId);
+      if (!points?.length) continue;
+      const records: SavePointRecord[] = [];
+      for (const point of points) {
+        const text = asProjectText(point.project);
+        if (!text) return { ok: false, reason: `${item.entry.name} 저장 지점의 프로젝트를 읽지 못했습니다` };
+        const body = retargetSavePointBody(text, item.id);
+        if (!body.ok) return { ok: false, reason: `${item.entry.name} 저장 지점: ${body.reason}` };
+        records.push({
+          id: point.id, name: point.name, note: point.note, savedAt: point.savedAt, revision: point.revision, body: body.body,
+        });
+      }
+      const packed = packSavePoints(records);
+      if (!packed.ok) return { ok: false, reason: `${item.entry.name} 저장 지점: ${packed.reason}` };
+      pointWrites.push({ id: item.id, value: packed.value });
+    }
+  }
+
   const registryChanged = JSON.stringify(next) !== JSON.stringify(reg);
-  const writing = unique.length > 0 || registryChanged;
+  const writing = unique.length > 0 || registryChanged || pointWrites.length > 0;
   if (!writing) return { ok: true, reg, summary, quarantine, overwrittenIds, newWorkspace: null };
 
-  const opCount = unique.length + 1 + (registryChanged ? 1 : 0);
+  const opCount = unique.length + pointWrites.length + 1 + (registryChanged ? 1 : 0);
   if (opCount > TXN_OP_LIMIT) {
-    return { ok: false, reason: `한 번에 넣을 수 있는 프로젝트는 ${TXN_OP_LIMIT - 2}개까지입니다. 아무것도 바꾸지 않았습니다.` };
+    const reason = pointWrites.length
+      ? `프로젝트와 저장 지점을 한 번에 넣을 수 없습니다 (${opCount}개 쓰기, 한도는 ${TXN_OP_LIMIT}). 아무것도 바꾸지 않았습니다.`
+      : `한 번에 넣을 수 있는 프로젝트는 ${TXN_OP_LIMIT - 2}개까지입니다. 아무것도 바꾸지 않았습니다.`;
+    return { ok: false, reason };
   }
 
   const txn = applyAtomic(kv, '묶음 가져오기', () => {
@@ -371,6 +502,12 @@ export function applyWorkspaceBundle(
       let current: string | null;
       try { current = kv.getItem(PROJECT_KEY(item.id)); } catch (e) { return { ok: false as const, reason: (e as Error).message }; }
       guards.push({ key: PROJECT_KEY(item.id), expect: current });
+    }
+    for (const w of pointWrites) {
+      let current: string | null;
+      try { current = kv.getItem(SAVEPOINTS_KEY(w.id)); } catch (e) { return { ok: false as const, reason: (e as Error).message }; }
+      ops.push({ key: SAVEPOINTS_KEY(w.id), value: w.value });
+      guards.push({ key: SAVEPOINTS_KEY(w.id), expect: current });
     }
     return { ok: true as const, ops, guards };
   }, now);

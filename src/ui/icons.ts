@@ -32,6 +32,7 @@ export const COMMAND_ICONS = {
   'tab-lab': 'FlaskConical',
 
   save: 'Save',
+  'save-point': 'Bookmark',
   'export-json': 'Download',
   'print-view': 'Printer',
   'import-json': 'Upload',
